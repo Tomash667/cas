@@ -1,0 +1,29 @@
+print("Super kalkulator!\n")
+while 1
+{
+	print("Operacja:\n1. Dodawanie\n2. Odejmowanie\n3. Mnozenie\n4. Dzielenie\n0. Wyjscie\n>")
+	int wybor = getint()
+	if wybor == 0
+		break
+	int a, b
+	print("Podaj a: ")
+	a = getint()
+	print("Podaj b: ")
+	b = getint()
+	if wybor == 1
+		print(a+" + "+b+" = "+(a+b)+"\n")
+	else if wybor == 2
+		print(a+" - "+b+" = "+(a-b)+"\n")
+	else if wybor == 3
+		print(a+" * "+b+" = "+a*b+"\n")
+	else if wybor == 4
+	{
+		if b == 0
+			print("Dzielenie przez zero!\n")
+		else
+			print(a+" / "+b+" = "+a/b+"\n")
+	}
+	else
+		print("Nieznana opcja!\n")
+	pause()
+}

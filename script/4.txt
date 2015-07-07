@@ -1,0 +1,23 @@
+print("Super gra - zgadnij liczbe!\n")
+int proby = 6, liczba = random(1,100), wybor
+while 1
+{
+	print("Pozostalo prob: "+proby+". Podaj liczbe: ")
+	wybor = getint()
+	if(wybor == liczba)
+	{
+		print("Zwyciestwo!")
+		break
+	}
+	else if(wybor > liczba)
+		print("Za duza liczba.\n")
+	else
+		print("Za mala liczba.\n")
+	proby -= 1
+	if(proby == 0)
+	{
+		print("Przegrales! Liczba to "+liczba+".")
+		break
+	}
+}
+pause()

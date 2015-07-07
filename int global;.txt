@@ -1,0 +1,60 @@
+int global;
+
+0:
+int dodaj(int a, int b)
+{
+	int c = a + b;
+	return c;
+}
+
+10:
+int suma(int a, int b, int c, int d)
+{
+16:	int e = dodaj(a,b);
+17:	int f = dodaj(c,d);
+18:	return dodaj(e,f);
+}
+
+20:
+void main()
+{
+	int a, b, c, d;
+	a = getint();
+	b = getint();
+	c = getint();
+	d = getint();
+25:	print(suma(a,b,c,d));
+}
+
+vector<Var> stack;
+
+set_locals 4
+push a
+push b
+push c
+push d
+
+[return address] -1
+[local 0] > locals_offset (1)
+[local 1]
+[local 2]
+[local 3]
+[locals count 4]
+[a] > args_offset
+[b]
+[c]
+[d]
+[return address] 25
+[local 0]
+[local 1]
+[locals count 2]
+[a]
+[b]
+[return address] 16
+[local 0]
+[locals count 1]
+push_arg a
+push_arg b
+add
+set_local c
+push_local c
