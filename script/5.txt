@@ -1,21 +1,19 @@
-/*int[10] l
-for(int i=0; i<10; ++i)
+int ii = getint();
+int i = ii;
+do
 {
-	print("Podaj l["+(i+1)+"]: ")
-	l[i] = getint()
+	print(i+"\n");
+	--i;
 }
+while(i > 0)
 
-int suma = 0
-for(int i=0; i<10; ++i)
-	suma += l[i]
+i = ii;
+do
+{
+	print(i+"\n");
+	--i;
+	if(i <= 0)
+		break;
+};
 
-print("Suma: "+suma)
-pause()*/
-
-int[3] a
-a[0] = getint()
-a[1] = getint()
-a[2] = getint()
-print(a[0]+a[1]+a[2])
-pause()
-
+pause();

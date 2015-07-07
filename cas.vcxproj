@@ -66,12 +66,20 @@
   <ItemGroup>
     <ClCompile Include="Base.cpp" />
     <ClCompile Include="cas.cpp" />
+    <ClCompile Include="cas2.cpp" />
     <ClCompile Include="CasEngine.cpp" />
+    <ClCompile Include="Function.cpp" />
+    <ClCompile Include="Run.cpp" />
     <ClCompile Include="Tokenizer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Base.h" />
+    <ClInclude Include="Function.h" />
+    <ClInclude Include="Op.h" />
+    <ClInclude Include="Run.h" />
+    <ClInclude Include="Stack.h" />
     <ClInclude Include="Tokenizer.h" />
+    <ClInclude Include="Var.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

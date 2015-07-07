@@ -1,7 +1,15 @@
-print("Podaj imie: ")
+/*print("Podaj imie: ")
 string imie = getstr()
 print("Podaj rok urodzenia: ")
 int rok = getint()
 int lata = 2015 - rok
 print("Witaj "+imie+"! Masz "+lata+" lat.")
-pause()
+pause()*/
+
+print("Podaj imie: ");
+string imie = getstr();
+print("Podaj rok urodzenia: ");
+int rok = getint();
+int lata = 2015 - rok;
+print("Witaj "+imie+"! Masz "+lata+" lat.");
+pause();

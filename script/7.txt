@@ -1,0 +1,7 @@
+int[3] a = {0,1,2};
+print(a.count);
+string s = getstr();
+print(" "+s.length);
+s += "!";
+print(" "+s[0]);
+pause();

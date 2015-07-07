@@ -1,3 +1,5 @@
+
+/*
 print("Podaj a: ")
 int a = getint()
 print("Podaj b: ")
@@ -5,3 +7,12 @@ int b = getint()
 int c = a + b
 print(a+" + "+b+" = "+c)
 pause()
+*/
+
+print("Podaj a: ");
+int a = getint();
+print("Podaj b: ");
+int b = getint();
+int c = a + b;
+print(a+" + "+b+" = "+c);
+pause();

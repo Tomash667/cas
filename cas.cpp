@@ -1,722 +1,10 @@
 #include "Tokenizer.h"
-#include <conio.h>
-#include <iostream>
+#include "Function.h"
+#include "Stack.h"
+#include "Op.h"
+#include "Run.h"
 #include <ctime>
-
-using std::vector;
-
-enum Op
-{
-	add,
-	sub,
-	mul,
-	o_div,
-	mod,	
-	neg,
-	inc_pre,
-	inc_post,
-	dec_pre,
-	dec_post,
-
-	equal,
-	not_equal,
-	greater,
-	greater_equal,
-	less,
-	less_equal,
-	and,
-	or,
-
-	cast,
-
-	locals,
-	set_local,
-	set_local_index,
-	set_local_indexvar,
-
-	push_local,
-	push_local_ref,
-	push_local_index,
-	push_local_indexvar,
-	push_local_index_ref,
-	push_local_indexvar_ref,
-	push_cstr,
-	push_int,
-	push_float,
-	pop,
-
-	call,
-	jmp,
-	jmp_if,
-
-	ret
-};
-
-enum VarType
-{
-	VOID,
-	INT,
-	STR,
-	BOOL,
-	FLOAT,
-	REF,
-	ARRAY
-};
-
-inline cstring VarTypeToString(VarType type)
-{
-	switch(type)
-	{
-	case VOID:
-		return "void";
-	case INT:
-		return "int";
-	case STR:
-		return "string";
-	case BOOL:
-		return "bool";
-	case FLOAT:
-		return "float";
-	case REF:
-		return "ref";
-	case ARRAY:
-		return "array";
-	default:
-		assert(0);
-		return "???";
-	}
-}
-
-struct Str
-{
-	string s;
-	int refs;
-};
-
-struct _StrPool
-{
-	vector<Str*> v;
-
-	inline Str* Get()
-	{
-		Str* s;
-		if(!v.empty())
-		{
-			s = v.back();
-			v.pop_back();
-		}
-		else
-			s = new Str;
-		return s;
-	}
-
-	inline void Free(Str* s)
-	{
-		v.push_back(s);
-	}
-} StrPool;
-
-union VarValue
-{
-	int i;
-	float f;
-	Str* str;
-	bool b;
-	vector<VarValue>* arr;
-};
-
-struct Var
-{
-	VarValue v;
-	VarType type, subtype;
-	int offset;
-
-	Var() {}
-	Var(int value) : type(INT)
-	{
-		v.i = value;
-	}
-	Var(float f) : type(FLOAT)
-	{
-		v.f = f;
-	}
-	Var(string& s) : type(STR)
-	{
-		v.str = StrPool.Get();
-		v.str->refs = 1;
-		v.str->s = s;
-	}
-	Var(Str* s) : type(STR)
-	{
-		v.str = s;
-	}
-
-	void Clean()
-	{
-		if(type == STR && --v.str->refs == 0)
-			StrPool.Free(v.str);
-	}
-};
-
-vector<Var> vars;
-vector<Var> stack;
-//int args_offset, locals_offset;
-
-struct FunctionInfo
-{
-	cstring name;
-	void(*ptr)();
-	VarType result;
-	VarType params[4];
-	uint params_count;
-};
-
-vector<FunctionInfo> functions;
-
-void f_print()
-{
-	printf(stack.back().v.str->s.c_str());
-	stack.back().Clean();
-	stack.pop_back();
-}
-
-void f_getint()
-{
-	int a;
-	scanf_s("%d", &a);
-	stack.push_back(Var(a));
-}
-
-void f_getfloat()
-{
-	float a;
-	scanf_s("%f", &a);
-	stack.push_back(Var(a));
-}
-
-void f_getstring()
-{
-	Str* s = StrPool.Get();
-	std::getline(std::cin, s->s);
-	s->refs = 1;
-	stack.push_back(Var(s));
-}
-
-void f_pause()
-{
-	_getch();
-}
-
-void f_random()
-{
-	int right = stack.back().v.i;
-	stack.pop_back();
-	int left = stack.back().v.i;
-	if(left == right)
-		return;
-	if(left > right)
-		std::swap(left, right);
-	stack.back().v.i = rand() % (right - left + 1) + left;
-}
-
-inline int get_int(byte*& c)
-{
-	int i = *(int*)c;
-	c += 4;
-	return i;
-}
-
-inline float get_float(byte*& c)
-{
-	float f = *(float*)c;
-	c += 4;
-	return f;
-}
-
-void run(byte* code, vector<Str*> strs)
-{
-	byte* c = code;
-	while(true)
-	{
-		Op op = (Op)*c;
-		++c;
-		switch(op)
-		{
-		case add:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var left = stack.back();
-				stack.pop_back();
-				assert(left.type == right.type && (left.type == INT || left.type == FLOAT || left.type == STR));
-				if(left.type == INT)
-					stack.push_back(Var(left.v.i + right.v.i));
-				else if(left.type == FLOAT)
-					stack.push_back(Var(left.v.f + right.v.f));
-				else
-				{
-					g_tmp_string2 = left.v.str->s + right.v.str->s;
-					--right.v.str->refs;
-					if(right.v.str->refs == 0)
-					{
-						right.v.str->s = g_tmp_string2;
-						right.v.str->refs = 1;
-						--left.v.str->refs;
-						if(left.v.str->refs == 0)
-							StrPool.Free(left.v.str);
-						stack.push_back(right);
-					}
-					else
-					{
-						--left.v.str->refs;
-						if(left.v.str->refs == 0)
-						{
-							left.v.str->s = g_tmp_string2;
-							left.v.str->refs = 1;
-							stack.push_back(left);
-						}
-						else
-							stack.push_back(Var(g_tmp_string2));
-					}
-				}
-			}
-			break;
-		case sub:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var& left = stack.back();
-				assert(left.type == right.type && (left.type == INT || left.type == FLOAT));
-				if(left.type == INT)
-					left.v.i -= right.v.i;
-				else
-					left.v.f -= right.v.f;
-			}
-			break;
-		case mul:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var& left = stack.back();
-				assert(left.type == right.type && (left.type == INT || left.type == FLOAT));
-				if(left.type == INT)
-					left.v.i *= right.v.i;
-				else
-					left.v.f *= right.v.f;
-			}
-			break;
-		case o_div:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var& left = stack.back();
-				assert(left.type == right.type && (left.type == INT || left.type == FLOAT));
-				if(left.type == INT)
-				{
-					if(right.v.i == 0)
-						throw "Division by zero!";
-					left.v.i /= right.v.i;
-				}
-				else
-				{
-					if(right.v.f == 0)
-						throw "Division by zero!";
-					left.v.f /= right.v.f;
-				}
-			}
-			break;
-		case mod:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var& left = stack.back();
-				assert(left.type == right.type && left.type == INT);
-				if(right.v.i == 0)
-					throw "Division by zero!";
-				left.v.i %= right.v.i;
-			}
-			break;
-		case neg:
-			{
-				assert(!stack.empty());
-				Var& a = stack.back();
-				assert(a.type == INT || a.type == FLOAT);
-				if(a.type == FLOAT)
-					a.v.f = -a.v.f;
-				else
-					a.v.i = -a.v.i;
-			}
-			break;
-		case inc_pre:
-		case inc_post:
-		case dec_pre:
-		case dec_post:
-			{
-				assert(!stack.empty());
-				Var& a = stack.back();
-				assert(a.type == REF);
-				Var& v = vars[a.v.i];
-				assert(v.type == INT || v.type == FLOAT || v.type == ARRAY);
-				VarType type;
-				VarValue* vv;
-
-				if(v.type == ARRAY)
-				{
-					assert((v.subtype == INT || v.subtype == FLOAT) && v.offset >= 0 && v.offset < (int)v.v.arr->size());
-					vv = &v.v.arr->at(v.offset);
-					type = v.subtype;
-				}
-				else
-				{
-					vv = &v.v;
-					type = v.type;
-				}
-
-				bool pre = (op == inc_pre || op == dec_pre);
-				bool inc = (op == inc_pre || op == inc_post);
-
-				if(!pre)
-				{
-					if(type == INT)
-						a.v.i = vv->i;
-					else
-						a.v.f = vv->f;
-				}
-
-				if(inc)
-				{
-					if(type == INT)
-						vv->i++;
-					else
-						vv->f++;
-				}
-				else
-				{
-					if(type == INT)
-						vv->i--;
-					else
-						vv->f--;
-				}
-
-				if(pre)
-				{
-					if(type == INT)
-						a.v.i = vv->i;
-					else
-						a.v.f = vv->f;
-				}
-
-				a.type = type;
-			}
-			break;
-		case inc_pre:
-			{
-				assert(!stack.empty());
-				Var& a = stack.back();
-				assert(a.type == REF);
-				Var& v = vars[a.v.i];
-				assert(v.type == INT || v.type == FLOAT || v.type == ARRAY);
-				if(v.type == ARRAY)
-				{
-					assert((v.subtype == INT || v.subtype == FLOAT) && v.offset >= 0 && v.offset < (int)v.v.arr->size());
-					VarValue& vv = v.v.arr->at(v.offset);
-					if(v.subtype == INT)
-					{
-						vv.i++;
-						a.v.i = vv.i;
-					}
-					else
-					{
-						vv.f++;
-						a.v.f = vv.f;
-					}
-					a.type = v.subtype;
-				}
-				else
-				{
-					if(v.type == INT)
-					{
-						v.v.i++;
-						a.v.i = v.v.i;
-					}
-					else
-					{
-						v.v.f++;
-						a.v.f = v.v.f;
-					}
-					a.type = v.type;
-				}
-			}
-			break;
-		case equal:
-		case not_equal:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var& left = stack.back();
-				assert(left.type == right.type);
-				bool result;
-				if(left.type == INT)
-					result = (left.v.i == right.v.i);
-				else if(left.type == FLOAT)
-					result = (left.v.f == right.v.f);
-				else if(left.type == BOOL)
-					result = (left.v.b == right.v.b);
-				else if(left.type == STR)
-				{
-					result = (left.v.str->s == right.v.str->s);
-					left.Clean();
-					right.Clean();
-				}
-				else
-				{
-					assert(0);
-					result = false;
-				}
-				if(op == not_equal)
-					result = !result;
-				left.type = BOOL;
-				left.v.b = result;
-			}
-			break;
-		case greater:
-		case greater_equal:
-		case less:
-		case less_equal:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var& left = stack.back();
-				assert(left.type == right.type && (left.type == INT || left.type == FLOAT));
-				bool result = false;
-				switch(op)
-				{
-				case greater:
-					if(left.type == INT)
-						result = (left.v.i > right.v.i);
-					else
-						result = (left.v.f > right.v.f);
-					break;
-				case greater_equal:
-					if(left.type == INT)
-						result = (left.v.i >= right.v.i);
-					else
-						result = (left.v.f >= right.v.f);
-					break;
-				case less:
-					if(left.type == INT)
-						result = (left.v.i < right.v.i);
-					else
-						result = (left.v.f < right.v.f);
-					break;
-				case less_equal:
-					if(left.type == INT)
-						result = (left.v.i <= right.v.i);
-					else
-						result = (left.v.f <= right.v.f);
-					break;
-				}
-				left.type = BOOL;
-				left.v.b = result;
-			}
-			break;
-		case and:
-		case or:
-			{
-				assert(stack.size() >= 2u);
-				Var right = stack.back();
-				stack.pop_back();
-				Var& left = stack.back();
-				assert(left.type == right.type && left.type == BOOL);
-				bool result;
-				if(op == and)
-					result = (left.v.b && right.v.b);
-				else
-					result = (left.v.b || right.v.b);
-				left.v.b = result;
-				left.type = BOOL;
-			}
-			break;
-		case cast:
-			{
-				byte type = *c++;
-				assert(!stack.empty());
-				Var& a = stack.back();
-				switch(type)
-				{
-				case STR:
-					if(a.type == INT)
-					{
-						cstring s = Format("%d", a.v.i);
-						a.v.str = StrPool.Get();
-						a.v.str->s = s;
-					}
-					else if(a.type == FLOAT)
-					{
-						cstring s = Format("%g", a.v.f);
-						a.v.str = StrPool.Get();
-						a.v.str->s = s;
-					}
-					else if(a.type == BOOL)
-					{
-						cstring s = (a.v.b ? "true" : "false");
-						a.v.str = StrPool.Get();
-						a.v.str->s = s;
-					}
-					else
-						assert(0);
-					a.type = STR;
-					a.v.str->refs = 1;
-					break;
-				case INT:
-					if(a.type == FLOAT)
-					{
-						a.v.i = (int)a.v.f;
-						a.type = INT;
-					}
-					else
-						assert(0);
-					break;
-				case FLOAT:
-					if(a.type == INT)
-					{
-						a.v.f = (float)a.v.i;
-						a.type = FLOAT;
-					}
-					else
-						assert(0);
-					break;
-				case BOOL:
-					if(a.type == INT)
-						a.v.b = (a.v.i != 0);
-					else if(a.type == FLOAT)
-						a.v.i = (a.v.f != 0.f);
-					else
-						assert(0);
-					a.type = BOOL;
-					break;
-				default:
-					assert(0);
-					break;
-				}
-			}
-			break;
-		case locals:
-			{
-				byte b = *c++;
-				vars.resize(b);
-			}
-			break;
-		case set_local:
-			{
-				byte b = *c++;
-				assert(b < vars.size());
-				vars[b].Clean();
-				vars[b] = stack.back();
-			}
-			break;
-		case set_local_index:
-			{
-				byte b = *c++;
-				int index = get_int(c);
-				assert(b < vars.size());
-				assert(!stack.empty());
-				Var& v = vars[b];
-				assert(v.type == ARRAY);
-				// ----------------=-=-=-=-=d-=sa-d=sa-d=sa
-			}
-			break;
-		case set_local_indexvar:
-		case push_local:
-			{
-				byte b = *c++;
-				assert(b < vars.size());
-				if(vars[b].type == STR)
-					vars[b].v.str->refs++;
-				stack.push_back(vars[b]);
-			}
-			break;
-		case push_local_ref:
-			{
-				byte b = *c++;
-				assert(b < vars.size());
-				Var v;
-				v.type = REF;
-				v.v.i = b;
-				stack.push_back(v);
-			}
-			break;
-		case push_cstr:
-			{
-				byte b = *c++;
-				assert(b < strs.size());
-				strs[b]->refs++;
-				Var v;
-				v.type = STR;
-				v.v.str = strs[b];
-				stack.push_back(v);
-			}
-			break;
-		case push_int:
-			stack.push_back(Var(get_int(c)));
-			break;
-		case push_float:
-			stack.push_back(Var(get_float(c)));
-			break;
-		case pop:
-			assert(!stack.empty());
-			stack.back().Clean();
-			stack.pop_back();
-			break;
-		case call:
-			{
-				byte b = *c++;
-				assert(b < functions.size());
-				FunctionInfo& f = functions[b];
-#ifndef NDEBUG
-				assert(stack.size() >= f.params_count);
-				int i = 0;
-				for(vector<Var>::reverse_iterator rit = stack.rbegin(), rend = stack.rend(); rit != rend; ++rit)
-				{
-					if(f.params_count == i)
-						break;
-					assert(rit->type == f.params[i]);
-					++i;					
-				}
-#endif
-				f.ptr();
-			}
-			break;
-		case jmp:
-			{
-				int pos = get_int(c);
-				c = code + pos;
-			}
-			break;
-		case jmp_if:
-			{
-				int pos = get_int(c);
-				assert(!stack.empty());
-				Var& a = stack.back();
-				assert(a.type == BOOL);
-				if(a.v.i == 0)
-					c = code + pos;
-				stack.pop_back();
-			}
-			break;
-		case ret:
-			assert(stack.empty());
-			return;
-		}
-	}
-}
+#include <conio.h>
 
 /*
 type varname = call getint
@@ -742,6 +30,8 @@ item
 	string
 	int
 */
+const bool strict = true;
+
 struct ParseVar
 {
 	string name;
@@ -773,10 +63,12 @@ struct ParseNode
 	enum Type
 	{
 		Var,
+		VarIndex,
 		Func,
 		Op,
 		Op2,
 		OpRef,
+		IndexedOp, // a[node/c] b d (b: += -= *= /= %=)
 		Cast,
 		Str,
 		Int,
@@ -784,7 +76,8 @@ struct ParseNode
 		List,
 		If,
 		While,
-		Break
+		Break,
+		Do
 	};
 
 	Type type;
@@ -795,6 +88,7 @@ struct ParseNode
 		int b;
 		float f;
 	};
+	int c, d;
 	vector<ParseNode*> nodes;
 
 	inline void push(ParseNode* node)
@@ -808,7 +102,8 @@ enum Keyword
 	IF,
 	ELSE,
 	WHILE,
-	BREAK
+	BREAK,
+	DO
 };
 
 enum Group
@@ -822,6 +117,7 @@ Tokenizer t(Tokenizer::F_UNESCAPE);
 vector<byte> bcode;
 vector<ParseVar> pvars;
 vector<Str*> pstr;
+vector<ScriptFunction> pfunc;
 bool in_loop;
 
 ParseNode* Cast(ParseNode* node, VarType type)
@@ -982,6 +278,23 @@ ParseNode* parse_item()
 			node->a = index;
 			node->result = pvars[index].type;
 			t.Next();
+
+			if(t.IsSymbol('['))
+			{
+				t.Next();
+				node->type = ParseNode::VarIndex;
+				node->result = pvars[index].subtype;
+				ParseNode* expr = Cast(parse_expr(), INT);
+				if(expr->type == ParseNode::Int)
+				{
+					node->b = expr->a;
+					delete expr;
+				}
+				else
+					node->push(expr);
+				t.AssertSymbol(']');
+				t.Next();
+			}
 		}
 	}
 
@@ -1017,7 +330,6 @@ enum Symbol
 	S_UNARY_MINUS,
 	S_AND,
 	S_OR,
-	//S_ARRAY_ITEM,
 	S_OTHER
 };
 
@@ -1059,7 +371,6 @@ SymbolInfo symbol_info[] = {
 	OP_NONE, "unary minus", 11, true, true,
 	OP_AND, "and", 2, false, false,
 	OP_OR, "or", 1, false, false,
-	//OP_NONE, "array get item", 12, false, true,
 	OP_NONE, "other", 99, false, false,
 };
 
@@ -1319,9 +630,6 @@ ParseNode* parse_expr(char closing)
 					else
 						s = S_OTHER;
 					break;
-				//case '[':
-				//	s = S_ARRAY_ITEM;
-				//	break;
 				default:
 					s = S_OTHER;
 					break;
@@ -1357,27 +665,6 @@ ParseNode* parse_expr(char closing)
 						}
 					}
 				}
-				/*else if(s == S_ARRAY_ITEM)
-				{
-					if(left != LEFT_ITEM)
-						t.Unexpected();
-					ParseNode* nl = rpn_exit.back().item;
-					if(nl->type != ParseNode::Var || pvars[nl->a].type != ARRAY)
-						t.Unexpected();
-					t.Next();
-					ParseNode* expr = Cast(parse_expr(), INT);
-					// validate if const
-					if(expr->type == ParseNode::Int)
-					{
-						if(expr->a >= pvars[nl->a].size)
-						{
-							ParseVar& v = pvars[nl->a];
-							t.Throw(Format("Index %d is out of bounds for %s[%d] %s.", expr->a, VarTypeToString(v.subtype),
-								v.size, v.name.c_str()));
-						}
-					}
-					
-				}*/
 				else
 				{
 					if(left != LEFT_ITEM && s != S_UNARY_PLUS && s != S_UNARY_MINUS && s != S_INC_PRE && s != S_DEC_PRE)
@@ -1453,6 +740,7 @@ ParseNode* parse_expr(char closing)
 		{
 			if(item.symbol == S_UNARY_PLUS || item.symbol == S_UNARY_MINUS)
 			{
+				// unary +/-
 				if(nodes.empty())
 					t.Throw("Failed to parse expression tree for unary operator.");
 				ParseNode* left = nodes.back();
@@ -1471,18 +759,35 @@ ParseNode* parse_expr(char closing)
 			}
 			else
 			{
+				// pre post ++ --
 				ParseNode* left = nodes.back();
 				nodes.pop_back();
-				if(left->type != ParseNode::Var)
+				if(left->type != ParseNode::Var && left->type != ParseNode::VarIndex)
 					t.Throw(Format("Can't %s, left must be var, got %s.", info.name, VarTypeToString(left->result)));
 				if(left->result != INT && left->result != FLOAT)
 					t.Throw(Format("Can't %s type %s.", info.name, VarTypeToString(left->result)));
 				ParseNode* node = new ParseNode;
 				node->type = ParseNode::OpRef;
 				node->a = info.op;
-				node->b = left->a;
 				node->result = left->result;
-				delete left;
+				if(left->type == ParseNode::Var)
+				{					
+					node->b = left->a;
+					node->c = -1;
+					delete left;					
+				}
+				else if(left->nodes.empty())
+				{
+					// var[number]++
+					node->b = left->a;
+					node->c = left->b;
+					delete left;
+				}
+				else
+				{
+					// var[expr]++
+					node->push(left);
+				}
 				nodes.push_back(node);
 			}
 		}
@@ -1502,34 +807,86 @@ ParseNode* parse_expr(char closing)
 
 			if(item.symbol == S_ASSIGN)
 			{
-				if(left->type != ParseNode::Var)
+				if(left->type != ParseNode::Var && left->type != ParseNode::VarIndex)
 					t.Throw(Format("Can't %s, left is not variable.", info.name));
 				node->a = OP_ASSIGN;
 				node->b = left->a;
 				node->result = left->result;
+				bool del = true;
+				if(left->type == ParseNode::Var)
+					node->c = -1;
+				else
+				{
+					if(left->nodes.empty())
+						node->c = left->b;
+					else
+					{
+						node->push(left);
+						del = false;
+					}
+				}
 				node->push(Cast(right, left->result));
-				delete left;
+				if(del)
+					delete left;
 			}
 			else if(item.symbol >= S_ASSIGN_ADD && item.symbol <= S_ASSIGN_MOD)
 			{
-				if(left->type != ParseNode::Var)
+				if(left->type != ParseNode::Var && left->type != ParseNode::VarIndex)
 					t.Throw(Format("Can't %s, left is not variable.", info.name));
 				VarType cast, result;
 				bool can_op = CanOp((Operation)info.op, left->result, right->result, cast, result);
 				if(!can_op || result != left->result)
 					t.Throw(Format("Can't %s types %s and %s.", info.name, VarTypeToString(left->result), VarTypeToString(right->result)));
 
-				ParseNode* node_op = new ParseNode;
-				node_op->type = ParseNode::Op;
-				node_op->a = info.op;
-				node_op->result = left->result;
-				node_op->push(left);
-				node_op->push(right);
+				if(left->type == ParseNode::Var)
+				{
+					ParseNode* node_op = new ParseNode;
+					node_op->type = ParseNode::Op;
+					node_op->a = info.op;
+					node_op->result = left->result;
+					node_op->push(left);
+					node_op->push(right);
 
-				node->a = OP_ASSIGN;
-				node->b = left->a;
-				node->result = left->result;
-				node->push(node_op);
+					node->a = OP_ASSIGN;
+					node->b = left->a;
+					node->result = left->result;
+					node->push(node_op);
+				}
+				else
+				{
+					node->type = ParseNode::IndexedOp;
+					node->a = left->a;
+					node->result = left->result;
+					switch(info.op)
+					{
+					case OP_ADD:
+						node->b = add;
+						break;
+					case OP_SUB:
+						node->b = sub;
+						break;
+					case OP_MUL:
+						node->b = mul;
+						break;
+					case OP_DIV:
+						node->b = o_div;
+						break;
+					case OP_MOD:
+						node->b = mod;
+						break;
+					}
+					if(left->nodes.empty())
+					{
+						node->c = left->b;
+						node->push(right);
+						delete left;
+					}
+					else
+					{
+						node->push(left);
+						node->push(right);
+					}
+				}
 			}
 			else
 			{
@@ -1585,18 +942,40 @@ ParseNode* parse_block()
 		return Cast(parse_line(), VOID);
 }
 
+ParseNode* parse_condition()
+{
+	ParseNode* con;
+
+	if(strict)
+	{
+		t.AssertSymbol('(');
+		t.Next();
+		con = Cast(parse_expr(')'), BOOL);
+		t.AssertSymbol(')');
+		t.Next();
+	}
+	else
+		con = Cast(parse_expr(), BOOL);
+
+	return con;
+}
+
 ParseNode* parse_line()
 {
+	// empty statements
+	while(t.IsSymbol(';'))
+		t.Next();
+
 	if(t.IsKeywordGroup(G_VAR))
 	{
 		// var
 		VarType type = (VarType)t.GetKeywordId();
-		//VarType subtype = VOID;
-		//int size = 0;
+		VarType subtype = VOID;
+		int size = 0;
 		t.Next();
 
 		// is array?
-		/*if(t.IsSymbol('['))
+		if(t.IsSymbol('['))
 		{
 			subtype = type;
 			type = ARRAY;
@@ -1607,7 +986,7 @@ ParseNode* parse_line()
 			t.Next();
 			t.AssertSymbol(']');
 			t.Next();
-		}*/
+		}
 
 		ParseNode* list = new ParseNode;
 		list->type = ParseNode::List;
@@ -1626,8 +1005,8 @@ ParseNode* parse_line()
 			ParseVar& pv = Add1(pvars);
 			pv.name = var_name;
 			pv.type = type;
-			//pv.subtype = subtype;
-			//pv.size = size;
+			pv.subtype = subtype;
+			pv.size = size;
 			t.Next();
 
 			// = or ,
@@ -1651,7 +1030,14 @@ ParseNode* parse_line()
 			if(t.IsSymbol(','))
 				t.Next();
 			else
+			{
+				if(strict)
+				{
+					t.AssertSymbol(';');
+					t.Next();
+				}
 				break;
+			}
 		}
 		
 		// return result
@@ -1666,99 +1052,118 @@ ParseNode* parse_line()
 	}
 	else if(t.IsKeywordGroup(G_KEY))
 	{
-		if(t.IsKeyword(IF))
+		switch(t.GetKeywordId())
 		{
-			// if
-			t.Next();
-
-			// condition
-			ParseNode* con = Cast(parse_expr(), BOOL);
-
-			// expression
-			ParseNode* expr = parse_block();
-
-			ParseNode* node = new ParseNode;
-			node->type = ParseNode::If;
-			node->result = VOID;
-			node->push(con);
-			node->push(expr);
-
-			// else
-			if(t.IsKeyword(ELSE, 2))
+		case IF:
 			{
+				// if
 				t.Next();
-				node->push(parse_block());
+
+				// condition
+				ParseNode* con = parse_condition();
+
+				// expression
+				ParseNode* expr = parse_block();
+
+				ParseNode* node = new ParseNode;
+				node->type = ParseNode::If;
+				node->result = VOID;
+				node->push(con);
+				node->push(expr);
+
+				// else
+				if(t.IsKeyword(ELSE, 2))
+				{
+					t.Next();
+					node->push(parse_block());
+				}
+
+				return node;
 			}
-
-			return node;
-		}
-		else if(t.IsKeyword(WHILE))
-		{
-			// while
-			t.Next();
+		case WHILE:
+			{
+				// while
+				t.Next();
 			
-			// condition
-			ParseNode* con = Cast(parse_expr(), BOOL);
+				// condition
+				ParseNode* con = parse_condition();
 
-			bool prev_in_loop = in_loop;
-			in_loop = true;
+				bool prev_in_loop = in_loop;
+				in_loop = true;
 
-			ParseNode* node = new ParseNode;
-			node->type = ParseNode::While;
-			node->result = VOID;
-			node->push(con);
-			node->push(parse_block());
-			return node;
-		}
-		else if(t.IsKeyword(BREAK))
-		{
-			// break
-			t.Next();
+				ParseNode* node = new ParseNode;
+				node->type = ParseNode::While;
+				node->result = VOID;
+				node->push(con);
+				node->push(parse_block());
 
-			if(!in_loop)
-				t.Unexpected();
+				in_loop = prev_in_loop;
+				return node;
+			}
+		case BREAK:
+			{
+				// break
+				t.Next();
 
-			ParseNode* node = new ParseNode;
-			node->type = ParseNode::Break;
-			node->result = VOID;
-			return node;
-		}
-		else
-		{
+				if(!in_loop)
+					t.Unexpected();
+
+				if(strict)
+				{
+					t.AssertSymbol(';');
+					t.Next();
+				}
+
+				ParseNode* node = new ParseNode;
+				node->type = ParseNode::Break;
+				node->result = VOID;
+				return node;
+			}
+		case DO:
+			{
+				// do
+				t.Next();
+				bool prev_in_loop = in_loop;
+				in_loop = true;
+				ParseNode* block = parse_block();
+				in_loop = prev_in_loop;
+				ParseNode* node = new ParseNode;
+				node->type = ParseNode::Do;
+				node->result = VOID;
+				if(t.IsKeyword(WHILE, G_KEY))
+				{
+					t.Next();
+					node->push(parse_condition());
+				}
+				else
+				{
+					if(strict)
+					{
+						t.AssertSymbol(';');
+						t.Next();
+					}
+					node->push(NULL);					
+				}
+				node->push(block);
+				return node;
+			}
+		default:
 			t.Unexpected();
 			return NULL;
 		}
 	}
 	else
 	{
-		// is var?
-		bool found = false;
-		int index = 0;
-		if(t.IsItem())
+		// expression
+		ParseNode* node = parse_expr();	
+
+		if(strict)
 		{
-			const string& s = t.GetItem();
-			for(ParseVar& pv : pvars)
-			{
-				if(pv.name == s)
-				{
-					found = true;
-					break;
-				}
-				else
-					++index;
-			}
+			t.AssertSymbol(';');
+			t.Next();
 		}
 
-		if(found)
-		{
-			// var assignment
-			ParseNode* node = parse_expr();
-			if(node->type != ParseNode::Op || node->a != OP_ASSIGN)
-				t.Throw(Format("Broken variable assignment %s.", pvars[index].name.c_str()));
-			return Cast(node, VOID);
-		}
-		else
-			return parse_expr();
+		return node;
 	}
 }
 
@@ -1776,6 +1181,14 @@ void set_jump(uint pos)
 {
 	uint new_pos = bcode.size();
 	*(uint*)&bcode[pos] = new_pos;
+}
+
+template<typename T>
+void write(T v)
+{
+	uint p = bcode.size();
+	bcode.resize(p + sizeof(v));
+	*(T*)&bcode[p] = v;
 }
 
 vector<uint>* jmp_pts;
@@ -1828,15 +1241,93 @@ void apply_node(ParseNode* node)
 			apply_node(node->nodes[i]);
 		// add jump to start
 		bcode.push_back(jmp);
-		uint p = bcode.size();
-		bcode.resize(bcode.size() + 4);
-		*(uint*)&bcode[p] = start_pos;
+		write<uint>(start_pos);
 		// end, set jumps to end
 		set_jump(jmp_to_end);
 		for(uint pp : new_jmp_pts)
 			set_jump(pp);
 		// restore jump points
 		jmp_pts = old_jmp_pts;
+		return;
+	}
+	else if(node->type == ParseNode::Do)
+	{
+		if(node->nodes[0] == NULL)
+		{
+			// do { };
+			// start block
+			uint start_pos = bcode.size();
+			vector<uint> new_jmp_pts;
+			vector<uint>* old_jmp_pts = jmp_pts;
+			jmp_pts = &new_jmp_pts;
+			apply_node(node->nodes[1]);
+			// jump to start
+			bcode.push_back(jmp);
+			write<uint>(start_pos);
+			// jump to end
+			for(uint pp : new_jmp_pts)
+				set_jump(pp);
+			// restore jump points
+			jmp_pts = old_jmp_pts;
+			return;
+		}
+		else
+		{
+			// do { } while ()
+			// start block
+			uint start_pos = bcode.size();
+			vector<uint> new_jmp_pts;
+			vector<uint>* old_jmp_pts = jmp_pts;
+			jmp_pts = &new_jmp_pts;
+			apply_node(node->nodes[1]);
+			// condition
+			apply_node(node->nodes[0]);
+			bcode.push_back(jmp_if);
+			uint jmp_to_end = add_jump();
+			// add jump to start
+			bcode.push_back(jmp);
+			write<uint>(start_pos);
+			// set jumps to end
+			set_jump(jmp_to_end);
+			for(uint pp : new_jmp_pts)
+				set_jump(pp);
+			// restore jump points
+			jmp_pts = old_jmp_pts;
+			return;
+		}
+	}
+	else if(node->type == ParseNode::IndexedOp)
+	{
+		if(node->nodes.size() == 2u)
+		{
+			// push lvalue
+			apply_node(node->nodes[0]);
+			bcode.push_back(dup);
+			bcode.push_back(push_local_indexvar);
+			bcode.push_back(node->a);
+			// push rvalue
+			apply_node(node->nodes[1]);
+			// op
+			bcode.push_back(node->b);
+			// assign
+			bcode.push_back(set_local_indexvar);
+			bcode.push_back(node->a);
+		}
+		else
+		{
+			// push lvalue			
+			bcode.push_back(push_local_index);
+			bcode.push_back(node->a);
+			write(node->c);
+			// push rvalue
+			apply_node(node->nodes[0]);
+			// op
+			bcode.push_back(node->b);
+			// assign			
+			bcode.push_back(set_local_index);
+			bcode.push_back(node->a);
+			write(node->c);
+		}
 		return;
 	}
 
@@ -1849,6 +1340,19 @@ void apply_node(ParseNode* node)
 		bcode.push_back(push_local);
 		bcode.push_back(node->a);
 		break;
+	case ParseNode::VarIndex:
+		if(node->nodes.empty())
+		{
+			bcode.push_back(push_local_index);
+			bcode.push_back(node->a);
+			write(node->b);
+		}
+		else
+		{
+			bcode.push_back(push_local_indexvar);
+			bcode.push_back(node->a);
+		}
+		break;
 	case ParseNode::Func:
 		bcode.push_back(call);
 		bcode.push_back(node->a);
@@ -1857,8 +1361,28 @@ void apply_node(ParseNode* node)
 		switch(node->a)
 		{
 		case OP_ASSIGN:
-			bcode.push_back(set_local);
-			bcode.push_back(node->b);
+			if(node->nodes.size() == 1u)
+			{
+				if(node->c == -1)
+				{
+					// set simple var
+					bcode.push_back(set_local);
+					bcode.push_back(node->b);
+				}
+				else
+				{
+					// set indexed var
+					bcode.push_back(set_local_index);
+					bcode.push_back(node->b);
+					write(node->c);
+				}
+			}
+			else
+			{
+				// set indexed var by expr
+				bcode.push_back(set_local_indexvar);
+				bcode.push_back(node->b);
+			}
 			break;
 		case OP_EQUAL:
 			bcode.push_back(equal);
@@ -1908,8 +1432,22 @@ void apply_node(ParseNode* node)
 		bcode.push_back(node->a);
 		break;
 	case ParseNode::OpRef:
-		bcode.push_back(push_local_ref);
-		bcode.push_back(node->b);
+		if(node->nodes.empty())
+		{
+			bcode.push_back(push_local_index_ref);
+			bcode.push_back(node->b);
+			write(node->c);
+		}
+		else if(node->c == -1)
+		{
+			bcode.push_back(push_local_ref);
+			bcode.push_back(node->b);
+		}
+		else
+		{
+			bcode.push_back(push_local_indexvar_ref);
+			bcode.push_back(node->b);
+		}
 		bcode.push_back(node->a);
 		break;
 	case ParseNode::Cast:
@@ -1922,17 +1460,11 @@ void apply_node(ParseNode* node)
 		break;
 	case ParseNode::Int:
 		bcode.push_back(push_int);
-		bcode.push_back(node->a & 0xFF);
-		bcode.push_back((node->a & 0xFF00) >> 8);
-		bcode.push_back((node->a & 0xFF0000) >> 16);
-		bcode.push_back((node->a & 0xFF000000) >> 24);
+		write(node->a);
 		break;
 	case ParseNode::Float:
 		bcode.push_back(push_float);
-		bcode.push_back(node->a & 0xFF);
-		bcode.push_back((node->a & 0xFF00) >> 8);
-		bcode.push_back((node->a & 0xFF0000) >> 16);
-		bcode.push_back((node->a & 0xFF000000) >> 24);
+		write(node->a);
 		break;
 	case ParseNode::List:
 		if(node->a == 1)
@@ -1967,6 +1499,7 @@ bool parse(cstring filename)
 	t.AddKeyword("else", ELSE, G_KEY);
 	t.AddKeyword("while", WHILE, G_KEY);
 	t.AddKeyword("break", BREAK, G_KEY);
+	t.AddKeyword("do", DO, G_KEY);
 
 	t.FromFile(filename);
 
@@ -1985,10 +1518,23 @@ bool parse(cstring filename)
 		return false;
 	}
 
-	if(!pvars.empty())
+	ScriptFunction sf;
+	sf.offset = 0;
+	sf.locals = pvars.size();
+	sf.args = 0;
+	pfunc.push_back(sf);
+
+	byte index = 0;
+	for(ParseVar& pv : pvars)
 	{
-		bcode.push_back(locals);
-		bcode.push_back(pvars.size());
+		if(pv.type == ARRAY)
+		{
+			bcode.push_back(init_array);
+			bcode.push_back(index);
+			bcode.push_back(pv.subtype);
+			write(pv.size);
+		}
+		++index;
 	}
 
 	for(ParseNode* n : nodes)
@@ -2003,64 +1549,81 @@ bool parse(cstring filename)
 	return true;
 }
 
-void register_functions()
+struct OpDis
 {
+	cstring name;
+	int offset;
+};
+
+OpDis dis[] = {
+	"add", 0,
+	"sub", 0,
+	"mul", 0,
+	"div", 0,
+	"mod", 0,
+	"neg", 0,
+	"inc_pre", 0,
+	"inc_post", 0,
+	"dec_pre", 0,
+	"dec_post", 0,
+	"equal", 0,
+	"not_equal", 0,
+	"greater", 0,
+	"greater_equal", 0,
+	"less", 0,
+	"less_equal", 0,
+	"and", 0,
+	"or", 0,
+	"cast", 1,
+	"init_array", 6,
+	"set_local", 1,
+	"set_local_index", 5,
+	"set_local_indexvar", 1,
+	"push_local", 1,
+	"push_local_ref", 1,
+	"push_local_index", 5,
+	"push_local_indexvar", 1,
+	"push_local_index_ref", 5,
+	"push_local_indexvar_ref", 1,
+	"push_cstr", 1,
+	"push_int", 4,
+	"push_float", 4,
+	"dup", 0,
+	"pop", 0,
+	"call", 1,
+	"jmp", 4,
+	"jmp_if", 4,
+	"ret", 0
+};
+
+void disasm(vector<byte>& code)
+{
+	int pos = 0;
+	byte* c = &code[0];
+	byte* end = &code[0] + code.size();
+
+	while(c < end)
 	{
-		FunctionInfo& f = Add1(functions);
-		f.name = "print";
-		f.ptr = f_print;
-		f.result = VOID;
-		f.params[0] = STR;
-		f.params_count = 1;
+		byte b = *c++;
+		printf("%d: %s\n", pos, dis[b].name);
+		c += dis[b].offset;
+		pos += 1 + dis[b].offset;
 	}
-	{
-		FunctionInfo& f = Add1(functions);
-		f.name = "getint";
-		f.ptr = f_getint;
-		f.result = INT;
-		f.params_count = 0;
-	}
-	{
-		FunctionInfo& f = Add1(functions);
-		f.name = "getfloat";
-		f.ptr = f_getfloat;
-		f.result = FLOAT;
-		f.params_count = 0;
-	}
-	{
-		FunctionInfo& f = Add1(functions);
-		f.name = "getstr";
-		f.ptr = f_print;
-		f.result = STR;
-		f.params_count = 0;
-	}
-	{
-		FunctionInfo& f = Add1(functions);
-		f.name = "pause";
-		f.ptr = f_pause;
-		f.result = VOID;
-		f.params_count = 0;
-	}
-	{
-		FunctionInfo& f = Add1(functions);
-		f.name = "random";
-		f.ptr = f_random;
-		f.result = INT;
-		f.params[0] = INT;
-		f.params[1] = INT;
-		f.params_count = 2;
-	}
+
+	_getch();
+	system("cls");
 }
 
 int main()
 {
 	srand((uint)time(0));
 	register_functions();
-	if(!parse("script/5.txt"))
+	if(!parse("script/7.txt"))
 		return 1;
 	try
 	{
-		run(&bcode[0], pstr);
+		disasm(bcode);
+		run(&bcode[0], pstr, pfunc, 0u);
 	}
 	catch(cstring err)
 	{
@@ -2073,13 +1636,13 @@ int main()
 }
 
 /*
-+ strict mode: if() while(), warn about cast ?
++ multiline comment at end of file cause error (need fix in carpg too)
++ strict mode: warn about cast ?
 + functions
 + object
 + vaarg func params<any>
 + object -> c++ class
 + any -> int/float/object (have type info)
-+ do { } while
 + for
 + array
 + dynamic array size {int a= getint(); int[a] arr;}
@@ -2090,6 +1653,7 @@ int main()
 + bitwise op: & | ^ >> << &= |= ^= >>= <<= ~
 + string.length print("test".length)
 + c++ functions register
++ check is var initialized
 
 OPTIMIZATION:
 + const cast (while 1) - cast to bool
