@@ -1,0 +1,16 @@
+code:
+	[line [line ...]] EOF
+
+line:
+	var_type var_name ;
+	var_name = item ;
+	item ;
+
+item:
+	[-+] var_name
+	[-+] int
+	func ( args )
+	"string"
+
+=============================
+lvar = rval ;

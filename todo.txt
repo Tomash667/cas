@@ -1,0 +1,15 @@
++ lib, load from file, unit tests
++ order of operations + - * / -+ (unary)
++ string concat, getstr()
++ var_type var_name = x, var_name2 = y;
++ x = y = 3;
++ order of operations ( )
++ types: float, bool
++ function overloads
+	int f();
+	int f(int,int);
+	dla f(1) pisze ¿e brak funkcji f(int), znaleziono f(), f(int,int)
++ register functions from string [RegisterFunction("int dodaj(int, int)")]
++ cast operator (type)x or x as type ?
++ warn about implict cast (setting)
++ custom cast operators

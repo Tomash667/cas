@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Cas.cpp" />
+    <ClCompile Include="Base.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Tokenizer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Base.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Tokenizer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Pch.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Core">
+      <UniqueIdentifier>{cdb91d75-2836-438d-a7e6-d886b2057530}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Doc">
+      <UniqueIdentifier>{f02a0e98-0fe8-432f-9708-ee3801106c44}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="scheme.txt">
+      <Filter>Doc</Filter>
+    </Text>
+    <Text Include="todo.txt">
+      <Filter>Doc</Filter>
+    </Text>
+  </ItemGroup>
+</Project>
