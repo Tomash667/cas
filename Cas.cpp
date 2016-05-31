@@ -15,20 +15,20 @@ cstring var_name[V_MAX] = {
 
 Logger* logger;
 
-int main()
+bool ParseAndRun(cstring input)
 {
 	RegisterFunctions();
 
 	ParseContext ctx;
-	ctx.input = "print(\"Podaj a: \"); int a; a = getint(); print(\"Odwrocone a: \"); print(-a); pause();";
+	ctx.input = input;
 
 	if(!Parse(ctx))
 	{
 		_getch();
-		return 1;
+		return false;
 	}
 
 	RunCode(ctx.code, ctx.strs, ctx.vars);
 
-	return 0;
+	return true;
 }

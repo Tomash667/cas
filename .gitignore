@@ -1,4 +1,6 @@
 /.vs
-/Debug
+/ipch
+/lib
+/Output
 /*.db
 /*.opendb

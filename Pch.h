@@ -64,6 +64,7 @@
 #include <map>
 #include <set>
 #include <unordered_map>
+#include <iostream>
 
 //-----------------------------------------------------------------------------
 using std::string;
@@ -71,6 +72,8 @@ using std::vector;
 using std::list;
 using std::min;
 using std::max;
+using std::cin;
+using std::cout;
 #ifndef COMMON_ONLY
 using namespace RakNet;
 #endif

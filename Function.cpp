@@ -19,7 +19,7 @@ Function& AddFunction(cstring name, VoidF clbk)
 void f_print()
 {
 	Var& v = stack.back();
-	printf(v.str->s.c_str());
+	cout << v.str->s;
 	v.str->Release();
 	stack.pop_back();
 }
@@ -27,7 +27,7 @@ void f_print()
 void f_getint()
 {
 	int val;
-	scanf_s("%d", &val);
+	cin >> val;
 	stack.push_back(Var(val));
 }
 

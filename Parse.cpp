@@ -319,7 +319,7 @@ bool Parse(ParseContext& ctx)
 	}
 	catch(const Tokenizer::Exception& e)
 	{
-		printf("Parse error: %s", e.ToString());
+		cout << Format("Parse error: %s", e.ToString());
 		return false;
 	}
 }

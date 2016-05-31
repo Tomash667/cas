@@ -8,6 +8,9 @@
     <ClCompile Include="Tokenizer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="Function.cpp" />
+    <ClCompile Include="Parse.cpp" />
+    <ClCompile Include="Run.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Base.h">
@@ -19,6 +22,12 @@
     <ClInclude Include="Pch.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="Function.h" />
+    <ClInclude Include="Op.h" />
+    <ClInclude Include="Parse.h" />
+    <ClInclude Include="Run.h" />
+    <ClInclude Include="Var.h" />
+    <ClInclude Include="Cas.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Core">

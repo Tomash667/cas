@@ -1,0 +1,6 @@
+print("Podaj a: ");
+int a;
+a = getint();
+print("Odwrocone a: ");
+print(-a);
+pause();
