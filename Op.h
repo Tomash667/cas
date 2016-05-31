@@ -9,6 +9,10 @@ enum Op
 	POP_VAR,
 	CAST,
 	NEG,
+	ADD,
+	SUB,
+	MUL,
+	DIV,
 	CALL,
 	RET
 };

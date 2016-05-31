@@ -1,5 +1,3 @@
-+ lib, load from file, unit tests
-+ order of operations + - * / -+ (unary)
 + string concat, getstr()
 + var_type var_name = x, var_name2 = y;
 + x = y = 3;
@@ -13,3 +11,7 @@
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)
 + custom cast operators
++ no memleaks, reuse ParseNode (currently there will be old childs)
++ warn about div by 0 in const
++ optimalization when variable has known value in math (int a = 3; int b = 4; print(a+b);)
++ opt: print(4) -> converted to string

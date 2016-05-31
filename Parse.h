@@ -9,3 +9,5 @@ struct ParseContext
 };
 
 bool Parse(ParseContext& ctx);
+void InitializeParser();
+void CleanupParser();

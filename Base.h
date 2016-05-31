@@ -1890,6 +1890,7 @@ class ObjectPoolProxy
 public:
 	static inline T* Get() { return GetPool().Get(); }
 	static inline void Free(T* t) { GetPool().Free(t); }
+	static inline void Free(vector<T*>& ts) { GetPool().Free(ts); }
 	inline void Free() { Free((T*)this); }
 
 private:

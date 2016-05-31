@@ -3,9 +3,6 @@
 #include "Run.h"
 #include "Parse.h"
 #include "Function.h"
-#define NULL nullptr
-#include <conio.h>
-#undef NULL
 
 cstring var_name[V_MAX] = {
 	"void",
@@ -14,19 +11,24 @@ cstring var_name[V_MAX] = {
 };
 
 Logger* logger;
+bool inited;
 
 bool ParseAndRun(cstring input)
 {
-	RegisterFunctions();
+	if(!inited)
+	{
+		RegisterFunctions();
+		InitializeParser();
+		inited = true;
+	}
+	else
+		CleanupParser();
 
 	ParseContext ctx;
 	ctx.input = input;
 
 	if(!Parse(ctx))
-	{
-		_getch();
 		return false;
-	}
 
 	RunCode(ctx.code, ctx.strs, ctx.vars);
 

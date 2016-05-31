@@ -88,6 +88,37 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				v.value = -v.value;
 			}
 			break;
+		case ADD:
+		case SUB:
+		case MUL:
+		case DIV:
+			{
+				assert(stack.size() >= 2u);
+				Var right = stack.back();
+				assert(right.type == V_INT);
+				stack.pop_back();
+				Var& left = stack.back();
+				assert(left.type == V_INT);
+				switch(op)
+				{
+				case ADD:
+					left.value += right.value;
+					break;
+				case SUB:
+					left.value -= right.value;
+					break;
+				case MUL:
+					left.value *= right.value;
+					break;
+				case DIV:
+					if(right.value == 0)
+						left.value = 0;
+					else
+						left.value /= right.value;
+					break;
+				}
+			}
+			break;
 		case RET:
 			assert(stack.empty());
 			return;

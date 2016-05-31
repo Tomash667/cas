@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "simple.txt";
+cstring filename = "const_math.txt";
 
 int main()
 {

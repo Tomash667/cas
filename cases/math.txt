@@ -1,0 +1,15 @@
+int a;
+int b;
+int c;
+int d;
+a = getint();
+b = getint();
+c = getint();
+d = getint();
+println(a+b*c);
+println(a*b-c/d);
+println(a--b);
+println(a*-b);
+println(a/0);
+println(-5*-7--1/-8+2);
+pause();

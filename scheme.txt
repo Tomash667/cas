@@ -3,14 +3,20 @@ code:
 
 line:
 	var_type var_name ;
-	var_name = item ;
-	item ;
+	var_name = expr ;
+	expr ;
+
+expr:
+	op/item ...
 
 item:
-	[-+] var_name
-	[-+] int
+	var_name
+	int
 	func ( args )
 	"string"
+
+args:
+	expr [, expr ...]
 
 =============================
 lvar = rval ;

@@ -24,6 +24,15 @@ void f_print()
 	stack.pop_back();
 }
 
+void f_println()
+{
+	Var& v = stack.back();
+	cout << v.str->s;
+	cout << '\n';
+	v.str->Release();
+	stack.pop_back();
+}
+
 void f_getint()
 {
 	int val;
@@ -39,6 +48,7 @@ void f_pause()
 void RegisterFunctions()
 {
 	AddFunction("print", f_print).args.push_back(V_STRING);
+	AddFunction("println", f_println).args.push_back(V_STRING);
 	AddFunction("getint", f_getint).result = V_INT;
 	AddFunction("pause", f_pause);
 }
