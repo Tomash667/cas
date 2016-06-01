@@ -7,6 +7,7 @@
 cstring var_name[V_MAX] = {
 	"void",
 	"int",
+	"float",
 	"string"
 };
 

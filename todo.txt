@@ -1,7 +1,7 @@
 + x = y = 3;
 + ++ --
 + order of operations ( )
-+ types: float, bool
++ types: bool
 + function overloads
 	int f();
 	int f(int,int);
@@ -12,7 +12,6 @@
 + custom cast operators
 + no memleaks, reuse ParseNode (currently there will be old childs)
 + warn about div by 0 in const
-+ optimalization when variable has known value in math (int a = 3; int b = 4; print(a+b);)
 + opt: print(4) -> converted to string
 + warn: use of unassigned variable
 + if else, operator == !=

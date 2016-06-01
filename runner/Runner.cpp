@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "string.txt";
+cstring filename = "float.txt";
 
 int main(int argc, char** argv)
 {

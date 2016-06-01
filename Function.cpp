@@ -40,6 +40,13 @@ void f_getint()
 	stack.push_back(Var(val));
 }
 
+void f_getfloat()
+{
+	float val;
+	cin >> val;
+	stack.push_back(Var(val));
+}
+
 void f_getstr()
 {
 	Str* str = Str::Get();
@@ -58,6 +65,7 @@ void RegisterFunctions()
 	AddFunction("print", f_print).args.push_back(V_STRING);
 	AddFunction("println", f_println).args.push_back(V_STRING);
 	AddFunction("getint", f_getint).result = V_INT;
+	AddFunction("getfloat", f_getfloat).result = V_FLOAT;
 	AddFunction("getstr", f_getstr).result = V_STRING;
 	AddFunction("pause", f_pause);
 }

@@ -1,0 +1,10 @@
+float pi = 3.14;
+pi += 0.0015;
+float r = getfloat();
+println(r * r * pi);
+println(4 + 1.5);
+println(1.5 + 4);
+int g = 1.5;
+g += 2.3;
+println(g);
+pause();

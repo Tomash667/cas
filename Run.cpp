@@ -25,6 +25,13 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				stack.push_back(Var(val));
 			}
 			break;
+		case PUSH_FLOAT:
+			{
+				float val = *(float*)c;
+				++c;
+				stack.push_back(Var(val));
+			}
+			break;
 		case PUSH_STRING:
 			{
 				uint str_index = *c++;
@@ -68,24 +75,61 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			}
 			break;
 		case CAST:
+			// allowed casts in->float,string  float->int,string
 			{
 				VAR_TYPE type = (VAR_TYPE)*c++;
-				assert(type == V_STRING);
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(v.type == V_INT);
-				Str* str = Str::Get();
-				str->s = Format("%d", v.value);
-				str->refs = 1;
-				stack.back() = Var(str);
+				assert(v.type == V_INT || v.type == V_FLOAT);
+				if(v.type == V_INT)
+				{
+					assert(type == V_FLOAT || type == V_STRING);
+					if(type == V_FLOAT)
+					{
+						// int -> float
+						v.fvalue = (float)v.value;
+						v.type = V_FLOAT;
+					}
+					else
+					{
+						// int -> string
+						Str* str = Str::Get();
+						str->s = Format("%d", v.value);
+						str->refs = 1;
+						v.str = str;
+						v.type = V_STRING;
+					}
+				}
+				else
+				{
+					assert(type == V_INT || type == V_STRING);
+					if(type == V_INT)
+					{
+						// float -> int
+						v.value = (int)v.fvalue;
+						v.type = V_INT;
+					}
+					else
+					{
+						// float -> string
+						Str* str = Str::Get();
+						str->s = Format("%g", v.fvalue);
+						str->refs = 1;
+						v.str = str;
+						v.type = V_STRING;
+					}
+				}
 			}
 			break;
 		case NEG:
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(v.type == V_INT);
-				v.value = -v.value;
+				assert(v.type == V_INT || v.type == V_FLOAT);
+				if(v.type == V_INT)
+					v.value = -v.value;
+				else
+					v.fvalue = -v.fvalue;
 			}
 			break;
 		case ADD:
@@ -97,16 +141,19 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				Var right = stack.back();
 				stack.pop_back();
 				Var& left = stack.back();
+				assert(left.type == right.type);
 				if(op == ADD)
-					assert(left.type == V_INT && right.type == V_INT || (left.type == V_STRING && right.type == V_STRING));
+					assert(left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
 				else
-					assert(left.type == V_INT && right.type == V_INT);
+					assert(left.type == V_INT || left.type == V_FLOAT);
 
 				switch(op)
 				{
 				case ADD:
 					if(left.type == V_INT)
 						left.value += right.value;
+					else if(left.type == V_FLOAT)
+						left.fvalue += right.fvalue;
 					else
 					{
 						string result = left.str->s + right.str->s;
@@ -119,16 +166,32 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 					}
 					break;
 				case SUB:
-					left.value -= right.value;
+					if(left.type == V_INT)
+						left.value -= right.value;
+					else
+						left.fvalue -= right.fvalue;
 					break;
 				case MUL:
-					left.value *= right.value;
+					if(left.type == V_INT)
+						left.value *= right.value;
+					else
+						left.fvalue *= right.fvalue;
 					break;
 				case DIV:
-					if(right.value == 0)
-						left.value = 0;
+					if(left.type == V_INT)
+					{
+						if(right.value == 0)
+							left.value = 0;
+						else
+							left.value /= right.value;
+					}
 					else
-						left.value /= right.value;
+					{
+						if(right.fvalue == 0.f)
+							left.fvalue = 0.f;
+						else
+							left.fvalue /= right.fvalue;
+					}
 					break;
 				}
 			}

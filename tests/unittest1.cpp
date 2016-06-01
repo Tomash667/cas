@@ -72,5 +72,10 @@ namespace tests
 		{
 			Test("string.txt", "Tomash 1990", "Podaj imie: Podaj rok urodzenia: Witaj Tomash! Masz 26 lat.");
 		}
+
+		TEST_METHOD(Float)
+		{
+			Test("float.txt", "7", "153.934\n5.5\n5.5\n3\n");
+		}
 	};
 }

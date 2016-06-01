@@ -3,6 +3,7 @@
 enum Op
 {
 	PUSH_INT,
+	PUSH_FLOAT,
 	PUSH_STRING,
 	PUSH_VAR,
 	POP,

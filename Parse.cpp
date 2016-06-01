@@ -20,7 +20,11 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 struct ParseNode : ObjectPoolProxy<ParseNode>
 {
 	Op op;
-	int value;
+	union
+	{
+		int value;
+		float fvalue;
+	};
 	VAR_TYPE type;
 	vector<ParseNode*> childs;
 
@@ -46,23 +50,61 @@ ParseVar* FindVar(const string& id)
 	return nullptr;
 }
 
-bool TryCast(ParseNode*& node, VAR_TYPE exp_type)
+bool TryConstCast(ParseNode* node, VAR_TYPE type)
 {
-	VAR_TYPE type = node->type;
-	if(type == exp_type)
-		return true;
-	if(exp_type == V_STRING && type == V_INT)
+	if((node->op == PUSH_INT || node->op == PUSH_FLOAT) && (type == V_INT || type == V_FLOAT))
 	{
-		// cast int -> string
-		ParseNode* cast = ParseNode::Get();
-		cast->op = CAST;
-		cast->value = exp_type;
-		cast->type = exp_type;
-		cast->push(node);
-		node = cast;
+		// const cast
+		if(node->op == PUSH_INT)
+		{
+			// int -> float
+			node->op = PUSH_FLOAT;
+			node->fvalue = (float)node->value;
+		}
+		else
+		{
+			// float -> int
+			node->op = PUSH_INT;
+			node->value = (int)node->fvalue;
+		}
 		return true;
 	}
-	return false;
+	else
+		return false;
+}
+
+void Cast(ParseNode*& node, VAR_TYPE type)
+{
+	// no cast required?
+	if(type == V_VOID || node->type == type)
+		return;
+
+	// can const cast?
+	if(TryConstCast(node, type))
+		return;
+
+	// normal cast
+	ParseNode* cast = ParseNode::Get();
+	cast->op = CAST;
+	cast->value = type;
+	cast->type = type;
+	cast->push(node);
+	node = cast;
+}
+
+// used in var assignment, passing argument to function
+bool TryCast(ParseNode*& node, VAR_TYPE type)
+{
+	// no cast required?
+	if(node->type == type)
+		return true;
+
+	// no implicit cast from string to int/float
+	if(node->type == V_STRING && (type == V_INT || type == V_FLOAT))
+		return false;
+
+	Cast(node, type);
+	return true;
 }
 
 ParseNode* ParseItem()
@@ -75,6 +117,17 @@ ParseNode* ParseItem()
 		node->op = PUSH_INT;
 		node->type = V_INT;
 		node->value = val;
+		t.Next();
+		return node;
+	}
+	else if(t.IsFloat())
+	{
+		// float
+		float val = t.GetFloat();
+		ParseNode* node = ParseNode::Get();
+		node->op = PUSH_FLOAT;
+		node->type = V_FLOAT;
+		node->fvalue = val;
 		t.Next();
 		return node;
 	}
@@ -244,16 +297,23 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 	case S_ADD:
 		if(left == right)
 		{
-			// no cast required (int/string)
+			// no cast required (int/float/string)
 			cast = V_VOID;
 			result = left;
 			return true;
 		}
 		else if(left == V_STRING || right == V_STRING)
 		{
-			// cast to string from int
+			// cast int/float -> string
 			cast = V_STRING;
 			result = V_STRING;
+			return true;
+		}
+		else if(left == V_FLOAT || right == V_FLOAT)
+		{
+			// int op float/float op int -> cast int to float
+			cast = V_FLOAT;
+			result = V_FLOAT;
 			return true;
 		}
 		else
@@ -261,11 +321,20 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 	case S_SUB:
 	case S_MUL:
 	case S_DIV:
-		if(left == V_INT && right == V_INT)
+		if(left == V_STRING || right == V_STRING)
+			return false; // can't do with string
+		else if(left == right)
 		{
-			// no cast required (int)
+			// no cast required (int/float)
 			cast = V_VOID;
-			result = V_INT;
+			result = left;
+			return true;
+		}
+		else if(left == V_FLOAT || right == V_FLOAT)
+		{
+			// int op float/float op int -> cast int to float
+			cast = V_FLOAT;
+			result = V_FLOAT;
 			return true;
 		}
 		else
@@ -273,27 +342,13 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 	case S_PLUS:
 	case S_MINUS:
 		// cast & result are unused
-		if(left == V_INT)
+		if(left == V_INT || right == V_FLOAT)
 			return true;
 		else
 			return false;
 	default:
 		return false;
 	}
-}
-
-void Cast(ParseNode*& node, VAR_TYPE type)
-{
-	if(type == V_VOID || node->type == type)
-		return;
-
-	ParseNode* cast = ParseNode::Get();
-	cast->op = CAST;
-	cast->type = type;
-	cast->value = type;
-	cast->push(node);
-
-	node = cast;
 }
 
 struct SymbolOrNode
@@ -308,6 +363,77 @@ struct SymbolOrNode
 	inline SymbolOrNode(ParseNode* node) : node(node), is_symbol(false) {}
 	inline SymbolOrNode(SYMBOL symbol) : symbol(symbol), is_symbol(true) {}
 };
+
+bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol)
+{
+	if(left->op == PUSH_INT && right->op == PUSH_INT)
+	{
+		// optimize const int expr
+		int value;
+		switch(symbol)
+		{
+		case S_ADD:
+			value = left->value + right->value;
+			break;
+		case S_SUB:
+			value = left->value - right->value;
+			break;
+		case S_MUL:
+			value = left->value * right->value;
+			break;
+		case S_DIV:
+			if(right->value == 0)
+				value = 0;
+			else
+				value = left->value / right->value;
+			break;
+		default:
+			assert(0);
+			value = 0;
+			break;
+		}
+
+		op->op = PUSH_INT;
+		op->value = value;
+	}
+	else if(left->op == PUSH_FLOAT && right->op == PUSH_FLOAT)
+	{
+		// optimize const float expr
+		float fvalue;
+		switch(symbol)
+		{
+		case S_ADD:
+			fvalue = left->fvalue + right->fvalue;
+			break;
+		case S_SUB:
+			fvalue = left->fvalue - right->fvalue;
+			break;
+		case S_MUL:
+			fvalue = left->fvalue * right->fvalue;
+			break;
+		case S_DIV:
+			if(right->fvalue == 0.f)
+				fvalue = 0.f;
+			else
+				fvalue = left->fvalue / right->fvalue;
+			break;
+		default:
+			assert(0);
+			fvalue = 0;
+			break;
+		}
+
+		op->op = PUSH_FLOAT;
+		op->fvalue = fvalue;
+	}
+	else
+		return false;
+
+
+	left->Free();
+	right->Free();
+	return true;
+}
 
 ParseNode* ParseExpr(char end, char end2)
 {
@@ -408,16 +534,20 @@ ParseNode* ParseExpr(char end, char end2)
 					t.Throw("Invalid type '%s' for operation '%s'.", var_name[node->type], si.name);
 				if(sn.symbol == S_MINUS)
 				{
-					if(node->op == PUSH_INT)
+					if(node->op == PUSH_INT || node->op == PUSH_FLOAT)
 					{
-						node->value = -node->value;
+						// modify const instead of adding op
+						if(node->op == PUSH_INT)
+							node->value = -node->value;
+						else
+							node->fvalue = -node->fvalue;
 						stack2.push_back(node);
 					}
 					else
 					{
 						ParseNode* parent = ParseNode::Get();
 						parent->op = NEG;
-						parent->type = V_INT;
+						parent->type = node->type;
 						parent->push(node);
 						stack2.push_back(parent);
 					}
@@ -442,39 +572,7 @@ ParseNode* ParseExpr(char end, char end2)
 				ParseNode* op = ParseNode::Get();
 				op->type = result;
 
-				if(left->op == PUSH_INT && right->op == PUSH_INT)
-				{
-					// optimalization of const expression
-					int value;
-					switch(si.symbol)
-					{
-					case S_ADD:
-						value = left->value + right->value;
-						break;
-					case S_SUB:
-						value = left->value - right->value;
-						break;
-					case S_MUL:
-						value = left->value * right->value;
-						break;
-					case S_DIV:
-						if(right->value == 0)
-							value = 0;
-						else
-							value = left->value / right->value;
-						break;
-					default:
-						assert(0);
-						value = 0;
-						break;
-					}
-
-					op->op = PUSH_INT;
-					op->value = value;
-					left->Free();
-					right->Free();
-				}
-				else
+				if(!TryConstExpr(left, right, op, si.symbol))
 				{
 					op->op = (Op)si.op;
 					op->push(left);
@@ -578,8 +676,6 @@ ParseNode* ParseLine()
 			t.Next();
 			if(c != '=')
 			{
-				if(var->type != V_INT)
-					t.Throw("Invalid operation '%c' for variable '%s %s'.", c, var->name.c_str(), var_name[var->type]);
 				t.AssertSymbol('=');
 				t.Next();
 			}
@@ -603,31 +699,27 @@ ParseNode* ParseLine()
 			}
 			else
 			{
-				ParseNode* op = ParseNode::Get();
-				switch(c)
-				{
-				case '+':
-					op->op = ADD;
-					break;
-				case '-':
-					op->op = SUB;
-					break;
-				case '*':
-					op->op = MUL;
-					break;
-				case '/':
-					op->op = DIV;
-				}
-				op->type = V_INT;
+				SYMBOL symbol = CharToSymbol(c);
+				SymbolInfo& si = symbols[symbol];
+				VAR_TYPE cast, result;
+				if(!CanOp(symbol, var->type, child->type, cast, result))
+					t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_name[var->type], var_name[child->type], si.name);
 
 				ParseNode* left = ParseNode::Get();
 				left->op = PUSH_VAR;
 				left->value = var->index;
 				left->type = var->type;
 
+				Cast(left, cast);
+				Cast(child, cast);
+
+				ParseNode* op = ParseNode::Get();
+				op->op = (Op)si.op;
+				op->type = result;
 				op->push(left);
 				op->push(child);
 
+				Cast(op, var->type);
 				node->push(op);
 			}
 
@@ -670,6 +762,10 @@ void ToCode(vector<int>& code, ParseNode* node)
 	case CAST:
 		code.push_back(node->op);
 		code.push_back(node->value);
+		break;
+	case PUSH_FLOAT:
+		code.push_back(node->op);
+		code.push_back(*(int*)&node->fvalue);
 		break;
 	case NEG:
 	case ADD:

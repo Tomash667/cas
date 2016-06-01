@@ -15,6 +15,7 @@ expr<END>:
 item:
 	var_name
 	int
+	float
 	func ( args )
 	"string"
 
