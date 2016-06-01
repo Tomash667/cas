@@ -241,6 +241,7 @@ enum SYMBOL
 	S_DIV,
 	S_PLUS,
 	S_MINUS,
+	S_LEFT_PAR,
 	S_INVALID
 };
 
@@ -261,6 +262,7 @@ SymbolInfo symbols[] = {
 	S_DIV, "divide", 1, true, 2, DIV,
 	S_PLUS, "unary plus", 2, false, 1, 0,
 	S_MINUS, "unary minus", 2, false, 1, 0,
+	S_LEFT_PAR, "left parenthesis", -1, true, 0, 0,
 	S_INVALID, "invalid", -1, true, 0, 0,
 };
 
@@ -440,6 +442,7 @@ ParseNode* ParseExpr(char end, char end2)
 	vector<SymbolOrNode> exit;
 	vector<SYMBOL> stack;
 	LEFT left = LEFT_NONE;
+	int open_par = 0;
 
 	while(true)
 	{
@@ -447,56 +450,93 @@ ParseNode* ParseExpr(char end, char end2)
 		{
 			char c = t.GetSymbol();
 			if(c == end || c == end2)
-				break;
-			c = strchr2(c, "+-*/");
-			if(c == 0)
-				t.Unexpected();
-			SYMBOL symbol;
-			switch(left)
 			{
-			case LEFT_NONE:
-			case LEFT_SYMBOL:
-				{
-					if(c == '+')
-						symbol = S_PLUS;
-					else if(c == '-')
-						symbol = S_MINUS;
-					else
-						t.Unexpected();
-					left = LEFT_UNARY;
-				}
-				break;
-			case LEFT_UNARY:
-				t.Unexpected();
-			case LEFT_ITEM:
-				symbol = CharToSymbol(c);
-				left = LEFT_SYMBOL;
-				break;
-			}
-			
-			while(!stack.empty())
-			{
-				SYMBOL symbol2 = stack.back();
-				SymbolInfo& s1 = symbols[symbol];
-				SymbolInfo& s2 = symbols[symbol2];
-
-				bool ok = false;
-				if(s1.left_associativity)
-					ok = (s1.priority <= s2.priority);
-				else
-					ok = (s1.priority < s2.priority);
-				
-				if(ok)
-				{
-					exit.push_back(symbol2);
-					stack.pop_back();
-				}
-				else
+				if(c != ')' || open_par == 0)
 					break;
 			}
+			c = strchr2(c, "+-*/()");
+			if(c == 0)
+				t.Unexpected();
+			else if(c == '(')
+			{
+				if(left == LEFT_ITEM)
+					t.Unexpected();
+				stack.push_back(S_LEFT_PAR);
+				t.Next();
+				left = LEFT_NONE;
+				++open_par;
+			}
+			else if(c == ')')
+			{
+				if(left != LEFT_ITEM)
+					t.Unexpected();
+				bool ok = false;
+				while(!stack.empty())
+				{
+					SYMBOL s = stack.back();
+					stack.pop_back();
+					if(s == S_LEFT_PAR)
+					{
+						ok = true;
+						break;
+					}
+					exit.push_back(s);
+				}
+				if(!ok)
+					t.Unexpected();
+				t.Next();
+				left = LEFT_ITEM;
+				--open_par;
+			}
+			else
+			{
+				SYMBOL symbol;
+				switch(left)
+				{
+				case LEFT_NONE:
+				case LEFT_SYMBOL:
+					{
+						if(c == '+')
+							symbol = S_PLUS;
+						else if(c == '-')
+							symbol = S_MINUS;
+						else
+							t.Unexpected();
+						left = LEFT_UNARY;
+					}
+					break;
+				case LEFT_UNARY:
+					t.Unexpected();
+				case LEFT_ITEM:
+					symbol = CharToSymbol(c);
+					left = LEFT_SYMBOL;
+					break;
+				}
 
-			stack.push_back(symbol);
-			t.Next();
+				while(!stack.empty())
+				{
+					SYMBOL symbol2 = stack.back();
+					SymbolInfo& s1 = symbols[symbol];
+					SymbolInfo& s2 = symbols[symbol2];
+
+					bool ok = false;
+					if(s1.left_associativity)
+						ok = (s1.priority <= s2.priority);
+					else
+						ok = (s1.priority < s2.priority);
+
+					if(ok)
+					{
+						exit.push_back(symbol2);
+						stack.pop_back();
+					}
+					else
+						break;
+				}
+
+				stack.push_back(symbol);
+				t.Next();
+			}
 		}
 		else
 		{
@@ -512,9 +552,14 @@ ParseNode* ParseExpr(char end, char end2)
 
 	while(!stack.empty())
 	{
-		exit.push_back(stack.back());
+		SYMBOL s = stack.back();
 		stack.pop_back();
+		if(s == S_LEFT_PAR)
+			t.Throw("Missing closing parenthesis.");
+		exit.push_back(s);
 	}
+
+	assert(open_par == 0);
 
 	vector<ParseNode*> stack2;
 	for(SymbolOrNode& sn : exit)

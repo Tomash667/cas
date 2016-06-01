@@ -31,8 +31,8 @@ namespace tests
 			string path(Format("../../../cases/%s", filename));
 			std::ifstream ifs(path);
 			Assert::IsTrue(ifs.is_open(), GetWC(Format("Failed to open file '%s'.", path.c_str())).c_str());
-			std::string content((std::istreambuf_iterator<char>(ifs)),
-				(std::istreambuf_iterator<char>()));
+			std::string content((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
+			ifs.close();
 
 			std::ostringstream oss;
 			std::streambuf* old_cout = std::cout.rdbuf(oss.rdbuf());
@@ -76,6 +76,11 @@ namespace tests
 		TEST_METHOD(Float)
 		{
 			Test("float.txt", "7", "153.934\n5.5\n5.5\n3\n");
+		}
+
+		TEST_METHOD(Parentheses)
+		{
+			Test("parentheses.txt", "", "-5\n20\n0\n24\n");
 		}
 	};
 }

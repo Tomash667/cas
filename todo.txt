@@ -1,11 +1,12 @@
 + x = y = 3;
 + ++ --
-+ order of operations ( )
 + types: bool
 + function overloads
 	int f();
 	int f(int,int);
 	dla f(1) pisze ¿e brak funkcji f(int), znaleziono f(), f(int,int)
++ function default parameters
++ variadic functions (params)
 + register functions from string [RegisterFunction("int dodaj(int, int)")]
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)

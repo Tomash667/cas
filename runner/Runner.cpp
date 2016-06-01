@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "float.txt";
+cstring filename = "parentheses.txt";
 
 int main(int argc, char** argv)
 {
@@ -32,6 +32,7 @@ int main(int argc, char** argv)
 		return 2;
 	}
 	std::string content((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
+	ifs.close();
 
 	bool result = ParseAndRun(content.c_str());
 
