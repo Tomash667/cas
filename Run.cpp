@@ -95,14 +95,28 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			{
 				assert(stack.size() >= 2u);
 				Var right = stack.back();
-				assert(right.type == V_INT);
 				stack.pop_back();
 				Var& left = stack.back();
-				assert(left.type == V_INT);
+				if(op == ADD)
+					assert(left.type == V_INT && right.type == V_INT || (left.type == V_STRING && right.type == V_STRING));
+				else
+					assert(left.type == V_INT && right.type == V_INT);
+
 				switch(op)
 				{
 				case ADD:
-					left.value += right.value;
+					if(left.type == V_INT)
+						left.value += right.value;
+					else
+					{
+						string result = left.str->s + right.str->s;
+						left.str->Release();
+						right.str->Release();
+						Str* s = Str::Get();
+						s->refs = 1;
+						s->s = result;
+						left.str = s;
+					}
 					break;
 				case SUB:
 					left.value -= right.value;

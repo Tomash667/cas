@@ -237,6 +237,65 @@ SYMBOL CharToSymbol(char c)
 	}
 }
 
+bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYPE& result)
+{
+	switch(symbol)
+	{
+	case S_ADD:
+		if(left == right)
+		{
+			// no cast required (int/string)
+			cast = V_VOID;
+			result = left;
+			return true;
+		}
+		else if(left == V_STRING || right == V_STRING)
+		{
+			// cast to string from int
+			cast = V_STRING;
+			result = V_STRING;
+			return true;
+		}
+		else
+			return false;
+	case S_SUB:
+	case S_MUL:
+	case S_DIV:
+		if(left == V_INT && right == V_INT)
+		{
+			// no cast required (int)
+			cast = V_VOID;
+			result = V_INT;
+			return true;
+		}
+		else
+			return false;
+	case S_PLUS:
+	case S_MINUS:
+		// cast & result are unused
+		if(left == V_INT)
+			return true;
+		else
+			return false;
+	default:
+		return false;
+	}
+}
+
+void Cast(ParseNode*& node, VAR_TYPE type)
+{
+	if(type == V_VOID || node->type == type)
+		return;
+
+	ParseNode* cast = ParseNode::Get();
+	cast->op = CAST;
+	cast->type = type;
+	cast->value = type;
+	cast->push(node);
+
+	node = cast;
+}
+
 struct SymbolOrNode
 {
 	union
@@ -344,7 +403,8 @@ ParseNode* ParseExpr(char end, char end2)
 			{
 				ParseNode* node = stack2.back();
 				stack2.pop_back();
-				if(node->type != V_INT)
+				VAR_TYPE unused;
+				if(!CanOp(sn.symbol, node->type, V_VOID, unused, unused))
 					t.Throw("Invalid type '%s' for operation '%s'.", var_name[node->type], si.name);
 				if(sn.symbol == S_MINUS)
 				{
@@ -372,39 +432,43 @@ ParseNode* ParseExpr(char end, char end2)
 				ParseNode* left = stack2.back();
 				stack2.pop_back();
 
-				if(left->type != V_INT || right->type != V_INT)
+				VAR_TYPE cast, result;
+				if(!CanOp(si.symbol, left->type, right->type, cast, result))
 					t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_name[left->type], var_name[right->type], si.name);
 
-				int value;
-				switch(si.symbol)
-				{
-				case S_ADD:
-					value = left->value + right->value;
-					break;
-				case S_SUB:
-					value = left->value - right->value;
-					break;
-				case S_MUL:
-					value = left->value * right->value;
-					break;
-				case S_DIV:
-					if(right->value == 0)
-						value = 0;
-					else
-						value = left->value / right->value;
-					break;
-				default:
-					assert(0);
-					value = 0;
-					break;
-				}
-
+				Cast(left, cast);
+				Cast(right, cast);
+				
 				ParseNode* op = ParseNode::Get();
-				op->type = V_INT;
+				op->type = result;
 
 				if(left->op == PUSH_INT && right->op == PUSH_INT)
 				{
-					// optimialization of const expression
+					// optimalization of const expression
+					int value;
+					switch(si.symbol)
+					{
+					case S_ADD:
+						value = left->value + right->value;
+						break;
+					case S_SUB:
+						value = left->value - right->value;
+						break;
+					case S_MUL:
+						value = left->value * right->value;
+						break;
+					case S_DIV:
+						if(right->value == 0)
+							value = 0;
+						else
+							value = left->value / right->value;
+						break;
+					default:
+						assert(0);
+						value = 0;
+						break;
+					}
+
 					op->op = PUSH_INT;
 					op->value = value;
 					left->Free();
@@ -464,7 +528,6 @@ ParseNode* ParseVarDecl(VAR_TYPE type)
 
 ParseNode* ParseLine()
 {
-	ParseVar* var;
 	if(t.IsKeywordGroup(G_VAR))
 	{
 		// var_type

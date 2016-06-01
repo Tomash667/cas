@@ -40,6 +40,14 @@ void f_getint()
 	stack.push_back(Var(val));
 }
 
+void f_getstr()
+{
+	Str* str = Str::Get();
+	cin >> str->s;
+	str->refs = 1;
+	stack.push_back(Var(str));
+}
+
 void f_pause()
 {
 	_getch();
@@ -50,5 +58,6 @@ void RegisterFunctions()
 	AddFunction("print", f_print).args.push_back(V_STRING);
 	AddFunction("println", f_println).args.push_back(V_STRING);
 	AddFunction("getint", f_getint).result = V_INT;
+	AddFunction("getstr", f_getstr).result = V_STRING;
 	AddFunction("pause", f_pause);
 }

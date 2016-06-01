@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "assign.txt";
+cstring filename = "string.txt";
 
 int main(int argc, char** argv)
 {

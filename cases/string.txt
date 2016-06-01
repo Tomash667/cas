@@ -1,0 +1,7 @@
+print("Podaj imie: ");
+string imie = getstr();
+print("Podaj rok urodzenia: ");
+int rok_ur = getint();
+int wiek = 2016 - rok_ur;
+print("Witaj "+imie+"! Masz "+wiek+" lat.");
+pause();

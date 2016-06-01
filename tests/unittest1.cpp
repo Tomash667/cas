@@ -67,5 +67,10 @@ namespace tests
 		{
 			Test("assign.txt", "", "5\n1\n8\n4\n");
 		}
+
+		TEST_METHOD(String)
+		{
+			Test("string.txt", "Tomash 1990", "Podaj imie: Podaj rok urodzenia: Witaj Tomash! Masz 26 lat.");
+		}
 	};
 }
