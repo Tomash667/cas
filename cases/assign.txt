@@ -1,0 +1,10 @@
+int a = 4, b = 3, d, e = 2 * a;
+string s = a;
+a += 1;
+d = 1;
+b /= 2 + 1;
+println(a);
+println(b);
+println(e);
+println(s);
+pause();

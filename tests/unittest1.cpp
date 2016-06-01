@@ -62,5 +62,10 @@ namespace tests
 			Test("math.txt", "1 2 3 4", "7\n2\n3\n-2\n0\n37\n");
 			Test("math.txt", "8 15 4 3", "68\n119\n23\n-120\n0\n37\n");
 		}
+
+		TEST_METHOD(Assign)
+		{
+			Test("assign.txt", "", "5\n1\n8\n4\n");
+		}
 	};
 }

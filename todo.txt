@@ -1,6 +1,6 @@
 + string concat, getstr()
-+ var_type var_name = x, var_name2 = y;
 + x = y = 3;
++ ++ --
 + order of operations ( )
 + types: float, bool
 + function overloads
@@ -15,3 +15,4 @@
 + warn about div by 0 in const
 + optimalization when variable has known value in math (int a = 3; int b = 4; print(a+b);)
 + opt: print(4) -> converted to string
++ warn: use of unassigned variable

@@ -6,11 +6,24 @@
 
 using namespace std;
 
-cstring filename = "const_math.txt";
+cstring filename = "assign.txt";
 
-int main()
+int main(int argc, char** argv)
 {
-	string path(Format("../cases/%s", filename));
+	string path;
+	if(argc == 2)
+	{
+		if(strcmp(argv[1], "-d") == 0)
+			path = Format("../cases/%s", filename);
+		else
+			path = argv[1];
+	}
+	else
+	{
+		cout << "Usage: runner.exe file";
+		return 0;
+	}
+
 	std::ifstream ifs(path);
 	if(!ifs.is_open())
 	{

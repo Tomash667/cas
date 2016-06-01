@@ -2,12 +2,15 @@ code:
 	[line [line ...]] EOF
 
 line:
-	var_type var_name ;
-	var_name = expr ;
-	expr ;
+	var_type var_decl [, var_decl ...] ;
+	var_name [op] = expr<;> ;
+	expr<;> ;
 
-expr:
-	op/item ...
+var_decl:
+	var_name [ = expr<,;> ]
+
+expr<END>:
+	op/item ... <END>
 
 item:
 	var_name
@@ -16,7 +19,13 @@ item:
 	"string"
 
 args:
-	expr [, expr ...]
+	expr<,)> [, expr ...]
+
+op:
+	+
+	-
+	*
+	/
 
 =============================
 lvar = rval ;

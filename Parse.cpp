@@ -430,6 +430,38 @@ ParseNode* ParseExpr(char end, char end2)
 	return stack2.back();
 }
 
+ParseNode* ParseVarDecl(VAR_TYPE type)
+{
+	// var_name
+	const string& name = t.MustGetItem();
+	ParseVar* old_var = FindVar(name);
+	if(old_var)
+		t.Throw("Variable already declared.");
+	ParseVar* var = ParseVar::Get();
+	var->name = name;
+	var->type = type;
+	var->index = vars.size();
+	vars.push_back(var);
+	t.Next();
+
+	// [=]
+	if(!t.IsSymbol('='))
+		return nullptr;
+	t.Next();
+
+	// expr<,;>
+	ParseNode* expr = ParseExpr(',', ';');
+	if(!TryCast(expr, type))
+		t.Throw("Can't assign type '%s' to variable '%s %s'.", var_name[expr->type], var->name.c_str(), var_name[type]);
+
+	ParseNode* node = ParseNode::Get();
+	node->op = POP_VAR;
+	node->type = V_VOID;
+	node->value = var->index;
+	node->push(expr);
+	return node;
+}
+
 ParseNode* ParseLine()
 {
 	ParseVar* var;
@@ -441,23 +473,33 @@ ParseNode* ParseLine()
 			t.Throw("Can't declare void variable.");
 		t.Next();
 
-		// var_name
-		const string& name = t.MustGetItem();
-		ParseVar* old_var = FindVar(name);
-		if(old_var)
-			t.Throw("Variable already declared.");
-		var = ParseVar::Get();
-		var->name = name;
-		var->type = type;
-		var->index = vars.size();
-		vars.push_back(var);
+		// var_decl(s)
+		vector<ParseNode*> nodes;
+		do
+		{
+			ParseNode* decl = ParseVarDecl(type);
+			if(decl)
+				nodes.push_back(decl);
+			if(t.IsSymbol(';'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		} while(true);
 		t.Next();
 
-		// ;
-		t.AssertSymbol(';');
-		t.Next();
-
-		return nullptr;
+		// node
+		if(nodes.empty())
+			return nullptr;
+		else if(nodes.size() == 1u)
+			return nodes.back();
+		else
+		{
+			ParseNode* node = ParseNode::Get();
+			node->op = GROUP;
+			node->type = V_VOID;
+			node->childs = nodes;
+			return node;
+		}
 	}
 	else if(t.IsItem())
 	{
@@ -468,9 +510,16 @@ ParseNode* ParseLine()
 			// var assign
 			t.Next();
 
-			// =
-			t.AssertSymbol('=');
+			// op or =
+			char c = t.MustGetSymbol("+-*/=");
 			t.Next();
+			if(c != '=')
+			{
+				if(var->type != V_INT)
+					t.Throw("Invalid operation '%c' for variable '%s %s'.", c, var->name.c_str(), var_name[var->type]);
+				t.AssertSymbol('=');
+				t.Next();
+			}
 
 			// item
 			ParseNode* child = ParseExpr(';');
@@ -483,7 +532,41 @@ ParseNode* ParseLine()
 			node->op = POP_VAR;
 			node->type = V_VOID;
 			node->value = var->index;
-			node->push(child);
+			if(c == '=')
+			{
+				if(!TryCast(child, var->type))
+					t.Throw("Can't assign '%s' to variable '%s %s'.", var_name[child->type], var_name[var->type], var->name.c_str());
+				node->push(child);
+			}
+			else
+			{
+				ParseNode* op = ParseNode::Get();
+				switch(c)
+				{
+				case '+':
+					op->op = ADD;
+					break;
+				case '-':
+					op->op = SUB;
+					break;
+				case '*':
+					op->op = MUL;
+					break;
+				case '/':
+					op->op = DIV;
+				}
+				op->type = V_INT;
+
+				ParseNode* left = ParseNode::Get();
+				left->op = PUSH_VAR;
+				left->value = var->index;
+				left->type = var->type;
+
+				op->push(left);
+				op->push(child);
+
+				node->push(op);
+			}
 
 			return node;
 		}
@@ -500,6 +583,17 @@ ParseNode* ParseLine()
 
 void ToCode(vector<int>& code, ParseNode* node)
 {
+	if(node->op == GROUP)
+	{
+		for(ParseNode* n : node->childs)
+		{
+			ToCode(code, n);
+			if(n->type != V_VOID)
+				code.push_back(POP);
+		}
+		return;
+	}
+
 	for(ParseNode* n : node->childs)
 		ToCode(code, n);
 
@@ -529,23 +623,20 @@ void ToCode(vector<int>& code, ParseNode* node)
 
 void ParseCode(vector<int>& code)
 {
-	vector<ParseNode*> nodes;
+	ParseNode* node = ParseNode::Get();
+	node->op = GROUP;
+	node->type = V_VOID;
+
 	t.Next();
 	while(!t.IsEof())
 	{
-		ParseNode* node = ParseLine();
-		if(node)
-			nodes.push_back(node);
+		ParseNode* child = ParseLine();
+		if(child)
+			node->push(child);
 	}
 
 	// codify
-	for(ParseNode* n : nodes)
-	{
-		ToCode(code, n);
-		if(n->type != V_VOID)
-			code.push_back(POP);
-	}
-
+	ToCode(code, node);
 	code.push_back(RET);
 }
 

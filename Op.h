@@ -14,5 +14,7 @@ enum Op
 	MUL,
 	DIV,
 	CALL,
-	RET
+	RET,
+
+	GROUP
 };
