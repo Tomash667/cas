@@ -19,6 +19,12 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 		Op op = (Op)*c++;
 		switch(op)
 		{
+		case PUSH_TRUE:
+			stack.push_back(Var(true));
+			break;
+		case PUSH_FALSE:
+			stack.push_back(Var(false));
+			break;
 		case PUSH_INT:
 			{
 				int val = *c++;
@@ -75,16 +81,47 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			}
 			break;
 		case CAST:
-			// allowed casts in->float,string  float->int,string
+			// allowed casts bool/int/float -> anything
 			{
 				VAR_TYPE type = (VAR_TYPE)*c++;
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(v.type == V_INT || v.type == V_FLOAT);
-				if(v.type == V_INT)
+				assert(v.type == V_BOOL || v.type == V_INT || v.type == V_FLOAT);
+				if(v.type == V_BOOL)
 				{
-					assert(type == V_FLOAT || type == V_STRING);
-					if(type == V_FLOAT)
+					assert(type == V_INT || type == V_FLOAT || type == V_STRING);
+					if(type == V_INT)
+					{
+						// bool -> int
+						v.value = (v.bvalue ? 1 : 0);
+						v.type = V_INT;
+					}
+					else if(type == V_FLOAT)
+					{
+						// bool -> float
+						v.fvalue = (v.bvalue ? 1.f : 0.f);
+						v.type = V_FLOAT;
+					}
+					else
+					{
+						// bool -> string
+						Str* str = Str::Get();
+						str->s = (v.bvalue ? "true" : "false");
+						str->refs = 1;
+						v.str = str;
+						v.type = V_STRING;
+					}
+				}
+				else if(v.type == V_INT)
+				{
+					assert(type == V_BOOL || type == V_FLOAT || type == V_STRING);
+					if(type == V_BOOL)
+					{
+						// int -> bool
+						v.bvalue = (v.value != 0);
+						v.type = V_BOOL;
+					}
+					else if(type == V_FLOAT)
 					{
 						// int -> float
 						v.fvalue = (float)v.value;
@@ -102,8 +139,14 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				}
 				else
 				{
-					assert(type == V_INT || type == V_STRING);
-					if(type == V_INT)
+					assert(type == V_BOOL || type == V_INT || type == V_STRING);
+					if(type == V_BOOL)
+					{
+						// float -> bool
+						v.bvalue = (v.fvalue != 0.f);
+						v.type = V_BOOL;
+					}
+					else if(type == V_INT)
 					{
 						// float -> int
 						v.value = (int)v.fvalue;
@@ -136,6 +179,12 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 		case SUB:
 		case MUL:
 		case DIV:
+		case EQ:
+		case NOT_EQ:
+		case GR:
+		case GR_EQ:
+		case LE:
+		case LE_EQ:
 			{
 				assert(stack.size() >= 2u);
 				Var right = stack.back();
@@ -144,6 +193,8 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				assert(left.type == right.type);
 				if(op == ADD)
 					assert(left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
+				else if(op == EQ || op == NOT_EQ)
+					assert(left.type == V_BOOL || left.type == V_INT || left.type == V_FLOAT);
 				else
 					assert(left.type == V_INT || left.type == V_FLOAT);
 
@@ -192,6 +243,52 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 						else
 							left.fvalue /= right.fvalue;
 					}
+					break;
+				case EQ:
+					if(left.type == V_BOOL)
+						left.bvalue = (left.bvalue == right.bvalue);
+					else if(left.type == V_INT)
+						left.bvalue = (left.value == right.value);
+					else
+						left.bvalue = (left.fvalue == right.fvalue);
+					left.type = V_BOOL;
+					break;
+				case NOT_EQ:
+					if(left.type == V_BOOL)
+						left.bvalue = (left.bvalue != right.bvalue);
+					else if(left.type == V_INT)
+						left.bvalue = (left.value != right.value);
+					else
+						left.bvalue = (left.fvalue != right.fvalue);
+					left.type = V_BOOL;
+					break;
+				case GR:
+					if(left.type == V_INT)
+						left.bvalue = (left.value > right.value);
+					else
+						left.bvalue = (left.fvalue > right.fvalue);
+					left.type = V_BOOL;
+					break;
+				case GR_EQ:
+					if(left.type == V_INT)
+						left.bvalue = (left.value >= right.value);
+					else
+						left.bvalue = (left.fvalue >= right.fvalue);
+					left.type = V_BOOL;
+					break;
+				case LE:
+					if(left.type == V_INT)
+						left.bvalue = (left.value < right.value);
+					else
+						left.bvalue = (left.fvalue < right.fvalue);
+					left.type = V_BOOL;
+					break;
+				case LE_EQ:
+					if(left.type == V_INT)
+						left.bvalue = (left.value <= right.value);
+					else
+						left.bvalue = (left.fvalue <= right.fvalue);
+					left.type = V_BOOL;
 					break;
 				}
 			}

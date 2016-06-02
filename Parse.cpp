@@ -5,9 +5,37 @@
 #include "Function.h"
 #include "Parse.h"
 
+#undef CONST
+
 enum GROUP
 {
-	G_VAR
+	G_KEYWORD,
+	G_VAR,
+	G_CONST
+};
+
+enum KEYWORD
+{
+	K_IF
+};
+
+enum CONST
+{
+	C_TRUE,
+	C_FALSE
+};
+
+enum FOUND
+{
+	F_NONE,
+	F_VAR,
+	F_FUNC
+};
+
+enum PseudoOp
+{
+	GROUP = MAX_OP,
+	PUSH_BOOL
 };
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
@@ -19,9 +47,10 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 
 struct ParseNode : ObjectPoolProxy<ParseNode>
 {
-	Op op;
+	int op;
 	union
 	{
+		bool bvalue;
 		int value;
 		float fvalue;
 	};
@@ -29,6 +58,12 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	vector<ParseNode*> childs;
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
+};
+
+union Found
+{
+	ParseVar* var;
+	Function* func;
 };
 
 Tokenizer t;
@@ -50,23 +85,88 @@ ParseVar* FindVar(const string& id)
 	return nullptr;
 }
 
+FOUND FindItem(const string& id, Found& found)
+{
+	ParseVar* var = FindVar(id);
+	if(var)
+	{
+		found.var = var;
+		return F_VAR;
+	}
+
+	Function* func = FindFunction(id);
+	if(func)
+	{
+		found.func = func;
+		return F_FUNC;
+	}
+
+	return F_NONE;
+}
+
 bool TryConstCast(ParseNode* node, VAR_TYPE type)
 {
-	if((node->op == PUSH_INT || node->op == PUSH_FLOAT) && (type == V_INT || type == V_FLOAT))
+	if(type == V_STRING)
+		return false;
+
+	if(node->op == PUSH_BOOL)
 	{
-		// const cast
-		if(node->op == PUSH_INT)
+		if(type == V_INT)
 		{
-			// int -> float
+			// bool -> int
+			node->value = (node->bvalue ? 1 : 0);
+			node->op = PUSH_INT;
+			node->type = V_INT;
+		}
+		else if(type == V_FLOAT)
+		{
+			// bool -> float
+			node->fvalue = (node->bvalue ? 1.f : 0.f);
 			node->op = PUSH_FLOAT;
-			node->fvalue = (float)node->value;
+			node->type = V_FLOAT;
 		}
 		else
+			assert(0);
+		return true;
+	}
+	else if(node->op == PUSH_INT)
+	{
+		if(type == V_BOOL)
+		{
+			// int -> bool
+			node->bvalue = (node->value != 0);
+			node->op = PUSH_BOOL;
+			node->type = V_BOOL;
+		}
+		else if(type == V_FLOAT)
+		{
+			// int -> float
+			node->fvalue = (float)node->value;
+			node->op = PUSH_FLOAT;
+			node->type = V_FLOAT;
+		}
+		else
+			assert(0);
+		return true;
+	}
+	else if(node->op == PUSH_FLOAT)
+	{
+		if(type == V_BOOL)
+		{
+			// float -> bool
+			node->bvalue = (node->fvalue != 0.f);
+			node->op = PUSH_BOOL;
+			node->type = V_BOOL;
+		}
+		else if(type == V_INT)
 		{
 			// float -> int
-			node->op = PUSH_INT;
 			node->value = (int)node->fvalue;
+			node->op = PUSH_INT;
+			node->type = V_INT;
 		}
+		else
+			assert(0);
 		return true;
 	}
 	else
@@ -99,8 +199,8 @@ bool TryCast(ParseNode*& node, VAR_TYPE type)
 	if(node->type == type)
 		return true;
 
-	// no implicit cast from string to int/float
-	if(node->type == V_STRING && (type == V_INT || type == V_FLOAT))
+	// no implicit cast from string to bool/int/float
+	if(node->type == V_STRING && (type == V_BOOL || type == V_INT || type == V_FLOAT))
 		return false;
 
 	Cast(node, type);
@@ -196,6 +296,16 @@ ParseNode* ParseItem()
 		t.Next();
 		return node;
 	}
+	else if(t.IsKeywordGroup(G_CONST))
+	{
+		CONST c = (CONST)t.GetKeywordId(G_CONST);
+		t.Next();
+		ParseNode* node = ParseNode::Get();
+		node->op = PUSH_BOOL;
+		node->bvalue = (c == C_TRUE);
+		node->type = V_BOOL;
+		return node;
+	}
 	else
 		t.Unexpected();
 }
@@ -242,6 +352,12 @@ enum SYMBOL
 	S_PLUS,
 	S_MINUS,
 	S_LEFT_PAR,
+	S_EQUAL,
+	S_NOT_EQUAL,
+	S_GREATER,
+	S_GREATER_EQUAL,
+	S_LESS,
+	S_LESS_EQUAL,
 	S_INVALID
 };
 
@@ -256,13 +372,19 @@ struct SymbolInfo
 };
 
 SymbolInfo symbols[] = {
-	S_ADD, "add", 0, true, 2, ADD,
-	S_SUB, "subtract", 0, true, 2, SUB,
-	S_MUL, "multiply", 1, true, 2, MUL,
-	S_DIV, "divide", 1, true, 2, DIV,
-	S_PLUS, "unary plus", 2, false, 1, 0,
-	S_MINUS, "unary minus", 2, false, 1, 0,
+	S_ADD, "add", 2, true, 2, ADD,
+	S_SUB, "subtract", 2, true, 2, SUB,
+	S_MUL, "multiply", 3, true, 2, MUL,
+	S_DIV, "divide", 3, true, 2, DIV,
+	S_PLUS, "unary plus", 4, false, 1, 0,
+	S_MINUS, "unary minus", 4, false, 1, 0,
 	S_LEFT_PAR, "left parenthesis", -1, true, 0, 0,
+	S_EQUAL, "equal", 0, true, 2, EQ,
+	S_NOT_EQUAL, "not equal", 0, true, 2, NOT_EQ,
+	S_GREATER, "greater", 1, true, 2, GR,
+	S_GREATER_EQUAL, "greater equal", 1, true, 2, GR_EQ,
+	S_LESS, "less", 1, true, 2, LE,
+	S_LESS_EQUAL, "less equal", 1, true, 2, LE_EQ,
 	S_INVALID, "invalid", -1, true, 0, 0,
 };
 
@@ -294,61 +416,68 @@ SYMBOL CharToSymbol(char c)
 
 bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYPE& result)
 {
+	VAR_TYPE type;
 	switch(symbol)
 	{
 	case S_ADD:
-		if(left == right)
-		{
-			// no cast required (int/float/string)
-			cast = V_VOID;
-			result = left;
-			return true;
-		}
-		else if(left == V_STRING || right == V_STRING)
-		{
-			// cast int/float -> string
-			cast = V_STRING;
-			result = V_STRING;
-			return true;
-		}
+		if(left == V_STRING || right == V_STRING)
+			type = V_STRING;
 		else if(left == V_FLOAT || right == V_FLOAT)
-		{
-			// int op float/float op int -> cast int to float
-			cast = V_FLOAT;
-			result = V_FLOAT;
-			return true;
-		}
-		else
-			return false;
+			type = V_FLOAT;
+		else // int or bool
+			type = V_INT;
+		cast = type;
+		result = type;
+		return true;
 	case S_SUB:
 	case S_MUL:
 	case S_DIV:
 		if(left == V_STRING || right == V_STRING)
 			return false; // can't do with string
-		else if(left == right)
+		if(left == V_FLOAT || right == V_FLOAT)
+			type = V_FLOAT;
+		else // int or bool
+			type = V_INT;
+		cast = type;
+		result = type;
+		return true;
+	case S_PLUS:
+	case S_MINUS:
+		if(left == V_INT || right == V_FLOAT)
 		{
-			// no cast required (int/float)
-			cast = V_VOID;
+			cast = left;
 			result = left;
 			return true;
 		}
-		else if(left == V_FLOAT || right == V_FLOAT)
+		else if(left == V_BOOL)
 		{
-			// int op float/float op int -> cast int to float
-			cast = V_FLOAT;
-			result = V_FLOAT;
+			cast = V_INT;
+			result = V_INT;
 			return true;
 		}
 		else
 			return false;
-	case S_PLUS:
-	case S_MINUS:
-		// cast & result are unused
-		if(left == V_INT || right == V_FLOAT)
-			return true;
+	case S_EQUAL:
+	case S_NOT_EQUAL:
+	case S_GREATER:
+	case S_GREATER_EQUAL:
+	case S_LESS:
+	case S_LESS_EQUAL:
+		if(left == V_STRING || right == V_STRING)
+			type = V_STRING;
+		else if(left == V_FLOAT || right == V_FLOAT)
+			type = V_FLOAT;
+		else if(left == V_INT || right == V_INT)
+			type = V_INT;
+		else if(symbol == S_EQUAL || symbol == S_NOT_EQUAL)
+			type = V_INT;
 		else
-			return false;
+			type = V_BOOL;
+		cast = type;
+		result = V_BOOL;
+		return true;
 	default:
+		assert(0);
 		return false;
 	}
 }
@@ -368,69 +497,139 @@ struct SymbolOrNode
 
 bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol)
 {
-	if(left->op == PUSH_INT && right->op == PUSH_INT)
+	if(left->op == PUSH_BOOL && right->op == PUSH_BOOL)
 	{
-		// optimize const int expr
-		int value;
+		bool result;
 		switch(symbol)
 		{
-		case S_ADD:
-			value = left->value + right->value;
+		case S_EQUAL:
+			result = (left->bvalue == right->bvalue);
 			break;
-		case S_SUB:
-			value = left->value - right->value;
-			break;
-		case S_MUL:
-			value = left->value * right->value;
-			break;
-		case S_DIV:
-			if(right->value == 0)
-				value = 0;
-			else
-				value = left->value / right->value;
+		case S_NOT_EQUAL:
+			result = (left->bvalue != right->bvalue);
 			break;
 		default:
 			assert(0);
-			value = 0;
+			result = false;
 			break;
 		}
-
-		op->op = PUSH_INT;
-		op->value = value;
+		op->bvalue = result;
+		op->type = V_BOOL;
+		op->op = PUSH_BOOL;
+	}
+	else if(left->op == PUSH_INT && right->op == PUSH_INT)
+	{
+		// optimize const int expr
+		switch(symbol)
+		{
+		case S_ADD:
+			op->value = left->value + right->value;
+			op->op = PUSH_INT;
+			break;
+		case S_SUB:
+			op->value = left->value - right->value;
+			op->op = PUSH_INT;
+			break;
+		case S_MUL:
+			op->value = left->value * right->value;
+			op->op = PUSH_INT;
+			break;
+		case S_DIV:
+			if(right->value == 0)
+				op->value = 0;
+			else
+				op->value = left->value / right->value;
+			op->op = PUSH_INT;
+			break;
+		case S_EQUAL:
+			op->bvalue = (left->value == right->value);
+			op->op = PUSH_BOOL;
+			break;
+		case S_NOT_EQUAL:
+			op->bvalue = (left->value != right->value);
+			op->op = PUSH_BOOL;
+			break;
+		case S_GREATER:
+			op->bvalue = (left->value > right->value);
+			op->op = PUSH_BOOL;
+			break;
+		case S_GREATER_EQUAL:
+			op->bvalue = (left->value >= right->value);
+			op->op = PUSH_BOOL;
+			break;
+		case S_LESS:
+			op->bvalue = (left->value < right->value);
+			op->op = PUSH_BOOL;
+			break;
+		case S_LESS_EQUAL:
+			op->bvalue = (left->value <= right->value);
+			op->op = PUSH_BOOL;
+			break;
+		default:
+			assert(0);
+			op->value = 0;
+			op->op = PUSH_INT;
+			break;
+		}
 	}
 	else if(left->op == PUSH_FLOAT && right->op == PUSH_FLOAT)
 	{
 		// optimize const float expr
-		float fvalue;
 		switch(symbol)
 		{
 		case S_ADD:
-			fvalue = left->fvalue + right->fvalue;
+			op->fvalue = left->fvalue + right->fvalue;
+			op->op = PUSH_FLOAT;
 			break;
 		case S_SUB:
-			fvalue = left->fvalue - right->fvalue;
+			op->fvalue = left->fvalue - right->fvalue;
+			op->op = PUSH_FLOAT;
 			break;
 		case S_MUL:
-			fvalue = left->fvalue * right->fvalue;
+			op->fvalue = left->fvalue * right->fvalue;
+			op->op = PUSH_FLOAT;
 			break;
 		case S_DIV:
 			if(right->fvalue == 0.f)
-				fvalue = 0.f;
+				op->fvalue = 0.f;
 			else
-				fvalue = left->fvalue / right->fvalue;
+				op->fvalue = left->fvalue / right->fvalue;
+			op->op = PUSH_FLOAT;
+			break;
+		case S_EQUAL:
+			op->bvalue = (left->fvalue == right->fvalue);
+			op->op = PUSH_FLOAT;
+			break;
+		case S_NOT_EQUAL:
+			op->bvalue = (left->fvalue != right->fvalue);
+			op->op = PUSH_FLOAT;
+			break;
+		case S_LESS:
+			op->bvalue = (left->fvalue < right->fvalue);
+			op->op = PUSH_FLOAT;
+			break;
+		case S_LESS_EQUAL:
+			op->bvalue = (left->fvalue <= right->fvalue);
+			op->op = PUSH_FLOAT;
+			break;
+		case S_GREATER:
+			op->bvalue = (left->fvalue > right->fvalue);
+			op->op = PUSH_FLOAT;
+			break;
+		case S_GREATER_EQUAL:
+			op->bvalue = (left->fvalue >= right->fvalue);
+			op->op = PUSH_FLOAT;
+			break;
 			break;
 		default:
 			assert(0);
-			fvalue = 0;
+			op->fvalue = 0;
+			op->op = PUSH_FLOAT;
 			break;
 		}
-
-		op->op = PUSH_FLOAT;
-		op->fvalue = fvalue;
 	}
 	else
 		return false;
-
 
 	left->Free();
 	right->Free();
@@ -454,7 +653,7 @@ ParseNode* ParseExpr(char end, char end2)
 				if(c != ')' || open_par == 0)
 					break;
 			}
-			c = strchr2(c, "+-*/()");
+			c = strchr2(c, "+-*/()!=><");
 			if(c == 0)
 				t.Unexpected();
 			else if(c == '(')
@@ -508,7 +707,37 @@ ParseNode* ParseExpr(char end, char end2)
 				case LEFT_UNARY:
 					t.Unexpected();
 				case LEFT_ITEM:
-					symbol = CharToSymbol(c);
+					switch(c)
+					{
+					case '+':
+					case '-':
+					case '*':
+					case '/':
+						symbol = CharToSymbol(c);
+						break;
+					case '!':
+						if(!t.PeekSymbol('='))
+							t.Unexpected();
+						symbol = S_NOT_EQUAL;
+						break;
+					case '=':
+						if(!t.PeekSymbol('='))
+							t.Unexpected();
+						symbol = S_EQUAL;
+						break;
+					case '>':
+						if(t.PeekSymbol('='))
+							symbol = S_GREATER_EQUAL;
+						else
+							symbol = S_GREATER;
+						break;
+					case '<':
+						if(t.PeekSymbol('='))
+							symbol = S_LESS_EQUAL;
+						else
+							symbol = S_LESS;
+						break;
+					}
 					left = LEFT_SYMBOL;
 					break;
 				}
@@ -574,28 +803,17 @@ ParseNode* ParseExpr(char end, char end2)
 			{
 				ParseNode* node = stack2.back();
 				stack2.pop_back();
-				VAR_TYPE unused;
-				if(!CanOp(sn.symbol, node->type, V_VOID, unused, unused))
+				VAR_TYPE cast, result;
+				if(!CanOp(sn.symbol, node->type, V_VOID, cast, result))
 					t.Throw("Invalid type '%s' for operation '%s'.", var_name[node->type], si.name);
+				Cast(node, cast);
 				if(sn.symbol == S_MINUS)
 				{
-					if(node->op == PUSH_INT || node->op == PUSH_FLOAT)
-					{
-						// modify const instead of adding op
-						if(node->op == PUSH_INT)
-							node->value = -node->value;
-						else
-							node->fvalue = -node->fvalue;
-						stack2.push_back(node);
-					}
-					else
-					{
-						ParseNode* parent = ParseNode::Get();
-						parent->op = NEG;
-						parent->type = node->type;
-						parent->push(node);
-						stack2.push_back(parent);
-					}
+					ParseNode* parent = ParseNode::Get();
+					parent->op = NEG;
+					parent->type = result;
+					parent->push(node);
+					stack2.push_back(parent);
 				}
 				else
 					stack2.push_back(node);
@@ -671,7 +889,17 @@ ParseNode* ParseVarDecl(VAR_TYPE type)
 
 ParseNode* ParseLine()
 {
-	if(t.IsKeywordGroup(G_VAR))
+	if(t.IsSymbol(';'))
+	{
+		// empty statement
+		t.Next();
+		return nullptr;
+	}
+	else if(t.IsKeywordGroup(G_KEYWORD))
+	{
+		// if (TODO)
+	}
+	else if(t.IsKeywordGroup(G_VAR))
 	{
 		// var_type
 		VAR_TYPE type = (VAR_TYPE)t.GetKeywordId();
@@ -781,6 +1009,56 @@ ParseNode* ParseLine()
 	return node;
 }
 
+ParseNode* ParseLineOrBlock()
+{
+	if(t.IsSymbol('{'))
+	{
+		// block
+		t.Next();
+		vector<ParseNode*> nodes;
+		while(true)
+		{
+			if(t.IsSymbol('}'))
+				break;
+			ParseNode* node = ParseLine();
+			if(node)
+				nodes.push_back(node);
+		}
+		t.Next();
+		if(nodes.empty())
+			return nullptr;
+		else if(nodes.size() == 1u)
+			return nodes.front();
+		else
+		{
+			ParseNode* node = ParseNode::Get();
+			node->op = GROUP;
+			node->value = V_VOID;
+			node->childs = nodes;
+			return node;
+		}
+	}
+	else
+		return ParseLine();
+}
+
+ParseNode* ParseCode()
+{
+	ParseNode* node = ParseNode::Get();
+	node->op = GROUP;
+	node->type = V_VOID;
+
+	t.Next();
+	while(!t.IsEof())
+	{
+		ParseNode* child = ParseLineOrBlock();
+		if(child)
+			node->push(child);
+	}
+
+	return node;
+}
+
 void ToCode(vector<int>& code, ParseNode* node)
 {
 	if(node->op == GROUP)
@@ -817,31 +1095,21 @@ void ToCode(vector<int>& code, ParseNode* node)
 	case SUB:
 	case MUL:
 	case DIV:
+	case EQ:
+	case NOT_EQ:
+	case GR:
+	case GR_EQ:
+	case LE:
+	case LE_EQ:
 		code.push_back(node->op);
+		break;
+	case PUSH_BOOL:
+		code.push_back(node->bvalue ? PUSH_TRUE : PUSH_FALSE);
 		break;
 	default:
 		assert(0);
 		break;
 	}
-}
-
-void ParseCode(vector<int>& code)
-{
-	ParseNode* node = ParseNode::Get();
-	node->op = GROUP;
-	node->type = V_VOID;
-
-	t.Next();
-	while(!t.IsEof())
-	{
-		ParseNode* child = ParseLine();
-		if(child)
-			node->push(child);
-	}
-
-	// codify
-	ToCode(code, node);
-	code.push_back(RET);
 }
 
 bool Parse(ParseContext& ctx)
@@ -850,7 +1118,12 @@ bool Parse(ParseContext& ctx)
 	{
 		t.FromString(ctx.input);
 
-		ParseCode(ctx.code);
+		// parse
+		ParseNode* node = ParseCode();
+		
+		// codify
+		ToCode(ctx.code, node);
+		ctx.code.push_back(RET);
 
 		ctx.strs = strs;
 		ctx.vars = vars.size();
@@ -869,6 +1142,17 @@ void InitializeParser()
 	// register var types
 	for(int i = 0; i < V_MAX; ++i)
 		t.AddKeyword(var_name[i], i, G_VAR);
+
+	// register keywords
+	//t.AddKeywords(G_KEYWORD, {
+	//	{"if", K_IF}
+	//});
+
+	// const
+	t.AddKeywords(G_CONST, {
+		{"true", C_TRUE},
+		{"false", C_FALSE}
+	});
 }
 
 void CleanupParser()

@@ -20,12 +20,14 @@ struct Var
 	VAR_TYPE type;
 	union
 	{
+		bool bvalue;
 		int value;
 		float fvalue;
 		Str* str;
 	};
 
 	inline explicit Var() : type(V_VOID) {}
+	inline explicit Var(bool bvalue) : type(V_BOOL), bvalue(bvalue) {}
 	inline explicit Var(int value) : type(V_INT), value(value) {}
 	inline explicit Var(float fvalue) : type(V_FLOAT), fvalue(fvalue) {}
 	inline explicit Var(Str* str) : type(V_STRING), str(str) {}

@@ -82,5 +82,10 @@ namespace tests
 		{
 			Test("parentheses.txt", "", "-5\n20\n0\n24\n");
 		}
+
+		TEST_METHOD(Bool)
+		{
+			Test("bool.txt", "7 8", "false\ntrue\nfalse\nfalse\ntrue\ntrue\n-1\n8\ntrue\nfalse\n");
+		}
 	};
 }

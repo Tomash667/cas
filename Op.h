@@ -2,6 +2,8 @@
 
 enum Op
 {
+	PUSH_TRUE,
+	PUSH_FALSE,
 	PUSH_INT,
 	PUSH_FLOAT,
 	PUSH_STRING,
@@ -10,12 +12,20 @@ enum Op
 	POP_VAR,
 	CAST,
 	NEG,
+	NOT,
 	ADD,
 	SUB,
 	MUL,
 	DIV,
+	EQ,
+	NOT_EQ,
+	GR,
+	GR_EQ,
+	LE,
+	LE_EQ,
+	//JMP,
+	//TJMP,
 	CALL,
 	RET,
-
-	GROUP
+	MAX_OP
 };

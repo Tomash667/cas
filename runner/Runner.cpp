@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "parentheses.txt";
+cstring filename = "test.txt";
 
 int main(int argc, char** argv)
 {

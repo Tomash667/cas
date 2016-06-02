@@ -1,6 +1,9 @@
+- int a = 3 + print("dupa");
+	will parse but crash on run
+
++ builtin unit tests
 + x = y = 3;
 + ++ --
-+ types: bool
 + function overloads
 	int f();
 	int f(int,int);

@@ -1,0 +1,15 @@
+int a = getint(), b = getint();
+println(a == b);
+println(a != b);
+println(a > b);
+println(a >= b);
+println(a < b);
+println(a <= b);
+bool c = a != b;
+println(-c);
+a += c;
+a *= c;
+println(a);
+println(true);
+println(false);
+pause();

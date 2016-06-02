@@ -3,6 +3,7 @@
 enum VAR_TYPE
 {
 	V_VOID,
+	V_BOOL,
 	V_INT,
 	V_FLOAT,
 	V_STRING,

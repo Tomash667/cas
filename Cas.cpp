@@ -6,6 +6,7 @@
 
 cstring var_name[V_MAX] = {
 	"void",
+	"bool",
 	"int",
 	"float",
 	"string"

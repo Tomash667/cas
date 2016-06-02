@@ -1,16 +1,22 @@
 code:
-	[line [line ...]] EOF
+	[line_or_block ...] EOF
 
+line_or_block:
+	{ [line ...] }
+	line
+	
 line:
+	if ( expr ) line_or_block
 	var_type var_decl [, var_decl ...] ;
-	var_name [op] = expr<;> ;
-	expr<;> ;
+	var_name [op] = expr ;
+	expr ;
+	;
 
 var_decl:
-	var_name [ = expr<,;> ]
+	var_name [ = expr ]
 
 expr<END>:
-	op/item ... <END>
+	ext_op/item ... <END>
 
 item:
 	var_name
@@ -18,15 +24,29 @@ item:
 	float
 	func ( args )
 	"string"
+	const
 
 args:
-	expr<,)> [, expr ...]
+	expr [, expr ...]
+
+ext_op:
+	op
+	==
+	!=
+	>
+	>=
+	<
+	<=
 
 op:
 	+
 	-
 	*
 	/
+
+const:
+	true
+	false
 
 =============================
 lvar = rval ;
