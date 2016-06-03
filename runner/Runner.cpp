@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "test.txt";
+cstring filename = "comp_operators.txt";
 
 int main(int argc, char** argv)
 {

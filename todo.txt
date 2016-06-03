@@ -1,6 +1,3 @@
-- int a = 3 + print("dupa");
-	will parse but crash on run
-
 + builtin unit tests
 + x = y = 3;
 + ++ --
@@ -18,10 +15,13 @@
 + warn about div by 0 in const
 + opt: print(4) -> converted to string
 + warn: use of unassigned variable
-+ if else, operator == !=
-+ operator && ||
++ if else
 + do, while
 + for
 + string functions, [], substr, first(), last(), trim
 + functions
 + classes
++ function constexpr (abs,cin,cos)
++ bit operations
++ namespace
++ continue parsing after error

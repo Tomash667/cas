@@ -165,14 +165,23 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			}
 			break;
 		case NEG:
+		case NOT:
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(v.type == V_INT || v.type == V_FLOAT);
-				if(v.type == V_INT)
-					v.value = -v.value;
+				if(op == NEG)
+				{
+					assert(v.type == V_INT || v.type == V_FLOAT);
+					if(v.type == V_INT)
+						v.value = -v.value;
+					else
+						v.fvalue = -v.fvalue;
+				}
 				else
-					v.fvalue = -v.fvalue;
+				{
+					assert(v.type == V_BOOL);
+					v.bvalue = !v.bvalue;
+				}
 			}
 			break;
 		case ADD:
@@ -185,6 +194,8 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 		case GR_EQ:
 		case LE:
 		case LE_EQ:
+		case AND:
+		case OR:
 			{
 				assert(stack.size() >= 2u);
 				Var right = stack.back();
@@ -195,6 +206,8 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 					assert(left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
 					assert(left.type == V_BOOL || left.type == V_INT || left.type == V_FLOAT);
+				else if(op == AND || op == OR)
+					assert(left.type == V_BOOL);
 				else
 					assert(left.type == V_INT || left.type == V_FLOAT);
 
@@ -289,6 +302,12 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 					else
 						left.bvalue = (left.fvalue <= right.fvalue);
 					left.type = V_BOOL;
+					break;
+				case AND:
+					left.bvalue = (left.bvalue && right.bvalue);
+					break;
+				case OR:
+					left.bvalue = (left.bvalue || right.bvalue);
 					break;
 				}
 			}

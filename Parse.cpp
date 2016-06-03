@@ -35,7 +35,8 @@ enum FOUND
 enum PseudoOp
 {
 	GROUP = MAX_OP,
-	PUSH_BOOL
+	PUSH_BOOL,
+	NOP
 };
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
@@ -358,7 +359,11 @@ enum SYMBOL
 	S_GREATER_EQUAL,
 	S_LESS,
 	S_LESS_EQUAL,
-	S_INVALID
+	S_AND,
+	S_OR,
+	S_NOT,
+	S_INVALID,
+	S_MAX
 };
 
 // http://en.cppreference.com/w/cpp/language/operator_precedence
@@ -371,21 +376,24 @@ struct SymbolInfo
 	int args, op;
 };
 
-SymbolInfo symbols[] = {
-	S_ADD, "add", 2, true, 2, ADD,
-	S_SUB, "subtract", 2, true, 2, SUB,
-	S_MUL, "multiply", 3, true, 2, MUL,
-	S_DIV, "divide", 3, true, 2, DIV,
-	S_PLUS, "unary plus", 4, false, 1, 0,
-	S_MINUS, "unary minus", 4, false, 1, 0,
-	S_LEFT_PAR, "left parenthesis", -1, true, 0, 0,
-	S_EQUAL, "equal", 0, true, 2, EQ,
-	S_NOT_EQUAL, "not equal", 0, true, 2, NOT_EQ,
-	S_GREATER, "greater", 1, true, 2, GR,
-	S_GREATER_EQUAL, "greater equal", 1, true, 2, GR_EQ,
-	S_LESS, "less", 1, true, 2, LE,
-	S_LESS_EQUAL, "less equal", 1, true, 2, LE_EQ,
-	S_INVALID, "invalid", -1, true, 0, 0,
+SymbolInfo symbols[S_MAX] = {
+	S_ADD, "add", 4, true, 2, ADD,
+	S_SUB, "subtract", 4, true, 2, SUB,
+	S_MUL, "multiply", 5, true, 2, MUL,
+	S_DIV, "divide", 5, true, 2, DIV,
+	S_PLUS, "unary plus", 6, false, 1, NOP,
+	S_MINUS, "unary minus", 6, false, 1, NEG,
+	S_LEFT_PAR, "left parenthesis", -1, true, 0, NOP,
+	S_EQUAL, "equal", 2, true, 2, EQ,
+	S_NOT_EQUAL, "not equal", 2, true, 2, NOT_EQ,
+	S_GREATER, "greater", 3, true, 2, GR,
+	S_GREATER_EQUAL, "greater equal", 3, true, 2, GR_EQ,
+	S_LESS, "less", 3, true, 2, LE,
+	S_LESS_EQUAL, "less equal", 3, true, 2, LE_EQ,
+	S_AND, "and", 1, true, 2, AND,
+	S_OR, "or", 0, true, 2, OR,
+	S_NOT, "not", 6, false, 1, NOT,
+	S_INVALID, "invalid", -1, true, 0, NOP,
 };
 
 enum LEFT
@@ -416,6 +424,11 @@ SYMBOL CharToSymbol(char c)
 
 bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYPE& result)
 {
+	if(left == V_VOID)
+		return false;
+	if(right == V_VOID && symbols[symbol].args != 1)
+		return false;
+
 	VAR_TYPE type;
 	switch(symbol)
 	{
@@ -464,7 +477,11 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 	case S_LESS:
 	case S_LESS_EQUAL:
 		if(left == V_STRING || right == V_STRING)
+		{
+			if(symbol != S_EQUAL && symbol != S_NOT_EQUAL)
+				return false;
 			type = V_STRING;
+		}
 		else if(left == V_FLOAT || right == V_FLOAT)
 			type = V_FLOAT;
 		else if(left == V_INT || right == V_INT)
@@ -474,6 +491,21 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 		else
 			type = V_BOOL;
 		cast = type;
+		result = V_BOOL;
+		return true;
+	case S_AND:
+	case S_OR:
+		// not allowed for string, cast other to bool
+		if(left == V_STRING || right == V_STRING)
+			return false;
+		cast = V_BOOL;
+		result = V_BOOL;
+		return true;
+	case S_NOT:
+		// not allowed for string, cast other to bool
+		if(left == V_STRING)
+			return false;
+		cast = V_BOOL;
 		result = V_BOOL;
 		return true;
 	default:
@@ -495,9 +527,42 @@ struct SymbolOrNode
 	inline SymbolOrNode(SYMBOL symbol) : symbol(symbol), is_symbol(true) {}
 };
 
+bool TryConstExpr1(ParseNode* node, SYMBOL symbol)
+{
+	if(symbol == S_PLUS)
+		return true;
+	else if(symbol == S_MINUS)
+	{
+		if(node->op == PUSH_INT)
+		{
+			node->value = -node->value;
+			return true;
+		}
+		else if(node->op == PUSH_FLOAT)
+		{
+			node->fvalue = -node->fvalue;
+			return true;
+		}
+	}
+	else if(symbol == S_NOT)
+	{
+		if(node->op == PUSH_BOOL)
+		{
+			node->bvalue = !node->bvalue;
+			return true;
+		}
+	}
+	else
+		assert(0);
+	return false;
+}
+
 bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol)
 {
-	if(left->op == PUSH_BOOL && right->op == PUSH_BOOL)
+	if(left->op != right->op)
+		return false;
+
+	if(left->op == PUSH_BOOL)
 	{
 		bool result;
 		switch(symbol)
@@ -508,6 +573,12 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 		case S_NOT_EQUAL:
 			result = (left->bvalue != right->bvalue);
 			break;
+		case S_AND:
+			result = (left->bvalue && right->bvalue);
+			break;
+		case S_OR:
+			result = (left->bvalue || right->bvalue);
+			break;
 		default:
 			assert(0);
 			result = false;
@@ -517,7 +588,7 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 		op->type = V_BOOL;
 		op->op = PUSH_BOOL;
 	}
-	else if(left->op == PUSH_INT && right->op == PUSH_INT)
+	else if(left->op == PUSH_INT)
 	{
 		// optimize const int expr
 		switch(symbol)
@@ -572,7 +643,7 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 			break;
 		}
 	}
-	else if(left->op == PUSH_FLOAT && right->op == PUSH_FLOAT)
+	else if(left->op == PUSH_FLOAT)
 	{
 		// optimize const float expr
 		switch(symbol)
@@ -653,7 +724,7 @@ ParseNode* ParseExpr(char end, char end2)
 				if(c != ')' || open_par == 0)
 					break;
 			}
-			c = strchr2(c, "+-*/()!=><");
+			c = strchr2(c, "+-*/()!=><&|");
 			if(c == 0)
 				t.Unexpected();
 			else if(c == '(')
@@ -694,18 +765,25 @@ ParseNode* ParseExpr(char end, char end2)
 				{
 				case LEFT_NONE:
 				case LEFT_SYMBOL:
+				case LEFT_UNARY:
 					{
-						if(c == '+')
+						switch(c)
+						{
+						case '+':
 							symbol = S_PLUS;
-						else if(c == '-')
+							break;
+						case '-':
 							symbol = S_MINUS;
-						else
+							break;
+						case '!':
+							symbol = S_NOT;
+							break;
+						default:
 							t.Unexpected();
+						}
 						left = LEFT_UNARY;
 					}
 					break;
-				case LEFT_UNARY:
-					t.Unexpected();
 				case LEFT_ITEM:
 					switch(c)
 					{
@@ -736,6 +814,16 @@ ParseNode* ParseExpr(char end, char end2)
 							symbol = S_LESS_EQUAL;
 						else
 							symbol = S_LESS;
+						break;
+					case '&':
+						if(!t.PeekSymbol('&'))
+							t.Unexpected();
+						symbol = S_AND;
+						break;
+					case '|':
+						if(!t.PeekSymbol('|'))
+							t.Unexpected();
+						symbol = S_OR;
 						break;
 					}
 					left = LEFT_SYMBOL;
@@ -807,16 +895,15 @@ ParseNode* ParseExpr(char end, char end2)
 				if(!CanOp(sn.symbol, node->type, V_VOID, cast, result))
 					t.Throw("Invalid type '%s' for operation '%s'.", var_name[node->type], si.name);
 				Cast(node, cast);
-				if(sn.symbol == S_MINUS)
+				if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
 				{
-					ParseNode* parent = ParseNode::Get();
-					parent->op = NEG;
-					parent->type = result;
-					parent->push(node);
-					stack2.push_back(parent);
+					ParseNode* op = ParseNode::Get();
+					op->op = si.op;
+					op->type = result;
+					op->push(node);
+					node = op;
 				}
-				else
-					stack2.push_back(node);
+				stack2.push_back(node);
 			}
 			else if(si.args == 2)
 			{
@@ -1101,6 +1188,9 @@ void ToCode(vector<int>& code, ParseNode* node)
 	case GR_EQ:
 	case LE:
 	case LE_EQ:
+	case AND:
+	case OR:
+	case NOT:
 		code.push_back(node->op);
 		break;
 	case PUSH_BOOL:
