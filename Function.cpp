@@ -13,6 +13,7 @@ Function& AddFunction(cstring name, VoidF clbk)
 	f.clbk = clbk;
 	f.result = V_VOID;
 	f.index = functions.size() - 1;
+	f.var_type = V_VOID;
 	return f;
 }
 
@@ -60,6 +61,15 @@ void f_pause()
 	_getch();
 }
 
+void f_string_length()
+{
+	Var& v = stack.back();
+	int len = v.str->s.length();
+	v.str->Release();
+	v.value = len;
+	v.type = V_INT;
+}
+
 void RegisterFunctions()
 {
 	AddFunction("print", f_print).args.push_back(V_STRING);
@@ -68,4 +78,10 @@ void RegisterFunctions()
 	AddFunction("getfloat", f_getfloat).result = V_FLOAT;
 	AddFunction("getstr", f_getstr).result = V_STRING;
 	AddFunction("pause", f_pause);
+
+	{
+		Function& f = AddFunction("length", f_string_length);
+		f.result = V_INT;
+		f.var_type = V_STRING;
+	}
 }

@@ -40,7 +40,8 @@ enum PseudoOp
 	GROUP = MAX_OP,
 	PUSH_BOOL,
 	NOP,
-	IF
+	IF,
+	PRE_CALL
 };
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
@@ -58,6 +59,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		bool bvalue;
 		int value;
 		float fvalue;
+		string* str;
 	};
 	VAR_TYPE type;
 	vector<ParseNode*> childs;
@@ -77,6 +79,7 @@ vector<int> pcode;
 vector<string> strs;
 
 
+void ParseArgs(vector<ParseNode*>& nodes);
 ParseNode* ParseExpr(char end, char end2 = 0);
 ParseNode* ParseLineOrBlock();
 
@@ -213,6 +216,17 @@ bool TryCast(ParseNode*& node, VAR_TYPE type)
 	return true;
 }
 
+void VerifyFunctionCall(ParseNode* node, Function* f)
+{
+	if(node->childs.size() != f->args.size())
+		t.Throw("Function %s with %d arguments not found, function have %d arguments.", f->name, node->childs.size(), f->args.size());
+	for(uint i = 0; i < node->childs.size(); ++i)
+	{
+		if(!TryCast(node->childs[i], f->args[i]))
+			t.Throw("Function %s takes %s for argument %d, found %s.", f->name, var_name[f->args[i]], i + 1, var_name[node->childs[i]->type]);
+	}
+}
+
 ParseNode* ParseItem()
 {
 	if(t.IsInt())
@@ -253,37 +267,14 @@ ParseNode* ParseItem()
 		}
 		else if((f = FindFunction(item)))
 		{
-			// function
-			t.Next();
-			t.AssertSymbol('(');
-			t.Next();
-
-			// args
 			ParseNode* node = ParseNode::Get();
 			node->op = CALL;
 			node->type = f->result;
 			node->value = f->index;
-			if(!t.IsSymbol(')'))
-			{
-				while(true)
-				{
-					node->push(ParseExpr(',', ')'));
-					if(t.IsSymbol(')'))
-						break;
-					t.AssertSymbol(',');
-					t.Next();
-				}
-			}
-			t.Next();
 
-			// verify
-			if(node->childs.size() != f->args.size())
-				t.Throw("Function %s with %d arguments not found, function have %d arguments.", f->name, node->childs.size(), f->args.size());
-			for(uint i = 0; i < node->childs.size(); ++i)
-			{
-				if(!TryCast(node->childs[i], f->args[i]))
-					t.Throw("Function %s takes %s for argument %d, found %s.", f->name, var_name[f->args[i]], i + 1, var_name[node->childs[i]->type]);
-			}
+			t.Next();
+			ParseArgs(node->childs);
+			VerifyFunctionCall(node, f);
 
 			return node;
 		}
@@ -367,6 +358,7 @@ enum SYMBOL
 	S_AND,
 	S_OR,
 	S_NOT,
+	S_MEMBER_ACCESS,
 	S_INVALID,
 	S_MAX
 };
@@ -398,6 +390,7 @@ SymbolInfo symbols[S_MAX] = {
 	S_AND, "and", 1, true, 2, AND,
 	S_OR, "or", 0, true, 2, OR,
 	S_NOT, "not", 6, false, 1, NOT,
+	S_MEMBER_ACCESS, "member access", 6, true, 2, NOP,
 	S_INVALID, "invalid", -1, true, 0, NOP,
 };
 
@@ -712,6 +705,27 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 	return true;
 }
 
+void ParseArgs(vector<ParseNode*>& nodes)
+{
+	// (
+	t.AssertSymbol('(');
+	t.Next();
+
+	// arguments
+	if(!t.IsSymbol(')'))
+	{
+		while(true)
+		{
+			nodes.push_back(ParseExpr(',', ')'));
+			if(t.IsSymbol(')'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		}
+	}
+	t.Next();
+}
+
 ParseNode* ParseExpr(char end, char end2)
 {
 	vector<SymbolOrNode> exit;
@@ -729,7 +743,7 @@ ParseNode* ParseExpr(char end, char end2)
 				if(c != ')' || open_par == 0)
 					break;
 			}
-			c = strchr2(c, "+-*/()!=><&|");
+			c = strchr2(c, "+-*/()!=><&|.");
 			if(c == 0)
 				t.Unexpected();
 			else if(c == '(')
@@ -830,6 +844,9 @@ ParseNode* ParseExpr(char end, char end2)
 							t.Unexpected();
 						symbol = S_OR;
 						break;
+					case '.':
+						symbol = S_MEMBER_ACCESS;
+						break;
 					}
 					left = LEFT_SYMBOL;
 					break;
@@ -858,6 +875,20 @@ ParseNode* ParseExpr(char end, char end2)
 
 				stack.push_back(symbol);
 				t.Next();
+
+				if(symbol == S_MEMBER_ACCESS)
+				{
+					string* str = StringPool.Get();
+					*str = t.MustGetItem();
+					t.Next();
+					ParseNode* node = ParseNode::Get();
+					node->op = PRE_CALL;
+					node->type = V_VOID;
+					node->str = str;
+					ParseArgs(node->childs);
+					exit.push_back(node);
+					left = LEFT_ITEM;
+				}
 			}
 		}
 		else
@@ -917,24 +948,47 @@ ParseNode* ParseExpr(char end, char end2)
 				ParseNode* left = stack2.back();
 				stack2.pop_back();
 
-				VAR_TYPE cast, result;
-				if(!CanOp(si.symbol, left->type, right->type, cast, result))
-					t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_name[left->type], var_name[right->type], si.name);
-
-				Cast(left, cast);
-				Cast(right, cast);
-				
-				ParseNode* op = ParseNode::Get();
-				op->type = result;
-
-				if(!TryConstExpr(left, right, op, si.symbol))
+				if(si.symbol != S_MEMBER_ACCESS)
 				{
-					op->op = (Op)si.op;
-					op->push(left);
-					op->push(right);
-				}
+					VAR_TYPE cast, result;
+					if(!CanOp(si.symbol, left->type, right->type, cast, result))
+						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_name[left->type], var_name[right->type], si.name);
 
-				stack2.push_back(op);
+					Cast(left, cast);
+					Cast(right, cast);
+
+					ParseNode* op = ParseNode::Get();
+					op->type = result;
+
+					if(!TryConstExpr(left, right, op, si.symbol))
+					{
+						op->op = (Op)si.op;
+						op->push(left);
+						op->push(right);
+					}
+
+					stack2.push_back(op);
+				}
+				else
+				{
+					assert(right->op == PRE_CALL);
+					if(left->type == V_VOID)
+						t.Throw("Invalid member access for type 'void'.");
+					Function* func = FindFunction(*right->str, left->type);
+					if(!func)
+						t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), var_name[left->type]);
+					StringPool.Free(right->str);
+					VerifyFunctionCall(right, func);
+					ParseNode* node = ParseNode::Get();
+					node->op = CALL;
+					node->type = func->result;
+					node->value = func->index;
+					node->push(left);
+					for(ParseNode* n : right->childs)
+						node->push(n);
+					right->Free();
+					stack2.push_back(node);
+				}
 			}
 		}
 		else

@@ -344,6 +344,8 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				uint expected_stack_size = stack.size() - f.args.size();
 				if(f.result != V_VOID)
 					++expected_stack_size;
+				if(f.var_type != V_VOID)
+					--expected_stack_size;
 				for(uint i = 0; i < f.args.size(); ++i)
 					assert(stack.at(stack.size() - f.args.size() + i).type == f.args[i]);
 				f.clbk();

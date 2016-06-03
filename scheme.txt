@@ -1,36 +1,43 @@
 code:
-	[line_or_block ...] EOF
+	[ line_or_block ... ] EOF
 
 line_or_block:
-	{ [line ...] }
+	{ [ line ... ] }
 	line
 	
 line:
 	if ( expr ) line_or_block [ else line_or_block ]
 	var_type var_decl [, var_decl ...] ;
-	var_name [op] = expr ;
+	<var_name> [ base_op ] = expr ;
 	expr ;
 	;
 
-var_decl:
-	var_name [ = expr ]
-
-expr<END>:
-	ext_op/item ... <END>
-
-item:
-	var_name
+var_type:
+	void
+	bool
 	int
 	float
-	func ( args )
-	"string"
+	string
+
+var_decl:
+	<var_name> [ = expr ]
+
+expr<END>:
+	[unary_op] item [ op [unary_op] item ... ] <END>
+
+item:
+	<var_name>
+	<int>
+	<float>
+	<func> args
+	<string>
 	const
 
 args:
-	expr [, expr ...]
+	( expr [, expr ...] )
 
-ext_op:
-	op
+op:
+	base_op
 	==
 	!=
 	>
@@ -41,12 +48,18 @@ ext_op:
 	||
 	!
 	( expr )
+	. <obj_func> args
 
-op:
+base_op:
 	+
 	-
 	*
 	/
+
+unary_op:
+	+
+	-
+	!
 
 const:
 	true

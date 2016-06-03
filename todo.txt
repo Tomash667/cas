@@ -1,4 +1,7 @@
++ assign operator built in expr
 + blocks and variables, reuse names
++ class member access
++ class properties
 + builtin unit tests
 + x = y = 3;
 + ++ --

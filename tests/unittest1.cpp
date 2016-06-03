@@ -99,5 +99,10 @@ namespace tests
 			Test("if_else.txt", "2 1", "a > b");
 			Test("if_else.txt", "1 2", "a < b");
 		}
+
+		TEST_METHOD(TypeFunc)
+		{
+			Test("type_func.txt", "", "4\n");
+		}
 	};
 }

@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "if_else.txt";
+cstring filename = "type_func.txt";
 
 int main(int argc, char** argv)
 {

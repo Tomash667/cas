@@ -9,17 +9,17 @@ struct Function
 	cstring name;
 	VoidF clbk;
 	int index;
-	VAR_TYPE result;
+	VAR_TYPE result, var_type;
 	vector<VAR_TYPE> args;
 };
 
 extern vector<Function> functions;
 
-inline Function* FindFunction(const string& id)
+inline Function* FindFunction(const string& id, VAR_TYPE var_type = V_VOID)
 {
 	for(Function& f : functions)
 	{
-		if(id == f.name)
+		if(id == f.name && var_type == f.var_type)
 			return &f;
 	}
 	return nullptr;
