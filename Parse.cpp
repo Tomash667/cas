@@ -5,6 +5,8 @@
 #include "Function.h"
 #include "Parse.h"
 
+const bool optimize_if = true;
+
 #undef CONST
 
 enum GROUP
@@ -16,7 +18,8 @@ enum GROUP
 
 enum KEYWORD
 {
-	K_IF
+	K_IF,
+	K_ELSE
 };
 
 enum CONST
@@ -36,7 +39,8 @@ enum PseudoOp
 {
 	GROUP = MAX_OP,
 	PUSH_BOOL,
-	NOP
+	NOP,
+	IF
 };
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
@@ -74,6 +78,7 @@ vector<string> strs;
 
 
 ParseNode* ParseExpr(char end, char end2 = 0);
+ParseNode* ParseLineOrBlock();
 
 
 ParseVar* FindVar(const string& id)
@@ -984,7 +989,89 @@ ParseNode* ParseLine()
 	}
 	else if(t.IsKeywordGroup(G_KEYWORD))
 	{
-		// if (TODO)
+		KEYWORD keyword = (KEYWORD)t.GetKeywordId(G_KEYWORD);
+		if(keyword != K_IF)
+			t.Unexpected();
+		t.Next();
+
+		// if
+		t.AssertSymbol('(');
+		t.Next();
+		ParseNode* if_expr = ParseExpr(')');
+		t.AssertSymbol(')');
+		if(!TryCast(if_expr, V_BOOL))
+			t.Throw("If expression with '%s' type.", var_name[if_expr->type]);
+		t.Next();
+
+		ParseNode* if_op = ParseNode::Get();
+		if_op->op = IF;
+		if_op->type = V_VOID;
+		if_op->push(if_expr);
+		if_op->push(ParseLineOrBlock());
+
+		// else
+		if(t.IsKeyword(K_ELSE, G_KEYWORD))
+		{
+			t.Next();
+			if_op->push(ParseLineOrBlock());
+		}
+		else
+			if_op->push(nullptr);
+
+		if(optimize_if)
+		{
+			if(if_expr->op == PUSH_BOOL)
+			{
+				// const expr
+				ParseNode* result;
+				if_op->childs[0]->Free();
+				if(if_expr->bvalue)
+				{
+					// always true
+					result = if_op->childs[1];
+					if(if_op->childs[2])
+						if_op->childs[2]->Free();
+				}
+				else
+				{
+					// always false
+					result = if_op->childs[2];
+					if(if_op->childs[1])
+						if_op->childs[1]->Free();
+				}
+				if_op->Free();
+				if_op = result;
+			}
+			else
+			{
+				// not const expr
+				if(if_op->childs[1] == nullptr && if_op->childs[2] == nullptr)
+				{
+					// both code blocks are empty
+					if_op->childs[0]->Free();
+					if_op->Free();
+					if_op = nullptr;
+				}
+				else if(if_op->childs[1] == nullptr)
+				{
+					// if block is empty, negate if and drop else
+					ParseNode* not = ParseNode::Get();
+					not->op = NOT;
+					not->type = V_BOOL;
+					not->push(if_op->childs[0]);
+					if_op->childs[0] = not;
+					if_op->childs[1] = if_op->childs[2];
+					if_op->childs.pop_back();
+				}
+				else if(if_op->childs[2] == nullptr)
+				{
+					// else block is empty
+					if_op->childs.pop_back();
+				}
+			}
+		}
+
+		return if_op;
 	}
 	else if(t.IsKeywordGroup(G_VAR))
 	{
@@ -1148,7 +1235,54 @@ ParseNode* ParseCode()
 
 void ToCode(vector<int>& code, ParseNode* node)
 {
-	if(node->op == GROUP)
+	if(node->op == IF)
+	{
+		// if expr
+		ToCode(code, node->childs[0]);
+		code.push_back(TJMP);
+		uint tjmp_pos = code.size();
+		code.push_back(0);
+		if(node->childs.size() == 3u)
+		{
+			/*
+			if expr
+			tjmp else_block
+			if_block: if code
+			jmp end
+			else_block: else code
+			end:
+			*/
+			ToCode(code, node->childs[1]);
+			if(node->childs[1]->type != V_VOID)
+				code.push_back(POP);
+			code.push_back(JMP);
+			uint jmp_pos = code.size();
+			code.push_back(0);
+			uint else_start = code.size();
+			ToCode(code, node->childs[2]);
+			if(node->childs[2]->type != V_VOID)
+				code.push_back(POP);
+			uint end_start = code.size();
+			code[tjmp_pos] = else_start;
+			code[jmp_pos] = end_start;
+		}
+		else
+		{
+			/*
+			if expr
+			tjmp end
+			if_code
+			end:
+			*/
+			ToCode(code, node->childs[1]);
+			if(node->childs[1]->type != V_VOID)
+				code.push_back(POP);
+			uint end_start = code.size();
+			code[tjmp_pos] = end_start;
+		}
+		return;
+	}
+	else if(node->op == GROUP)
 	{
 		for(ParseNode* n : node->childs)
 		{
@@ -1234,9 +1368,10 @@ void InitializeParser()
 		t.AddKeyword(var_name[i], i, G_VAR);
 
 	// register keywords
-	//t.AddKeywords(G_KEYWORD, {
-	//	{"if", K_IF}
-	//});
+	t.AddKeywords(G_KEYWORD, {
+		{"if", K_IF},
+		{"else", K_ELSE}
+	});
 
 	// const
 	t.AddKeywords(G_CONST, {

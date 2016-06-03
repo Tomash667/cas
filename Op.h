@@ -25,8 +25,8 @@ enum Op
 	AND,
 	OR,
 	NOT,
-	//JMP,
-	//TJMP,
+	JMP,
+	TJMP,
 	CALL,
 	RET,
 	MAX_OP

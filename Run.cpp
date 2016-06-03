@@ -315,6 +315,26 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 		case RET:
 			assert(stack.empty());
 			return;
+		case JMP:
+			{
+				uint offset = *c++;
+				c = code.data() + offset;
+				assert(c < end);
+			}
+			break;
+		case TJMP:
+			{
+				uint offset = *c++;
+				int* new_c = code.data() + offset;
+				assert(new_c < end);
+				assert(!stack.empty());
+				Var v = stack.back();
+				stack.pop_back();
+				assert(v.type == V_BOOL);
+				if(!v.bvalue)
+					c = new_c;
+			}
+			break;
 		case CALL:
 			{
 				uint f_idx = *c++;

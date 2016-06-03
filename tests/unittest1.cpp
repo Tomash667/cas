@@ -92,5 +92,12 @@ namespace tests
 		{
 			Test("comp_operators.txt", "", "true\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\n");
 		}
+
+		TEST_METHOD(IfElse)
+		{
+			Test("if_else.txt", "1 1", "a == b");
+			Test("if_else.txt", "2 1", "a > b");
+			Test("if_else.txt", "1 2", "a < b");
+		}
 	};
 }

@@ -6,7 +6,7 @@ line_or_block:
 	line
 	
 line:
-	if ( expr ) line_or_block
+	if ( expr ) line_or_block [ else line_or_block ]
 	var_type var_decl [, var_decl ...] ;
 	var_name [op] = expr ;
 	expr ;
@@ -40,7 +40,6 @@ ext_op:
 	&&
 	||
 	!
-	//////( var_type )
 	( expr )
 
 op:
