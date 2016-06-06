@@ -16,6 +16,7 @@ enum Op
 	SUB,
 	MUL,
 	DIV,
+	MOD,
 	EQ,
 	NOT_EQ,
 	GR,

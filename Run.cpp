@@ -188,6 +188,7 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 		case SUB:
 		case MUL:
 		case DIV:
+		case MOD:
 		case EQ:
 		case NOT_EQ:
 		case GR:
@@ -255,6 +256,22 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 							left.fvalue = 0.f;
 						else
 							left.fvalue /= right.fvalue;
+					}
+					break;
+				case MOD:
+					if(left.type == V_INT)
+					{
+						if(right.value == 0)
+							left.value = 0;
+						else
+							left.value %= right.value;
+					}
+					else
+					{
+						if(right.fvalue == 0.f)
+							left.fvalue = 0.f;
+						else
+							left.fvalue = fmod(left.fvalue, right.fvalue);
 					}
 					break;
 				case EQ:

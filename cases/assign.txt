@@ -7,4 +7,6 @@ println(a);
 println(b);
 println(e);
 println(s);
+a %= 3;
+println(a);
 pause();

@@ -55,6 +55,7 @@ base_op:
 	-
 	*
 	/
+	%
 
 unary_op:
 	+

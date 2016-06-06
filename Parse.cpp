@@ -355,45 +355,13 @@ ParseNode* ParseItem()
 		t.Unexpected();
 }
 
-char strchrs(cstring s, cstring chrs)
-{
-	assert(s && chrs);
-
-	while(true)
-	{
-		char c = *s++;
-		if(c == 0)
-			return 0;
-		cstring ch = chrs;
-		while(true)
-		{
-			char c2 = *ch++;
-			if(c2 == 0)
-				break;
-			if(c == c2)
-				return c;
-		}
-	}
-}
-
-char strchr2(char c, cstring chrs)
-{
-	while(true)
-	{
-		char c2 = *chrs++;
-		if(c2 == 0)
-			return 0;
-		if(c == c2)
-			return c;
-	}
-}
-
 enum SYMBOL
 {
 	S_ADD,
 	S_SUB,
 	S_MUL,
 	S_DIV,
+	S_MOD,
 	S_PLUS,
 	S_MINUS,
 	S_LEFT_PAR,
@@ -426,6 +394,7 @@ SymbolInfo symbols[S_MAX] = {
 	S_SUB, "subtract", 4, true, 2, SUB,
 	S_MUL, "multiply", 5, true, 2, MUL,
 	S_DIV, "divide", 5, true, 2, DIV,
+	S_MOD, "modulo", 5, true, 2, MOD,
 	S_PLUS, "unary plus", 6, false, 1, NOP,
 	S_MINUS, "unary minus", 6, false, 1, NEG,
 	S_LEFT_PAR, "left parenthesis", -1, true, 0, NOP,
@@ -462,6 +431,8 @@ SYMBOL CharToSymbol(char c)
 		return S_MUL;
 	case '/':
 		return S_DIV;
+	case '%':
+		return S_MOD;
 	default:
 		assert(0);
 		return S_INVALID;
@@ -491,6 +462,7 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 	case S_SUB:
 	case S_MUL:
 	case S_DIV:
+	case S_MOD:
 		if(left == V_STRING || right == V_STRING)
 			return false; // can't do with string
 		if(left == V_FLOAT || right == V_FLOAT)
@@ -658,6 +630,13 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 				op->value = left->value / right->value;
 			op->op = PUSH_INT;
 			break;
+		case S_MOD:
+			if(right->value == 0)
+				op->value = 0;
+			else
+				op->value = left->value % right->value;
+			op->op = PUSH_INT;
+			break;
 		case S_EQUAL:
 			op->bvalue = (left->value == right->value);
 			op->pseudo_op = PUSH_BOOL;
@@ -711,6 +690,13 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 				op->fvalue = 0.f;
 			else
 				op->fvalue = left->fvalue / right->fvalue;
+			op->op = PUSH_FLOAT;
+			break;
+		case S_MOD:
+			if(right->fvalue == 0.f)
+				op->fvalue = 0.f;
+			else
+				op->fvalue = fmod(left->fvalue, right->fvalue);
 			op->op = PUSH_FLOAT;
 			break;
 		case S_EQUAL:
@@ -791,7 +777,7 @@ ParseNode* ParseExpr(char end, char end2)
 				if(c != ')' || open_par == 0)
 					break;
 			}
-			c = strchr2(c, "+-*/()!=><&|.");
+			c = strchr2(c, "+-*/%()!=><&|.");
 			if(c == 0)
 				t.Unexpected();
 			else if(c == '(')
@@ -858,6 +844,7 @@ ParseNode* ParseExpr(char end, char end2)
 					case '-':
 					case '*':
 					case '/':
+					case '%':
 						symbol = CharToSymbol(c);
 						break;
 					case '!':
@@ -1229,7 +1216,7 @@ ParseNode* ParseLine()
 			t.Next();
 
 			// op or =
-			char c = t.MustGetSymbol("+-*/=");
+			char c = t.MustGetSymbol("+-*/%=");
 			t.Next();
 			if(c != '=')
 			{
@@ -1440,6 +1427,7 @@ void ToCode(vector<int>& code, ParseNode* node)
 	case ADD:
 	case SUB:
 	case MUL:
+	case MOD:
 	case DIV:
 	case EQ:
 	case NOT_EQ:

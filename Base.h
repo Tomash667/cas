@@ -2999,3 +2999,38 @@ inline int GetIndex(const vector<T>& items, Pred pred)
 	}
 	return -1;
 }
+
+inline char strchrs(cstring s, cstring chrs)
+{
+	assert(s && chrs);
+
+	while(true)
+	{
+		char c = *s++;
+		if(c == 0)
+			return 0;
+		cstring ch = chrs;
+		while(true)
+		{
+			char c2 = *ch++;
+			if(c2 == 0)
+				break;
+			if(c == c2)
+				return c;
+		}
+	}
+}
+
+inline char strchr2(char c, cstring chrs)
+{
+	assert(chrs);
+
+	while(true)
+	{
+		char c2 = *chrs++;
+		if(c2 == 0)
+			return 0;
+		if(c == c2)
+			return c;
+	}
+}
