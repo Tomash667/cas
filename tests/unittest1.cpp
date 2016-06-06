@@ -104,5 +104,10 @@ namespace tests
 		{
 			Test("type_func.txt", "", "4\n");
 		}
+
+		TEST_METHOD(Block)
+		{
+			Test("block.txt", "", "4\n3\n11\n");
+		}
 	};
 }

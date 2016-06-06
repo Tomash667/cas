@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring filename = "type_func.txt";
+cstring filename = "block.txt";
 
 int main(int argc, char** argv)
 {

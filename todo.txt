@@ -1,10 +1,11 @@
 + assign operator built in expr
-+ blocks and variables, reuse names
++ ++ --
++ x = y = 3;
++ for
+
 + class member access
 + class properties
 + builtin unit tests
-+ x = y = 3;
-+ ++ --
 + function overloads
 	int f();
 	int f(int,int);
@@ -21,7 +22,6 @@
 + warn: use of unassigned variable
 + ? : operator
 + do, while
-+ for
 + string functions, [], substr, first(), last(), trim
 + functions
 + classes

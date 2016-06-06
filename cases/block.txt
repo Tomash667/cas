@@ -1,0 +1,15 @@
+int a = 1;
+{
+	int b = 3;
+	println(a + b);
+}
+{
+	int b;
+	println(b);
+	{
+		int c = 7;
+		b += a;
+		println(b + c);
+	}
+}
+pause();

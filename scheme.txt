@@ -2,7 +2,7 @@ code:
 	[ line_or_block ... ] EOF
 
 line_or_block:
-	{ [ line ... ] }
+	{ [ line_or_block ... ] }
 	line
 	
 line:

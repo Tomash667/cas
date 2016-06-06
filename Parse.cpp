@@ -53,7 +53,11 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 
 struct ParseNode : ObjectPoolProxy<ParseNode>
 {
-	int op;
+	union
+	{
+		Op op;
+		PseudoOp pseudo_op;
+	};
 	union
 	{
 		bool bvalue;
@@ -73,10 +77,57 @@ union Found
 	Function* func;
 };
 
+struct Block : ObjectPoolProxy<Block>
+{
+	Block* parent;
+	vector<Block*> childs;
+	vector<ParseVar*> vars;
+	uint var_offset;
+
+	uint GetMaxVars() const
+	{
+		uint count = vars.size();
+		uint top = 0u;
+		for(const Block* b : childs)
+		{
+			uint count2 = b->GetMaxVars();
+			if(count2 > top)
+				top = count2;
+		}
+		return count + top;
+	}
+
+	ParseVar* FindVarSingle(const string& id) const
+	{
+		for(ParseVar* v : vars)
+		{
+			if(v->name == id)
+				return v;
+		}
+		return nullptr;
+	}
+
+	ParseVar* FindVar(const string& id) const
+	{
+		const Block* block = this;
+
+		while(block)
+		{
+			ParseVar* var = block->FindVarSingle(id);
+			if(var)
+				return var;
+			block = block->parent;
+		}
+
+		return nullptr;
+	}
+};
+
+
 Tokenizer t;
-vector<ParseVar*> vars;
-vector<int> pcode;
 vector<string> strs;
+Block* main_block;
+Block* current_block;
 
 
 void ParseArgs(vector<ParseNode*>& nodes);
@@ -84,30 +135,20 @@ ParseNode* ParseExpr(char end, char end2 = 0);
 ParseNode* ParseLineOrBlock();
 
 
-ParseVar* FindVar(const string& id)
-{
-	for(ParseVar* v : vars)
-	{
-		if(v->name == id)
-			return v;
-	}
-	return nullptr;
-}
-
 FOUND FindItem(const string& id, Found& found)
 {
-	ParseVar* var = FindVar(id);
-	if(var)
-	{
-		found.var = var;
-		return F_VAR;
-	}
-
 	Function* func = FindFunction(id);
 	if(func)
 	{
 		found.func = func;
 		return F_FUNC;
+	}
+
+	ParseVar* var = current_block->FindVar(id);
+	if(var)
+	{
+		found.var = var;
+		return F_VAR;
 	}
 
 	return F_NONE;
@@ -144,7 +185,7 @@ bool TryConstCast(ParseNode* node, VAR_TYPE type)
 		{
 			// int -> bool
 			node->bvalue = (node->value != 0);
-			node->op = PUSH_BOOL;
+			node->pseudo_op = PUSH_BOOL;
 			node->type = V_BOOL;
 		}
 		else if(type == V_FLOAT)
@@ -164,7 +205,7 @@ bool TryConstCast(ParseNode* node, VAR_TYPE type)
 		{
 			// float -> bool
 			node->bvalue = (node->fvalue != 0.f);
-			node->op = PUSH_BOOL;
+			node->pseudo_op = PUSH_BOOL;
 			node->type = V_BOOL;
 		}
 		else if(type == V_INT)
@@ -253,33 +294,40 @@ ParseNode* ParseItem()
 	}
 	else if(t.IsItem())
 	{
-		const string& item = t.GetItem();
-		ParseVar* var = FindVar(item);
-		Function* f;
-		if(var)
+		const string& id = t.GetItem();
+		Found found;
+		FOUND found_type = FindItem(id, found);
+		switch(found_type)
 		{
-			ParseNode* node = ParseNode::Get();
-			node->op = PUSH_VAR;
-			node->type = var->type;
-			node->value = var->index;
-			t.Next();
-			return node;
-		}
-		else if((f = FindFunction(item)))
-		{
-			ParseNode* node = ParseNode::Get();
-			node->op = CALL;
-			node->type = f->result;
-			node->value = f->index;
+		case F_VAR:
+			{
+				ParseVar* var = found.var;
+				ParseNode* node = ParseNode::Get();
+				node->op = PUSH_VAR;
+				node->type = var->type;
+				node->value = var->index;
+				t.Next();
+				return node;
+			}
+		case F_FUNC:
+			{
+				Function* f = found.func;
+				ParseNode* node = ParseNode::Get();
+				node->op = CALL;
+				node->type = f->result;
+				node->value = f->index;
 
-			t.Next();
-			ParseArgs(node->childs);
-			VerifyFunctionCall(node, f);
+				t.Next();
+				ParseArgs(node->childs);
+				VerifyFunctionCall(node, f);
 
-			return node;
-		}
-		else
+				return node;
+			}
+		default:
+			assert(0);
+		case F_NONE:
 			t.Unexpected();
+		}
 	}
 	else if(t.IsString())
 	{
@@ -298,7 +346,7 @@ ParseNode* ParseItem()
 		CONST c = (CONST)t.GetKeywordId(G_CONST);
 		t.Next();
 		ParseNode* node = ParseNode::Get();
-		node->op = PUSH_BOOL;
+		node->pseudo_op = PUSH_BOOL;
 		node->bvalue = (c == C_TRUE);
 		node->type = V_BOOL;
 		return node;
@@ -584,7 +632,7 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 		}
 		op->bvalue = result;
 		op->type = V_BOOL;
-		op->op = PUSH_BOOL;
+		op->pseudo_op = PUSH_BOOL;
 	}
 	else if(left->op == PUSH_INT)
 	{
@@ -612,27 +660,27 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 			break;
 		case S_EQUAL:
 			op->bvalue = (left->value == right->value);
-			op->op = PUSH_BOOL;
+			op->pseudo_op = PUSH_BOOL;
 			break;
 		case S_NOT_EQUAL:
 			op->bvalue = (left->value != right->value);
-			op->op = PUSH_BOOL;
+			op->pseudo_op = PUSH_BOOL;
 			break;
 		case S_GREATER:
 			op->bvalue = (left->value > right->value);
-			op->op = PUSH_BOOL;
+			op->pseudo_op = PUSH_BOOL;
 			break;
 		case S_GREATER_EQUAL:
 			op->bvalue = (left->value >= right->value);
-			op->op = PUSH_BOOL;
+			op->pseudo_op = PUSH_BOOL;
 			break;
 		case S_LESS:
 			op->bvalue = (left->value < right->value);
-			op->op = PUSH_BOOL;
+			op->pseudo_op = PUSH_BOOL;
 			break;
 		case S_LESS_EQUAL:
 			op->bvalue = (left->value <= right->value);
-			op->op = PUSH_BOOL;
+			op->pseudo_op = PUSH_BOOL;
 			break;
 		default:
 			assert(0);
@@ -882,7 +930,7 @@ ParseNode* ParseExpr(char end, char end2)
 					*str = t.MustGetItem();
 					t.Next();
 					ParseNode* node = ParseNode::Get();
-					node->op = PRE_CALL;
+					node->pseudo_op = PRE_CALL;
 					node->type = V_VOID;
 					node->str = str;
 					ParseArgs(node->childs);
@@ -934,7 +982,7 @@ ParseNode* ParseExpr(char end, char end2)
 				if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
 				{
 					ParseNode* op = ParseNode::Get();
-					op->op = si.op;
+					op->op = (Op)si.op;
 					op->type = result;
 					op->push(node);
 					node = op;
@@ -1005,14 +1053,22 @@ ParseNode* ParseVarDecl(VAR_TYPE type)
 {
 	// var_name
 	const string& name = t.MustGetItem();
-	ParseVar* old_var = FindVar(name);
-	if(old_var)
-		t.Throw("Variable already declared.");
+	Found found;
+	FOUND found_type = FindItem(name, found);
+	if(found_type != F_NONE)
+	{
+		if(found_type == F_FUNC)
+			t.Throw("Variable name already used as function.");
+		else
+			t.Throw("Variable already declared.");
+	}
+
 	ParseVar* var = ParseVar::Get();
 	var->name = name;
 	var->type = type;
-	var->index = vars.size();
-	vars.push_back(var);
+	var->index = current_block->var_offset;
+	current_block->vars.push_back(var);
+	current_block->var_offset++;
 	t.Next();
 
 	// [=]
@@ -1058,7 +1114,7 @@ ParseNode* ParseLine()
 		t.Next();
 
 		ParseNode* if_op = ParseNode::Get();
-		if_op->op = IF;
+		if_op->pseudo_op = IF;
 		if_op->type = V_VOID;
 		if_op->push(if_expr);
 		if_op->push(ParseLineOrBlock());
@@ -1157,7 +1213,7 @@ ParseNode* ParseLine()
 		else
 		{
 			ParseNode* node = ParseNode::Get();
-			node->op = GROUP;
+			node->pseudo_op = GROUP;
 			node->type = V_VOID;
 			node->childs = nodes;
 			return node;
@@ -1166,7 +1222,7 @@ ParseNode* ParseLine()
 	else if(t.IsItem())
 	{
 		const string& item = t.GetItem();
-		ParseVar* var = FindVar(item);
+		ParseVar* var = current_block->FindVar(item);
 		if(var)
 		{
 			// var assign
@@ -1242,17 +1298,27 @@ ParseNode* ParseLineOrBlock()
 	if(t.IsSymbol('{'))
 	{
 		// block
+		Block* new_block = Block::Get();
+		Block* old_block = current_block;
+		new_block->parent = old_block;
+		new_block->var_offset = old_block->var_offset;
+		old_block->childs.push_back(new_block);
+		current_block = new_block;
+
 		t.Next();
 		vector<ParseNode*> nodes;
 		while(true)
 		{
 			if(t.IsSymbol('}'))
 				break;
-			ParseNode* node = ParseLine();
+			ParseNode* node = ParseLineOrBlock();
 			if(node)
 				nodes.push_back(node);
 		}
 		t.Next();
+
+		current_block = old_block;
+
 		if(nodes.empty())
 			return nullptr;
 		else if(nodes.size() == 1u)
@@ -1260,8 +1326,8 @@ ParseNode* ParseLineOrBlock()
 		else
 		{
 			ParseNode* node = ParseNode::Get();
-			node->op = GROUP;
-			node->value = V_VOID;
+			node->pseudo_op = GROUP;
+			node->type = V_VOID;
 			node->childs = nodes;
 			return node;
 		}
@@ -1272,8 +1338,13 @@ ParseNode* ParseLineOrBlock()
 
 ParseNode* ParseCode()
 {
+	main_block = Block::Get();
+	main_block->parent = nullptr;
+	main_block->var_offset = 0u;
+	current_block = main_block;
+
 	ParseNode* node = ParseNode::Get();
-	node->op = GROUP;
+	node->pseudo_op = GROUP;
 	node->type = V_VOID;
 
 	t.Next();
@@ -1404,7 +1475,7 @@ bool Parse(ParseContext& ctx)
 		ctx.code.push_back(RET);
 
 		ctx.strs = strs;
-		ctx.vars = vars.size();
+		ctx.vars = main_block->GetMaxVars();
 
 		return true;
 	}
@@ -1436,7 +1507,5 @@ void InitializeParser()
 
 void CleanupParser()
 {
-	ParseVar::Free(vars);
-	pcode.clear();
 	strs.clear();
 }
