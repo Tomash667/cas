@@ -65,7 +65,7 @@ namespace tests
 
 		TEST_METHOD(Assign)
 		{
-			Test("assign.txt", "", "5\n1\n8\n4\n2\n");
+			Test("assign.txt", "", "5\n1\n8\n4\n2\n7\ntrue\n");
 		}
 
 		TEST_METHOD(String)

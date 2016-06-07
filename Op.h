@@ -9,7 +9,7 @@ enum Op
 	PUSH_STRING,
 	PUSH_VAR,
 	POP,
-	POP_VAR,
+	SET_VAR,
 	CAST,
 	NEG,
 	ADD,

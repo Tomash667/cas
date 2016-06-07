@@ -68,16 +68,20 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				stack.pop_back();
 			}
 			break;
-		case POP_VAR:
+		case SET_VAR:
 			{
 				uint var_index = *c++;
 				assert(var_index < vars.size());
 				assert(!stack.empty());
 				Var& v = vars[var_index];
+				// free what was in variable previously
 				if(v.type == V_STRING)
 					v.str->Release();
-				v = stack.back();
-				stack.pop_back();
+				Var& s = stack.back();
+				// incrase reference for new var
+				if(s.type == V_STRING)
+					s.str->refs++;
+				v = s;
 			}
 			break;
 		case CAST:
@@ -334,7 +338,7 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			return;
 		case JMP:
 			{
-				uint offset = *c++;
+				uint offset = *c;
 				c = code.data() + offset;
 				assert(c < end);
 			}

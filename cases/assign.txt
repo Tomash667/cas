@@ -9,4 +9,6 @@ println(e);
 println(s);
 a %= 3;
 println(a);
+println(a = b = d = 7);
+println(a == b && b == d);
 pause();
