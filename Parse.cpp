@@ -5,8 +5,6 @@
 #include "Function.h"
 #include "Parse.h"
 
-const bool optimize_if = true;
-
 #undef CONST
 
 enum GROUP
@@ -19,7 +17,8 @@ enum GROUP
 enum KEYWORD
 {
 	K_IF,
-	K_ELSE
+	K_ELSE,
+	K_WHILE
 };
 
 enum CONST
@@ -41,7 +40,8 @@ enum PseudoOp
 	PUSH_BOOL,
 	NOP,
 	IF,
-	PRE_CALL
+	PRE_CALL,
+	WHILE
 };
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
@@ -70,6 +70,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	vector<ParseNode*> childs;
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
+	inline void OnFree() { SafeFree(childs); }
 };
 
 union Found
@@ -125,10 +126,11 @@ struct Block : ObjectPoolProxy<Block>
 };
 
 
-Tokenizer t;
-vector<string> strs;
-Block* main_block;
-Block* current_block;
+static Tokenizer t;
+static vector<string> strs;
+static Block* main_block;
+static Block* current_block;
+static bool optimize;
 
 
 void ParseArgs(vector<ParseNode*>& nodes);
@@ -1153,6 +1155,7 @@ ParseNode* ParseVarDecl(VAR_TYPE type)
 	return node;
 }
 
+// can return null
 ParseNode* ParseLine()
 {
 	if(t.IsSymbol(';'))
@@ -1164,88 +1167,61 @@ ParseNode* ParseLine()
 	else if(t.IsKeywordGroup(G_KEYWORD))
 	{
 		KEYWORD keyword = (KEYWORD)t.GetKeywordId(G_KEYWORD);
-		if(keyword != K_IF)
-			t.Unexpected();
-		t.Next();
-
-		// if
-		t.AssertSymbol('(');
-		t.Next();
-		ParseNode* if_expr = ParseExpr(')');
-		t.AssertSymbol(')');
-		if(!TryCast(if_expr, V_BOOL))
-			t.Throw("If expression with '%s' type.", var_name[if_expr->type]);
-		t.Next();
-
-		ParseNode* if_op = ParseNode::Get();
-		if_op->pseudo_op = IF;
-		if_op->type = V_VOID;
-		if_op->push(if_expr);
-		if_op->push(ParseLineOrBlock());
-
-		// else
-		if(t.IsKeyword(K_ELSE, G_KEYWORD))
+		switch(keyword)
 		{
-			t.Next();
-			if_op->push(ParseLineOrBlock());
-		}
-		else
-			if_op->push(nullptr);
-
-		if(optimize_if)
-		{
-			if(if_expr->op == PUSH_BOOL)
+		case K_IF:
 			{
-				// const expr
-				ParseNode* result;
-				if_op->childs[0]->Free();
-				if(if_expr->bvalue)
+				t.Next();
+				t.AssertSymbol('(');
+				t.Next();
+				ParseNode* if_expr = ParseExpr(')');
+				t.AssertSymbol(')');
+				if(!TryCast(if_expr, V_BOOL))
+					t.Throw("Condition expression with '%s' type.", var_name[if_expr->type]);
+				t.Next();
+
+				ParseNode* if_op = ParseNode::Get();
+				if_op->pseudo_op = IF;
+				if_op->type = V_VOID;
+				if_op->push(if_expr);
+				if_op->push(ParseLineOrBlock());
+
+				// else
+				if(t.IsKeyword(K_ELSE, G_KEYWORD))
 				{
-					// always true
-					result = if_op->childs[1];
-					if(if_op->childs[2])
-						if_op->childs[2]->Free();
+					t.Next();
+					if_op->push(ParseLineOrBlock());
 				}
 				else
-				{
-					// always false
-					result = if_op->childs[2];
-					if(if_op->childs[1])
-						if_op->childs[1]->Free();
-				}
-				if_op->Free();
-				if_op = result;
+					if_op->push(nullptr);
+				
+				return if_op;
 			}
-			else
+		case K_WHILE:
 			{
-				// not const expr
-				if(if_op->childs[1] == nullptr && if_op->childs[2] == nullptr)
-				{
-					// both code blocks are empty
-					if_op->childs[0]->Free();
-					if_op->Free();
-					if_op = nullptr;
-				}
-				else if(if_op->childs[1] == nullptr)
-				{
-					// if block is empty, negate if and drop else
-					ParseNode* not = ParseNode::Get();
-					not->op = NOT;
-					not->type = V_BOOL;
-					not->push(if_op->childs[0]);
-					if_op->childs[0] = not;
-					if_op->childs[1] = if_op->childs[2];
-					if_op->childs.pop_back();
-				}
-				else if(if_op->childs[2] == nullptr)
-				{
-					// else block is empty
-					if_op->childs.pop_back();
-				}
-			}
-		}
+				t.Next();
+				t.AssertSymbol('(');
+				t.Next();
 
-		return if_op;
+				ParseNode* cond = ParseExpr(')');
+				if(!TryCast(cond, V_BOOL))
+					t.Throw("Condition expression with '%s' type.", var_name[cond->type]);
+
+				t.AssertSymbol(')');
+				t.Next();
+				ParseNode* block = ParseLineOrBlock();
+				ParseNode* whil = ParseNode::Get();
+				whil->pseudo_op = WHILE;
+				whil->type = V_VOID;
+				whil->push(cond);
+				whil->push(block);
+				
+				return whil;
+			}
+		default:
+			t.Unexpected();
+		}
+		
 	}
 	else if(t.IsKeywordGroup(G_VAR))
 	{
@@ -1293,6 +1269,7 @@ ParseNode* ParseLine()
 	return node;
 }
 
+// can return null
 ParseNode* ParseLineOrBlock()
 {
 	if(t.IsSymbol('{'))
@@ -1358,11 +1335,108 @@ ParseNode* ParseCode()
 	return node;
 }
 
+// childs can be nullptr only for if/while
+ParseNode* OptimizeTree(ParseNode* node)
+{
+	assert(node);
+
+	if(node->pseudo_op == IF)
+	{
+		ParseNode*& cond = node->childs[0];
+		OptimizeTree(cond);
+		ParseNode*& trueb = node->childs[1];
+		if(trueb)
+			OptimizeTree(trueb);
+		ParseNode*& falseb = node->childs[2];
+		if(falseb)
+			OptimizeTree(falseb);
+		if(cond->op == PUSH_BOOL)
+		{
+			// const expr
+			ParseNode* result;
+			if(cond->bvalue)
+			{
+				// always true (prevent Free node from Freeing trueb)
+				result = trueb;
+				trueb = nullptr;
+			}
+			else
+			{
+				// always false (prevent Free node from Freeing falseb)
+				result = falseb;
+				falseb = nullptr;
+			}
+			node->Free();
+			return result;
+		}
+		else
+		{
+			// not const expr
+			if(trueb == nullptr && falseb == nullptr)
+			{
+				// both code blocks are empty
+				node->Free();
+				return nullptr;
+			}
+			else if(trueb == nullptr)
+			{
+				// if block is empty, negate if and drop else
+				ParseNode* not = ParseNode::Get();
+				not->op = NOT;
+				not->type = V_BOOL;
+				not->push(cond);
+				node->childs[0] = not;
+				node->childs[1] = node->childs[2];
+				node->childs.pop_back();
+			}
+			else if(falseb == nullptr)
+			{
+				// else block is empty
+				node->childs.pop_back();
+			}
+		}
+	}
+	else if(node->pseudo_op == WHILE)
+	{
+		ParseNode*& cond = node->childs[0];
+		OptimizeTree(cond);
+		ParseNode*& block = node->childs[1];
+		if(block)
+			OptimizeTree(block);
+		if(cond->pseudo_op == PUSH_BOOL)
+		{
+			// const cond
+			if(cond->bvalue)
+			{
+				// while(true)
+				cond->Free();
+				node->childs[0] = nullptr;
+			}
+			else
+			{
+				// while(false) - ignore
+				node->Free();
+				return nullptr;
+			}
+		}
+	}
+	else
+	{
+		LoopAndRemove(node->childs, [](ParseNode*& node) {
+			node = OptimizeTree(node);
+			return !node;
+		});
+	}
+
+	return node;
+}
+
 void ToCode(vector<int>& code, ParseNode* node)
 {
 	if(node->op == IF)
 	{
-		// if expr
+		// if condition
+		assert(node->childs.size() == 2u || node->childs.size() == 3u);
 		ToCode(code, node->childs[0]);
 		code.push_back(TJMP);
 		uint tjmp_pos = code.size();
@@ -1377,16 +1451,22 @@ void ToCode(vector<int>& code, ParseNode* node)
 			else_block: else code
 			end:
 			*/
-			ToCode(code, node->childs[1]);
-			if(node->childs[1]->type != V_VOID)
-				code.push_back(POP);
+			if(node->childs[1])
+			{
+				ToCode(code, node->childs[1]);
+				if(node->childs[1]->type != V_VOID)
+					code.push_back(POP);
+			}
 			code.push_back(JMP);
 			uint jmp_pos = code.size();
 			code.push_back(0);
 			uint else_start = code.size();
-			ToCode(code, node->childs[2]);
-			if(node->childs[2]->type != V_VOID)
-				code.push_back(POP);
+			if(node->childs[2])
+			{
+				ToCode(code, node->childs[2]);
+				if(node->childs[2]->type != V_VOID)
+					code.push_back(POP);
+			}
 			uint end_start = code.size();
 			code[tjmp_pos] = else_start;
 			code[jmp_pos] = end_start;
@@ -1399,11 +1479,54 @@ void ToCode(vector<int>& code, ParseNode* node)
 			if_code
 			end:
 			*/
-			ToCode(code, node->childs[1]);
-			if(node->childs[1]->type != V_VOID)
-				code.push_back(POP);
+			if(node->childs[1])
+			{
+				ToCode(code, node->childs[1]);
+				if(node->childs[1]->type != V_VOID)
+					code.push_back(POP);
+			}
 			uint end_start = code.size();
 			code[tjmp_pos] = end_start;
+		}
+		return;
+	}
+	else if(node->op == WHILE)
+	{
+		assert(node->childs.size() == 2u);
+		uint start = code.size();
+		ParseNode* cond = node->childs[0];
+		ParseNode* block = node->childs[1];
+		if(cond)
+		{
+			/*
+			start:
+				cond
+				tjmp end
+				block
+				jmp start
+			end:
+			*/
+			ToCode(code, cond);
+			code.push_back(TJMP);
+			uint end_jmp = code.size();
+			code.push_back(0);
+			if(block)
+				ToCode(code, block);
+			code.push_back(JMP);
+			code.push_back(start);
+			code[end_jmp] = code.size();
+		}
+		else
+		{
+			/*
+			start:
+				block
+				jmp start
+			*/
+			if(block)
+				ToCode(code, block);
+			code.push_back(JMP);
+			code.push_back(start);
 		}
 		return;
 	}
@@ -1420,7 +1543,7 @@ void ToCode(vector<int>& code, ParseNode* node)
 
 	for(ParseNode* n : node->childs)
 		ToCode(code, n);
-
+	
 	switch(node->op)
 	{
 	case PUSH_INT:
@@ -1469,10 +1592,13 @@ bool Parse(ParseContext& ctx)
 {
 	try
 	{
+		optimize = ctx.optimize;
 		t.FromString(ctx.input);
 
 		// parse
 		ParseNode* node = ParseCode();
+		if(optimize)
+			OptimizeTree(node);
 		
 		// codify
 		ToCode(ctx.code, node);
@@ -1499,7 +1625,8 @@ void InitializeParser()
 	// register keywords
 	t.AddKeywords(G_KEYWORD, {
 		{"if", K_IF},
-		{"else", K_ELSE}
+		{"else", K_ELSE},
+		{"while", K_WHILE}
 	});
 
 	// const
@@ -1512,4 +1639,93 @@ void InitializeParser()
 void CleanupParser()
 {
 	strs.clear();
+}
+
+struct OpInfo
+{
+	Op op;
+	cstring name;
+	VAR_TYPE arg1;
+};
+
+OpInfo ops[MAX_OP] = {
+	PUSH_TRUE, "push_true", V_VOID,
+	PUSH_FALSE, "push_false", V_VOID,
+	PUSH_INT, "push_int", V_INT,
+	PUSH_FLOAT, "push_float", V_FLOAT,
+	PUSH_STRING, "push_string", V_INT,
+	PUSH_VAR, "push_var", V_INT,
+	POP, "pop", V_VOID,
+	SET_VAR, "set_var", V_INT,
+	CAST, "cast", V_INT,
+	NEG, "neg", V_VOID,
+	ADD, "add", V_VOID,
+	SUB, "sub", V_VOID,
+	MUL, "mul", V_VOID,
+	DIV, "div", V_VOID,
+	MOD, "mod", V_VOID,
+	EQ, "eq", V_VOID,
+	NOT_EQ, "not_eq", V_VOID,
+	GR, "gr", V_VOID,
+	GR_EQ, "gr_eq", V_VOID,
+	LE, "le", V_VOID,
+	LE_EQ, "le_eq", V_VOID,
+	AND, "and", V_VOID,
+	OR, "or", V_VOID,
+	NOT, "not", V_VOID,
+	JMP, "jmp", V_INT,
+	TJMP, "tjmp", V_INT,
+	CALL, "call", V_INT,
+	RET, "ret", V_VOID
+};
+
+template<typename To, typename From>
+inline To union_cast(const From& f)
+{
+	union
+	{
+		To to;
+		From from;
+	} a;
+
+	a.from = f;
+	return a.to;
+}
+
+void Decompile(ParseContext& ctx)
+{
+	int* c = ctx.code.data();
+	int* end = c + ctx.code.size();
+
+	cout << "DECMPILE:\n";
+	while(c != end)
+	{
+		Op op = (Op)*c++;
+		if(op >= MAX_OP)
+			cout << "MISSING (" << op << ")\n";
+		else
+		{
+			OpInfo& opi = ops[op];
+			switch(opi.arg1)
+			{
+			case V_VOID:
+				cout << Format("[%d] %s\n", (int)op, opi.name);
+				break;
+			case V_INT:
+				{
+					int value = *c++;
+					cout << Format("[%d %d] %s %d\n", (int)op, value, opi.name, value);
+				}
+				break;
+			case V_FLOAT:
+				{
+					int val = *c++;
+					float value = union_cast<float>(val);
+					cout << Format("[%d %d] %s %g\n", (int)op, val, opi.name, value);
+				}
+				break;
+			}
+		}
+	}
+	cout << "\n";
 }

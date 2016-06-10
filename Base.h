@@ -1824,12 +1824,20 @@ struct ObjectPool
 			t = pool.back();
 			pool.pop_back();
 		}
+		__if_exists(T::OnGet)
+		{
+			t->OnGet();
+		}
 		return t;
 	}
 
 	inline void Free(T* t)
 	{
 		assert(t);
+		__if_exists(T::OnFree)
+		{
+			t->OnFree();
+		}
 #ifdef CHECK_POOL_LEAK
 		delete t;
 #else
@@ -1841,16 +1849,24 @@ struct ObjectPool
 	{
 		if(elems.empty())
 			return;
-#ifdef _DEBUG
-		for(vector<T*>::iterator it = elems.begin(), end = elems.end(); it != end; ++it)
+
+		__if_exists(T::OnFree)
 		{
-			assert(*it);
+			for(T* e : elems)
+			{
+				assert(e);
+				e->OnFree();
+			}
+		}
+#ifdef _DEBUG
+		for(T* e : elems)
+		{
+			assert(e);
 #ifdef CHECK_POOL_LEAK
-			delete *it;
+			delete e;
 #endif
 		}
-#endif
-#ifndef CHECK_POOL_LEAK
+#else
 		pool.insert(pool.end(), elems.begin(), elems.end());
 #endif
 		elems.clear();
@@ -1858,21 +1874,21 @@ struct ObjectPool
 
 	inline void SafeFree(vector<T*>& elems)
 	{
-		if(elems.empty())
-			return;
+		for(T* e : elems)
+		{
+			if(e)
+			{
+				__if_exists(T::OnFree)
+				{
+					e->OnFree();
+				}
 #ifdef CHECK_POOL_LEAK
-		for(T* e : elems)
-		{
-			if(e)
 				delete e;
-		}
 #else
-		for(T* e : elems)
-		{
-			if(e)
 				pool.push_back(e);
-		}
 #endif
+			}
+		}
 		elems.clear();
 	}
 
@@ -1891,7 +1907,8 @@ public:
 	static inline T* Get() { return GetPool().Get(); }
 	static inline void Free(T* t) { GetPool().Free(t); }
 	static inline void Free(vector<T*>& ts) { GetPool().Free(ts); }
-	inline void Free() { Free((T*)this); }
+	static inline void SafeFree(vector <T*>& ts) { GetPool().SafeFree(ts); }
+	inline virtual void Free() { Free((T*)this); }
 
 private:
 	inline static ObjectPool<T>& GetPool() { static ObjectPool<T> pool; return pool; }

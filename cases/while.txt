@@ -1,0 +1,14 @@
+int a = getint();
+while(a > 0)
+{
+	print("*");
+	a -= 1;
+}
+
+while(a > 0) ;
+
+//while(1) println("y");
+
+while(0) println("x");
+
+pause();

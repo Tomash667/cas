@@ -13,9 +13,9 @@ cstring var_name[V_MAX] = {
 };
 
 Logger* logger;
-bool inited;
+static bool inited;
 
-bool ParseAndRun(cstring input)
+bool ParseAndRun(cstring input, bool optimize, bool decompile)
 {
 	if(!inited)
 	{
@@ -28,9 +28,13 @@ bool ParseAndRun(cstring input)
 
 	ParseContext ctx;
 	ctx.input = input;
+	ctx.optimize = optimize;
 
 	if(!Parse(ctx))
 		return false;
+
+	if(decompile)
+		Decompile(ctx);
 
 	RunCode(ctx.code, ctx.strs, ctx.vars);
 

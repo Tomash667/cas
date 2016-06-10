@@ -19,7 +19,7 @@ namespace tests
 			return str;
 		}
 
-		void Test(cstring filename, cstring input, cstring output)
+		void Test(cstring filename, cstring input, cstring output, bool optimize = true)
 		{
 			if(input[0] != 0)
 			{
@@ -40,7 +40,7 @@ namespace tests
 			std::istringstream iss(input);
 			std::streambuf* old_cin = std::cin.rdbuf(iss.rdbuf());
 
-			bool result = ParseAndRun(content.c_str());
+			bool result = ParseAndRun(content.c_str(), optimize);
 			string s = oss.str();
 			cstring ss = s.c_str();
 			Logger::WriteMessage("Script output:\n");
@@ -95,9 +95,15 @@ namespace tests
 
 		TEST_METHOD(IfElse)
 		{
-			Test("if_else.txt", "1 1", "a == b");
-			Test("if_else.txt", "2 1", "a > b");
-			Test("if_else.txt", "1 2", "a < b");
+			Test("if_else.txt", "1 1", "a == b\n0\n1\n4\n6\n7\n");
+			Test("if_else.txt", "2 1", "a > b\n2\n4\n6\n7\n");
+			Test("if_else.txt", "1 2", "a < b\n2\n4\n6\n7\n", false);
+		}
+
+		TEST_METHOD(While)
+		{
+			Test("while.txt", "3", "***");
+			Test("while.txt", "4", "****", false);
 		}
 
 		TEST_METHOD(TypeFunc)

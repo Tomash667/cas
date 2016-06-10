@@ -1,3 +1,5 @@
++ break
++ do/while
 + ++ --
 + for
 
@@ -19,7 +21,6 @@
 + opt: print(4) -> converted to string
 + warn: use of unassigned variable
 + ? : operator
-+ do, while
 + string functions, [], substr, first(), last(), trim
 + functions
 + classes
@@ -28,3 +29,7 @@
 + namespace
 + continue parsing after error
 + in - if(x in {3,5})
++ switch case
++ optimize multiple conditions (- -a), if(!(a != b))
++ http://www.tutorialspoint.com/cplusplus/cpp_while_loop.htm
++ allow to turn off optimize const expr
