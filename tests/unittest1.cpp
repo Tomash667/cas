@@ -102,8 +102,8 @@ namespace tests
 
 		TEST_METHOD(While)
 		{
-			Test("while.txt", "3", "***");
-			Test("while.txt", "4", "****", false);
+			Test("while.txt", "3", "***yyyy");
+			Test("while.txt", "4", "****yyyy", false);
 		}
 
 		TEST_METHOD(TypeFunc)

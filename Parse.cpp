@@ -18,7 +18,8 @@ enum KEYWORD
 {
 	K_IF,
 	K_ELSE,
-	K_WHILE
+	K_WHILE,
+	K_BREAK
 };
 
 enum CONST
@@ -41,7 +42,8 @@ enum PseudoOp
 	NOP,
 	IF,
 	PRE_CALL,
-	WHILE
+	WHILE,
+	BREAK
 };
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
@@ -130,6 +132,7 @@ static Tokenizer t;
 static vector<string> strs;
 static Block* main_block;
 static Block* current_block;
+static int breakable_block;
 static bool optimize;
 
 
@@ -1209,7 +1212,9 @@ ParseNode* ParseLine()
 
 				t.AssertSymbol(')');
 				t.Next();
+				++breakable_block;
 				ParseNode* block = ParseLineOrBlock();
+				--breakable_block;
 				ParseNode* whil = ParseNode::Get();
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
@@ -1218,10 +1223,21 @@ ParseNode* ParseLine()
 				
 				return whil;
 			}
+		case K_BREAK:
+			{
+				if(breakable_block == 0)
+					t.Unexpected("Not in breakable block.");
+				t.Next();
+				t.AssertSymbol(';');
+				t.Next();
+				ParseNode* br = ParseNode::Get();
+				br->pseudo_op = BREAK;
+				br->type = V_VOID;
+				return br;
+			}
 		default:
 			t.Unexpected();
 		}
-		
 	}
 	else if(t.IsKeywordGroup(G_VAR))
 	{
@@ -1431,13 +1447,13 @@ ParseNode* OptimizeTree(ParseNode* node)
 	return node;
 }
 
-void ToCode(vector<int>& code, ParseNode* node)
+void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 {
 	if(node->op == IF)
 	{
 		// if condition
 		assert(node->childs.size() == 2u || node->childs.size() == 3u);
-		ToCode(code, node->childs[0]);
+		ToCode(code, node->childs[0], break_pos);
 		code.push_back(TJMP);
 		uint tjmp_pos = code.size();
 		code.push_back(0);
@@ -1453,7 +1469,7 @@ void ToCode(vector<int>& code, ParseNode* node)
 			*/
 			if(node->childs[1])
 			{
-				ToCode(code, node->childs[1]);
+				ToCode(code, node->childs[1], break_pos);
 				if(node->childs[1]->type != V_VOID)
 					code.push_back(POP);
 			}
@@ -1463,7 +1479,7 @@ void ToCode(vector<int>& code, ParseNode* node)
 			uint else_start = code.size();
 			if(node->childs[2])
 			{
-				ToCode(code, node->childs[2]);
+				ToCode(code, node->childs[2], break_pos);
 				if(node->childs[2]->type != V_VOID)
 					code.push_back(POP);
 			}
@@ -1481,7 +1497,7 @@ void ToCode(vector<int>& code, ParseNode* node)
 			*/
 			if(node->childs[1])
 			{
-				ToCode(code, node->childs[1]);
+				ToCode(code, node->childs[1], break_pos);
 				if(node->childs[1]->type != V_VOID)
 					code.push_back(POP);
 			}
@@ -1494,6 +1510,7 @@ void ToCode(vector<int>& code, ParseNode* node)
 	{
 		assert(node->childs.size() == 2u);
 		uint start = code.size();
+		vector<uint> wh_break_pos;
 		ParseNode* cond = node->childs[0];
 		ParseNode* block = node->childs[1];
 		if(cond)
@@ -1506,12 +1523,12 @@ void ToCode(vector<int>& code, ParseNode* node)
 				jmp start
 			end:
 			*/
-			ToCode(code, cond);
+			ToCode(code, cond, &wh_break_pos);
 			code.push_back(TJMP);
 			uint end_jmp = code.size();
 			code.push_back(0);
 			if(block)
-				ToCode(code, block);
+				ToCode(code, block, &wh_break_pos);
 			code.push_back(JMP);
 			code.push_back(start);
 			code[end_jmp] = code.size();
@@ -1524,17 +1541,20 @@ void ToCode(vector<int>& code, ParseNode* node)
 				jmp start
 			*/
 			if(block)
-				ToCode(code, block);
+				ToCode(code, block, &wh_break_pos);
 			code.push_back(JMP);
 			code.push_back(start);
 		}
+		uint end_pos = code.size();
+		for(uint p : wh_break_pos)
+			code[p] = end_pos;
 		return;
 	}
 	else if(node->op == GROUP)
 	{
 		for(ParseNode* n : node->childs)
 		{
-			ToCode(code, n);
+			ToCode(code, n, break_pos);
 			if(n->type != V_VOID)
 				code.push_back(POP);
 		}
@@ -1542,7 +1562,7 @@ void ToCode(vector<int>& code, ParseNode* node)
 	}
 
 	for(ParseNode* n : node->childs)
-		ToCode(code, n);
+		ToCode(code, n, break_pos);
 	
 	switch(node->op)
 	{
@@ -1582,6 +1602,12 @@ void ToCode(vector<int>& code, ParseNode* node)
 	case PUSH_BOOL:
 		code.push_back(node->bvalue ? PUSH_TRUE : PUSH_FALSE);
 		break;
+	case BREAK:
+		assert(break_pos);
+		code.push_back(JMP);
+		break_pos->push_back(code.size());
+		code.push_back(0);
+		break;
 	default:
 		assert(0);
 		break;
@@ -1601,7 +1627,7 @@ bool Parse(ParseContext& ctx)
 			OptimizeTree(node);
 		
 		// codify
-		ToCode(ctx.code, node);
+		ToCode(ctx.code, node, nullptr);
 		ctx.code.push_back(RET);
 
 		ctx.strs = strs;
@@ -1626,7 +1652,8 @@ void InitializeParser()
 	t.AddKeywords(G_KEYWORD, {
 		{"if", K_IF},
 		{"else", K_ELSE},
-		{"while", K_WHILE}
+		{"while", K_WHILE},
+		{"break", K_BREAK}
 	});
 
 	// const

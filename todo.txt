@@ -1,4 +1,3 @@
-+ break
 + do/while
 + ++ --
 + for
@@ -33,3 +32,5 @@
 + optimize multiple conditions (- -a), if(!(a != b))
 + http://www.tutorialspoint.com/cplusplus/cpp_while_loop.htm
 + allow to turn off optimize const expr
++ superbreak
++ detect unreachable code

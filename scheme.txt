@@ -9,6 +9,7 @@ line:
 	if ( expr ) line_or_block [ else line_or_block ]
 	while ( expr ) line_or_block
 	var_type var_decl [, var_decl ...] ;
+	break ;  // must be inside while block
 	expr ;
 	;
 

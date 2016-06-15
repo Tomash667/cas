@@ -7,7 +7,14 @@ while(a > 0)
 
 while(a > 0) ;
 
-//while(1) println("y");
+int b = 4;
+while(1)
+{
+	print("y");
+	b -= 1;
+	if(b == 0)
+		break;
+}
 
 while(0) println("x");
 

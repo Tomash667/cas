@@ -190,9 +190,14 @@ public:
 	}
 
 	inline Formatter& StartUnexpected() const { formatter.Start();  return formatter; }
-	inline __declspec(noreturn) void Unexpected()
+	inline __declspec(noreturn) void Unexpected() const
 	{
 		formatter.Throw(Format("Unexpected %s.", GetTokenValue()));
+	}
+	inline __declspec(noreturn) void Unexpected(cstring err) const
+	{
+		assert(err);
+		formatter.Throw(Format("Unexpected %s: %s", GetTokenValue(), err));
 	}
 	inline __declspec(noreturn) void Unexpected(TOKEN expected_token, int* what = nullptr, int* what2 = nullptr) const
 	{
