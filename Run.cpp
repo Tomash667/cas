@@ -10,6 +10,7 @@ vector<Function> functions;
 
 void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 {
+	stack.clear();
 	vars.resize(n_vars);
 
 	int* c = code.data();
@@ -344,6 +345,7 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			}
 			break;
 		case TJMP:
+		case FJMP:
 			{
 				uint offset = *c++;
 				int* new_c = code.data() + offset;
@@ -352,7 +354,10 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				Var v = stack.back();
 				stack.pop_back();
 				assert(v.type == V_BOOL);
-				if(!v.bvalue)
+				bool ok = v.bvalue;
+				if(op == FJMP)
+					ok = !ok;
+				if(ok)
 					c = new_c;
 			}
 			break;

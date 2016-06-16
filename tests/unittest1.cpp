@@ -2,8 +2,27 @@
 #include "CppUnitTest.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-
 using namespace std;
+
+enum Result
+{
+	OK,
+	TIMEOUT,
+	FAILED
+};
+
+struct PackedData
+{
+	cstring input;
+	bool optimize;
+};
+
+unsigned __stdcall ThreadStart(void* data)
+{
+	PackedData* pdata = (PackedData*)data;
+	bool result = ParseAndRun(pdata->input, pdata->optimize);
+	return (result ? 1u : 0u);
+}
 
 namespace tests
 {		
@@ -17,6 +36,24 @@ namespace tests
 			str.resize(len);
 			mbstowcs((wchar_t*)str.data(), s, len);
 			return str;
+		}
+
+		Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = 1)
+		{
+			PackedData pdata;
+			pdata.input = content;
+			pdata.optimize = optimize;
+			HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
+			DWORD result = WaitForSingleObject(thread, timeout * 1000);
+			Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
+			if(result == WAIT_TIMEOUT)
+			{
+				TerminateThread(thread, 2);
+				return TIMEOUT;
+			}
+			DWORD exit_code;
+			GetExitCodeThread(thread, &exit_code);
+			return exit_code == 1u ? OK : FAILED;
 		}
 
 		void Test(cstring filename, cstring input, cstring output, bool optimize = true)
@@ -40,12 +77,15 @@ namespace tests
 			std::istringstream iss(input);
 			std::streambuf* old_cin = std::cin.rdbuf(iss.rdbuf());
 
-			bool result = ParseAndRun(content.c_str(), optimize);
+			Result result = ParseAndRunWithTimeout(content.c_str(), optimize);
+			if(result == TIMEOUT)
+				Assert::Fail(L"Execution timeout.");
+			else if(result == FAILED)
+				Assert::Fail(L"Parsing failed.");
 			string s = oss.str();
 			cstring ss = s.c_str();
 			Logger::WriteMessage("Script output:\n");
 			Logger::WriteMessage(ss);
-			Assert::IsTrue(result, L"Parsing failed.");
 			Assert::AreEqual(output, ss, "Invalid output.");
 
 			std::cout.rdbuf(old_cout);
@@ -54,47 +94,56 @@ namespace tests
 		
 		TEST_METHOD(Simple)
 		{
+			Logger::WriteMessage("Test case: Simple ******************************\n");
 			Test("simple.txt", "4", "Podaj a: Odwrocone a: -4");
 		}
 
 		TEST_METHOD(Math)
 		{
+			Logger::WriteMessage("Test case: Math ******************************\n");
 			Test("math.txt", "1 2 3 4", "7\n2\n3\n-2\n0\n37\n1\n");
 			Test("math.txt", "8 15 4 3", "68\n119\n23\n-120\n0\n37\n0\n");
 		}
 
 		TEST_METHOD(Assign)
 		{
+			Logger::WriteMessage("Test case: Assign ******************************\n");
 			Test("assign.txt", "", "5\n1\n8\n4\n2\n7\ntrue\n");
 		}
 
 		TEST_METHOD(String)
 		{
+			Logger::WriteMessage("Test case: String ******************************\n");
 			Test("string.txt", "Tomash 1990", "Podaj imie: Podaj rok urodzenia: Witaj Tomash! Masz 26 lat.");
 		}
 
 		TEST_METHOD(Float)
 		{
+			Logger::WriteMessage("Test case: Float ******************************\n");
 			Test("float.txt", "7", "153.934\n5.5\n5.5\n3\n");
 		}
 
 		TEST_METHOD(Parentheses)
 		{
+			Logger::WriteMessage("Test case: Parentheses ******************************\n");
 			Test("parentheses.txt", "", "-5\n20\n0\n24\n");
 		}
 
 		TEST_METHOD(Bool)
 		{
+			Logger::WriteMessage("Test case: Bool ******************************\n");
 			Test("bool.txt", "7 8", "false\ntrue\nfalse\nfalse\ntrue\ntrue\n-1\n8\ntrue\nfalse\n");
 		}
 
 		TEST_METHOD(CompOperators)
 		{
+			Logger::WriteMessage("Test case: CompOperators ******************************\n");
 			Test("comp_operators.txt", "", "true\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\n");
 		}
 
 		TEST_METHOD(IfElse)
 		{
+			Logger::WriteMessage("Test case: IfElse ******************************\n");
 			Test("if_else.txt", "1 1", "a == b\n0\n1\n4\n6\n7\n");
 			Test("if_else.txt", "2 1", "a > b\n2\n4\n6\n7\n");
 			Test("if_else.txt", "1 2", "a < b\n2\n4\n6\n7\n", false);
@@ -102,17 +151,20 @@ namespace tests
 
 		TEST_METHOD(While)
 		{
-			Test("while.txt", "3", "***yyyy");
-			Test("while.txt", "4", "****yyyy", false);
+			Logger::WriteMessage("Test case: While ******************************\n");
+			Test("while.txt", "3", "***yyyy/++-");
+			Test("while.txt", "4", "****yyyy/++-", false);
 		}
 
 		TEST_METHOD(TypeFunc)
 		{
+			Logger::WriteMessage("Test case: TypeFunc ******************************\n");
 			Test("type_func.txt", "", "4\n");
 		}
 
 		TEST_METHOD(Block)
 		{
+			Logger::WriteMessage("Test case: Block ******************************\n");
 			Test("block.txt", "", "4\n3\n11\n");
 		}
 	};

@@ -16,5 +16,7 @@
 #include <iostream>
 #include <fstream>
 #include <Cas.h>
+#include <Windows.h>
+#include <process.h>
 
 using namespace std;

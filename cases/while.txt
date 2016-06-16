@@ -18,4 +18,26 @@ while(1)
 
 while(0) println("x");
 
+do ; while(0);
+
+do print("/"); while(0);
+
+int c = 2;
+do
+{
+	print("+");
+	c -= 1;
+	if(c == 0)
+		break;
+}
+while(1);
+
+c = 2;
+do
+{
+	print("-");
+	c -= 1;
+}
+while(c > 0);
+
 pause();

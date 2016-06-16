@@ -18,6 +18,7 @@ enum KEYWORD
 {
 	K_IF,
 	K_ELSE,
+	K_DO,
 	K_WHILE,
 	K_BREAK
 };
@@ -42,8 +43,16 @@ enum PseudoOp
 	NOP,
 	IF,
 	PRE_CALL,
+	DO_WHILE,
 	WHILE,
 	BREAK
+};
+
+enum PseudoOpValue
+{
+	DO_WHILE_NORMAL = 0,
+	DO_WHILE_ONCE = 1,
+	DO_WHILE_INF = 2
 };
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
@@ -1158,6 +1167,18 @@ ParseNode* ParseVarDecl(VAR_TYPE type)
 	return node;
 }
 
+ParseNode* ParseCond()
+{
+	t.AssertSymbol('(');
+	t.Next();
+	ParseNode* cond = ParseExpr(')');
+	t.AssertSymbol(')');
+	if(!TryCast(cond, V_BOOL))
+		t.Throw("Condition expression with '%s' type.", var_name[cond->type]);
+	t.Next();
+	return cond;
+}
+
 // can return null
 ParseNode* ParseLine()
 {
@@ -1175,13 +1196,7 @@ ParseNode* ParseLine()
 		case K_IF:
 			{
 				t.Next();
-				t.AssertSymbol('(');
-				t.Next();
-				ParseNode* if_expr = ParseExpr(')');
-				t.AssertSymbol(')');
-				if(!TryCast(if_expr, V_BOOL))
-					t.Throw("Condition expression with '%s' type.", var_name[if_expr->type]);
-				t.Next();
+				ParseNode* if_expr = ParseCond();
 
 				ParseNode* if_op = ParseNode::Get();
 				if_op->pseudo_op = IF;
@@ -1200,18 +1215,29 @@ ParseNode* ParseLine()
 				
 				return if_op;
 			}
+		case K_DO:
+			{
+				t.Next();
+				++breakable_block;
+				ParseNode* block = ParseLineOrBlock();
+				--breakable_block;
+				t.AssertKeyword(K_WHILE, G_KEYWORD);
+				t.Next();
+				ParseNode* cond = ParseCond();
+				t.AssertSymbol(';');
+				t.Next();
+				ParseNode* do_whil = ParseNode::Get();
+				do_whil->pseudo_op = DO_WHILE;
+				do_whil->type = V_VOID;
+				do_whil->value = DO_WHILE_NORMAL;
+				do_whil->push(block);
+				do_whil->push(cond);
+				return do_whil;
+			}
 		case K_WHILE:
 			{
 				t.Next();
-				t.AssertSymbol('(');
-				t.Next();
-
-				ParseNode* cond = ParseExpr(')');
-				if(!TryCast(cond, V_BOOL))
-					t.Throw("Condition expression with '%s' type.", var_name[cond->type]);
-
-				t.AssertSymbol(')');
-				t.Next();
+				ParseNode* cond = ParseCond();
 				++breakable_block;
 				ParseNode* block = ParseLineOrBlock();
 				--breakable_block;
@@ -1219,8 +1245,7 @@ ParseNode* ParseLine()
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
 				whil->push(cond);
-				whil->push(block);
-				
+				whil->push(block);				
 				return whil;
 			}
 		case K_BREAK:
@@ -1331,6 +1356,7 @@ ParseNode* ParseLineOrBlock()
 
 ParseNode* ParseCode()
 {
+	breakable_block = 0;
 	main_block = Block::Get();
 	main_block->parent = nullptr;
 	main_block->var_offset = 0u;
@@ -1412,6 +1438,30 @@ ParseNode* OptimizeTree(ParseNode* node)
 			}
 		}
 	}
+	else if(node->pseudo_op == DO_WHILE)
+	{
+		ParseNode*& block = node->childs[0];
+		ParseNode*& cond = node->childs[1];
+		if(block)
+			OptimizeTree(block);
+		OptimizeTree(cond);
+		if(cond->pseudo_op == PUSH_BOOL)
+		{
+			// const cond
+			if(cond->bvalue)
+			{
+				// do {...} while(true);
+				node->value = DO_WHILE_INF;
+			}
+			else
+			{
+				// do {...} while(false);
+				node->value = DO_WHILE_ONCE;
+			}
+			cond->Free();
+			cond = nullptr;
+		}
+	}
 	else if(node->pseudo_op == WHILE)
 	{
 		ParseNode*& cond = node->childs[0];
@@ -1426,7 +1476,7 @@ ParseNode* OptimizeTree(ParseNode* node)
 			{
 				// while(true)
 				cond->Free();
-				node->childs[0] = nullptr;
+				cond = nullptr;
 			}
 			else
 			{
@@ -1454,14 +1504,14 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		// if condition
 		assert(node->childs.size() == 2u || node->childs.size() == 3u);
 		ToCode(code, node->childs[0], break_pos);
-		code.push_back(TJMP);
+		code.push_back(FJMP);
 		uint tjmp_pos = code.size();
 		code.push_back(0);
 		if(node->childs.size() == 3u)
 		{
 			/*
 			if expr
-			tjmp else_block
+			fjmp else_block
 			if_block: if code
 			jmp end
 			else_block: else code
@@ -1491,7 +1541,7 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		{
 			/*
 			if expr
-			tjmp end
+			fjmp end
 			if_code
 			end:
 			*/
@@ -1506,6 +1556,44 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		}
 		return;
 	}
+	else if(node->op == DO_WHILE)
+	{
+		assert(node->childs.size() == 2u);
+		uint start = code.size();
+		vector<uint> wh_break_pos;
+		ParseNode* block = node->childs[0];
+		ParseNode* cond = node->childs[1];
+		if(block)
+			ToCode(code, block, &wh_break_pos);
+		if(node->value == DO_WHILE_NORMAL)
+		{
+			/*
+			start:
+				block
+				cond
+				tjmp start
+			end:
+			*/
+			ToCode(code, cond, &wh_break_pos);
+			code.push_back(TJMP);
+			code.push_back(start);
+		}
+		else if(node->value == DO_WHILE_INF)
+		{
+			/*
+			start:
+				block
+				jmp start
+			end:
+			*/
+			code.push_back(JMP);
+			code.push_back(start);
+		}
+		uint end_pos = code.size();
+		for(uint p : wh_break_pos)
+			code[p] = end_pos;
+		return;
+	}
 	else if(node->op == WHILE)
 	{
 		assert(node->childs.size() == 2u);
@@ -1518,13 +1606,13 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 			/*
 			start:
 				cond
-				tjmp end
+				fjmp end
 				block
 				jmp start
 			end:
 			*/
 			ToCode(code, cond, &wh_break_pos);
-			code.push_back(TJMP);
+			code.push_back(FJMP);
 			uint end_jmp = code.size();
 			code.push_back(0);
 			if(block)
@@ -1652,6 +1740,7 @@ void InitializeParser()
 	t.AddKeywords(G_KEYWORD, {
 		{"if", K_IF},
 		{"else", K_ELSE},
+		{"do", K_DO},
 		{"while", K_WHILE},
 		{"break", K_BREAK}
 	});
@@ -1702,6 +1791,7 @@ OpInfo ops[MAX_OP] = {
 	NOT, "not", V_VOID,
 	JMP, "jmp", V_INT,
 	TJMP, "tjmp", V_INT,
+	FJMP, "fjmp", V_INT,
 	CALL, "call", V_INT,
 	RET, "ret", V_VOID
 };
@@ -1724,7 +1814,7 @@ void Decompile(ParseContext& ctx)
 	int* c = ctx.code.data();
 	int* end = c + ctx.code.size();
 
-	cout << "DECMPILE:\n";
+	cout << "DECOMPILE:\n";
 	while(c != end)
 	{
 		Op op = (Op)*c++;

@@ -28,6 +28,7 @@ enum Op
 	NOT,
 	JMP,
 	TJMP,
+	FJMP,
 	CALL,
 	RET,
 	MAX_OP
