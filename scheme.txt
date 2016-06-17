@@ -32,7 +32,11 @@ var_decl:
 	<var_name> [ = expr ]
 
 expr<END>:
-	[unary_op] item [ op [unary_op] item ... ] <END>
+	expr_part [op expr_part ...] <END>
+
+expr_part:
+	[unary_op ...] [inc_dec_op ...] item [inc_dec_op]
+	NAWIASY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 item:
 	<var_name>
@@ -63,6 +67,8 @@ op:
 	*=
 	/=
 	=
+	++
+	--
 
 base_op:
 	+
@@ -75,6 +81,10 @@ unary_op:
 	+
 	-
 	!
+
+inc_dec_op:
+	++
+	--
 
 const:
 	true

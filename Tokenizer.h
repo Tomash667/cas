@@ -27,7 +27,8 @@ public:
 		T_NUMBER,
 		T_TEXT,
 		T_BOOL,
-		T_SYMBOLS_LIST
+		T_SYMBOLS_LIST,
+		T_COMPOUND_SYMBOL
 	};
 
 	static const int EMPTY_GROUP = -1;
@@ -307,6 +308,8 @@ public:
 			return "bool";
 		case T_SYMBOLS_LIST:
 			return "symbols list";
+		case T_COMPOUND_SYMBOL:
+			return "compound symbol";
 		default:
 			assert(0);
 			return "unknown";
@@ -323,6 +326,8 @@ public:
 			return Format("%s (%s)", GetTokenName(token), item.c_str());
 		case T_SYMBOL:
 			return Format("%s '%c'", GetTokenName(token), _char);
+		case T_COMPOUND_SYMBOL:
+			return Format("%s '%s'", GetTokenName(token), item.c_str());
 		case T_INT:
 			return Format("%s %d", GetTokenName(token), _int);
 		case T_FLOAT:

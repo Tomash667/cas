@@ -78,12 +78,18 @@ namespace tests
 			std::streambuf* old_cin = std::cin.rdbuf(iss.rdbuf());
 
 			Result result = ParseAndRunWithTimeout(content.c_str(), optimize);
-			if(result == TIMEOUT)
-				Assert::Fail(L"Execution timeout.");
-			else if(result == FAILED)
-				Assert::Fail(L"Parsing failed.");
 			string s = oss.str();
 			cstring ss = s.c_str();
+			if(result == TIMEOUT)
+			{
+				cstring output = Format("Script execution/parsing timeout. Output:\n%s", ss);
+				Assert::Fail(GetWC(output).c_str());
+			}
+			else if(result == FAILED)
+			{
+				cstring output = Format("Script parsing failed. Output:\n%s", ss);
+				Assert::Fail(GetWC(output).c_str());
+			}
 			Logger::WriteMessage("Script output:\n");
 			Logger::WriteMessage(ss);
 			Assert::AreEqual(output, ss, "Invalid output.");

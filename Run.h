@@ -31,6 +31,7 @@ struct Var
 	inline explicit Var(int value) : type(V_INT), value(value) {}
 	inline explicit Var(float fvalue) : type(V_FLOAT), fvalue(fvalue) {}
 	inline explicit Var(Str* str) : type(V_STRING), str(str) {}
+	inline explicit Var(VAR_TYPE type, int value) : type(type), value(value) {}
 };
 
 extern vector<Var> stack;

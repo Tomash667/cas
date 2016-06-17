@@ -60,6 +60,15 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				stack.push_back(v);
 			}
 			break;
+		case PUSH_VAR_REF:
+			{
+				uint var_index = *c++;
+				assert(var_index < vars.size());
+				Var& v = vars[var_index];
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING);
+				stack.push_back(Var(V_REF, var_index));
+			}
+			break;
 		case POP:
 			{
 				assert(!stack.empty());
@@ -171,6 +180,11 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			break;
 		case NEG:
 		case NOT:
+		case PRE_INC:
+		case PRE_DEC:
+		case POST_INC:
+		case POST_DEC:
+		case DEREF:
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
@@ -182,10 +196,52 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 					else
 						v.fvalue = -v.fvalue;
 				}
-				else
+				else if(op == NOT)
 				{
 					assert(v.type == V_BOOL);
 					v.bvalue = !v.bvalue;
+				}
+				else if(op == DEREF)
+				{
+					assert(v.type == V_REF && (uint)v.value < vars.size());
+					v = vars[v.value];
+					if(v.type == V_STRING)
+						v.str->refs++;
+				}
+				else
+				{
+					assert(v.type == V_REF && (uint)v.value < vars.size());
+					Var& rv = vars[v.value];
+					assert(rv.type == V_INT || rv.type == V_FLOAT);
+					switch(op)
+					{
+					case PRE_INC:
+						if(rv.type == V_INT)
+							++rv.value;
+						else
+							++rv.fvalue;
+						break;
+					case PRE_DEC:
+						if(rv.type == V_INT)
+							--rv.value;
+						else
+							--rv.fvalue;
+						break;
+					case POST_INC:
+						stack.pop_back();
+						if(rv.type == V_INT)
+							stack.push_back(Var(rv.value++));
+						else
+							stack.push_back(Var(rv.fvalue++));
+						break;
+					case POST_DEC:
+						stack.pop_back();
+						if(rv.type == V_INT)
+							stack.push_back(Var(rv.value--));
+						else
+							stack.push_back(Var(rv.fvalue--));
+						break;
+					}
 				}
 			}
 			break;

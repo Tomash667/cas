@@ -1,4 +1,5 @@
-+ ++ --
++ ++ -- bool cast
+? unexpected compound symbol
 
 + class member access
 + class properties
@@ -32,3 +33,4 @@
 + allow to turn off optimize const expr
 + superbreak
 + detect unreachable code
++ function taking or returning reference

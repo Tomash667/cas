@@ -4,12 +4,13 @@
 #include "Parse.h"
 #include "Function.h"
 
-cstring var_name[V_MAX] = {
-	"void",
-	"bool",
-	"int",
-	"float",
-	"string"
+VarInfo var_info[V_MAX] = {
+	V_VOID, "void", true,
+	V_BOOL, "bool", true,
+	V_INT, "int", true,
+	V_FLOAT, "float", true,
+	V_STRING, "string", true,
+	V_REF, "ref", false
 };
 
 Logger* logger;

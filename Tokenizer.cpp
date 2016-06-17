@@ -418,14 +418,15 @@ bool Tokenizer::SkipToKeywordGroup(int group)
 //=================================================================================================
 bool Tokenizer::PeekSymbol(char symbol)
 {
+	assert(token == T_SYMBOL);
 	char c = str->at(pos);
 	if(c == symbol)
 	{
-		item = c;
+		item += c;
 		_char = c;
 		++charpos;
 		++pos;
-		token = T_SYMBOL;
+		token = T_COMPOUND_SYMBOL;
 		return true;
 	}
 	else

@@ -57,6 +57,13 @@ enum PseudoOpValue
 	DO_WHILE_INF = 2
 };
 
+enum RefType
+{
+	NO_REF,
+	MAY_REF,
+	REF
+};
+
 struct ParseVar : ObjectPoolProxy<ParseVar>
 {
 	string name;
@@ -81,6 +88,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	};
 	VAR_TYPE type;
 	vector<ParseNode*> childs;
+	RefType ref;
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void OnFree() { SafeFree(childs); }
@@ -243,18 +251,33 @@ bool TryConstCast(ParseNode* node, VAR_TYPE type)
 void Cast(ParseNode*& node, VAR_TYPE type)
 {
 	// no cast required?
-	if(type == V_VOID || node->type == type)
+	if(type == V_VOID || (node->type == type && node->ref != REF))
 		return;
 
 	// can const cast?
 	if(TryConstCast(node, type))
 		return;
 
+	if(node->ref == REF)
+	{
+		// dereference
+		ParseNode* deref = ParseNode::Get();
+		deref->op = DEREF;
+		deref->type = node->type;
+		deref->ref = NO_REF;
+		deref->push(node);
+		node = deref;
+
+		if(node->type == type)
+			return;
+	}
+
 	// normal cast
 	ParseNode* cast = ParseNode::Get();
 	cast->op = CAST;
 	cast->value = type;
 	cast->type = type;
+	cast->ref = NO_REF;
 	cast->push(node);
 	node = cast;
 }
@@ -281,7 +304,7 @@ void VerifyFunctionCall(ParseNode* node, Function* f)
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
 		if(!TryCast(node->childs[i], f->args[i]))
-			t.Throw("Function %s takes %s for argument %d, found %s.", f->name, var_name[f->args[i]], i + 1, var_name[node->childs[i]->type]);
+			t.Throw("Function %s takes %s for argument %d, found %s.", f->name, var_info[f->args[i]].name, i + 1, var_info[node->childs[i]->type].name);
 	}
 }
 
@@ -295,6 +318,7 @@ ParseNode* ParseItem()
 		node->op = PUSH_INT;
 		node->type = V_INT;
 		node->value = val;
+		node->ref = NO_REF;
 		t.Next();
 		return node;
 	}
@@ -306,6 +330,7 @@ ParseNode* ParseItem()
 		node->op = PUSH_FLOAT;
 		node->type = V_FLOAT;
 		node->fvalue = val;
+		node->ref = NO_REF;
 		t.Next();
 		return node;
 	}
@@ -323,6 +348,7 @@ ParseNode* ParseItem()
 				node->op = PUSH_VAR;
 				node->type = var->type;
 				node->var = var;
+				node->ref = MAY_REF;
 				t.Next();
 				return node;
 			}
@@ -333,6 +359,7 @@ ParseNode* ParseItem()
 				node->op = CALL;
 				node->type = f->result;
 				node->value = f->index;
+				node->ref = NO_REF;
 
 				t.Next();
 				ParseArgs(node->childs);
@@ -355,6 +382,7 @@ ParseNode* ParseItem()
 		node->op = PUSH_STRING;
 		node->value = index;
 		node->type = V_STRING;
+		node->ref = NO_REF;
 		t.Next();
 		return node;
 	}
@@ -366,6 +394,7 @@ ParseNode* ParseItem()
 		node->pseudo_op = PUSH_BOOL;
 		node->bvalue = (c == C_TRUE);
 		node->type = V_BOOL;
+		node->ref = NO_REF;
 		return node;
 	}
 	else
@@ -398,8 +427,19 @@ enum SYMBOL
 	S_ASSIGN_MUL,
 	S_ASSIGN_DIV,
 	S_ASSIGN_MOD,
+	S_PRE_INC,
+	S_PRE_DEC,
+	S_POST_INC,
+	S_POST_DEC,
 	S_INVALID,
 	S_MAX
+};
+
+enum SYMBOL_TYPE
+{
+	ST_NONE,
+	ST_ASSIGN,
+	ST_INC_DEC
 };
 
 // http://en.cppreference.com/w/cpp/language/operator_precedence
@@ -410,35 +450,39 @@ struct SymbolInfo
 	int priority;
 	bool left_associativity;
 	int args, op;
-	bool assign;
+	SYMBOL_TYPE type;
 };
 
 SymbolInfo symbols[S_MAX] = {
-	S_ADD, "add", 5, true, 2, ADD, false,
-	S_SUB, "subtract", 5, true, 2, SUB, false,
-	S_MUL, "multiply", 6, true, 2, MUL, false,
-	S_DIV, "divide", 6, true, 2, DIV, false,
-	S_MOD, "modulo", 6, true, 2, MOD, false,
-	S_PLUS, "unary plus", 7, false, 1, NOP, false,
-	S_MINUS, "unary minus", 7, false, 1, NEG, false,
-	S_LEFT_PAR, "left parenthesis", -1, true, 0, NOP, false,
-	S_EQUAL, "equal", 3, true, 2, EQ, false,
-	S_NOT_EQUAL, "not equal", 3, true, 2, NOT_EQ, false,
-	S_GREATER, "greater", 4, true, 2, GR, false,
-	S_GREATER_EQUAL, "greater equal", 4, true, 2, GR_EQ, false,
-	S_LESS, "less", 4, true, 2, LE, false,
-	S_LESS_EQUAL, "less equal", 4, true, 2, LE_EQ, false,
-	S_AND, "and", 2, true, 2, AND, false,
-	S_OR, "or", 1, true, 2, OR, false,
-	S_NOT, "not", 7, false, 1, NOT, false,
-	S_MEMBER_ACCESS, "member access", 7, true, 2, NOP, false,
-	S_ASSIGN, "assign", 0, false, 2, NOP, true,
-	S_ASSIGN_ADD, "assign add", 0, false, 2, S_ADD, true,
-	S_ASSIGN_SUB, "assign subtract", 0, false, 2, S_SUB, true,
-	S_ASSIGN_MUL, "assign multiply", 0, false, 2, S_MUL, true,
-	S_ASSIGN_DIV, "assign divide", 0, false, 2, S_DIV, true,
-	S_ASSIGN_MOD, "assign modulo", 0, false, 2, S_MOD, true,
-	S_INVALID, "invalid", -1, true, 0, NOP, false
+	S_ADD, "add", 6, true, 2, ADD, ST_NONE,
+	S_SUB, "subtract", 6, true, 2, SUB, ST_NONE,
+	S_MUL, "multiply", 5, true, 2, MUL, ST_NONE,
+	S_DIV, "divide", 5, true, 2, DIV, ST_NONE,
+	S_MOD, "modulo", 5, true, 2, MOD, ST_NONE,
+	S_PLUS, "unary plus", 3, false, 1, NOP, ST_NONE,
+	S_MINUS, "unary minus", 3, false, 1, NEG, ST_NONE,
+	S_LEFT_PAR, "left parenthesis", 99, true, 0, NOP, ST_NONE,
+	S_EQUAL, "equal", 9, true, 2, EQ, ST_NONE,
+	S_NOT_EQUAL, "not equal", 9, true, 2, NOT_EQ, ST_NONE,
+	S_GREATER, "greater", 8, true, 2, GR, ST_NONE,
+	S_GREATER_EQUAL, "greater equal", 8, true, 2, GR_EQ, ST_NONE,
+	S_LESS, "less", 8, true, 2, LE, ST_NONE,
+	S_LESS_EQUAL, "less equal", 8, true, 2, LE_EQ, ST_NONE,
+	S_AND, "and", 13, true, 2, AND, ST_NONE,
+	S_OR, "or", 14, true, 2, OR, ST_NONE,
+	S_NOT, "not", 3, false, 1, NOT, ST_NONE,
+	S_MEMBER_ACCESS, "member access", 2, true, 2, NOP, ST_NONE,
+	S_ASSIGN, "assign", 15, false, 2, NOP, ST_ASSIGN,
+	S_ASSIGN_ADD, "assign add", 15, false, 2, S_ADD, ST_ASSIGN,
+	S_ASSIGN_SUB, "assign subtract", 15, false, 2, S_SUB, ST_ASSIGN,
+	S_ASSIGN_MUL, "assign multiply", 15, false, 2, S_MUL, ST_ASSIGN,
+	S_ASSIGN_DIV, "assign divide", 15, false, 2, S_DIV, ST_ASSIGN,
+	S_ASSIGN_MOD, "assign modulo", 15, false, 2, S_MOD, ST_ASSIGN,
+	S_PRE_INC, "pre increment", 3, false, 1, PRE_INC, ST_INC_DEC,
+	S_PRE_DEC, "pre decrement", 3, false, 1, PRE_DEC, ST_INC_DEC,
+	S_POST_INC, "post increment", 2, true, 1, POST_INC, ST_INC_DEC,
+	S_POST_DEC, "post decrement", 2, true, 1, POST_DEC, ST_INC_DEC,
+	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE
 };
 
 enum LEFT
@@ -446,28 +490,10 @@ enum LEFT
 	LEFT_NONE,
 	LEFT_SYMBOL,
 	LEFT_UNARY,
-	LEFT_ITEM
+	LEFT_ITEM,
+	LEFT_PRE,
+	LEFT_POST
 };
-
-SYMBOL CharToSymbol(char c)
-{
-	switch(c)
-	{
-	case '+':
-		return S_ADD;
-	case '-':
-		return S_SUB;
-	case '*':
-		return S_MUL;
-	case '/':
-		return S_DIV;
-	case '%':
-		return S_MOD;
-	default:
-		assert(0);
-		return S_INVALID;
-	}
-}
 
 bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYPE& result)
 {
@@ -789,6 +815,229 @@ void ParseArgs(vector<ParseNode*>& nodes)
 	t.Next();
 }
 
+void RequireRef(ParseNode* node, cstring op_name)
+{
+	assert(node);
+	if(node->ref == NO_REF)
+		t.Throw("Need reference value for operation '%s'.", op_name);
+	else if(node->ref == MAY_REF)
+	{
+		assert(node->op == PUSH_VAR);
+		node->op = PUSH_VAR_REF;
+		node->ref = REF;
+	}
+}
+
+enum BASIC_SYMBOL
+{
+	BS_PLUS, // +
+	BS_MINUS, // -
+	BS_MUL, // *
+	BS_DIV, // /
+	BS_MOD, // %
+	BS_EQUAL, // ==
+	BS_NOT_EQUAL, // !=
+	BS_GREATER, // >
+	BS_GREATER_EQUAL, // >=
+	BS_LESS, // <
+	BS_LESS_EQUAL, // <=
+	BS_AND, // &&
+	BS_OR, // ||
+	BS_NOT, // !
+	BS_ASSIGN, // =
+	BS_ASSIGN_ADD, // +=
+	BS_ASSIGN_SUB, // -=
+	BS_ASSIGN_MUL, // *=
+	BS_ASSIGN_DIV, // /=
+	BS_ASSIGN_MOD, // %=
+	BS_DOT, // .
+	BS_INC, // ++
+	BS_DEC, // --
+	BS_MAX
+};
+
+struct BasicSymbolInfo
+{
+	BASIC_SYMBOL symbol;
+	cstring text;
+	SYMBOL unary_symbol;
+	SYMBOL pre_symbol;
+	SYMBOL post_symbol;
+	SYMBOL op_symbol;
+};
+
+BasicSymbolInfo basic_symbols[BS_MAX] = {
+	BS_INC, "+", S_PLUS, S_INVALID, S_INVALID, S_ADD,
+	BS_DEC, "-", S_MINUS, S_INVALID, S_INVALID, S_SUB,
+	BS_MUL, "*", S_INVALID, S_INVALID, S_INVALID, S_MUL,
+	BS_DIV, "/", S_INVALID, S_INVALID, S_INVALID, S_DIV,
+	BS_MOD, "%", S_INVALID, S_INVALID, S_INVALID, S_MOD,
+	BS_EQUAL, "==", S_INVALID, S_INVALID, S_INVALID, S_EQUAL,
+	BS_NOT_EQUAL, "!=", S_INVALID, S_INVALID, S_INVALID, S_NOT_EQUAL,
+	BS_GREATER, ">", S_INVALID, S_INVALID, S_INVALID, S_GREATER,
+	BS_GREATER_EQUAL, ">=", S_INVALID, S_INVALID, S_INVALID, S_GREATER_EQUAL,
+	BS_LESS, "<", S_INVALID, S_INVALID, S_INVALID, S_LESS,
+	BS_LESS_EQUAL, "<=", S_INVALID, S_INVALID, S_INVALID, S_LESS_EQUAL,
+	BS_AND, "&&", S_INVALID, S_INVALID, S_INVALID, S_AND,
+	BS_OR, "||", S_INVALID, S_INVALID, S_INVALID, S_OR,
+	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID, S_INVALID,
+	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN,
+	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_ADD,
+	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_SUB,
+	BS_ASSIGN_MUL, "*=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_MUL,
+	BS_ASSIGN_DIV, "/=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_DIV,
+	BS_ASSIGN_MOD, "%=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_MOD,
+	BS_DOT, ".", S_INVALID, S_INVALID, S_INVALID, S_MEMBER_ACCESS,
+	BS_INC, "++", S_INVALID, S_PRE_INC, S_POST_INC, S_INVALID,
+	BS_DEC, "--", S_INVALID, S_PRE_DEC, S_POST_DEC, S_INVALID,
+};
+
+BASIC_SYMBOL GetSymbol()
+{
+	char c = t.MustGetSymbol();
+	switch(c)
+	{
+	case '+':
+		if(t.PeekSymbol('='))
+			return BS_ASSIGN_ADD;
+		else if(t.PeekSymbol('+'))
+			symbol = BS_INC;
+		else
+			symbol = BS_PLUS;
+		break;
+	case '-':
+		if(t.PeekSymbol('='))
+			symbol = BS_ASSIGN_SUB;
+		else if(t.PeekSymbol('-'))
+			symbol = BS_DEC;
+		else
+			symbol = BS_MINUS;
+		break;
+	case '*':
+		if(t.PeekSymbol('='))
+			symbol = BS_ASSIGN_MUL;
+		else
+			symbol = BS_MUL;
+		break;
+	case '/':
+		if(t.PeekSymbol('='))
+			symbol = BS_ASSIGN_DIV;
+		else
+			symbol = BS_DIV;
+		break;
+	case '%':
+		if(t.PeekSymbol('='))
+			symbol = BS_ASSIGN_MOD;
+		else
+			symbol = BS_MOD;
+		break;
+	case '!':
+		if(t.PeekSymbol('='))
+			symbol = BS_NOT_EQUAL;
+		else
+			symbol = BS_NOT;
+		break;
+	case '=':
+		if(t.PeekSymbol('='))
+			symbol = BS_EQUAL;
+		else
+			symbol = BS_ASSIGN;
+		break;
+	case '>':
+		if(t.PeekSymbol('='))
+			symbol = BS_GREATER_EQUAL;
+		else
+			symbol = BS_GREATER;
+		break;
+	case '<':
+		if(t.PeekSymbol('='))
+			symbol = BS_LESS_EQUAL;
+		else
+			symbol = BS_LESS;
+		break;
+	case '&':
+		if(!t.PeekSymbol('&'))
+			t.Unexpected();
+		symbol = BS_AND;
+		break;
+	case '|':
+		if(!t.PeekSymbol('|'))
+			t.Unexpected();
+		symbol = BS_OR;
+		break;
+	case '.':
+		symbol = BS_DOT;
+		break;
+	}
+}
+
+bool GetNextSymbol(BASIC_SYMBOL& symbol)
+{
+	if(symbol != S_INVALID)
+		return true;
+	if(!t.IsSymbol())
+		return false;
+	symbol = GetSymbol();
+	return true;
+}
+
+BASIC_SYMBOL ParseExprPart()
+{
+	BASIC_SYMBOL symbol = BS_MAX;
+
+	// [unary symbols]
+	while(GetNextSymbol(symbol))
+	{
+		BasicSymbolInfo& bsi = basic_symbols[symbol];
+		if(bsi.unary_symbol != S_INVALID)
+		{
+			// push to stack magic
+			symbol = S_INVALID;
+		}
+		else
+			break;
+	}
+
+	// [pre symbols]
+	while(GetNextSymbol(symbol))
+	{
+		BasicSymbolInfo& bsi = basic_symbols[symbol];
+		if(bsi.pre_symbol != S_INVALID)
+		{
+			// push to stack magic
+			symbol = S_INVALID;
+		}
+		else
+			break;
+	}
+
+	// item
+	if(GetNextSymbol(symbol))
+		t.Unexpected();
+	ParseNode* item = ParseItem();
+	// push to exit magic
+
+	// [post symbol]
+	if(GetNextSymbol(symbol))
+	{
+		BasicSymbolInfo& bsi = basic_symbols[symbol];
+		if(bsi.post_symbol != S_INVALID)
+		{
+			// push to stack magic
+			symbol = S_INVALID;
+		}
+		else
+			break;
+	}
+
+	return symbol;
+}
+
+ParseNode* ParseExpr2(char end, char end2)
+{
+
+}
+
 ParseNode* ParseExpr(char end, char end2)
 {
 	vector<SymbolOrNode> exit;
@@ -852,18 +1101,36 @@ ParseNode* ParseExpr(char end, char end2)
 						switch(c)
 						{
 						case '+':
-							symbol = S_PLUS;
+							if(t.PeekSymbol('+'))
+							{
+								symbol = S_PRE_INC;
+								left = LEFT_PRE;
+							}
+							else
+							{
+								symbol = S_PLUS;
+								left = LEFT_UNARY;
+							}
 							break;
 						case '-':
-							symbol = S_MINUS;
+							if(t.PeekSymbol('-'))
+							{
+								symbol = S_PRE_DEC;
+								left = LEFT_PRE;
+							}
+							else
+							{
+								symbol = S_MINUS;
+								left = LEFT_UNARY;
+							}
 							break;
 						case '!':
 							symbol = S_NOT;
+							left = LEFT_UNARY;
 							break;
 						default:
 							t.Unexpected();
 						}
-						left = LEFT_UNARY;
 					}
 					break;
 				case LEFT_ITEM:
@@ -872,12 +1139,16 @@ ParseNode* ParseExpr(char end, char end2)
 					case '+':
 						if(t.PeekSymbol('='))
 							symbol = S_ASSIGN_ADD;
+						else if(t.PeekSymbol('+'))
+							symbol = S_POST_INC;
 						else
 							symbol = S_ADD;
 						break;
 					case '-':
 						if(t.PeekSymbol('='))
 							symbol = S_ASSIGN_SUB;
+						else if(t.PeekSymbol('-'))
+							symbol = S_POST_DEC;
 						else
 							symbol = S_SUB;
 						break;
@@ -948,9 +1219,9 @@ ParseNode* ParseExpr(char end, char end2)
 
 					bool ok = false;
 					if(s1.left_associativity)
-						ok = (s1.priority <= s2.priority);
+						ok = (s1.priority > s2.priority);
 					else
-						ok = (s1.priority < s2.priority);
+						ok = (s1.priority >= s2.priority);
 
 					if(ok)
 					{
@@ -973,6 +1244,7 @@ ParseNode* ParseExpr(char end, char end2)
 					node->pseudo_op = PRE_CALL;
 					node->type = V_VOID;
 					node->str = str;
+					node->ref = NO_REF;
 					ParseArgs(node->childs);
 					exit.push_back(node);
 					left = LEFT_ITEM;
@@ -1015,22 +1287,41 @@ ParseNode* ParseExpr(char end, char end2)
 			{
 				ParseNode* node = stack2.back();
 				stack2.pop_back();
-				VAR_TYPE cast, result;
-				if(!CanOp(sn.symbol, node->type, V_VOID, cast, result))
-					t.Throw("Invalid type '%s' for operation '%s'.", var_name[node->type], si.name);
-				Cast(node, cast);
-				if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
+				if(si.type == ST_NONE)
 				{
+					VAR_TYPE cast, result;
+					if(!CanOp(sn.symbol, node->type, V_VOID, cast, result))
+						t.Throw("Invalid type '%s' for operation '%s'.", var_info[node->type].name, si.name);
+					Cast(node, cast);
+					if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
+					{
+						ParseNode* op = ParseNode::Get();
+						op->op = (Op)si.op;
+						op->type = result;
+						op->push(node);
+						op->ref = NO_REF;
+						node = op;
+					}
+					stack2.push_back(node);
+				}
+				else
+				{
+					assert(si.type == ST_INC_DEC);
+					if(node->type != V_INT && node->type != V_FLOAT)
+						t.Throw("Invalid type '%s' for operation '%s'.", var_info[node->type].name, si.name);
+					RequireRef(node, si.name);
+
 					ParseNode* op = ParseNode::Get();
 					op->op = (Op)si.op;
-					op->type = result;
+					op->type = node->type;
+					op->ref = ((si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC) ? REF : NO_REF);
 					op->push(node);
-					node = op;
+					stack2.push_back(op);
 				}
-				stack2.push_back(node);
 			}
-			else if(si.args == 2)
+			else
 			{
+				assert(si.args == 2);
 				ParseNode* right = stack2.back();
 				stack2.pop_back();
 				ParseNode* left = stack2.back();
@@ -1043,20 +1334,21 @@ ParseNode* ParseExpr(char end, char end2)
 						t.Throw("Invalid member access for type 'void'.");
 					Function* func = FindFunction(*right->str, left->type);
 					if(!func)
-						t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), var_name[left->type]);
+						t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), var_info[left->type].name);
 					StringPool.Free(right->str);
 					VerifyFunctionCall(right, func);
 					ParseNode* node = ParseNode::Get();
 					node->op = CALL;
 					node->type = func->result;
 					node->value = func->index;
+					node->ref = NO_REF;
 					node->push(left);
 					for(ParseNode* n : right->childs)
 						node->push(n);
 					right->Free();
 					stack2.push_back(node);
 				}
-				else if(si.assign)
+				else if(si.type == ST_ASSIGN)
 				{
 					if(left->op != PUSH_VAR)
 						t.Throw("Can't assign, left value must be variable.");
@@ -1065,12 +1357,13 @@ ParseNode* ParseExpr(char end, char end2)
 					set->op = SET_VAR;
 					set->var = left->var;
 					set->type = left->type;
+					set->ref = NO_REF;
 
 					if(si.op == NOP)
 					{
 						// assign
 						if(!TryCast(right, left->type))
-							t.Throw("Can't assign '%s' to variable '%s %s'.", var_name[right->type], var_name[set->type], set->var->name.c_str());
+							t.Throw("Can't assign '%s' to variable '%s %s'.", var_info[right->type].name, var_info[set->type].name, set->var->name.c_str());
 						set->push(right);
 					}
 					else
@@ -1078,7 +1371,7 @@ ParseNode* ParseExpr(char end, char end2)
 						// compound assign
 						VAR_TYPE cast, result;
 						if(!CanOp((SYMBOL)si.op, left->type, right->type, cast, result))
-							t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_name[left->type], var_name[right->type], si.name);
+							t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_info[left->type].name, var_info[right->type].name, si.name);
 
 						Cast(left, cast);
 						Cast(right, cast);
@@ -1086,6 +1379,7 @@ ParseNode* ParseExpr(char end, char end2)
 						ParseNode* op = ParseNode::Get();
 						op->op = (Op)symbols[si.op].op;
 						op->type = result;
+						op->ref = NO_REF;
 						op->push(left);
 						op->push(right);
 
@@ -1100,13 +1394,14 @@ ParseNode* ParseExpr(char end, char end2)
 				{
 					VAR_TYPE cast, result;
 					if(!CanOp(si.symbol, left->type, right->type, cast, result))
-						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_name[left->type], var_name[right->type], si.name);
+						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_info[left->type].name, var_info[right->type].name, si.name);
 
 					Cast(left, cast);
 					Cast(right, cast);
 
 					ParseNode* op = ParseNode::Get();
 					op->type = result;
+					op->ref = NO_REF;
 
 					if(!TryConstExpr(left, right, op, si.symbol))
 					{
@@ -1159,12 +1454,13 @@ ParseNode* ParseVarDecl(VAR_TYPE type)
 	// expr<,;>
 	ParseNode* expr = ParseExpr(',', ';');
 	if(!TryCast(expr, type))
-		t.Throw("Can't assign type '%s' to variable '%s %s'.", var_name[expr->type], var->name.c_str(), var_name[type]);
+		t.Throw("Can't assign type '%s' to variable '%s %s'.", var_info[expr->type].name, var->name.c_str(), var_info[type].name);
 
 	ParseNode* node = ParseNode::Get();
 	node->op = SET_VAR;
 	node->type = var->type;
 	node->var = var;
+	node->ref = NO_REF;
 	node->push(expr);
 	return node;
 }
@@ -1176,7 +1472,7 @@ ParseNode* ParseCond()
 	ParseNode* cond = ParseExpr(')');
 	t.AssertSymbol(')');
 	if(!TryCast(cond, V_BOOL))
-		t.Throw("Condition expression with '%s' type.", var_name[cond->type]);
+		t.Throw("Condition expression with '%s' type.", var_info[cond->type].name);
 	t.Next();
 	return cond;
 }
@@ -1212,6 +1508,7 @@ ParseNode* ParseVarTypeDecl()
 		ParseNode* node = ParseNode::Get();
 		node->pseudo_op = GROUP;
 		node->type = V_VOID;
+		node->ref = NO_REF;
 		node->childs = nodes;
 		return node;
 	}
@@ -1239,6 +1536,7 @@ ParseNode* ParseLine()
 				ParseNode* if_op = ParseNode::Get();
 				if_op->pseudo_op = IF;
 				if_op->type = V_VOID;
+				if_op->ref = NO_REF;
 				if_op->push(if_expr);
 				if_op->push(ParseLineOrBlock());
 
@@ -1268,6 +1566,7 @@ ParseNode* ParseLine()
 				do_whil->pseudo_op = DO_WHILE;
 				do_whil->type = V_VOID;
 				do_whil->value = DO_WHILE_NORMAL;
+				do_whil->ref = NO_REF;
 				do_whil->push(block);
 				do_whil->push(cond);
 				return do_whil;
@@ -1282,6 +1581,7 @@ ParseNode* ParseLine()
 				ParseNode* whil = ParseNode::Get();
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
+				whil->ref = NO_REF;
 				whil->push(cond);
 				whil->push(block);
 				return whil;
@@ -1319,11 +1619,12 @@ ParseNode* ParseLine()
 				t.Next();
 
 				if(for2 && !TryCast(for2, V_BOOL))
-					t.Throw("Condition expression with '%s' type.", var_name[for2->type]);
+					t.Throw("Condition expression with '%s' type.", var_info[for2->type].name);
 
 				ParseNode* fo = ParseNode::Get();
 				fo->pseudo_op = FOR;
 				fo->type = V_VOID;
+				fo->ref = NO_REF;
 				fo->push(for1);
 				fo->push(for2);
 				fo->push(for3);
@@ -1343,6 +1644,7 @@ ParseNode* ParseLine()
 				ParseNode* br = ParseNode::Get();
 				br->pseudo_op = BREAK;
 				br->type = V_VOID;
+				br->ref = NO_REF;
 				return br;
 			}
 		default:
@@ -1401,6 +1703,7 @@ ParseNode* ParseLineOrBlock()
 			ParseNode* node = ParseNode::Get();
 			node->pseudo_op = GROUP;
 			node->type = V_VOID;
+			node->ref = NO_REF;
 			node->childs = nodes;
 			return node;
 		}
@@ -1420,6 +1723,7 @@ ParseNode* ParseCode()
 	ParseNode* node = ParseNode::Get();
 	node->pseudo_op = GROUP;
 	node->type = V_VOID;
+	node->ref = NO_REF;
 
 	t.Next();
 	while(!t.IsEof())
@@ -1481,6 +1785,7 @@ ParseNode* OptimizeTree(ParseNode* node)
 				ParseNode* not = ParseNode::Get();
 				not->op = NOT;
 				not->type = V_BOOL;
+				not->ref = NO_REF;
 				not->push(cond);
 				node->childs[0] = not;
 				node->childs[1] = node->childs[2];
@@ -1825,6 +2130,7 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		code.push_back(node->value);
 		break;
 	case PUSH_VAR:
+	case PUSH_VAR_REF:
 	case SET_VAR:
 		code.push_back(node->op);
 		code.push_back(node->var->index);
@@ -1848,6 +2154,11 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case AND:
 	case OR:
 	case NOT:
+	case PRE_INC:
+	case PRE_DEC:
+	case POST_INC:
+	case POST_DEC:
+	case DEREF:
 		code.push_back(node->op);
 		break;
 	case PUSH_BOOL:
@@ -1897,7 +2208,11 @@ void InitializeParser()
 {
 	// register var types
 	for(int i = 0; i < V_MAX; ++i)
-		t.AddKeyword(var_name[i], i, G_VAR);
+	{
+		VarInfo& vi = var_info[i];
+		if(vi.reg)
+			t.AddKeyword(vi.name, i, G_VAR);
+	}
 
 	// register keywords
 	t.AddKeywords(G_KEYWORD, {
@@ -1935,6 +2250,7 @@ OpInfo ops[MAX_OP] = {
 	PUSH_FLOAT, "push_float", V_FLOAT,
 	PUSH_STRING, "push_string", V_INT,
 	PUSH_VAR, "push_var", V_INT,
+	PUSH_VAR_REF, "push_var_ref", V_INT,
 	POP, "pop", V_VOID,
 	SET_VAR, "set_var", V_INT,
 	CAST, "cast", V_INT,
@@ -1944,6 +2260,11 @@ OpInfo ops[MAX_OP] = {
 	MUL, "mul", V_VOID,
 	DIV, "div", V_VOID,
 	MOD, "mod", V_VOID,
+	PRE_INC, "pre_inc", V_VOID,
+	PRE_DEC, "pre_dec", V_VOID,
+	POST_INC, "post_inc", V_VOID,
+	POST_DEC, "post_dec", V_VOID,
+	DEREF, "deref", V_VOID,
 	EQ, "eq", V_VOID,
 	NOT_EQ, "not_eq", V_VOID,
 	GR, "gr", V_VOID,
