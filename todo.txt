@@ -1,5 +1,4 @@
 + ++ --
-+ for
 
 + class member access
 + class properties

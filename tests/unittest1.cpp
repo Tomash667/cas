@@ -152,8 +152,8 @@ namespace tests
 		TEST_METHOD(While)
 		{
 			Logger::WriteMessage("Test case: While ******************************\n");
-			Test("while.txt", "3", "***yyyy/++-");
-			Test("while.txt", "4", "****yyyy/++-", false);
+			Test("while.txt", "3", "***yyyy/++--");
+			Test("while.txt", "4", "****yyyy/++--", false);
 		}
 
 		TEST_METHOD(TypeFunc)
@@ -166,6 +166,13 @@ namespace tests
 		{
 			Logger::WriteMessage("Test case: Block ******************************\n");
 			Test("block.txt", "", "4\n3\n11\n");
+		}
+
+		TEST_METHOD(For)
+		{
+			Logger::WriteMessage("Test case: For ******************************\n");
+			Test("for.txt", "", "0123456789***+++++-----");
+			Test("for.txt", "", "0123456789***+++++-----", false);
 		}
 	};
 }

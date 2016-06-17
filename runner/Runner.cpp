@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring def_filename = "while.txt";
+cstring def_filename = "for.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

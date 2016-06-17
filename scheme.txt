@@ -9,10 +9,14 @@ line:
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;
 	while cond line_or_block
-	var_type var_decl [, var_decl ...] ;
+	for ( [ var_type_decl / expr ] ; [ expr ] ; [ expr ] ) line_or_block
+	var_type_decl ;
 	break ;  // must be inside while block
 	expr ;
 	;
+
+var_type_decl:
+	var_type var_decl [, var_decl ...]
 
 cond:
 	( expr ) // expr returns must return bool

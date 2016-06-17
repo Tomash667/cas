@@ -1,0 +1,28 @@
+// normal loop
+for(int a=0; a<10; a+=1)
+	print(a);
+
+// no block
+for(int a=0; a<5; a+=1) ;
+
+// no initialization
+int b = 0;
+for(; b<3; b += 1)
+	print("*");
+	
+// no condition
+for(int a=0; ;a+=1)
+{
+	print("+");
+	if(a>=4)
+		break;
+}
+
+// no operation
+for(int a=0; a<5;)
+{
+	print("-");
+	a += 1;
+}
+
+pause();

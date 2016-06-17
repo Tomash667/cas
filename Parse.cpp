@@ -20,6 +20,7 @@ enum KEYWORD
 	K_ELSE,
 	K_DO,
 	K_WHILE,
+	K_FOR,
 	K_BREAK
 };
 
@@ -45,6 +46,7 @@ enum PseudoOp
 	PRE_CALL,
 	DO_WHILE,
 	WHILE,
+	FOR,
 	BREAK
 };
 
@@ -1179,6 +1181,42 @@ ParseNode* ParseCond()
 	return cond;
 }
 
+ParseNode* ParseVarTypeDecl()
+{
+	// var_type
+	VAR_TYPE type = (VAR_TYPE)t.GetKeywordId();
+	if(type == V_VOID)
+		t.Throw("Can't declare void variable.");
+	t.Next();
+
+	// var_decl(s)
+	vector<ParseNode*> nodes;
+	do
+	{
+		ParseNode* decl = ParseVarDecl(type);
+		if(decl)
+			nodes.push_back(decl);
+		if(t.IsSymbol(';'))
+			break;
+		t.AssertSymbol(',');
+		t.Next();
+	} while(true);
+
+	// node
+	if(nodes.empty())
+		return nullptr;
+	else if(nodes.size() == 1u)
+		return nodes.back();
+	else
+	{
+		ParseNode* node = ParseNode::Get();
+		node->pseudo_op = GROUP;
+		node->type = V_VOID;
+		node->childs = nodes;
+		return node;
+	}
+}
+
 // can return null
 ParseNode* ParseLine()
 {
@@ -1212,7 +1250,7 @@ ParseNode* ParseLine()
 				}
 				else
 					if_op->push(nullptr);
-				
+
 				return if_op;
 			}
 		case K_DO:
@@ -1245,8 +1283,55 @@ ParseNode* ParseLine()
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
 				whil->push(cond);
-				whil->push(block);				
+				whil->push(block);
 				return whil;
+			}
+		case K_FOR:
+			{
+				t.Next();
+				t.AssertSymbol('(');
+				t.Next();
+
+				ParseNode* for1, *for2, *for3;
+				Block* new_block = Block::Get();
+				Block* old_block = current_block;
+				new_block->parent = old_block;
+				new_block->var_offset = old_block->var_offset;
+				old_block->childs.push_back(new_block);
+				current_block = new_block;
+
+				if(t.IsKeywordGroup(G_VAR))
+					for1 = ParseVarTypeDecl();
+				else if(t.IsSymbol(';'))
+					for1 = nullptr;
+				else
+					for1 = ParseExpr(';');
+				t.Next();
+				if(t.IsSymbol(';'))
+					for2 = nullptr;
+				else
+					for2 = ParseExpr(';');
+				t.Next();
+				if(t.IsSymbol(')'))
+					for3 = nullptr;
+				else
+					for3 = ParseExpr(')');
+				t.Next();
+
+				if(for2 && !TryCast(for2, V_BOOL))
+					t.Throw("Condition expression with '%s' type.", var_name[for2->type]);
+
+				ParseNode* fo = ParseNode::Get();
+				fo->pseudo_op = FOR;
+				fo->type = V_VOID;
+				fo->push(for1);
+				fo->push(for2);
+				fo->push(for3);
+				++breakable_block;
+				fo->push(ParseLineOrBlock());
+				--breakable_block;
+				current_block = old_block;
+				return fo;
 			}
 		case K_BREAK:
 			{
@@ -1266,39 +1351,9 @@ ParseNode* ParseLine()
 	}
 	else if(t.IsKeywordGroup(G_VAR))
 	{
-		// var_type
-		VAR_TYPE type = (VAR_TYPE)t.GetKeywordId();
-		if(type == V_VOID)
-			t.Throw("Can't declare void variable.");
+		ParseNode* node = ParseVarTypeDecl();
 		t.Next();
-
-		// var_decl(s)
-		vector<ParseNode*> nodes;
-		do
-		{
-			ParseNode* decl = ParseVarDecl(type);
-			if(decl)
-				nodes.push_back(decl);
-			if(t.IsSymbol(';'))
-				break;
-			t.AssertSymbol(',');
-			t.Next();
-		} while(true);
-		t.Next();
-
-		// node
-		if(nodes.empty())
-			return nullptr;
-		else if(nodes.size() == 1u)
-			return nodes.back();
-		else
-		{
-			ParseNode* node = ParseNode::Get();
-			node->pseudo_op = GROUP;
-			node->type = V_VOID;
-			node->childs = nodes;
-			return node;
-		}
+		return node;
 	}
 
 	ParseNode* node = ParseExpr(';');
@@ -1462,6 +1517,60 @@ ParseNode* OptimizeTree(ParseNode* node)
 			cond = nullptr;
 		}
 	}
+	else if(node->pseudo_op == FOR)
+	{
+		ParseNode*& for1 = node->childs[0];
+		ParseNode*& for2 = node->childs[1];
+		ParseNode*& for3 = node->childs[2];
+		ParseNode*& block = node->childs[3];
+		if(for1)
+			OptimizeTree(for1);
+		if(for2)
+			OptimizeTree(for2);
+		if(for3)
+			OptimizeTree(for3);
+		if(block)
+			OptimizeTree(block);
+		if(for1)
+		{
+			if(for2 && for2->op == PUSH_BOOL)
+			{
+				// const condition
+				if(for2->bvalue)
+				{
+					// infinite loop (set for2 to null)
+					for2 = nullptr;
+				}
+				else
+				{
+					// loop zero times, only initialization block is used
+					ParseNode* result = for1;
+					for1 = nullptr;
+					node->Free();
+					return result;
+				}
+			}
+		}
+		else
+		{
+			// no initialization block
+			if(for2 && for2->op == PUSH_BOOL)
+			{
+				// const condition
+				if(for2->bvalue)
+				{
+					// infinite loop (set for2 to null)
+					for2 = nullptr;
+				}
+				else
+				{
+					// loop zero times, no initialization block required so ignore this node
+					node->Free();
+					return nullptr;
+				}
+			}
+		}
+	}
 	else if(node->pseudo_op == WHILE)
 	{
 		ParseNode*& cond = node->childs[0];
@@ -1499,7 +1608,7 @@ ParseNode* OptimizeTree(ParseNode* node)
 
 void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 {
-	if(node->op == IF)
+	if(node->pseudo_op == IF)
 	{
 		// if condition
 		assert(node->childs.size() == 2u || node->childs.size() == 3u);
@@ -1556,7 +1665,7 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		}
 		return;
 	}
-	else if(node->op == DO_WHILE)
+	else if(node->pseudo_op == DO_WHILE)
 	{
 		assert(node->childs.size() == 2u);
 		uint start = code.size();
@@ -1594,7 +1703,7 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 			code[p] = end_pos;
 		return;
 	}
-	else if(node->op == WHILE)
+	else if(node->pseudo_op == WHILE)
 	{
 		assert(node->childs.size() == 2u);
 		uint start = code.size();
@@ -1638,7 +1747,61 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 			code[p] = end_pos;
 		return;
 	}
-	else if(node->op == GROUP)
+	else if(node->pseudo_op == FOR)
+	{
+		/*
+		for1
+		start:
+			[for2
+			fjmp end]
+			block
+			for3
+			jmp start
+		end:
+		*/
+		assert(node->childs.size() == 4u);
+		ParseNode* for1 = node->childs[0];
+		ParseNode* for2 = node->childs[1];
+		ParseNode* for3 = node->childs[2];
+		ParseNode* block = node->childs[3];
+		vector<uint> wh_break_pos;
+		if(for1)
+		{
+			ToCode(code, for1, &wh_break_pos);
+			if(for1->type != V_VOID)
+				code.push_back(POP);
+		}
+		uint start = code.size();
+		uint fjmp_pos = 0;
+		if(for2)
+		{
+			ToCode(code, for2, &wh_break_pos);
+			code.push_back(FJMP);
+			fjmp_pos = code.size();
+			code.push_back(0);
+		}
+		if(block)
+		{
+			ToCode(code, block, &wh_break_pos);
+			if(block->type != V_VOID)
+				code.push_back(POP);
+		}
+		if(for3)
+		{
+			ToCode(code, for3, &wh_break_pos);
+			if(for3->type != V_VOID)
+				code.push_back(POP);
+		}
+		code.push_back(JMP);
+		code.push_back(start);
+		uint end_pos = code.size();
+		if(fjmp_pos != 0)
+			code[fjmp_pos] = end_pos;
+		for(uint p : wh_break_pos)
+			code[p] = end_pos;
+		return;
+	}
+	else if(node->pseudo_op == GROUP)
 	{
 		for(ParseNode* n : node->childs)
 		{
@@ -1742,6 +1905,7 @@ void InitializeParser()
 		{"else", K_ELSE},
 		{"do", K_DO},
 		{"while", K_WHILE},
+		{"for", K_FOR},
 		{"break", K_BREAK}
 	});
 
