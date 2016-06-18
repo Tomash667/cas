@@ -901,87 +901,103 @@ BASIC_SYMBOL GetSymbol()
 		if(t.PeekSymbol('='))
 			return BS_ASSIGN_ADD;
 		else if(t.PeekSymbol('+'))
-			symbol = BS_INC;
+			return BS_INC;
 		else
-			symbol = BS_PLUS;
-		break;
+			return BS_PLUS;
 	case '-':
 		if(t.PeekSymbol('='))
-			symbol = BS_ASSIGN_SUB;
+			return BS_ASSIGN_SUB;
 		else if(t.PeekSymbol('-'))
-			symbol = BS_DEC;
+			return BS_DEC;
 		else
-			symbol = BS_MINUS;
-		break;
+			return BS_MINUS;
 	case '*':
 		if(t.PeekSymbol('='))
-			symbol = BS_ASSIGN_MUL;
+			return BS_ASSIGN_MUL;
 		else
-			symbol = BS_MUL;
-		break;
+			return BS_MUL;
 	case '/':
 		if(t.PeekSymbol('='))
-			symbol = BS_ASSIGN_DIV;
+			return BS_ASSIGN_DIV;
 		else
-			symbol = BS_DIV;
-		break;
+			return BS_DIV;
 	case '%':
 		if(t.PeekSymbol('='))
-			symbol = BS_ASSIGN_MOD;
+			return BS_ASSIGN_MOD;
 		else
-			symbol = BS_MOD;
-		break;
+			return BS_MOD;
 	case '!':
 		if(t.PeekSymbol('='))
-			symbol = BS_NOT_EQUAL;
+			return BS_NOT_EQUAL;
 		else
-			symbol = BS_NOT;
-		break;
+			return BS_NOT;
 	case '=':
 		if(t.PeekSymbol('='))
-			symbol = BS_EQUAL;
+			return BS_EQUAL;
 		else
-			symbol = BS_ASSIGN;
-		break;
+			return BS_ASSIGN;
 	case '>':
 		if(t.PeekSymbol('='))
-			symbol = BS_GREATER_EQUAL;
+			return BS_GREATER_EQUAL;
 		else
-			symbol = BS_GREATER;
-		break;
+			return BS_GREATER;
 	case '<':
 		if(t.PeekSymbol('='))
-			symbol = BS_LESS_EQUAL;
+			return BS_LESS_EQUAL;
 		else
-			symbol = BS_LESS;
-		break;
+			return BS_LESS;
 	case '&':
 		if(!t.PeekSymbol('&'))
 			t.Unexpected();
-		symbol = BS_AND;
-		break;
+		return BS_AND;
 	case '|':
 		if(!t.PeekSymbol('|'))
 			t.Unexpected();
-		symbol = BS_OR;
-		break;
+		return BS_OR;
 	case '.':
-		symbol = BS_DOT;
-		break;
+		return BS_DOT;
+	default:
+		return BS_MAX;
 	}
 }
 
 bool GetNextSymbol(BASIC_SYMBOL& symbol)
 {
-	if(symbol != S_INVALID)
+	if(symbol != BS_MAX)
 		return true;
 	if(!t.IsSymbol())
 		return false;
 	symbol = GetSymbol();
-	return true;
+	return (symbol != BS_MAX);
 }
 
-BASIC_SYMBOL ParseExprPart()
+void PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL>& stack)
+{
+	while(!stack.empty())
+	{
+		SYMBOL symbol2 = stack.back();
+		SymbolInfo& s1 = symbols[symbol];
+		SymbolInfo& s2 = symbols[symbol2];
+
+		bool ok = false;
+		if(s1.left_associativity)
+			ok = (s1.priority >= s2.priority);
+		else
+			ok = (s1.priority > s2.priority);
+
+		if(ok)
+		{
+			exit.push_back(symbol2);
+			stack.pop_back();
+		}
+		else
+			break;
+	}
+
+	stack.push_back(symbol);
+}
+
+BASIC_SYMBOL ParseExprPart(vector<SymbolOrNode>& exit, vector<SYMBOL>& stack)
 {
 	BASIC_SYMBOL symbol = BS_MAX;
 
@@ -991,8 +1007,9 @@ BASIC_SYMBOL ParseExprPart()
 		BasicSymbolInfo& bsi = basic_symbols[symbol];
 		if(bsi.unary_symbol != S_INVALID)
 		{
-			// push to stack magic
-			symbol = S_INVALID;
+			PushSymbol(bsi.unary_symbol, exit, stack);
+			t.Next();
+			symbol = BS_MAX;
 		}
 		else
 			break;
@@ -1004,8 +1021,9 @@ BASIC_SYMBOL ParseExprPart()
 		BasicSymbolInfo& bsi = basic_symbols[symbol];
 		if(bsi.pre_symbol != S_INVALID)
 		{
-			// push to stack magic
-			symbol = S_INVALID;
+			PushSymbol(bsi.pre_symbol, exit, stack);
+			t.Next();
+			symbol = BS_MAX;
 		}
 		else
 			break;
@@ -1014,8 +1032,14 @@ BASIC_SYMBOL ParseExprPart()
 	// item
 	if(GetNextSymbol(symbol))
 		t.Unexpected();
-	ParseNode* item = ParseItem();
-	// push to exit magic
+	if(t.IsSymbol('('))
+	{
+		t.Next();
+		exit.push_back(ParseExpr(')'));
+		t.Next();
+	}
+	else
+		exit.push_back(ParseItem());
 
 	// [post symbol]
 	if(GetNextSymbol(symbol))
@@ -1023,257 +1047,58 @@ BASIC_SYMBOL ParseExprPart()
 		BasicSymbolInfo& bsi = basic_symbols[symbol];
 		if(bsi.post_symbol != S_INVALID)
 		{
-			// push to stack magic
-			symbol = S_INVALID;
+			PushSymbol(bsi.post_symbol, exit, stack);
+			t.Next();
+			symbol = BS_MAX;
 		}
-		else
-			break;
 	}
 
 	return symbol;
-}
-
-ParseNode* ParseExpr2(char end, char end2)
-{
-
 }
 
 ParseNode* ParseExpr(char end, char end2)
 {
 	vector<SymbolOrNode> exit;
 	vector<SYMBOL> stack;
-	LEFT left = LEFT_NONE;
-	int open_par = 0;
 
 	while(true)
 	{
-		if(t.IsSymbol())
+		BASIC_SYMBOL left = ParseExprPart(exit, stack);
+		next_symbol:
+		if(GetNextSymbol(left))
 		{
-			char c = t.GetSymbol();
-			if(c == end || c == end2)
-			{
-				if(c != ')' || open_par == 0)
-					break;
-			}
-			c = strchr2(c, "+-*/%()!=><&|.");
-			if(c == 0)
+			BasicSymbolInfo& bsi = basic_symbols[left];
+			if(bsi.op_symbol == S_INVALID)
 				t.Unexpected();
-			else if(c == '(')
+			PushSymbol(bsi.op_symbol, exit, stack);
+			t.Next();
+
+			if(bsi.op_symbol == S_MEMBER_ACCESS)
 			{
-				if(left == LEFT_ITEM)
-					t.Unexpected();
-				stack.push_back(S_LEFT_PAR);
+				string* str = StringPool.Get();
+				*str = t.MustGetItem();
 				t.Next();
-				left = LEFT_NONE;
-				++open_par;
-			}
-			else if(c == ')')
-			{
-				if(left != LEFT_ITEM)
-					t.Unexpected();
-				bool ok = false;
-				while(!stack.empty())
-				{
-					SYMBOL s = stack.back();
-					stack.pop_back();
-					if(s == S_LEFT_PAR)
-					{
-						ok = true;
-						break;
-					}
-					exit.push_back(s);
-				}
-				if(!ok)
-					t.Unexpected();
-				t.Next();
-				left = LEFT_ITEM;
-				--open_par;
-			}
-			else
-			{
-				SYMBOL symbol;
-				switch(left)
-				{
-				case LEFT_NONE:
-				case LEFT_SYMBOL:
-				case LEFT_UNARY:
-					{
-						switch(c)
-						{
-						case '+':
-							if(t.PeekSymbol('+'))
-							{
-								symbol = S_PRE_INC;
-								left = LEFT_PRE;
-							}
-							else
-							{
-								symbol = S_PLUS;
-								left = LEFT_UNARY;
-							}
-							break;
-						case '-':
-							if(t.PeekSymbol('-'))
-							{
-								symbol = S_PRE_DEC;
-								left = LEFT_PRE;
-							}
-							else
-							{
-								symbol = S_MINUS;
-								left = LEFT_UNARY;
-							}
-							break;
-						case '!':
-							symbol = S_NOT;
-							left = LEFT_UNARY;
-							break;
-						default:
-							t.Unexpected();
-						}
-					}
-					break;
-				case LEFT_ITEM:
-					switch(c)
-					{
-					case '+':
-						if(t.PeekSymbol('='))
-							symbol = S_ASSIGN_ADD;
-						else if(t.PeekSymbol('+'))
-							symbol = S_POST_INC;
-						else
-							symbol = S_ADD;
-						break;
-					case '-':
-						if(t.PeekSymbol('='))
-							symbol = S_ASSIGN_SUB;
-						else if(t.PeekSymbol('-'))
-							symbol = S_POST_DEC;
-						else
-							symbol = S_SUB;
-						break;
-					case '*':
-						if(t.PeekSymbol('='))
-							symbol = S_ASSIGN_MUL;
-						else
-							symbol = S_MUL;
-						break;
-					case '/':
-						if(t.PeekSymbol('='))
-							symbol = S_ASSIGN_DIV;
-						else
-							symbol = S_DIV;
-						break;
-					case '%':
-						if(t.PeekSymbol('='))
-							symbol = S_ASSIGN_MOD;
-						else
-							symbol = S_MOD;
-						break;
-					case '!':
-						if(!t.PeekSymbol('='))
-							t.Unexpected();
-						symbol = S_NOT_EQUAL;
-						break;
-					case '=':
-						if(t.PeekSymbol('='))
-							symbol = S_EQUAL;
-						else
-							symbol = S_ASSIGN;
-						break;
-					case '>':
-						if(t.PeekSymbol('='))
-							symbol = S_GREATER_EQUAL;
-						else
-							symbol = S_GREATER;
-						break;
-					case '<':
-						if(t.PeekSymbol('='))
-							symbol = S_LESS_EQUAL;
-						else
-							symbol = S_LESS;
-						break;
-					case '&':
-						if(!t.PeekSymbol('&'))
-							t.Unexpected();
-						symbol = S_AND;
-						break;
-					case '|':
-						if(!t.PeekSymbol('|'))
-							t.Unexpected();
-						symbol = S_OR;
-						break;
-					case '.':
-						symbol = S_MEMBER_ACCESS;
-						break;
-					}
-					left = LEFT_SYMBOL;
-					break;
-				}
-
-				while(!stack.empty())
-				{
-					SYMBOL symbol2 = stack.back();
-					SymbolInfo& s1 = symbols[symbol];
-					SymbolInfo& s2 = symbols[symbol2];
-
-					bool ok = false;
-					if(s1.left_associativity)
-						ok = (s1.priority > s2.priority);
-					else
-						ok = (s1.priority >= s2.priority);
-
-					if(ok)
-					{
-						exit.push_back(symbol2);
-						stack.pop_back();
-					}
-					else
-						break;
-				}
-
-				stack.push_back(symbol);
-				t.Next();
-
-				if(symbol == S_MEMBER_ACCESS)
-				{
-					string* str = StringPool.Get();
-					*str = t.MustGetItem();
-					t.Next();
-					ParseNode* node = ParseNode::Get();
-					node->pseudo_op = PRE_CALL;
-					node->type = V_VOID;
-					node->str = str;
-					node->ref = NO_REF;
-					ParseArgs(node->childs);
-					exit.push_back(node);
-					left = LEFT_ITEM;
-				}
+				ParseNode* node = ParseNode::Get();
+				node->pseudo_op = PRE_CALL;
+				node->type = V_VOID;
+				node->str = str;
+				node->ref = NO_REF;
+				ParseArgs(node->childs);
+				exit.push_back(node);
+				left = BS_MAX;
+				goto next_symbol;
 			}
 		}
 		else
-		{
-			if(left == LEFT_ITEM)
-				t.Unexpected();
-			exit.push_back(ParseItem());
-			left = LEFT_ITEM;
-		}
+			break;
 	}
-
-	if(left == LEFT_SYMBOL || left == LEFT_UNARY)
-		t.Unexpected();
 
 	while(!stack.empty())
 	{
-		SYMBOL s = stack.back();
+		exit.push_back(stack.back());
 		stack.pop_back();
-		if(s == S_LEFT_PAR)
-			t.Throw("Missing closing parenthesis.");
-		exit.push_back(s);
 	}
-
-	assert(open_par == 0);
-
+	
 	vector<ParseNode*> stack2;
 	for(SymbolOrNode& sn : exit)
 	{

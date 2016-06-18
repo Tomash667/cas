@@ -1,9 +1,6 @@
-+ ++ -- bool cast
-? unexpected compound symbol
-
 + class member access
 + class properties
-+ builtin unit tests
++ builtin unit tests for parsing errors
 + function overloads
 	int f();
 	int f(int,int);

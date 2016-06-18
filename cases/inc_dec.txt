@@ -1,0 +1,6 @@
+int a = getint();
+println(++a);
+println(++++--++a);
+println(a++);
+println(a--);
+pause();

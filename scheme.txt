@@ -35,8 +35,7 @@ expr<END>:
 	expr_part [op expr_part ...] <END>
 
 expr_part:
-	[unary_op ...] [inc_dec_op ...] item [inc_dec_op]
-	NAWIASY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	[unary_op ...] [inc_dec_op ...] item / ( expr ) [inc_dec_op]
 
 item:
 	<var_name>

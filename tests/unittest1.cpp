@@ -180,5 +180,11 @@ namespace tests
 			Test("for.txt", "", "0123456789***+++++-----");
 			Test("for.txt", "", "0123456789***+++++-----", false);
 		}
+
+		TEST_METHOD(IncDec)
+		{
+			Logger::WriteMessage("Test case: IncDec ******************************\n");
+			Test("inc_dec.txt", "7", "8\n10\n10\n11\n");
+		}
 	};
 }
