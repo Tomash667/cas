@@ -34,7 +34,8 @@ enum FOUND
 {
 	F_NONE,
 	F_VAR,
-	F_FUNC
+	F_FUNC,
+	F_USER_FUNC
 };
 
 enum PseudoOp
@@ -69,6 +70,7 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 	string name;
 	int index;
 	VAR_TYPE type;
+	bool global;
 };
 
 struct ParseNode : ObjectPoolProxy<ParseNode>
@@ -98,6 +100,22 @@ union Found
 {
 	ParseVar* var;
 	Function* func;
+	UserFunction* ufunc;
+
+	inline cstring ToString(FOUND type)
+	{
+		if(type == F_VAR)
+		{
+			if(var->global)
+				return "global variable";
+			else
+				return "local variable";
+		}
+		else if(type == F_FUNC)
+			return "function";
+		else
+			return "script function";
+	}
 };
 
 struct Block : ObjectPoolProxy<Block>
@@ -149,13 +167,16 @@ struct Block : ObjectPoolProxy<Block>
 
 static Tokenizer t;
 static vector<string> strs;
+static vector<UserFunction*> ufuncs;
 static Block* main_block;
 static Block* current_block;
+static UserFunction* current_function;
 static int breakable_block;
 static bool optimize;
 
 
 void ParseArgs(vector<ParseNode*>& nodes);
+ParseNode* ParseBlock(UserFunction* f = nullptr);
 ParseNode* ParseExpr(char end, char end2 = 0);
 ParseNode* ParseLineOrBlock();
 
@@ -169,11 +190,31 @@ FOUND FindItem(const string& id, Found& found)
 		return F_FUNC;
 	}
 
+	for(UserFunction* ufunc : ufuncs)
+	{
+		if(ufunc->name == id)
+		{
+			found.ufunc = ufunc;
+			return F_USER_FUNC;
+		}
+	}
+
 	ParseVar* var = current_block->FindVar(id);
 	if(var)
 	{
 		found.var = var;
 		return F_VAR;
+	}
+
+	// find globals while in function
+	if(current_function)
+	{
+		var = main_block->FindVar(id);
+		if(var)
+		{
+			found.var = var;
+			return F_VAR;
+		}
 	}
 
 	return F_NONE;
@@ -345,7 +386,7 @@ ParseNode* ParseItem()
 			{
 				ParseVar* var = found.var;
 				ParseNode* node = ParseNode::Get();
-				node->op = PUSH_VAR;
+				node->op = (var->global ? PUSH_GLOBAL : PUSH_LOCAL);
 				node->type = var->type;
 				node->var = var;
 				node->ref = MAY_REF;
@@ -364,6 +405,23 @@ ParseNode* ParseItem()
 				t.Next();
 				ParseArgs(node->childs);
 				VerifyFunctionCall(node, f);
+
+				return node;
+			}
+		case F_USER_FUNC:
+			{
+				UserFunction* f = found.ufunc;
+				ParseNode* node = ParseNode::Get();
+				node->op = CALLU;
+				node->type = V_VOID;
+				node->value = f->index;
+				node->ref = NO_REF;
+
+				t.Next();
+				t.AssertSymbol('(');
+				t.Next();
+				t.AssertSymbol(')');
+				t.Next();
 
 				return node;
 			}
@@ -822,8 +880,13 @@ void RequireRef(ParseNode* node, cstring op_name)
 		t.Throw("Need reference value for operation '%s'.", op_name);
 	else if(node->ref == MAY_REF)
 	{
-		assert(node->op == PUSH_VAR);
-		node->op = PUSH_VAR_REF;
+		if(node->op == PUSH_LOCAL)
+			node->op = PUSH_LOCAL_REF;
+		else
+		{
+			assert(node->op == PUSH_GLOBAL);
+			node->op = PUSH_GLOBAL_REF;
+		}
 		node->ref = REF;
 	}
 }
@@ -1175,11 +1238,11 @@ ParseNode* ParseExpr(char end, char end2)
 				}
 				else if(si.type == ST_ASSIGN)
 				{
-					if(left->op != PUSH_VAR)
+					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL)
 						t.Throw("Can't assign, left value must be variable.");
 
 					ParseNode* set = ParseNode::Get();
-					set->op = SET_VAR;
+					set->op = (left->var->global ? SET_GLOBAL : SET_LOCAL);
 					set->var = left->var;
 					set->type = left->type;
 					set->ref = NO_REF;
@@ -1249,27 +1312,27 @@ ParseNode* ParseExpr(char end, char end2)
 	return stack2.back();
 }
 
-ParseNode* ParseVarDecl(VAR_TYPE type)
+ParseNode* ParseVarDecl(VAR_TYPE type, string* _name)
 {
 	// var_name
-	const string& name = t.MustGetItem();
-	Found found;
-	FOUND found_type = FindItem(name, found);
-	if(found_type != F_NONE)
+	const string& name = (_name ? *_name : t.MustGetItem());
+	if(!_name)
 	{
-		if(found_type == F_FUNC)
-			t.Throw("Variable name already used as function.");
-		else
-			t.Throw("Variable already declared.");
+		Found found;
+		FOUND found_type = FindItem(name, found);
+		if(found_type != F_NONE)
+			t.Throw("Name '%s' already used as %s.", name.c_str(), found.ToString(found_type));
 	}
 
 	ParseVar* var = ParseVar::Get();
 	var->name = name;
 	var->type = type;
 	var->index = current_block->var_offset;
+	var->global = (current_function == nullptr);
 	current_block->vars.push_back(var);
 	current_block->var_offset++;
-	t.Next();
+	if(!_name)
+		t.Next();
 
 	// [=]
 	if(!t.IsSymbol('='))
@@ -1282,7 +1345,7 @@ ParseNode* ParseVarDecl(VAR_TYPE type)
 		t.Throw("Can't assign type '%s' to variable '%s %s'.", var_info[expr->type].name, var->name.c_str(), var_info[type].name);
 
 	ParseNode* node = ParseNode::Get();
-	node->op = SET_VAR;
+	node->op = (var->global ? SET_GLOBAL : SET_LOCAL);
 	node->type = var->type;
 	node->var = var;
 	node->ref = NO_REF;
@@ -1302,19 +1365,25 @@ ParseNode* ParseCond()
 	return cond;
 }
 
-ParseNode* ParseVarTypeDecl()
+ParseNode* ParseVarTypeDecl(VAR_TYPE* _type = nullptr, string* _name = nullptr)
 {
 	// var_type
-	VAR_TYPE type = (VAR_TYPE)t.GetKeywordId();
+	VAR_TYPE type;
+	if(_type)
+		type = *_type;
+	else
+		type = (VAR_TYPE)t.GetKeywordId();
 	if(type == V_VOID)
 		t.Throw("Can't declare void variable.");
-	t.Next();
+	if(!_type)
+		t.Next();
 
 	// var_decl(s)
 	vector<ParseNode*> nodes;
 	do
 	{
-		ParseNode* decl = ParseVarDecl(type);
+		ParseNode* decl = ParseVarDecl(type, _name);
+		_name = nullptr;
 		if(decl)
 			nodes.push_back(decl);
 		if(t.IsSymbol(';'))
@@ -1478,9 +1547,39 @@ ParseNode* ParseLine()
 	}
 	else if(t.IsKeywordGroup(G_VAR))
 	{
-		ParseNode* node = ParseVarTypeDecl();
+		// is this function or var declaration
+		VAR_TYPE type = (VAR_TYPE)t.GetKeywordId(G_VAR);
 		t.Next();
-		return node;
+		LocalString str = t.MustGetItem();
+		Found found;
+		FOUND found_type = FindItem(str.get_ref(), found);
+		if(found_type != F_NONE)
+			t.Throw("Name '%s' already used as %s.", str.c_str(), found.ToString(found_type));
+		t.Next();
+		if(t.IsSymbol('('))
+		{
+			// function
+			if(current_block != main_block)
+				t.Throw("Function can't be declared inside block.");
+			t.Next();
+			t.AssertSymbol(')');
+			t.Next();
+			UserFunction* f = new UserFunction;
+			f->name = str;
+			f->index = ufuncs.size();
+			current_function = f;
+			f->node = ParseBlock(f);
+			current_function = nullptr;
+			ufuncs.push_back(f);
+			return nullptr;
+		}
+		else
+		{
+			// var
+			ParseNode* node = ParseVarTypeDecl(&type, str.get_ptr());
+			t.Next();
+			return node;
+		}
 	}
 
 	ParseNode* node = ParseExpr(';');
@@ -1493,46 +1592,61 @@ ParseNode* ParseLine()
 }
 
 // can return null
-ParseNode* ParseLineOrBlock()
+ParseNode* ParseBlock(UserFunction* f)
 {
-	if(t.IsSymbol('{'))
+	t.AssertSymbol('{');
+
+	// block
+	Block* new_block = Block::Get();
+	Block* old_block = current_block;
+	if(f)
 	{
-		// block
-		Block* new_block = Block::Get();
-		Block* old_block = current_block;
+		new_block->parent = nullptr;
+		new_block->var_offset = 0;
+		f->block = new_block;
+	}
+	else
+	{
 		new_block->parent = old_block;
 		new_block->var_offset = old_block->var_offset;
 		old_block->childs.push_back(new_block);
-		current_block = new_block;
-
-		t.Next();
-		vector<ParseNode*> nodes;
-		while(true)
-		{
-			if(t.IsSymbol('}'))
-				break;
-			ParseNode* node = ParseLineOrBlock();
-			if(node)
-				nodes.push_back(node);
-		}
-		t.Next();
-
-		current_block = old_block;
-
-		if(nodes.empty())
-			return nullptr;
-		else if(nodes.size() == 1u)
-			return nodes.front();
-		else
-		{
-			ParseNode* node = ParseNode::Get();
-			node->pseudo_op = GROUP;
-			node->type = V_VOID;
-			node->ref = NO_REF;
-			node->childs = nodes;
-			return node;
-		}
 	}
+	current_block = new_block;
+
+	t.Next();
+	vector<ParseNode*> nodes;
+	while(true)
+	{
+		if(t.IsSymbol('}'))
+			break;
+		ParseNode* node = ParseLineOrBlock();
+		if(node)
+			nodes.push_back(node);
+	}
+	t.Next();
+
+	current_block = old_block;
+
+	if(nodes.empty())
+		return nullptr;
+	else if(nodes.size() == 1u)
+		return nodes.front();
+	else
+	{
+		ParseNode* node = ParseNode::Get();
+		node->pseudo_op = GROUP;
+		node->type = V_VOID;
+		node->ref = NO_REF;
+		node->childs = nodes;
+		return node;
+	}
+}
+
+// can return null
+ParseNode* ParseLineOrBlock()
+{
+	if(t.IsSymbol('{'))
+		return ParseBlock();
 	else
 		return ParseLine();
 }
@@ -1544,6 +1658,7 @@ ParseNode* ParseCode()
 	main_block->parent = nullptr;
 	main_block->var_offset = 0u;
 	current_block = main_block;
+	current_function = nullptr;
 
 	ParseNode* node = ParseNode::Get();
 	node->pseudo_op = GROUP;
@@ -1950,13 +2065,17 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case PUSH_INT:
 	case PUSH_STRING:
 	case CALL:
+	case CALLU:
 	case CAST:
 		code.push_back(node->op);
 		code.push_back(node->value);
 		break;
-	case PUSH_VAR:
-	case PUSH_VAR_REF:
-	case SET_VAR:
+	case PUSH_LOCAL:
+	case PUSH_LOCAL_REF:
+	case PUSH_GLOBAL:
+	case PUSH_GLOBAL_REF:
+	case SET_LOCAL:
+	case SET_GLOBAL:
 		code.push_back(node->op);
 		code.push_back(node->var->index);
 		break;
@@ -2011,14 +2130,27 @@ bool Parse(ParseContext& ctx)
 		// parse
 		ParseNode* node = ParseCode();
 		if(optimize)
+		{
+			for(UserFunction* ufunc : ufuncs)
+				OptimizeTree(ufunc->node);
 			OptimizeTree(node);
+		}
 		
 		// codify
+		for(UserFunction* ufunc : ufuncs)
+		{
+			ufunc->pos = ctx.code.size();
+			ufunc->locals = ufunc->block->GetMaxVars();
+			ToCode(ctx.code, ufunc->node, nullptr);
+			ctx.code.push_back(RET);
+		}
+		ctx.entry_point = ctx.code.size();
 		ToCode(ctx.code, node, nullptr);
 		ctx.code.push_back(RET);
 
 		ctx.strs = strs;
-		ctx.vars = main_block->GetMaxVars();
+		ctx.ufuncs = ufuncs;
+		ctx.globals = main_block->GetMaxVars();
 
 		return true;
 	}
@@ -2059,6 +2191,7 @@ void InitializeParser()
 void CleanupParser()
 {
 	strs.clear();
+	DeleteElements(ufuncs);
 }
 
 struct OpInfo
@@ -2074,10 +2207,13 @@ OpInfo ops[MAX_OP] = {
 	PUSH_INT, "push_int", V_INT,
 	PUSH_FLOAT, "push_float", V_FLOAT,
 	PUSH_STRING, "push_string", V_INT,
-	PUSH_VAR, "push_var", V_INT,
-	PUSH_VAR_REF, "push_var_ref", V_INT,
+	PUSH_LOCAL, "push_local", V_INT,
+	PUSH_LOCAL_REF, "push_local_ref", V_INT,
+	PUSH_GLOBAL, "push_global", V_INT,
+	PUSH_GLOBAL_REF, "push_global_ref", V_INT,
 	POP, "pop", V_VOID,
-	SET_VAR, "set_var", V_INT,
+	SET_LOCAL, "set_local", V_INT,
+	SET_GLOBAL, "set_global", V_INT,
 	CAST, "cast", V_INT,
 	NEG, "neg", V_VOID,
 	ADD, "add", V_VOID,
@@ -2103,6 +2239,7 @@ OpInfo ops[MAX_OP] = {
 	TJMP, "tjmp", V_INT,
 	FJMP, "fjmp", V_INT,
 	CALL, "call", V_INT,
+	CALLU, "callu", V_INT,
 	RET, "ret", V_VOID
 };
 

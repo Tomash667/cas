@@ -1,12 +1,15 @@
-+ class member access
-+ class properties
-+ builtin unit tests for parsing errors
++ function with return value
++ function with args
++ function default parameters
++ variadic functions (params)
 + function overloads
 	int f();
 	int f(int,int);
 	dla f(1) pisze ¿e brak funkcji f(int), znaleziono f(), f(int,int)
-+ function default parameters
-+ variadic functions (params)
+
++ class member access
++ class properties
++ builtin unit tests for parsing errors
 + register functions from string [RegisterFunction("int dodaj(int, int)")]
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)
@@ -17,7 +20,6 @@
 + warn: use of unassigned variable
 + ? : operator
 + string functions, [], substr, first(), last(), trim
-+ functions
 + classes
 + function constexpr (abs,cin,cos)
 + bit operations
@@ -31,3 +33,4 @@
 + superbreak
 + detect unreachable code
 + function taking or returning reference
++ const

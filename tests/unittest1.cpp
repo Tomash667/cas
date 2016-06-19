@@ -186,5 +186,11 @@ namespace tests
 			Logger::WriteMessage("Test case: IncDec ******************************\n");
 			Test("inc_dec.txt", "7", "8\n10\n10\n11\n");
 		}
+
+		TEST_METHOD(UserFunc)
+		{
+			Logger::WriteMessage("Test case: UserFunc ******************************\n");
+			Test("user_func.txt", "1 2 3 4 5 6", "3\n6\n9\n");
+		}
 	};
 }

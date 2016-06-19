@@ -1,0 +1,15 @@
+int c;
+
+void dodaj()
+{
+	int a = getint();
+	int b = getint();
+	println(a+b+c);
+}
+
+for(int i=0; i<3; ++i)
+{
+	c = -i;
+	dodaj();
+}
+pause();

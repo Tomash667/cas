@@ -2,16 +2,20 @@ code:
 	[ line_or_block ... ] EOF
 
 line_or_block:
-	{ [ line_or_block ... ] }
+	block
 	line
+
+block:
+	{ [ line_or_block ...] }
 	
 line:
+	var_type <func_name> ( ) block // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;
 	while cond line_or_block
 	for ( [ var_type_decl / expr ] ; [ expr ] ; [ expr ] ) line_or_block
 	var_type_decl ;
-	break ;  // must be inside while block
+	break ;  // must be inside loop block
 	expr ;
 	;
 

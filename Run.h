@@ -17,13 +17,18 @@ struct Str : ObjectPoolProxy<Str>
 
 struct Var
 {
-	VAR_TYPE type;
+	int type;
 	union
 	{
 		bool bvalue;
 		int value;
 		float fvalue;
 		Str* str;
+		struct
+		{
+			int value1;
+			int value2;
+		};
 	};
 
 	inline explicit Var() : type(V_VOID) {}
@@ -31,9 +36,23 @@ struct Var
 	inline explicit Var(int value) : type(V_INT), value(value) {}
 	inline explicit Var(float fvalue) : type(V_FLOAT), fvalue(fvalue) {}
 	inline explicit Var(Str* str) : type(V_STRING), str(str) {}
-	inline explicit Var(VAR_TYPE type, int value) : type(type), value(value) {}
+	inline explicit Var(int type, int value1, int value2=0) : type(type), value1(value1), value2(value2) {}
 };
 
 extern vector<Var> stack;
 
-void RunCode(vector<int>& code, vector<string>& strs, uint n_vars);
+struct RunFunction
+{
+	uint pos;
+	uint locals;
+};
+
+struct RunContext
+{
+	vector<int> code;
+	vector<string> strs;
+	vector<RunFunction> ufuncs;
+	uint globals, entry_point;
+};
+
+void RunCode(RunContext& ctx);

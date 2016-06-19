@@ -4,17 +4,35 @@
 #include "Function.h"
 #include "Op.h"
 
-vector<Var> stack;
-vector<Var> vars;
-vector<Function> functions;
+enum REF_TYPE
+{
+	REF_GLOBAL,
+	REF_LOCAL
+};
 
-void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
+enum SPECIAL_VAR
+{
+	V_REF,
+	V_FUNCTION
+};
+
+vector<Var> stack, global, local;
+vector<Function> functions;
+vector<uint> expected_stack;
+int current_function;
+int locals_offset;
+
+void RunCode(RunContext& ctx)
 {
 	stack.clear();
-	vars.resize(n_vars);
+	global.resize(ctx.globals);
+	local.clear();
+	current_function = -1;
 
-	int* c = code.data();
-	int* end = c + code.size();
+	int* start = ctx.code.data();
+	int* end = start + ctx.code.size();
+	int* c = start + ctx.entry_point;
+
 	while(true)
 	{
 		Op op = (Op)*c++;
@@ -42,31 +60,53 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 		case PUSH_STRING:
 			{
 				uint str_index = *c++;
-				assert(str_index < strs.size());
+				assert(str_index < ctx.strs.size());
 				Str* str = Str::Get();
 				str->refs = 1;
-				str->s = strs[str_index];
+				str->s = ctx.strs[str_index];
 				stack.push_back(Var(str));
 			}
 			break;
-		case PUSH_VAR:
+		case PUSH_LOCAL:
 			{
-				uint var_index = *c++;
-				assert(var_index < vars.size());
-				Var& v = vars[var_index];
+				uint local_index = *c++;
+				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
+				assert(ctx.ufuncs[current_function].locals > local_index);
+				Var& v = local[locals_offset + local_index];
 				assert(v.type != V_VOID);
 				if(v.type == V_STRING)
 					v.str->refs++;
 				stack.push_back(v);
 			}
 			break;
-		case PUSH_VAR_REF:
+		case PUSH_LOCAL_REF:
 			{
-				uint var_index = *c++;
-				assert(var_index < vars.size());
-				Var& v = vars[var_index];
+				uint local_index = *c++;
+				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
+				assert(ctx.ufuncs[current_function].locals > local_index);
+				Var& v = local[locals_offset + local_index];
 				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING);
-				stack.push_back(Var(V_REF, var_index));
+				stack.push_back(Var(V_REF, local_index, REF_LOCAL));
+			}
+			break;
+		case PUSH_GLOBAL:
+			{
+				uint global_index = *c++;
+				assert(global_index < global.size());
+				Var& v = global[global_index];
+				assert(v.type != V_VOID);
+				if(v.type == V_STRING)
+					v.str->refs++;
+				stack.push_back(v);
+			}
+			break;
+		case PUSH_GLOBAL_REF:
+			{
+				uint global_index = *c++;
+				assert(global_index < global.size());
+				Var& v = global[global_index];
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING);
+				stack.push_back(Var(V_REF, global_index, REF_GLOBAL));
 			}
 			break;
 		case POP:
@@ -78,12 +118,29 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				stack.pop_back();
 			}
 			break;
-		case SET_VAR:
+		case SET_LOCAL:
 			{
-				uint var_index = *c++;
-				assert(var_index < vars.size());
+				uint local_index = *c++;
+				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
+				assert(ctx.ufuncs[current_function].locals > local_index);
 				assert(!stack.empty());
-				Var& v = vars[var_index];
+				Var& v = local[locals_offset + local_index];
+				// free what was in variable previously
+				if(v.type == V_STRING)
+					v.str->Release();
+				Var& s = stack.back();
+				// incrase reference for new var
+				if(s.type == V_STRING)
+					s.str->refs++;
+				v = s;
+			}
+			break;
+		case SET_GLOBAL:
+			{
+				uint global_index = *c++;
+				assert(global_index < global.size());
+				assert(!stack.empty());
+				Var& v = global[global_index];
 				// free what was in variable previously
 				if(v.type == V_STRING)
 					v.str->Release();
@@ -203,15 +260,41 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 				}
 				else if(op == DEREF)
 				{
-					assert(v.type == V_REF && (uint)v.value < vars.size());
-					v = vars[v.value];
+					assert(v.type == V_REF);
+					Var* vr;
+					if(v.value2 == REF_LOCAL)
+					{
+						assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
+						assert(ctx.ufuncs[current_function].locals > (uint)v.value1);
+						vr = &local[locals_offset + v.value1];
+					}
+					else
+					{
+						assert(v.value2 == REF_GLOBAL);
+						assert(global.size() > (uint)v.value1);
+						vr = &global[v.value1];
+					}
+					v = *vr;
 					if(v.type == V_STRING)
 						v.str->refs++;
 				}
 				else
 				{
-					assert(v.type == V_REF && (uint)v.value < vars.size());
-					Var& rv = vars[v.value];
+					assert(v.type == V_REF);
+					Var* vr;
+					if(v.value2 == REF_LOCAL)
+					{
+						assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
+						assert(ctx.ufuncs[current_function].locals > (uint)v.value1);
+						vr = &local[locals_offset + v.value1];
+					}
+					else
+					{
+						assert(v.value2 == REF_GLOBAL);
+						assert(global.size() > (uint)v.value1);
+						vr = &global[v.value1];
+					}
+					Var& rv = *vr;
 					assert(rv.type == V_INT || rv.type == V_FLOAT);
 					switch(op)
 					{
@@ -391,12 +474,47 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 			}
 			break;
 		case RET:
-			assert(stack.empty());
-			return;
+			if(current_function == -1)
+			{
+				assert(stack.empty());
+				assert(local.empty());
+				return;
+			}
+			else
+			{
+				assert((uint)current_function < ctx.ufuncs.size());
+				RunFunction& f = ctx.ufuncs[current_function];
+				uint to_pop = f.locals; // + f.args
+				assert(local.size() > to_pop);
+				while(to_pop--)
+				{
+					Var& v = local.back();
+					if(v.type == V_STRING)
+						v.str->Release();
+					local.pop_back();
+				}
+				Var& func_mark = local.back();
+				assert(func_mark.type == V_FUNCTION);
+				c = start + func_mark.value2;
+				current_function = func_mark.value1;
+				local.pop_back();
+				if(current_function != -1)
+				{
+					// checking local stack
+					assert((uint)current_function < ctx.ufuncs.size());
+					RunFunction& f = ctx.ufuncs[current_function];
+					uint count = 1 + f.locals; // + f.args
+					assert(local.size() >= count);
+					assert((local.end() - count)->type == V_FUNCTION);
+				}
+				assert(expected_stack.back() == stack.size());
+				expected_stack.pop_back();
+			}
+			break;
 		case JMP:
 			{
 				uint offset = *c;
-				c = code.data() + offset;
+				c = start + offset;
 				assert(c < end);
 			}
 			break;
@@ -404,7 +522,7 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 		case FJMP:
 			{
 				uint offset = *c++;
-				int* new_c = code.data() + offset;
+				int* new_c = start + offset;
 				assert(new_c < end);
 				assert(!stack.empty());
 				Var v = stack.back();
@@ -432,6 +550,26 @@ void RunCode(vector<int>& code, vector<string>& strs, uint n_vars)
 					assert(stack.at(stack.size() - f.args.size() + i).type == f.args[i]);
 				f.clbk();
 				assert(expected_stack_size == stack.size());
+			}
+			break;
+		case CALLU:
+			{
+				uint f_idx = *c++;
+				assert(f_idx < ctx.ufuncs.size());
+				RunFunction& f = ctx.ufuncs[f_idx];
+				// push function to locals
+				uint pos = c - start;
+				local.push_back(Var(V_FUNCTION, current_function, pos));
+				// handle args
+				//assert(stack.size() > f.args);
+				//push args
+				// handle locals
+				locals_offset = local.size();
+				local.resize(local.size() + f.locals);
+				// call
+				expected_stack.push_back(stack.size());
+				current_function = f_idx;
+				c = start + f.pos;
 			}
 			break;
 		default:
