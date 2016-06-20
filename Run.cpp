@@ -559,6 +559,8 @@ void RunCode(RunContext& ctx)
 					assert((local.end() - count)->type == V_FUNCTION);
 				}
 				assert(expected_stack.back() == stack.size());
+				if(f.result != V_VOID)
+					assert(stack.back().type == f.result);
 				expected_stack.pop_back();
 			}
 			break;
@@ -625,7 +627,10 @@ void RunCode(RunContext& ctx)
 				locals_offset = local.size();
 				local.resize(local.size() + f.locals);
 				// call
-				expected_stack.push_back(stack.size());
+				uint expected = stack.size();
+				if(f.result != V_VOID)
+					++expected;
+				expected_stack.push_back(expected);
 				current_function = f_idx;
 				c = start + f.pos;
 			}

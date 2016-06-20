@@ -21,7 +21,8 @@ enum KEYWORD
 	K_DO,
 	K_WHILE,
 	K_FOR,
-	K_BREAK
+	K_BREAK,
+	K_RETURN
 };
 
 enum CONST
@@ -48,7 +49,8 @@ enum PseudoOp
 	DO_WHILE,
 	WHILE,
 	FOR,
-	BREAK
+	BREAK,
+	RETURN
 };
 
 enum PseudoOpValue
@@ -157,6 +159,7 @@ struct ParseFunction
 	ParseNode* node;
 	Block* block;
 	int index;
+	VAR_TYPE result;
 	vector<ParseVar*> args;
 
 	ParseVar* FindArg(const string& id)
@@ -498,7 +501,7 @@ ParseNode* ParseItem()
 				ParseFunction* f = found.ufunc;
 				ParseNode* node = ParseNode::Get();
 				node->op = CALLU;
-				node->type = V_VOID;
+				node->type = f->result;
 				node->value = f->index;
 				node->ref = NO_REF;
 
@@ -1655,6 +1658,30 @@ ParseNode* ParseLine()
 				br->ref = NO_REF;
 				return br;
 			}
+		case K_RETURN:
+			{
+				if(!current_function)
+					t.Unexpected("Not inside function.");
+				ParseNode* ret = ParseNode::Get();
+				ret->pseudo_op = RETURN;
+				ret->type = V_VOID;
+				ret->ref = NO_REF;
+				t.Next();
+				VAR_TYPE ret_type;
+				if(!t.IsSymbol(';'))
+				{
+					ret->push(ParseExpr(';'));
+					ret_type = ret->childs[0]->type;
+					t.AssertSymbol(';');
+				}
+				else
+					ret_type = V_VOID;
+				if(ret_type != current_function->result)
+					t.Throw("Invalid return type '%s', function '%s' require '%s' type.",
+						var_info[ret_type].name, current_function->name.c_str(), var_info[current_function->result].name);
+				t.Next();
+				return ret;
+			}
 		default:
 			t.Unexpected();
 		}
@@ -1676,6 +1703,7 @@ ParseNode* ParseLine()
 			ParseFunction* f = new ParseFunction;
 			f->name = str;
 			f->index = ufuncs.size();
+			f->result = type;
 			current_function = f;
 
 			// args
@@ -2252,10 +2280,51 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		break_pos->push_back(code.size());
 		code.push_back(0);
 		break;
+	case RETURN:
+		code.push_back(RET);
+		break;
 	default:
 		assert(0);
 		break;
 	}
+}
+
+bool VerifyNodeReturnValue(ParseNode* node)
+{
+	switch(node->pseudo_op)
+	{
+	case GROUP:
+		for(vector<ParseNode*>::reverse_iterator it = node->childs.rbegin(), end = node->childs.rend(); it != end; ++it)
+		{
+			if(VerifyNodeReturnValue(*it))
+				return true;
+		}
+		return false;
+	case IF:
+		return (node->childs.size() == 3u && node->childs[1] && node->childs[2]
+			&& VerifyNodeReturnValue(node->childs[1]) && VerifyNodeReturnValue(node->childs[2]));
+	case RETURN:
+		return true;
+	default:
+		return false;
+	}
+}
+
+void VerifyFunctionReturnValue(ParseFunction* f)
+{
+	if(f->result == V_VOID)
+		return;
+		
+	if(f->node)
+	{
+		for(vector<ParseNode*>::reverse_iterator it = f->node->childs.rbegin(), end = f->node->childs.rend(); it != end; ++it)
+		{
+			if(VerifyNodeReturnValue(*it))
+				return;
+		}
+	}
+
+	t.Throw("Function '%s' not always return value.", f->name.c_str());
 }
 
 bool Parse(ParseContext& ctx)
@@ -2267,12 +2336,18 @@ bool Parse(ParseContext& ctx)
 
 		// parse
 		ParseNode* node = ParseCode();
+
+		// optimize
 		if(optimize)
 		{
 			for(ParseFunction* ufunc : ufuncs)
 				OptimizeTree(ufunc->node);
 			OptimizeTree(node);
 		}
+
+		// verify
+		for(ParseFunction* ufunc : ufuncs)
+			VerifyFunctionReturnValue(ufunc);
 		
 		// codify
 		for(ParseFunction* ufunc : ufuncs)
@@ -2294,6 +2369,7 @@ bool Parse(ParseContext& ctx)
 			UserFunction& uf = ctx.ufuncs[i];
 			uf.pos = f.pos;
 			uf.locals = f.locals;
+			uf.result = f.result;
 #ifdef _DEBUG
 			for(ParseVar* arg : f.args)
 				uf.args.push_back(arg->type);
@@ -2329,7 +2405,8 @@ void InitializeParser()
 		{"do", K_DO},
 		{"while", K_WHILE},
 		{"for", K_FOR},
-		{"break", K_BREAK}
+		{"break", K_BREAK},
+		{"return", K_RETURN}
 	});
 
 	// const

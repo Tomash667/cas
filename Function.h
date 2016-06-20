@@ -22,6 +22,7 @@ struct UserFunction
 #else
 	uint args;
 #endif
+	VAR_TYPE result;
 
 	inline uint GetArgs() const
 	{

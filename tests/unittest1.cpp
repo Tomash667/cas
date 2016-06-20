@@ -190,7 +190,7 @@ namespace tests
 		TEST_METHOD(UserFunc)
 		{
 			Logger::WriteMessage("Test case: UserFunc ******************************\n");
-			Test("user_func.txt", "1 2 3 4 5 6 7 8", "3\n6\n9\n15\n");
+			Test("user_func.txt", "1 2 3 4 5 6 7 8", "3\n6\n9\n15\n15\n");
 		}
 	};
 }
