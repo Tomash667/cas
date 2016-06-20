@@ -9,7 +9,7 @@ block:
 	{ [ line_or_block ...] }
 	
 line:
-	var_type <func_name> ( ) block // can only be used in top block
+	var_type <func_name> ([var_type <arg_name> [, ...] ) block // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;
 	while cond line_or_block

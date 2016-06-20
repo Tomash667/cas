@@ -13,6 +13,26 @@ struct Function
 	vector<VAR_TYPE> args;
 };
 
+struct UserFunction
+{
+	uint pos;
+	uint locals;
+#ifdef _DEBUG
+	vector<VAR_TYPE> args;
+#else
+	uint args;
+#endif
+
+	inline uint GetArgs() const
+	{
+#ifdef _DEBUG
+		return args.size();
+#else
+		return args;
+#endif
+	}
+};
+
 extern vector<Function> functions;
 
 inline Function* FindFunction(const string& id, VAR_TYPE var_type = V_VOID)

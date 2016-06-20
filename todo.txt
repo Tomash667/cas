@@ -1,5 +1,4 @@
 + function with return value
-+ function with args
 + function default parameters
 + variadic functions (params)
 + function overloads

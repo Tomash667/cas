@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Var.h"
+#include "Function.h"
 
 struct Str : ObjectPoolProxy<Str>
 {
@@ -41,17 +42,11 @@ struct Var
 
 extern vector<Var> stack;
 
-struct RunFunction
-{
-	uint pos;
-	uint locals;
-};
-
 struct RunContext
 {
 	vector<int> code;
 	vector<string> strs;
-	vector<RunFunction> ufuncs;
+	vector<UserFunction> ufuncs;
 	uint globals, entry_point;
 };
 
