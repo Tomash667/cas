@@ -14,6 +14,7 @@ Function& AddFunction(cstring name, VoidF clbk)
 	f.result = V_VOID;
 	f.index = functions.size() - 1;
 	f.var_type = V_VOID;
+	f.required_args = 0;
 	return f;
 }
 
@@ -72,8 +73,18 @@ void f_string_length()
 
 void RegisterFunctions()
 {
-	AddFunction("print", f_print).args.push_back(V_STRING);
-	AddFunction("println", f_println).args.push_back(V_STRING);
+	{
+		Function& f = AddFunction("print", f_print);
+		f.arg_infos.push_back(ArgInfo(V_STRING));
+		f.required_args = 1;
+	}
+
+	{
+		Function& f = AddFunction("println", f_println);
+		f.arg_infos.push_back(ArgInfo(V_STRING));
+		f.required_args = 1;
+	}
+
 	AddFunction("getint", f_getint).result = V_INT;
 	AddFunction("getfloat", f_getfloat).result = V_FLOAT;
 	AddFunction("getstr", f_getstr).result = V_STRING;

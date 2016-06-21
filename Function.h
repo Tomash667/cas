@@ -4,13 +4,19 @@
 
 typedef void(*VoidF)();
 
-struct Function
+struct CommonFunction
+{
+	VAR_TYPE result;
+	vector<ArgInfo> arg_infos;
+	uint required_args;
+};
+
+struct Function : CommonFunction
 {
 	cstring name;
 	VoidF clbk;
 	int index;
-	VAR_TYPE result, var_type;
-	vector<VAR_TYPE> args;
+	VAR_TYPE var_type;
 };
 
 struct UserFunction

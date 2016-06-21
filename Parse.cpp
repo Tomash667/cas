@@ -151,7 +151,7 @@ struct Block : ObjectPoolProxy<Block>
 	}
 };
 
-struct ParseFunction
+struct ParseFunction : CommonFunction
 {
 	string name;
 	uint pos;
@@ -159,7 +159,6 @@ struct ParseFunction
 	ParseNode* node;
 	Block* block;
 	int index;
-	VAR_TYPE result;
 	vector<ParseVar*> args;
 
 	ParseVar* FindArg(const string& id)
@@ -210,7 +209,7 @@ union Found
 
 
 static Tokenizer t;
-static vector<string> strs;
+static vector<Str*> strs;
 static vector<ParseFunction*> ufuncs;
 static Block* main_block;
 static Block* current_block;
@@ -402,29 +401,52 @@ bool TryCast(ParseNode*& node, VAR_TYPE type)
 	return true;
 }
 
-void VerifyFunctionCall(ParseNode* node, Function* f)
+void VerifyFunctionCall(ParseNode* node, CommonFunction* f, cstring name)
 {
-	if(node->childs.size() != f->args.size())
-		t.Throw("Function %s with %d arguments not found, function have %d arguments.", f->name, node->childs.size(), f->args.size());
+	// check params count
+	if(node->childs.size() > f->arg_infos.size() || node->childs.size() < f->required_args)
+		t.Throw("Function %s with %d arguments not found, function have %d arguments.", name, node->childs.size(), f->arg_infos.size());
+
+	// verify params
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
-		if(!TryCast(node->childs[i], f->args[i]))
-			t.Throw("Function %s takes %s for argument %d, found %s.", f->name, var_info[f->args[i]].name, i + 1, var_info[node->childs[i]->type].name);
+		if(!TryCast(node->childs[i], f->arg_infos[i].type))
+			t.Throw("Function %s takes %s for argument %d, found %s.", name, var_info[f->arg_infos[i].type].name, i + 1, var_info[node->childs[i]->type].name);
+	}
+
+	// fill default params
+	for(uint i = node->childs.size(); i < f->arg_infos.size(); ++i)
+	{
+		ArgInfo& arg = f->arg_infos[i];
+		ParseNode* n = ParseNode::Get();
+		n->type = arg.type;
+		switch(arg.type)
+		{
+		case V_BOOL:
+			n->pseudo_op = PUSH_BOOL;
+			n->bvalue = arg.bvalue;
+			break;
+		case V_INT:
+			n->op = PUSH_INT;
+			n->value = arg.value;
+			break;
+		case V_FLOAT:
+			n->op = PUSH_FLOAT;
+			n->fvalue = arg.fvalue;
+			break;
+		case V_STRING:
+			n->op = PUSH_STRING;
+			n->value = arg.value;
+			break;
+		default:
+			assert(0);
+			break;
+		}
+		node->push(n);
 	}
 }
 
-void VerifyFunctionCall(ParseNode* node, ParseFunction* f)
-{
-	if(node->childs.size() != f->args.size())
-		t.Throw("Function %s with %d arguments not found, function have %d arguments.", f->name, node->childs.size(), f->args.size());
-	for(uint i = 0; i < node->childs.size(); ++i)
-	{
-		if(!TryCast(node->childs[i], f->args[i]->type))
-			t.Throw("Function %s takes %s for argument %d, found %s.", f->name, var_info[f->args[i]->type].name, i + 1, var_info[node->childs[i]->type].name);
-	}
-}
-
-ParseNode* ParseItem()
+ParseNode* ParseConstItem()
 {
 	if(t.IsInt())
 	{
@@ -450,7 +472,40 @@ ParseNode* ParseItem()
 		t.Next();
 		return node;
 	}
-	else if(t.IsItem())
+	else if(t.IsString())
+	{
+		// string
+		int index = strs.size();
+		Str* str = Str::Get();
+		str->s = t.GetString();
+		str->refs = 1;
+		strs.push_back(str);
+		ParseNode* node = ParseNode::Get();
+		node->op = PUSH_STRING;
+		node->value = index;
+		node->type = V_STRING;
+		node->ref = NO_REF;
+		t.Next();
+		return node;
+	}
+	else if(t.IsKeywordGroup(G_CONST))
+	{
+		CONST c = (CONST)t.GetKeywordId(G_CONST);
+		t.Next();
+		ParseNode* node = ParseNode::Get();
+		node->pseudo_op = PUSH_BOOL;
+		node->bvalue = (c == C_TRUE);
+		node->type = V_BOOL;
+		node->ref = NO_REF;
+		return node;
+	}
+	else
+		t.Unexpected();
+}
+
+ParseNode* ParseItem()
+{
+	if(t.IsItem())
 	{
 		const string& id = t.GetItem();
 		Found found;
@@ -492,7 +547,7 @@ ParseNode* ParseItem()
 
 				t.Next();
 				ParseArgs(node->childs);
-				VerifyFunctionCall(node, f);
+				VerifyFunctionCall(node, f, f->name);
 
 				return node;
 			}
@@ -507,7 +562,7 @@ ParseNode* ParseItem()
 
 				t.Next();
 				ParseArgs(node->childs);
-				VerifyFunctionCall(node, f);
+				VerifyFunctionCall(node, f, f->name.c_str());
 
 				return node;
 			}
@@ -517,32 +572,8 @@ ParseNode* ParseItem()
 			t.Unexpected();
 		}
 	}
-	else if(t.IsString())
-	{
-		// string
-		int index = strs.size();
-		strs.push_back(t.GetString());
-		ParseNode* node = ParseNode::Get();
-		node->op = PUSH_STRING;
-		node->value = index;
-		node->type = V_STRING;
-		node->ref = NO_REF;
-		t.Next();
-		return node;
-	}
-	else if(t.IsKeywordGroup(G_CONST))
-	{
-		CONST c = (CONST)t.GetKeywordId(G_CONST);
-		t.Next();
-		ParseNode* node = ParseNode::Get();
-		node->pseudo_op = PUSH_BOOL;
-		node->bvalue = (c == C_TRUE);
-		node->type = V_BOOL;
-		node->ref = NO_REF;
-		return node;
-	}
 	else
-		t.Unexpected();
+		return ParseConstItem();
 }
 
 enum SYMBOL
@@ -1318,7 +1349,7 @@ ParseNode* ParseExpr(char end, char end2)
 					if(!func)
 						t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), var_info[left->type].name);
 					StringPool.Free(right->str);
-					VerifyFunctionCall(right, func);
+					VerifyFunctionCall(right, func, func->name);
 					ParseNode* node = ParseNode::Get();
 					node->op = CALL;
 					node->type = func->result;
@@ -1704,9 +1735,11 @@ ParseNode* ParseLine()
 			f->name = str;
 			f->index = ufuncs.size();
 			f->result = type;
+			f->required_args = 0;
 			current_function = f;
 
 			// args
+			bool prev_arg_def = false;
 			if(!t.IsSymbol(')'))
 			{
 				while(true)
@@ -1722,6 +1755,39 @@ ParseNode* ParseLine()
 					arg->index = current_function->args.size();
 					current_function->args.push_back(arg);
 					t.Next();
+					if(t.IsSymbol('='))
+					{
+						prev_arg_def = true;
+						t.Next();
+						ParseNode* item = ParseConstItem();
+						if(!TryCast(item, type))
+							t.Throw("Invalid default value of type '%s', required '%s'.", var_info[item->type].name, var_info[type].name);
+						switch(item->op)
+						{
+						case PUSH_BOOL:
+							f->arg_infos.push_back(ArgInfo(item->bvalue));
+							break;
+						case PUSH_INT:
+							f->arg_infos.push_back(ArgInfo(item->value));
+							break;
+						case PUSH_FLOAT:
+							f->arg_infos.push_back(ArgInfo(item->fvalue));
+							break;
+						case PUSH_STRING:
+							f->arg_infos.push_back(ArgInfo(V_STRING, item->value));
+							break;
+						default:
+							assert(0);
+							break;
+						}
+					}
+					else
+					{
+						if(prev_arg_def)
+							t.Throw("Missing default value for argument '%s'.", arg->name.c_str());
+						f->arg_infos.push_back(ArgInfo(type));
+						f->required_args++;
+					}
 					if(t.IsSymbol(')'))
 						break;
 					t.AssertSymbol(',');
@@ -2418,7 +2484,7 @@ void InitializeParser()
 
 void CleanupParser()
 {
-	strs.clear();
+	Str::Free(strs);
 	DeleteElements(ufuncs);
 }
 

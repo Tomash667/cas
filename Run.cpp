@@ -61,9 +61,8 @@ void RunCode(RunContext& ctx)
 			{
 				uint str_index = *c++;
 				assert(str_index < ctx.strs.size());
-				Str* str = Str::Get();
-				str->refs = 1;
-				str->s = ctx.strs[str_index];
+				Str* str = ctx.strs[str_index];
+				str->refs++;
 				stack.push_back(Var(str));
 			}
 			break;
@@ -593,14 +592,14 @@ void RunCode(RunContext& ctx)
 				uint f_idx = *c++;
 				assert(f_idx < functions.size());
 				Function& f = functions[f_idx];
-				assert(stack.size() >= f.args.size());
-				uint expected_stack_size = stack.size() - f.args.size();
+				assert(stack.size() >= f.arg_infos.size());
+				uint expected_stack_size = stack.size() - f.arg_infos.size();
 				if(f.result != V_VOID)
 					++expected_stack_size;
 				if(f.var_type != V_VOID)
 					--expected_stack_size;
-				for(uint i = 0; i < f.args.size(); ++i)
-					assert(stack.at(stack.size() - f.args.size() + i).type == f.args[i]);
+				for(uint i = 0; i < f.arg_infos.size(); ++i)
+					assert(stack.at(stack.size() - f.arg_infos.size() + i).type == f.arg_infos[i].type);
 				f.clbk();
 				assert(expected_stack_size == stack.size());
 			}

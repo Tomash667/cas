@@ -3,19 +3,6 @@
 #include "Var.h"
 #include "Function.h"
 
-struct Str : ObjectPoolProxy<Str>
-{
-	string s;
-	int refs;
-
-	inline void Release()
-	{
-		--refs;
-		if(refs == 0)
-			Free();
-	}
-};
-
 struct Var
 {
 	int type;
@@ -45,7 +32,7 @@ extern vector<Var> stack;
 struct RunContext
 {
 	vector<int> code;
-	vector<string> strs;
+	vector<Str*> strs;
 	vector<UserFunction> ufuncs;
 	uint globals, entry_point;
 };

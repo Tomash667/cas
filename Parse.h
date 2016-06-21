@@ -3,7 +3,7 @@
 struct ParseContext
 {
 	string input;
-	vector<string> strs;
+	vector<Str*> strs;
 	vector<int> code;
 	vector<UserFunction> ufuncs;
 	uint globals, entry_point;

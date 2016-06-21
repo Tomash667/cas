@@ -1,0 +1,9 @@
+void wypisz(int a = 3, int b = 4)
+{
+	println("a: "+a+", b: " + b);
+}
+
+wypisz();
+wypisz(7);
+wypisz(11,13);
+pause();

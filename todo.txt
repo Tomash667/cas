@@ -1,9 +1,9 @@
-+ function default parameters
 + variadic functions (params)
 + function overloads
 	int f();
 	int f(int,int);
 	dla f(1) pisze ¿e brak funkcji f(int), znaleziono f(), f(int,int)
++ call function before declaration
 
 + class member access
 + class properties
@@ -32,3 +32,4 @@
 + detect unreachable code
 + function taking or returning reference
 + const
++ advanced function default params (using expr not const_item)
