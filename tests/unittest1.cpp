@@ -171,7 +171,7 @@ namespace tests
 		TEST_METHOD(Block)
 		{
 			Logger::WriteMessage("Test case: Block ******************************\n");
-			Test("block.txt", "", "4\n3\n11\n");
+			Test("block.txt", "", "4\n0\n8\n");
 		}
 
 		TEST_METHOD(For)
@@ -197,6 +197,12 @@ namespace tests
 		{
 			Logger::WriteMessage("Test case: FuncDefParams ******************************\n");
 			Test("func_def_params.txt", "", "a: 3, b: 4\na: 7, b: 4\na: 11, b: 13\n");
+		}
+
+		TEST_METHOD(DefValue)
+		{
+			Logger::WriteMessage("Test case: DefValue ******************************\n");
+			Test("def_value.txt", "", "false\n0\n0\n[]\nfalse\n0\n0\n[]\n");
 		}
 	};
 }

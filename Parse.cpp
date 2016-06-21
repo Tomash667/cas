@@ -215,6 +215,7 @@ static Block* main_block;
 static Block* current_block;
 static ParseFunction* current_function;
 static int breakable_block;
+static int empty_string;
 static bool optimize;
 
 
@@ -1469,14 +1470,54 @@ ParseNode* ParseVarDecl(VAR_TYPE type, string* _name)
 		t.Next();
 
 	// [=]
+	ParseNode* expr;
 	if(!t.IsSymbol('='))
-		return nullptr;
-	t.Next();
+	{
+		expr = ParseNode::Get();
+		expr->ref = NO_REF;
+		switch(type)
+		{
+		case V_BOOL:
+			expr->type = V_BOOL;
+			expr->pseudo_op = PUSH_BOOL;
+			expr->bvalue = false;
+			break;
+		case V_INT:
+			expr->type = V_INT;
+			expr->op = PUSH_INT;
+			expr->value = 0;
+			break;
+		case V_FLOAT:
+			expr->type = V_FLOAT;
+			expr->op = PUSH_FLOAT;
+			expr->fvalue = 0.f;
+			break;
+		case V_STRING:
+			expr->type = V_STRING;
+			expr->op = PUSH_STRING;
+			if(empty_string == -1)
+			{
+				empty_string = strs.size();
+				Str* str = Str::Get();
+				str->s = "";
+				str->refs = 1;
+				strs.push_back(str);
+			}
+			expr->value = empty_string;
+			break;
+		default:
+			t.Throw("Missing default value for type '%s'.", var_info[type].name);
+		}
+	}
+	else
+	{
+		t.Next();
 
-	// expr<,;>
-	ParseNode* expr = ParseExpr(',', ';');
-	if(!TryCast(expr, type))
-		t.Throw("Can't assign type '%s' to variable '%s %s'.", var_info[expr->type].name, var->name.c_str(), var_info[type].name);
+		// expr<,;>
+		expr = ParseExpr(',', ';');
+		if(!TryCast(expr, type))
+			t.Throw("Can't assign type '%s' to variable '%s %s'.", var_info[expr->type].name, var->name.c_str(), var_info[type].name);
+	}
 
 	ParseNode* node = ParseNode::Get();
 	switch(var->subtype)
@@ -1883,6 +1924,7 @@ ParseNode* ParseLineOrBlock()
 ParseNode* ParseCode()
 {
 	breakable_block = 0;
+	empty_string = -1;
 	main_block = Block::Get();
 	main_block->parent = nullptr;
 	main_block->var_offset = 0u;

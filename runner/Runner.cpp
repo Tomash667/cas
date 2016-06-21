@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring def_filename = "func_def_params.txt";
+cstring def_filename = "def_value.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

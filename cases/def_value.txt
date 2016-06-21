@@ -1,0 +1,22 @@
+void local()
+{
+	bool b2;
+	println(b2);
+	int i2;
+	println(i2);
+	float f2;
+	println(f2);
+	string s2;
+	println("["+s2+"]");
+}
+
+bool b;
+println(b);
+int i;
+println(i);
+float f;
+println(f);
+string s;
+println("["+s+"]");
+local();
+pause();
