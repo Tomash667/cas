@@ -1,0 +1,12 @@
+println(65245 & 17287);
+println(53614 | 44724);
+println(36160 ^ 6144);
+println(48350 << 61390);
+println(31106 >> 35842);
+int a = 47989;
+println(a &= 33288);
+println(a |= 8421);
+println(a ^= 52433);
+println(a <<= 44818);
+println(a >>= 24039);
+pause();

@@ -204,5 +204,11 @@ namespace tests
 			Logger::WriteMessage("Test case: DefValue ******************************\n");
 			Test("def_value.txt", "", "false\n0\n0\n[]\nfalse\n0\n0\n[]\n");
 		}
+
+		TEST_METHOD(BitOp)
+		{
+			Logger::WriteMessage("Test case: BitOp ******************************\n");
+			Test("bit_op.txt", "", "17029\n65534\n38208\n792166400\n7776\n33280\n41701\n28212\n-1194328064\n-9330688\n");
+		}
 	};
 }

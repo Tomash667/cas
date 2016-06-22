@@ -584,9 +584,13 @@ enum SYMBOL
 	S_MUL,
 	S_DIV,
 	S_MOD,
+	S_BIT_AND,
+	S_BIT_OR,
+	S_BIT_XOR,
+	S_BIT_LSHIFT,
+	S_BIT_RSHIFT,
 	S_PLUS,
 	S_MINUS,
-	S_LEFT_PAR,
 	S_EQUAL,
 	S_NOT_EQUAL,
 	S_GREATER,
@@ -596,6 +600,7 @@ enum SYMBOL
 	S_AND,
 	S_OR,
 	S_NOT,
+	S_BIT_NOT,
 	S_MEMBER_ACCESS,
 	S_ASSIGN,
 	S_ASSIGN_ADD,
@@ -603,6 +608,11 @@ enum SYMBOL
 	S_ASSIGN_MUL,
 	S_ASSIGN_DIV,
 	S_ASSIGN_MOD,
+	S_ASSIGN_BIT_AND,
+	S_ASSIGN_BIT_OR,
+	S_ASSIGN_BIT_XOR,
+	S_ASSIGN_BIT_LSHIFT,
+	S_ASSIGN_BIT_RSHIFT,
 	S_PRE_INC,
 	S_PRE_DEC,
 	S_POST_INC,
@@ -635,9 +645,13 @@ SymbolInfo symbols[S_MAX] = {
 	S_MUL, "multiply", 5, true, 2, MUL, ST_NONE,
 	S_DIV, "divide", 5, true, 2, DIV, ST_NONE,
 	S_MOD, "modulo", 5, true, 2, MOD, ST_NONE,
+	S_BIT_AND, "bit and", 10, true, 2, BIT_AND, ST_NONE,
+	S_BIT_OR, "bit or", 12, true, 2, BIT_OR, ST_NONE,
+	S_BIT_XOR, "bit xor", 11, true, 2, BIT_XOR, ST_NONE,
+	S_BIT_LSHIFT, "bit left shift", 7, true, 2, BIT_LSHIFT, ST_NONE,
+	S_BIT_RSHIFT, "bit right shift", 7, true, 2, BIT_RSHIFT, ST_NONE,
 	S_PLUS, "unary plus", 3, false, 1, NOP, ST_NONE,
 	S_MINUS, "unary minus", 3, false, 1, NEG, ST_NONE,
-	S_LEFT_PAR, "left parenthesis", 99, true, 0, NOP, ST_NONE,
 	S_EQUAL, "equal", 9, true, 2, EQ, ST_NONE,
 	S_NOT_EQUAL, "not equal", 9, true, 2, NOT_EQ, ST_NONE,
 	S_GREATER, "greater", 8, true, 2, GR, ST_NONE,
@@ -647,6 +661,7 @@ SymbolInfo symbols[S_MAX] = {
 	S_AND, "and", 13, true, 2, AND, ST_NONE,
 	S_OR, "or", 14, true, 2, OR, ST_NONE,
 	S_NOT, "not", 3, false, 1, NOT, ST_NONE,
+	S_BIT_NOT, "bit not", 3, false, 1, BIT_NOT, ST_NONE,
 	S_MEMBER_ACCESS, "member access", 2, true, 2, NOP, ST_NONE,
 	S_ASSIGN, "assign", 15, false, 2, NOP, ST_ASSIGN,
 	S_ASSIGN_ADD, "assign add", 15, false, 2, S_ADD, ST_ASSIGN,
@@ -654,6 +669,11 @@ SymbolInfo symbols[S_MAX] = {
 	S_ASSIGN_MUL, "assign multiply", 15, false, 2, S_MUL, ST_ASSIGN,
 	S_ASSIGN_DIV, "assign divide", 15, false, 2, S_DIV, ST_ASSIGN,
 	S_ASSIGN_MOD, "assign modulo", 15, false, 2, S_MOD, ST_ASSIGN,
+	S_ASSIGN_BIT_AND, "assign bit and", 15, false, 2, S_BIT_AND, ST_ASSIGN,
+	S_ASSIGN_BIT_OR, "assign bit or", 15, false, 2, S_BIT_OR, ST_ASSIGN,
+	S_ASSIGN_BIT_XOR, "assign bit xor", 15, false, 2, S_BIT_XOR, ST_ASSIGN,
+	S_ASSIGN_BIT_LSHIFT, "assign bit left shift", 15, false, 2, S_BIT_LSHIFT, ST_ASSIGN,
+	S_ASSIGN_BIT_RSHIFT, "assign bit right shift", 15, false, 2, S_BIT_RSHIFT, ST_ASSIGN,
 	S_PRE_INC, "pre increment", 3, false, 1, PRE_INC, ST_INC_DEC,
 	S_PRE_DEC, "pre decrement", 3, false, 1, PRE_DEC, ST_INC_DEC,
 	S_POST_INC, "post increment", 2, true, 1, POST_INC, ST_INC_DEC,
@@ -758,6 +778,24 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 		cast = V_BOOL;
 		result = V_BOOL;
 		return true;
+	case S_BIT_AND:
+	case S_BIT_OR:
+	case S_BIT_XOR:
+	case S_BIT_LSHIFT:
+	case S_BIT_RSHIFT:
+		// not allowed for string, cast other to int
+		if(left == V_STRING || right == V_STRING)
+			return false;
+		cast = V_INT;
+		result = V_INT;
+		return true;
+	case S_BIT_NOT:
+		// not allowed for string, cast other to int
+		if(left == V_STRING)
+			return false;
+		cast = V_INT;
+		result = V_INT;
+		return true;
 	default:
 		assert(0);
 		return false;
@@ -799,6 +837,14 @@ bool TryConstExpr1(ParseNode* node, SYMBOL symbol)
 		if(node->op == PUSH_BOOL)
 		{
 			node->bvalue = !node->bvalue;
+			return true;
+		}
+	}
+	else if(symbol == S_BIT_NOT)
+	{
+		if(node->op == PUSH_INT)
+		{
+			node->value = ~node->value;
 			return true;
 		}
 	}
@@ -892,6 +938,26 @@ bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbo
 		case S_LESS_EQUAL:
 			op->bvalue = (left->value <= right->value);
 			op->pseudo_op = PUSH_BOOL;
+			break;
+		case S_BIT_AND:
+			op->value = (left->value & right->value);
+			op->op = PUSH_INT;
+			break;
+		case S_BIT_OR:
+			op->value = (left->value | right->value);
+			op->op = PUSH_INT;
+			break;
+		case S_BIT_XOR:
+			op->value = (left->value ^ right->value);
+			op->op = PUSH_INT;
+			break;
+		case S_BIT_LSHIFT:
+			op->value = (left->value << right->value);
+			op->op = PUSH_INT;
+			break;
+		case S_BIT_RSHIFT:
+			op->value = (left->value >> right->value);
+			op->op = PUSH_INT;
 			break;
 		default:
 			assert(0);
@@ -1024,6 +1090,11 @@ enum BASIC_SYMBOL
 	BS_MUL, // *
 	BS_DIV, // /
 	BS_MOD, // %
+	BS_BIT_AND, // &
+	BS_BIT_OR, // |
+	BS_BIT_XOR, // ^
+	BS_BIT_LSHIFT, // <<
+	BS_BIT_RSHIFT, // >>
 	BS_EQUAL, // ==
 	BS_NOT_EQUAL, // !=
 	BS_GREATER, // >
@@ -1033,12 +1104,18 @@ enum BASIC_SYMBOL
 	BS_AND, // &&
 	BS_OR, // ||
 	BS_NOT, // !
+	BS_BIT_NOT, // ~
 	BS_ASSIGN, // =
 	BS_ASSIGN_ADD, // +=
 	BS_ASSIGN_SUB, // -=
 	BS_ASSIGN_MUL, // *=
 	BS_ASSIGN_DIV, // /=
 	BS_ASSIGN_MOD, // %=
+	BS_ASSIGN_BIT_AND, // &=
+	BS_ASSIGN_BIT_OR, // |=
+	BS_ASSIGN_BIT_XOR, // ^=
+	BS_ASSIGN_BIT_LSHIFT, // <<=
+	BS_ASSIGN_BIT_RSHIFT, // >>=
 	BS_DOT, // .
 	BS_INC, // ++
 	BS_DEC, // --
@@ -1061,6 +1138,11 @@ BasicSymbolInfo basic_symbols[BS_MAX] = {
 	BS_MUL, "*", S_INVALID, S_INVALID, S_INVALID, S_MUL,
 	BS_DIV, "/", S_INVALID, S_INVALID, S_INVALID, S_DIV,
 	BS_MOD, "%", S_INVALID, S_INVALID, S_INVALID, S_MOD,
+	BS_BIT_AND, "&", S_INVALID, S_INVALID, S_INVALID, S_BIT_AND,
+	BS_BIT_OR, "|", S_INVALID, S_INVALID, S_INVALID, S_BIT_OR,
+	BS_BIT_XOR, "^", S_INVALID, S_INVALID, S_INVALID, S_BIT_XOR,
+	BS_BIT_LSHIFT, "<<", S_INVALID, S_INVALID, S_INVALID, S_BIT_LSHIFT,
+	BS_BIT_RSHIFT, ">>", S_INVALID, S_INVALID, S_INVALID, S_BIT_RSHIFT,
 	BS_EQUAL, "==", S_INVALID, S_INVALID, S_INVALID, S_EQUAL,
 	BS_NOT_EQUAL, "!=", S_INVALID, S_INVALID, S_INVALID, S_NOT_EQUAL,
 	BS_GREATER, ">", S_INVALID, S_INVALID, S_INVALID, S_GREATER,
@@ -1070,12 +1152,18 @@ BasicSymbolInfo basic_symbols[BS_MAX] = {
 	BS_AND, "&&", S_INVALID, S_INVALID, S_INVALID, S_AND,
 	BS_OR, "||", S_INVALID, S_INVALID, S_INVALID, S_OR,
 	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID, S_INVALID,
+	BS_BIT_NOT, "~", S_INVALID, S_INVALID, S_INVALID, S_BIT_NOT,
 	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN,
 	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_ADD,
 	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_SUB,
 	BS_ASSIGN_MUL, "*=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_MUL,
 	BS_ASSIGN_DIV, "/=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_DIV,
 	BS_ASSIGN_MOD, "%=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_MOD,
+	BS_ASSIGN_BIT_AND, "&=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_AND,
+	BS_ASSIGN_BIT_OR, "|=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_OR,
+	BS_ASSIGN_BIT_XOR, "^=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_XOR,
+	BS_ASSIGN_BIT_LSHIFT, "<<=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_LSHIFT,
+	BS_ASSIGN_BIT_RSHIFT, ">>=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_RSHIFT,
 	BS_DOT, ".", S_INVALID, S_INVALID, S_INVALID, S_MEMBER_ACCESS,
 	BS_INC, "++", S_INVALID, S_PRE_INC, S_POST_INC, S_INVALID,
 	BS_DEC, "--", S_INVALID, S_PRE_DEC, S_POST_DEC, S_INVALID,
@@ -1128,21 +1216,46 @@ BASIC_SYMBOL GetSymbol()
 	case '>':
 		if(t.PeekSymbol('='))
 			return BS_GREATER_EQUAL;
+		else if(t.PeekSymbol('>'))
+		{
+			if(t.PeekSymbol('='))
+				return BS_ASSIGN_BIT_RSHIFT;
+			else
+				return BS_BIT_RSHIFT;
+		}
 		else
 			return BS_GREATER;
 	case '<':
 		if(t.PeekSymbol('='))
 			return BS_LESS_EQUAL;
+		else if(t.PeekSymbol('<'))
+		{
+			if(t.PeekSymbol('='))
+				return BS_ASSIGN_BIT_LSHIFT;
+			else
+				return BS_BIT_LSHIFT;
+		}
 		else
 			return BS_LESS;
 	case '&':
-		if(!t.PeekSymbol('&'))
-			t.Unexpected();
-		return BS_AND;
+		if(t.PeekSymbol('&'))
+			return BS_AND;
+		else if(t.PeekSymbol('='))
+			return BS_ASSIGN_BIT_AND;
+		else
+			return BS_BIT_AND;
 	case '|':
-		if(!t.PeekSymbol('|'))
-			t.Unexpected();
-		return BS_OR;
+		if(t.PeekSymbol('|'))
+			return BS_OR;
+		else if(t.PeekSymbol('='))
+			return BS_ASSIGN_BIT_OR;
+		else
+			return BS_BIT_OR;
+	case '^':
+		if(t.PeekSymbol('='))
+			return BS_ASSIGN_BIT_XOR;
+		else
+			return BS_BIT_XOR;
 	case '.':
 		return BS_DOT;
 	default:
@@ -2377,6 +2490,12 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case POST_INC:
 	case POST_DEC:
 	case DEREF:
+	case BIT_AND:
+	case BIT_OR:
+	case BIT_XOR:
+	case BIT_LSHIFT:
+	case BIT_RSHIFT:
+	case BIT_NOT:
 		code.push_back(node->op);
 		break;
 	case PUSH_BOOL:
@@ -2560,6 +2679,11 @@ OpInfo ops[MAX_OP] = {
 	MUL, "mul", V_VOID,
 	DIV, "div", V_VOID,
 	MOD, "mod", V_VOID,
+	BIT_AND, "bit_and", V_VOID,
+	BIT_OR, "bit_or", V_VOID,
+	BIT_XOR, "bit_xor", V_VOID,
+	BIT_LSHIFT, "bit_lshift", V_VOID,
+	BIT_RSHIFT, "bit_rshift", V_VOID,
 	PRE_INC, "pre_inc", V_VOID,
 	PRE_DEC, "pre_dec", V_VOID,
 	POST_INC, "post_inc", V_VOID,
@@ -2574,6 +2698,7 @@ OpInfo ops[MAX_OP] = {
 	AND, "and", V_VOID,
 	OR, "or", V_VOID,
 	NOT, "not", V_VOID,
+	BIT_NOT, "bit_not", V_VOID,
 	JMP, "jmp", V_INT,
 	TJMP, "tjmp", V_INT,
 	FJMP, "fjmp", V_INT,

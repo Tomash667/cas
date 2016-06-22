@@ -275,6 +275,7 @@ void RunCode(RunContext& ctx)
 			break;
 		case NEG:
 		case NOT:
+		case BIT_NOT:
 		case PRE_INC:
 		case PRE_DEC:
 		case POST_INC:
@@ -295,6 +296,11 @@ void RunCode(RunContext& ctx)
 				{
 					assert(v.type == V_BOOL);
 					v.bvalue = !v.bvalue;
+				}
+				else if(op == BIT_NOT)
+				{
+					assert(v.type == V_INT);
+					v.value = ~v.value;
 				}
 				else if(op == DEREF)
 				{
@@ -391,6 +397,11 @@ void RunCode(RunContext& ctx)
 		case LE_EQ:
 		case AND:
 		case OR:
+		case BIT_AND:
+		case BIT_OR:
+		case BIT_XOR:
+		case BIT_LSHIFT:
+		case BIT_RSHIFT:
 			{
 				assert(stack.size() >= 2u);
 				Var right = stack.back();
@@ -403,6 +414,8 @@ void RunCode(RunContext& ctx)
 					assert(left.type == V_BOOL || left.type == V_INT || left.type == V_FLOAT);
 				else if(op == AND || op == OR)
 					assert(left.type == V_BOOL);
+				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
+					assert(left.type == V_INT);
 				else
 					assert(left.type == V_INT || left.type == V_FLOAT);
 
@@ -519,6 +532,21 @@ void RunCode(RunContext& ctx)
 					break;
 				case OR:
 					left.bvalue = (left.bvalue || right.bvalue);
+					break;
+				case BIT_AND:
+					left.value = (left.value & right.value);
+					break;
+				case BIT_OR:
+					left.value = (left.value | right.value);
+					break;
+				case BIT_XOR:
+					left.value = (left.value ^ right.value);
+					break;
+				case BIT_LSHIFT:
+					left.value = (left.value << right.value);
+					break;
+				case BIT_RSHIFT:
+					left.value = (left.value >> right.value);
 					break;
 				}
 			}

@@ -69,10 +69,7 @@ op:
 	!
 	( expr )
 	. <obj_func> args
-	+=
-	-=
-	*=
-	/=
+	[base_op]=
 	=
 	++
 	--
@@ -83,11 +80,17 @@ base_op:
 	*
 	/
 	%
+	&
+	|
+	^
+	>>
+	<<
 
 unary_op:
 	+
 	-
 	!
+	~
 
 inc_dec_op:
 	++
