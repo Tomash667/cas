@@ -21,8 +21,11 @@ vector functions:
 	dla f(1) pisze ¿e brak funkcji f(int), znaleziono f(), f(int,int)
 + call function before declaration
 
++ allow reuse variable name
++ object/string deconstruction
 + class member access
 + class properties
++ class function (this)
 + builtin unit tests for parsing errors
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)
@@ -49,6 +52,8 @@ vector functions:
 + advanced function default params (using expr not const_item)
 + object
 + register function thiscall
++ typeid
++ static type functions
 
 calling conventions
 return value

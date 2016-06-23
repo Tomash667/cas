@@ -99,6 +99,7 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 	f->index = functions.size();
 	f->type = type;
 	f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(f->type->builtin_type));
+	f->required_args++;
 	type->funcs.push_back(f);
 	functions.push_back(f);
 	return true;

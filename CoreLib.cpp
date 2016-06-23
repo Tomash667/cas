@@ -50,6 +50,16 @@ int f_string_length(string& str)
 	return str.length();
 }
 
+int f_int_abs(int a)
+{
+	return abs(a);
+}
+
+float f_float_abs(float a)
+{
+	return abs(a);
+}
+
 void AddType(cstring type_name, VAR_TYPE builtin_type)
 {
 	Type* type = new Type;
@@ -66,8 +76,10 @@ void InitCoreLib()
 	AddType("float", V_FLOAT);
 	AddType("string", V_STRING);
 
-	// string functions
+	// type functions
 	cas::AddMethod("string", "int length()", f_string_length);
+	cas::AddMethod("int", "int abs()", f_int_abs);
+	cas::AddMethod("float", "float abs()", f_float_abs);
 
 	// functions
 	cas::AddFunction("void print(string str)", f_print);

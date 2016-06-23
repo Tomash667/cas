@@ -728,7 +728,7 @@ bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYP
 		return true;
 	case S_PLUS:
 	case S_MINUS:
-		if(left == V_INT || right == V_FLOAT)
+		if(left == V_INT || left == V_FLOAT)
 		{
 			cast = left;
 			result = left;
@@ -1465,7 +1465,6 @@ ParseNode* ParseExpr(char end, char end2)
 					if(!func)
 						t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), var_info[left->type].name);
 					StringPool.Free(right->str);
-					VerifyFunctionCall(right, func);
 					ParseNode* node = ParseNode::Get();
 					node->op = CALL;
 					node->type = func->result;
@@ -1474,6 +1473,7 @@ ParseNode* ParseExpr(char end, char end2)
 					node->push(left);
 					for(ParseNode* n : right->childs)
 						node->push(n);
+					VerifyFunctionCall(node, func);
 					right->Free();
 					stack2.push_back(node);
 				}
@@ -2663,11 +2663,18 @@ void CleanupParser()
 	DeleteElements(ufuncs);
 }
 
+enum EXT_VAR_TYPE
+{
+	V_FUNCTION = V_MAX,
+	V_USER_FUNCTION,
+	V_TYPE
+};
+
 struct OpInfo
 {
 	Op op;
 	cstring name;
-	VAR_TYPE arg1;
+	int arg1;
 };
 
 OpInfo ops[MAX_OP] = {
@@ -2675,7 +2682,7 @@ OpInfo ops[MAX_OP] = {
 	PUSH_FALSE, "push_false", V_VOID,
 	PUSH_INT, "push_int", V_INT,
 	PUSH_FLOAT, "push_float", V_FLOAT,
-	PUSH_STRING, "push_string", V_INT,
+	PUSH_STRING, "push_string", V_STRING,
 	PUSH_LOCAL, "push_local", V_INT,
 	PUSH_LOCAL_REF, "push_local_ref", V_INT,
 	PUSH_GLOBAL, "push_global", V_INT,
@@ -2686,7 +2693,7 @@ OpInfo ops[MAX_OP] = {
 	SET_LOCAL, "set_local", V_INT,
 	SET_GLOBAL, "set_global", V_INT,
 	SET_ARG, "set_arg", V_INT,
-	CAST, "cast", V_INT,
+	CAST, "cast", V_TYPE,
 	NEG, "neg", V_VOID,
 	ADD, "add", V_VOID,
 	SUB, "sub", V_VOID,
@@ -2716,8 +2723,8 @@ OpInfo ops[MAX_OP] = {
 	JMP, "jmp", V_INT,
 	TJMP, "tjmp", V_INT,
 	FJMP, "fjmp", V_INT,
-	CALL, "call", V_INT,
-	CALLU, "callu", V_INT,
+	CALL, "call", V_FUNCTION,
+	CALLU, "callu", V_USER_FUNCTION,
 	RET, "ret", V_VOID
 };
 
@@ -2764,6 +2771,30 @@ void Decompile(ParseContext& ctx)
 					int val = *c++;
 					float value = union_cast<float>(val);
 					cout << Format("[%d %d] %s %g\n", (int)op, val, opi.name, value);
+				}
+				break;
+			case V_STRING:
+				{
+					int str_idx = *c++;
+					cout << Format("[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, ctx.strs[str_idx]->s.c_str());
+				}
+				break;
+			case V_FUNCTION:
+				{
+					int f_idx = *c++;
+					cout << Format("[%d %d] %s %s\n", (int)op, f_idx, opi.name, functions[f_idx]->name.c_str());
+				}
+				break;
+			case V_USER_FUNCTION:
+				{
+					int f_idx = *c++;
+					cout << Format("[%d %d] %s %s\n", (int)op, f_idx, opi.name, ufuncs[f_idx]->name.c_str());
+				}
+				break;
+			case V_TYPE:
+				{
+					int type = *c++;
+					cout << Format("[%d %d] %s %s\n", (int)op, type, opi.name, var_info[type].name);
 				}
 				break;
 			}

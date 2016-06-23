@@ -42,6 +42,7 @@ namespace tests
 		{
 			cas::SetHandler(TestEventHandler);
 			cas::Initialize();
+			Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 		}
 
 		wstring GetWC(cstring s)
@@ -73,6 +74,8 @@ namespace tests
 
 		void Test(cstring filename, cstring input, cstring output, bool optimize = true)
 		{
+			event_output.clear();
+
 			if(input[0] != 0)
 			{
 				Logger::WriteMessage("Script input:\n");
@@ -180,7 +183,7 @@ namespace tests
 		TEST_METHOD(TypeFunc)
 		{
 			Logger::WriteMessage("Test case: TypeFunc ******************************\n");
-			Test("type_func.txt", "", "4\n");
+			Test("type_func.txt", "-9", "4\n9\n6\n3.1415\n");
 		}
 
 		TEST_METHOD(Block)

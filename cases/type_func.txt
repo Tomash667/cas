@@ -1,2 +1,5 @@
 println("test".length());
+println(getint().abs());
+println((-6).abs());
+println((-3.1415).abs());
 pause();

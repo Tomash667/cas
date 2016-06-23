@@ -22,6 +22,7 @@ public:
 		T_INT,
 		T_FLOAT,
 		T_KEYWORD,
+		T_BROKEN_NUMBER,
 
 		T_KEYWORD_GROUP,
 		T_NUMBER,
@@ -274,6 +275,7 @@ public:
 		return false;
 	}
 	inline bool IsBool() const { return IsInt() && (_int == 0 || _int == 1); }
+	inline bool IsBrokenNumber() const { return IsToken(T_BROKEN_NUMBER); }
 
 	//===========================================================================================================================
 	inline cstring GetTokenName(TOKEN _tt) const
@@ -298,6 +300,8 @@ public:
 			return "float";
 		case T_KEYWORD:
 			return "keyword";
+		case T_BROKEN_NUMBER:
+			return "broken number";
 		case T_KEYWORD_GROUP:
 			return "keyword group";
 		case T_NUMBER:
@@ -323,11 +327,11 @@ public:
 		{
 		case T_ITEM:
 		case T_STRING:
+		case T_COMPOUND_SYMBOL:
+		case T_BROKEN_NUMBER:
 			return Format("%s (%s)", GetTokenName(token), item.c_str());
 		case T_SYMBOL:
 			return Format("%s '%c'", GetTokenName(token), _char);
-		case T_COMPOUND_SYMBOL:
-			return Format("%s '%s'", GetTokenName(token), item.c_str());
 		case T_INT:
 			return Format("%s %d", GetTokenName(token), _int);
 		case T_FLOAT:
@@ -406,6 +410,7 @@ public:
 		if(!IsBool())
 			Unexpected(T_BOOL);
 	}
+	inline void AssertBrokenNumber() const { AssertToken(T_BROKEN_NUMBER); }
 
 	//===========================================================================================================================
 	inline TOKEN GetToken() const
@@ -682,6 +687,7 @@ public:
 	}
 
 private:
+	void ParseNumber(uint pos2, bool negative);
 	uint FindFirstNotOf(cstring _str, uint _start);
 	uint FindFirstOf(cstring _str, uint _start);
 	uint FindFirstOfStr(cstring _str, uint _start);

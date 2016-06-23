@@ -3,6 +3,9 @@
 
 cstring ALTER_START = "${";
 cstring ALTER_END = "}$";
+cstring WHITESPACE_SYMBOLS = " \t\n\r,/;'\\[]`<>?:|{}=~!@#$%^&*()+-\"";
+cstring WHITESPACE_SYMBOLS_DOT = " \t\n\r,/;'\\[]`<>?:|{}=~!@#$%^&*()+-\".";
+cstring SYMBOLS = ",./;'\\[]`<>?:|{}=~!@#$%^&*()+-";
 
 bool StringInString(cstring s1, cstring s2)
 {
@@ -95,7 +98,6 @@ redo:
 		return false;
 	}
 
-	cstring symbols = ",./;'\\[]`<>?:|{}=~!@#$%^&*()+-";
 	char c = str->at(pos2);
 	start_pos = pos2;
 
@@ -213,32 +215,7 @@ redo:
 		{
 			char c = str->at(pos2);
 			if(c >= '0' && c <= '9')
-			{
-				// liczba z minusem z przodu
-				pos = FindFirstOf(" \t\n\r,/;'\\[]`<>?:|{}=~!@#$%^&*()+-\"", pos2);
-				if(pos2 == string::npos)
-				{
-					pos = str->length();
-					item = str->substr(pos2);
-				}
-				else
-					item = str->substr(pos2, pos - pos2);
-
-				// czy to liczba?
-				__int64 val;
-				int co = TextHelper::ToNumber(item.c_str(), val, _float);
-				_int = -(int)val;
-				_uint = 0;
-				_float = -_float;
-				if(val > UINT_MAX)
-					WARN(Format("Tokenizer: Too big number %I64, stored as int(%d) and uint(%u).", val, _int, _uint));
-				if(co == 2)
-					token = T_FLOAT;
-				else if(co == 1)
-					token = T_INT;
-				else
-					token = T_ITEM;
-			}
+				ParseNumber(pos2, true);
 			else
 			{
 				// nie liczba, zwróc minus
@@ -251,7 +228,7 @@ redo:
 			}
 		}
 	}
-	else if(strchr(symbols, c))
+	else if(strchr(SYMBOLS, c))
 	{
 		// symbol
 		++charpos;
@@ -260,13 +237,57 @@ redo:
 		_char = c;
 		item = c;
 	}
+	else if(c >= '0' && c <= '9')
+	{
+		// number
+		if(c == '0' && str->at(pos2 + 1) == 'x')
+		{
+			// hex number
+			pos = FindFirstOf(WHITESPACE_SYMBOLS_DOT, pos2);
+			if(pos2 == string::npos)
+			{
+				pos = str->length();
+				item = str->substr(pos2);
+			}
+			else
+				item = str->substr(pos2, pos - pos2);
+
+			uint num = 0;
+			for(uint i = 2; i < item.length(); ++i)
+			{
+				c = tolower(item[i]);
+				if(c >= '0' && c <= '9')
+				{
+					num <<= 4;
+					num += c - '0';
+				}
+				else if(c >= 'a' && c <= 'f')
+				{
+					num <<= 4;
+					num += c - 'a' + 10;
+				}
+				else
+				{
+					WARN(Format("Tokenizer: Broken hex number at %u:%u.", line + 1, charpos + 1));
+					token = T_BROKEN_NUMBER;
+					return true;
+				}
+			}
+			token = T_INT;
+			_int = num;
+			_float = (float)num;
+			_uint = num;
+		}
+		else
+			ParseNumber(pos2, false);
+	}
 	else
 	{
-		// coœ znaleziono, znajdŸ koniec tego czegoœæ
+		// find end of this item
 		bool ignore_dot = false;
-		if((c >= '0' && c <= '9') || IS_SET(flags, F_JOIN_DOT))
+		if(IS_SET(flags, F_JOIN_DOT))
 			ignore_dot = true;
-		pos = FindFirstOf(ignore_dot ? " \t\n\r,/;'\\[]`<>?:|{}=~!@#$%^&*()+-\"" : " \t\n\r,/;'\\[]`<>?:|{}=~!@#$%^&*()+-\".", pos2);
+		pos = FindFirstOf(ignore_dot ? WHITESPACE_SYMBOLS : WHITESPACE_SYMBOLS_DOT, pos2);
 		if(pos2 == string::npos)
 		{
 			pos = str->length();
@@ -275,58 +296,99 @@ redo:
 		else
 			item = str->substr(pos2, pos - pos2);
 
-		// czy to liczba?
-		if(c >= '0' && c <= '9')
-		{
-			if(item.length() > 2 && tolower(item[1]) == 'x')
-			{
-				// hex number
-				uint num = 0;
-				for(uint i = 2; i < item.length(); ++i)
-				{
-					c = tolower(item[i]);
-					if(c >= '0' && c <= '9')
-					{
-						num <<= 4;
-						num += c - '0';
-					}
-					else if(c >= 'a' && c <= 'f')
-					{
-						num <<= 4;
-						num += c - 'a' + 10;
-					}
-					else
-					{
-						WARN(Format("Tokenizer: Broken hex number at %u:%u.", line + 1, charpos + 1));
-						num = 0;
-					}
-				}
-				token = T_INT;
-				_int = num;
-				_float = (float)num;
-				_uint = num;
-			}
-			else
-			{
-				__int64 val;
-				int co = TextHelper::ToNumber(item.c_str(), val, _float);
-				_int = (int)val;
-				_uint = (uint)val;
-				if(val > UINT_MAX)
-					WARN(Format("Tokenizer: Too big number %I64, stored as int(%d) and uint(%u).", val, _int, _uint));
-				if(co == 2)
-					token = T_FLOAT;
-				else if(co == 1)
-					token = T_INT;
-				else
-					token = T_ITEM;
-			}
-		}
-		else
-			CheckItemOrKeyword();
+		CheckItemOrKeyword();
 	}
 
 	return true;
+}
+
+void Tokenizer::ParseNumber(uint pos2, bool negative)
+{
+	item.clear();
+	if(negative)
+		item = "-";
+	int have_dot = 0;
+	/*
+	0 - number
+	1 - number.
+	2 - number.number
+	3 - number.number.
+	*/
+
+	for(uint i = pos2, len = str->length(); i < len; ++i, ++charpos)
+	{
+		char c = str->at(i);
+		if(c >= '0' && c <= '9')
+		{
+			item += c;
+			if(have_dot == 1)
+				have_dot = 2;
+		}
+		else if(c == '.')
+		{
+			if(have_dot == 0)
+			{
+				have_dot = 1;
+				item += c;
+			}
+			else
+			{
+				// second dot, end parsing
+				pos = i;
+				break;
+			}
+		}
+		else if(strchr2(c, WHITESPACE_SYMBOLS) != 0)
+		{
+			// found symbol or whitespace, break
+			pos = i;
+			break;
+		}
+		else
+		{
+			if(have_dot == 0 || have_dot == 2)
+			{
+				// int item -> broken number
+				// int . int item -> broken number
+				// find end of item
+				pos = FindFirstOf(WHITESPACE_SYMBOLS_DOT, i);
+				if(pos == string::npos)
+					item += str->substr(i);
+				else
+					item += str->substr(i, pos - i);
+				token = T_BROKEN_NUMBER;
+				return;
+			}
+			else if(have_dot == 1 || have_dot == 3)
+			{
+				// int dot item
+				pos = i - 1;
+				item.pop_back();
+				break;
+			}
+		}
+	}
+
+	// parse number
+	__int64 val;
+	int type = TextHelper::ToNumber(item.c_str(), val, _float);
+	assert(type > 0);
+	_int = (int)val;
+	if(_int < 0)
+		_uint = 0;
+	else
+		_uint = _int;
+	if(val > UINT_MAX)
+	{
+		WARN(Format("Tokenizer: Too big number %I64.", val));
+		type = 0;
+	}
+	if(type == 2)
+		token = T_FLOAT;
+	else if(type == 1)
+		token = T_INT;
+	else
+		token = T_BROKEN_NUMBER;
 }
 
 //=================================================================================================
