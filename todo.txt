@@ -1,3 +1,19 @@
++ array
+vector functions:
+		count
+		push
+		pop
+		front
+		back
+		insert
+		erase
+		at
+		empty
+	+ const size
+	+ braces initialization
+	+ for each
+	+ operator []
+
 + variadic functions (params)
 + function overloads
 	int f();
@@ -8,7 +24,6 @@
 + class member access
 + class properties
 + builtin unit tests for parsing errors
-+ register functions from string [RegisterFunction("int dodaj(int, int)")]
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)
 + custom cast operators
@@ -20,7 +35,6 @@
 + string functions, [], substr, first(), last(), trim
 + classes
 + function constexpr (abs,cin,cos)
-+ bit operations
 + namespace
 + continue parsing after error
 + in - if(x in {3,5})
@@ -33,3 +47,20 @@
 + function taking or returning reference
 + const
 + advanced function default params (using expr not const_item)
++ object
++ register function thiscall
+
+calling conventions
+return value
+	+ bool, int, float, string
+	+ by ref
+	+ by pointer
+	+ array
+	+ with constr
+	+ with assignment
+	+ with destructor
+	
+array, ctor, dtor, assign, > 2 (>4 x64) - return in memory
+else return in reg
+
+

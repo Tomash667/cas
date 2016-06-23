@@ -135,12 +135,13 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Run.h" />
     <ClInclude Include="Tokenizer.h" />
+    <ClInclude Include="Type.h" />
     <ClInclude Include="Var.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Base.cpp" />
     <ClCompile Include="Cas.cpp" />
-    <ClCompile Include="Function.cpp" />
+    <ClCompile Include="CoreLib.cpp" />
     <ClCompile Include="Parse.cpp" />
     <ClCompile Include="Run.cpp" />
     <ClCompile Include="Tokenizer.cpp" />

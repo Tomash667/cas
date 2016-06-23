@@ -6,12 +6,22 @@
 
 using namespace std;
 
-cstring def_filename = "bit_op.txt";
+cstring def_filename = "type_func.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 
+void HandleEvents(cas::EventType event_type, cstring msg)
+{
+	cout << (event_type == cas::Error ? "ERROR " : "WARN ");
+	cout << msg;
+	cout << '\n';
+}
+
 int main(int argc, char** argv)
 {
+	cas::SetHandler(HandleEvents);
+	cas::Initialize();
+
 	string path;
 	bool optimize = def_optimize;
 	bool decompile = def_decompile;
@@ -85,7 +95,7 @@ int main(int argc, char** argv)
 		ifs.close();
 	}
 
-	bool result = ParseAndRun(content.c_str(), optimize, decompile);
+	bool result = cas::ParseAndRun(content.c_str(), optimize, decompile);
 
 	if(!result)
 	{

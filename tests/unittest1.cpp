@@ -20,8 +20,17 @@ struct PackedData
 unsigned __stdcall ThreadStart(void* data)
 {
 	PackedData* pdata = (PackedData*)data;
-	bool result = ParseAndRun(pdata->input, pdata->optimize);
+	bool result = cas::ParseAndRun(pdata->input, pdata->optimize);
 	return (result ? 1u : 0u);
+}
+
+string event_output;
+
+void TestEventHandler(cas::EventType event_type, cstring msg)
+{
+	cstring m = Format("%s: %s\n", event_type == cas::Error ? "ERROR" : "WARN", msg);
+	Logger::WriteMessage(m);
+	event_output += m;
 }
 
 namespace tests
@@ -29,6 +38,12 @@ namespace tests
 	TEST_CLASS(UnitTest1)
 	{
 	public:
+		TEST_CLASS_INITIALIZE(ClassInitialize)
+		{
+			cas::SetHandler(TestEventHandler);
+			cas::Initialize();
+		}
+
 		wstring GetWC(cstring s)
 		{
 			const size_t len = strlen(s);
@@ -82,12 +97,12 @@ namespace tests
 			cstring ss = s.c_str();
 			if(result == TIMEOUT)
 			{
-				cstring output = Format("Script execution/parsing timeout. Output:\n%s", ss);
+				cstring output = Format("Script execution/parsing timeout. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
 				Assert::Fail(GetWC(output).c_str());
 			}
 			else if(result == FAILED)
 			{
-				cstring output = Format("Script parsing failed. Output:\n%s", ss);
+				cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
 				Assert::Fail(GetWC(output).c_str());
 			}
 			Logger::WriteMessage("Script output:\n");

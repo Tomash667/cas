@@ -14,3 +14,4 @@ bool Parse(ParseContext& ctx);
 void InitializeParser();
 void CleanupParser();
 void Decompile(ParseContext& ctx);
+Function* ParseFuncDecl(cstring decl);

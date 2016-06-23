@@ -4,6 +4,7 @@
 #include "Var.h"
 #include "Function.h"
 #include "Parse.h"
+#include "Cas.h"
 
 #undef CONST
 
@@ -153,7 +154,6 @@ struct Block : ObjectPoolProxy<Block>
 
 struct ParseFunction : CommonFunction
 {
-	string name;
 	uint pos;
 	uint locals;
 	ParseNode* node;
@@ -208,7 +208,7 @@ union Found
 };
 
 
-static Tokenizer t;
+extern Tokenizer t;
 static vector<Str*> strs;
 static vector<ParseFunction*> ufuncs;
 static Block* main_block;
@@ -217,6 +217,7 @@ static ParseFunction* current_function;
 static int breakable_block;
 static int empty_string;
 static bool optimize;
+extern cas::EventHandler handler;
 
 
 void ParseArgs(vector<ParseNode*>& nodes);
@@ -402,17 +403,18 @@ bool TryCast(ParseNode*& node, VAR_TYPE type)
 	return true;
 }
 
-void VerifyFunctionCall(ParseNode* node, CommonFunction* f, cstring name)
+void VerifyFunctionCall(ParseNode* node, CommonFunction* f)
 {
 	// check params count
 	if(node->childs.size() > f->arg_infos.size() || node->childs.size() < f->required_args)
-		t.Throw("Function %s with %d arguments not found, function have %d arguments.", name, node->childs.size(), f->arg_infos.size());
+		t.Throw("Function %s with %d arguments not found, function have %d arguments.", f->name.c_str(), node->childs.size(), f->arg_infos.size());
 
 	// verify params
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
 		if(!TryCast(node->childs[i], f->arg_infos[i].type))
-			t.Throw("Function %s takes %s for argument %d, found %s.", name, var_info[f->arg_infos[i].type].name, i + 1, var_info[node->childs[i]->type].name);
+			t.Throw("Function %s takes %s for argument %d, found %s.", f->name.c_str(), var_info[f->arg_infos[i].type].name, i + 1,
+				var_info[node->childs[i]->type].name);
 	}
 
 	// fill default params
@@ -548,7 +550,7 @@ ParseNode* ParseItem()
 
 				t.Next();
 				ParseArgs(node->childs);
-				VerifyFunctionCall(node, f, f->name);
+				VerifyFunctionCall(node, f);
 
 				return node;
 			}
@@ -563,7 +565,7 @@ ParseNode* ParseItem()
 
 				t.Next();
 				ParseArgs(node->childs);
-				VerifyFunctionCall(node, f, f->name.c_str());
+				VerifyFunctionCall(node, f);
 
 				return node;
 			}
@@ -1463,7 +1465,7 @@ ParseNode* ParseExpr(char end, char end2)
 					if(!func)
 						t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), var_info[left->type].name);
 					StringPool.Free(right->str);
-					VerifyFunctionCall(right, func, func->name);
+					VerifyFunctionCall(right, func);
 					ParseNode* node = ParseNode::Get();
 					node->op = CALL;
 					node->type = func->result;
@@ -1710,6 +1712,75 @@ ParseNode* ParseVarTypeDecl(VAR_TYPE* _type = nullptr, string* _name = nullptr)
 	}
 }
 
+void ParseFunctionArgs(CommonFunction* f, bool real_func)
+{
+	assert(f);
+	f->required_args = 0;
+	if(real_func)
+		current_function = (ParseFunction*)f;
+
+	// args
+	bool prev_arg_def = false;
+	if(!t.IsSymbol(')'))
+	{
+		while(true)
+		{
+			VAR_TYPE type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
+			t.Next();
+			LocalString id = t.MustGetItem();
+			CheckFindItem(id.get_ref());
+			if(real_func)
+			{
+				ParseVar* arg = ParseVar::Get();
+				arg->name = id;
+				arg->type = type;
+				arg->subtype = ParseVar::ARG;
+				arg->index = current_function->args.size();
+				current_function->args.push_back(arg);
+			}
+			t.Next();
+			if(t.IsSymbol('='))
+			{
+				prev_arg_def = true;
+				t.Next();
+				ParseNode* item = ParseConstItem();
+				if(!TryCast(item, type))
+					t.Throw("Invalid default value of type '%s', required '%s'.", var_info[item->type].name, var_info[type].name);
+				switch(item->op)
+				{
+				case PUSH_BOOL:
+					f->arg_infos.push_back(ArgInfo(item->bvalue));
+					break;
+				case PUSH_INT:
+					f->arg_infos.push_back(ArgInfo(item->value));
+					break;
+				case PUSH_FLOAT:
+					f->arg_infos.push_back(ArgInfo(item->fvalue));
+					break;
+				case PUSH_STRING:
+					f->arg_infos.push_back(ArgInfo(V_STRING, item->value));
+					break;
+				default:
+					assert(0);
+					break;
+				}
+			}
+			else
+			{
+				if(prev_arg_def)
+					t.Throw("Missing default value for argument '%s'.", id.c_str());
+				f->arg_infos.push_back(ArgInfo(type));
+				f->required_args++;
+			}
+			if(t.IsSymbol(')'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		}
+	}
+	t.Next();
+}
+
 // can return null
 ParseNode* ParseLine()
 {
@@ -1889,66 +1960,9 @@ ParseNode* ParseLine()
 			f->name = str;
 			f->index = ufuncs.size();
 			f->result = type;
-			f->required_args = 0;
-			current_function = f;
 
 			// args
-			bool prev_arg_def = false;
-			if(!t.IsSymbol(')'))
-			{
-				while(true)
-				{
-					VAR_TYPE type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
-					t.Next();
-					const string& id = t.MustGetItem();
-					CheckFindItem(id);
-					ParseVar* arg = ParseVar::Get();
-					arg->name = id;
-					arg->type = type;
-					arg->subtype = ParseVar::ARG;
-					arg->index = current_function->args.size();
-					current_function->args.push_back(arg);
-					t.Next();
-					if(t.IsSymbol('='))
-					{
-						prev_arg_def = true;
-						t.Next();
-						ParseNode* item = ParseConstItem();
-						if(!TryCast(item, type))
-							t.Throw("Invalid default value of type '%s', required '%s'.", var_info[item->type].name, var_info[type].name);
-						switch(item->op)
-						{
-						case PUSH_BOOL:
-							f->arg_infos.push_back(ArgInfo(item->bvalue));
-							break;
-						case PUSH_INT:
-							f->arg_infos.push_back(ArgInfo(item->value));
-							break;
-						case PUSH_FLOAT:
-							f->arg_infos.push_back(ArgInfo(item->fvalue));
-							break;
-						case PUSH_STRING:
-							f->arg_infos.push_back(ArgInfo(V_STRING, item->value));
-							break;
-						default:
-							assert(0);
-							break;
-						}
-					}
-					else
-					{
-						if(prev_arg_def)
-							t.Throw("Missing default value for argument '%s'.", arg->name.c_str());
-						f->arg_infos.push_back(ArgInfo(type));
-						f->required_args++;
-					}
-					if(t.IsSymbol(')'))
-						break;
-					t.AssertSymbol(',');
-					t.Next();
-				}
-			}
-			t.Next();
+			ParseFunctionArgs(f, true);
 			
 			// block
 			f->node = ParseBlock(f);
@@ -2610,7 +2624,7 @@ bool Parse(ParseContext& ctx)
 	}
 	catch(const Tokenizer::Exception& e)
 	{
-		cout << Format("Parse error: %s", e.ToString());
+		handler(cas::Error, e.ToString());
 		return false;
 	}
 }
@@ -2756,4 +2770,39 @@ void Decompile(ParseContext& ctx)
 		}
 	}
 	cout << "\n";
+}
+
+// var_type <func_name> ( [var_type <arg_name> [= const_item] [, ...]] )
+Function* ParseFuncDecl(cstring decl)
+{
+	assert(decl);
+
+	Function* f = new Function;
+
+	try
+	{
+		t.FromString(decl);
+		t.Next();
+
+		f->result = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
+		t.Next();
+
+		f->name = t.MustGetItem();
+		t.Next();
+
+		t.AssertSymbol('(');
+		t.Next();
+
+		ParseFunctionArgs(f, false);
+
+		t.AssertEof();
+	}
+	catch(Tokenizer::Exception& e)
+	{
+		handler(cas::Error, e.ToString());
+		delete f;
+		f = nullptr;
+	}
+
+	return f;
 }

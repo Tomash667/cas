@@ -18,9 +18,117 @@ enum SPECIAL_VAR
 };
 
 vector<Var> stack, global, local;
-vector<Function> functions;
 vector<uint> expected_stack;
 int current_function, args_offset, locals_offset;
+
+void ExecuteFunction(Function& f)
+{
+	assert(f.arg_infos.size() < 15u);
+	int packedArgs[16];
+	int packed = 0;
+	Str* str_ret = nullptr;
+
+	// verify and pack args
+	assert(stack.size() >= f.arg_infos.size());
+	for(uint i = 0; i < f.arg_infos.size(); ++i)
+	{
+		Var& v = stack.at(stack.size() - f.arg_infos.size() + i);
+		assert(v.type == f.arg_infos[i].type);
+		int value;
+		switch(v.type)
+		{
+		case V_INT:
+		case V_BOOL:
+		case V_FLOAT:
+			value = v.value;
+			break;
+		case V_STRING:
+			value = (int)&v.str->s;
+			break;
+		default:
+			assert(0);
+			break;
+		}
+		packedArgs[packed++] = value;
+	}
+
+	// string return value
+	if(f.result == V_STRING)
+	{
+		str_ret = Str::Get();
+		str_ret->refs = 1;
+		packedArgs[packed++] = (int)(&str_ret->s);
+	}
+
+	// call
+	void* clbk = f.clbk;
+	int result;
+	float fresult;
+	uint packedSize = packed * 4;
+	int* args = &packedArgs[0];
+	__asm
+	{
+		push ecx;
+
+		// copy args
+		mov ecx, packedSize;
+		mov eax, args;
+		add eax, ecx;
+		cmp ecx, 0;
+		je endcopy;
+	copyloop:
+		sub eax, 4;
+		push dword ptr[eax];
+		sub ecx, 4;
+		jne copyloop;
+	endcopy:
+
+		// call
+		call clbk;
+
+		// get result
+		add esp, packedSize;
+		mov result, eax;
+		fstp fresult;
+		pop ecx;
+		
+		// 64 bit type
+		//lea  ecx, retQW
+		//mov  [ecx], eax
+		//mov  4[ecx], edx
+	};
+
+	// update stack
+	for(uint i = 0; i < f.arg_infos.size(); ++i)
+	{
+		Var& v = stack.back();
+		if(v.type == V_STRING)
+			v.str->Release();
+		stack.pop_back();
+	}
+
+	// push result
+	switch(f.result)
+	{
+	case V_VOID:
+		break;
+	case V_BOOL:
+		stack.push_back(Var(result != 0));
+		break;
+	case V_INT:
+		stack.push_back(Var(result));
+		break;
+	case V_FLOAT:
+		stack.push_back(Var(fresult));
+		break;
+	case V_STRING:
+		stack.push_back(Var(str_ret));
+		break;
+	default:
+		assert(0);
+		break;
+	}
+}
 
 void RunCode(RunContext& ctx)
 {
@@ -619,17 +727,8 @@ void RunCode(RunContext& ctx)
 			{
 				uint f_idx = *c++;
 				assert(f_idx < functions.size());
-				Function& f = functions[f_idx];
-				assert(stack.size() >= f.arg_infos.size());
-				uint expected_stack_size = stack.size() - f.arg_infos.size();
-				if(f.result != V_VOID)
-					++expected_stack_size;
-				if(f.var_type != V_VOID)
-					--expected_stack_size;
-				for(uint i = 0; i < f.arg_infos.size(); ++i)
-					assert(stack.at(stack.size() - f.arg_infos.size() + i).type == f.arg_infos[i].type);
-				f.clbk();
-				assert(expected_stack_size == stack.size());
+				Function& f = *functions[f_idx];
+				ExecuteFunction(f);
 			}
 			break;
 		case CALLU:
