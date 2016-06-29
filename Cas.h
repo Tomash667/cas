@@ -17,6 +17,8 @@ namespace cas
 	bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false);
 	bool AddFunction(cstring decl, void* ptr);
 	bool AddMethod(cstring type_name, cstring decl, void* ptr);
+	bool AddType(cstring type_name, int size);
+	bool AddMember(cstring type_name, cstring decl, int offset);
 	void RegisterStandardLib();
 };
 

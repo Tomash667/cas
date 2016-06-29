@@ -8,25 +8,155 @@ enum REF_TYPE
 {
 	REF_GLOBAL,
 	REF_LOCAL,
-	REF_ARG
+	REF_MEMBER
 };
 
 enum SPECIAL_VAR
 {
-	V_REF,
 	V_FUNCTION
+};
+
+struct Class
+{
+	int refs;
+	Type* type;
+
+	inline int* data()
+	{
+		return ((int*)this) + 2;
+	}
+	
+	inline byte* at_data(uint offset)
+	{
+		return ((byte*)data()) + offset;
+	}
+
+	template<typename T>
+	inline T& at(uint offset)
+	{
+		return *(T*)at_data(offset);
+	}
+
+	inline static Class* Create(Type* type)
+	{
+		assert(type);
+		byte* data = new byte[type->size + 8];
+		memset(data + 8, 0, type->size);
+		Class* c = (Class*)data;
+		c->refs = 1;
+		c->type = type;
+		return c;
+	}
+
+	inline void Release()
+	{
+		if(--refs == 0)
+			delete this;
+	}
+};
+
+struct Var
+{
+	int type;
+	union
+	{
+		bool bvalue;
+		int value;
+		float fvalue;
+		Str* str;
+		struct
+		{
+			REF_TYPE ref_type;
+			Class* ref_class;
+			uint ref_index;
+		};
+		Class* clas;
+		struct
+		{
+			int special_type;
+			int value1;
+			int value2;
+		};
+	};
+
+	inline explicit Var() : type(V_VOID) {}
+	inline explicit Var(bool bvalue) : type(V_BOOL), bvalue(bvalue) {}
+	inline explicit Var(int value) : type(V_INT), value(value) {}
+	inline explicit Var(float fvalue) : type(V_FLOAT), fvalue(fvalue) {}
+	inline explicit Var(Str* str) : type(V_STRING), str(str) {}
+	inline Var(REF_TYPE ref_type, uint ref_index, Class* ref_class) : type(V_REF), ref_type(ref_type), ref_index(ref_index), ref_class(ref_class) {}
+	inline explicit Var(Class* clas) : type(clas->type->index), clas(clas) {}
+	inline Var(int type, int special_type, int value1, int value2) : type(type), special_type(special_type), value1(value1), value2(value2) {}
 };
 
 vector<Var> stack, global, local;
 vector<uint> expected_stack;
 int current_function, args_offset, locals_offset;
 
+void AddRef(Var& v)
+{
+	assert(v.type != V_VOID && v.type != V_REF);
+	if(v.type == V_STRING)
+		v.str->refs++;
+	else if(v.type >= V_CLASS)
+		v.clas->refs++;
+}
+
+void ReleaseRef(Var& v)
+{
+	if(v.type == V_STRING)
+		v.str->Release();
+	else if(v.type >= V_CLASS)
+		v.clas->Release();
+	else if(v.type == V_REF && v.ref_type == REF_MEMBER)
+		v.ref_class->Release();
+}
+
+struct GetRefData
+{
+	int* data;
+	int type;
+
+	inline GetRefData(int* data, int type) : data(data), type(type) {}
+
+	template<typename T>
+	inline T& as()
+	{
+		return *(T*)data;
+	}
+};
+
+GetRefData GetRef(Var& v)
+{
+	assert(v.type == V_REF);
+	if(v.ref_type == REF_LOCAL)
+	{
+		assert(v.ref_index < local.size());
+		Var& vr = local[v.ref_index];
+		return GetRefData(&vr.value, vr.type);
+	}
+	else if(v.ref_type == REF_GLOBAL)
+	{
+		assert(v.ref_index < global.size());
+		Var& vr = global[v.ref_index];
+		return GetRefData(&vr.value, vr.type);
+	}
+	else
+	{
+		assert(v.ref_type == REF_MEMBER);
+		Class* c = v.ref_class;
+		Member* m = c->type->members[v.ref_index];
+		return GetRefData((int*)c->at_data(m->offset), m->type);
+	}
+}
+
 void ExecuteFunction(Function& f)
 {
 	assert(f.arg_infos.size() < 15u);
 	int packedArgs[16];
 	int packed = 0;
-	Str* str_ret = nullptr;
+	void* retptr = nullptr;
+	bool in_mem = false;
 
 	// verify and pack args
 	assert(stack.size() >= f.arg_infos.size());
@@ -37,13 +167,16 @@ void ExecuteFunction(Function& f)
 		int value;
 		switch(v.type)
 		{
-		case V_INT:
 		case V_BOOL:
+		case V_INT:
 		case V_FLOAT:
 			value = v.value;
 			break;
 		case V_STRING:
 			value = (int)&v.str->s;
+			break;
+		case V_CLASS:
+			value = (int)v.clas->data();
 			break;
 		default:
 			assert(0);
@@ -52,17 +185,38 @@ void ExecuteFunction(Function& f)
 		packedArgs[packed++] = value;
 	}
 
-	// string return value
 	if(f.result == V_STRING)
 	{
-		str_ret = Str::Get();
-		str_ret->refs = 1;
-		packedArgs[packed++] = (int)(&str_ret->s);
+		// string return value
+		Str* str = Str::Get();
+		str->refs = 1;
+		packedArgs[packed++] = (int)(&str->s);
+		retptr = str;
+	}
+	else if(f.result >= V_CLASS)
+	{
+		// class return value
+		Type* type = types[f.result];
+		Class* c = Class::Create(type);
+		retptr = c;
+		if(type->size > 8)
+		{
+			packedArgs[packed++] = (int)c->data();
+			in_mem = true;
+		}
 	}
 
 	// call
 	void* clbk = f.clbk;
-	int result;
+	union
+	{
+		struct
+		{
+			int low;
+			int high;
+		};
+		__int64 qw;
+	} result;
 	float fresult;
 	uint packedSize = packed * 4;
 	int* args = &packedArgs[0];
@@ -88,22 +242,18 @@ void ExecuteFunction(Function& f)
 
 		// get result
 		add esp, packedSize;
-		mov result, eax;
+		lea ecx, result;
+		mov [ecx], eax;
+		mov 4[ecx], edx;
 		fstp fresult;
 		pop ecx;
-		
-		// 64 bit type
-		//lea  ecx, retQW
-		//mov  [ecx], eax
-		//mov  4[ecx], edx
 	};
 
 	// update stack
 	for(uint i = 0; i < f.arg_infos.size(); ++i)
 	{
 		Var& v = stack.back();
-		if(v.type == V_STRING)
-			v.str->Release();
+		ReleaseRef(v);
 		stack.pop_back();
 	}
 
@@ -113,19 +263,27 @@ void ExecuteFunction(Function& f)
 	case V_VOID:
 		break;
 	case V_BOOL:
-		stack.push_back(Var(result != 0));
+		stack.push_back(Var(result.low != 0));
 		break;
 	case V_INT:
-		stack.push_back(Var(result));
+		stack.push_back(Var(result.low));
 		break;
 	case V_FLOAT:
 		stack.push_back(Var(fresult));
 		break;
 	case V_STRING:
-		stack.push_back(Var(str_ret));
+		stack.push_back(Var((Str*)retptr));
 		break;
 	default:
-		assert(0);
+		if(f.result >= V_CLASS)
+		{
+			Class* c = (Class*)retptr;
+			if(!in_mem)
+				memcpy(c->data(), &result, c->type->size);
+			stack.push_back(Var(c));
+		}
+		else
+			assert(0);
 		break;
 	}
 }
@@ -133,6 +291,7 @@ void ExecuteFunction(Function& f)
 void RunCode(RunContext& ctx)
 {
 	stack.clear();
+	global.clear();
 	global.resize(ctx.globals);
 	local.clear();
 	current_function = -1;
@@ -180,9 +339,7 @@ void RunCode(RunContext& ctx)
 				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
 				assert(ctx.ufuncs[current_function].locals > local_index);
 				Var& v = local[locals_offset + local_index];
-				assert(v.type != V_VOID);
-				if(v.type == V_STRING)
-					v.str->refs++;
+				AddRef(v);
 				stack.push_back(v);
 			}
 			break;
@@ -191,9 +348,10 @@ void RunCode(RunContext& ctx)
 				uint local_index = *c++;
 				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
 				assert(ctx.ufuncs[current_function].locals > local_index);
-				Var& v = local[locals_offset + local_index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING);
-				stack.push_back(Var(V_REF, local_index, REF_LOCAL));
+				uint index = locals_offset + local_index;
+				Var& v = local[index];
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
+				stack.push_back(Var(REF_LOCAL, index, nullptr));
 			}
 			break;
 		case PUSH_GLOBAL:
@@ -201,9 +359,7 @@ void RunCode(RunContext& ctx)
 				uint global_index = *c++;
 				assert(global_index < global.size());
 				Var& v = global[global_index];
-				assert(v.type != V_VOID);
-				if(v.type == V_STRING)
-					v.str->refs++;
+				AddRef(v);
 				stack.push_back(v);
 			}
 			break;
@@ -212,8 +368,8 @@ void RunCode(RunContext& ctx)
 				uint global_index = *c++;
 				assert(global_index < global.size());
 				Var& v = global[global_index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING);
-				stack.push_back(Var(V_REF, global_index, REF_GLOBAL));
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
+				stack.push_back(Var(REF_GLOBAL, global_index, nullptr));
 			}
 			break;
 		case PUSH_ARG:
@@ -222,9 +378,7 @@ void RunCode(RunContext& ctx)
 				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
 				assert(ctx.ufuncs[current_function].args.size() > arg_index);
 				Var& v = local[args_offset + arg_index];
-				assert(v.type != V_VOID);
-				if(v.type == V_STRING)
-					v.str->refs++;
+				AddRef(v);
 				stack.push_back(v);
 			}
 			break;
@@ -233,17 +387,62 @@ void RunCode(RunContext& ctx)
 				uint arg_index = *c++;
 				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
 				assert(ctx.ufuncs[current_function].args.size() > arg_index);
-				Var& v = local[args_offset + arg_index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING);
-				stack.push_back(Var(V_REF, arg_index, REF_ARG));
+				uint index = args_offset + arg_index;
+				Var& v = local[index];
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
+				stack.push_back(Var(REF_LOCAL, index, nullptr));
+			}
+			break;
+		case PUSH_MEMBER:
+			{
+				assert(!stack.empty());
+				Var& v = stack.back();
+				assert(v.type >= V_CLASS);
+				Type* type = types[v.type];
+				uint member_index = *c++;
+				assert(member_index < type->members.size());
+				Member* m = type->members[member_index];
+				Class* c = v.clas;
+				stack.pop_back();
+				switch(m->type)
+				{
+				case V_BOOL:
+					stack.push_back(Var(c->at<bool>(m->offset)));
+					break;
+				case V_INT:
+					stack.push_back(Var(c->at<int>(m->offset)));
+					break;
+				case V_FLOAT:
+					stack.push_back(Var(c->at<float>(m->offset)));
+					break;
+				default:
+					assert(0);
+					break;
+				}
+				c->Release();
+			}
+			break;
+		case PUSH_MEMBER_REF:
+			{
+				// don't release class ref because MEMBER_REF increase by 1
+				assert(!stack.empty());
+				Var& v = stack.back();
+				assert(v.type >= V_CLASS);
+				Type* type = types[v.type];
+				uint member_index = *c++;
+				assert(member_index < type->members.size());
+				Member* m = type->members[member_index];
+				assert(m->type == V_BOOL || m->type == V_INT || m->type == V_FLOAT);
+				Class* c = v.clas;
+				stack.pop_back();
+				stack.push_back(Var(REF_MEMBER, member_index, c));
 			}
 			break;
 		case POP:
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
-				if(v.type == V_STRING)
-					v.str->Release();
+				ReleaseRef(v);
 				stack.pop_back();
 			}
 			break;
@@ -254,13 +453,12 @@ void RunCode(RunContext& ctx)
 				assert(ctx.ufuncs[current_function].locals > local_index);
 				assert(!stack.empty());
 				Var& v = local[locals_offset + local_index];
+				assert(v.type == V_VOID || v.type == stack.back().type);
 				// free what was in variable previously
-				if(v.type == V_STRING)
-					v.str->Release();
-				Var& s = stack.back();
+				ReleaseRef(v);
 				// incrase reference for new var
-				if(s.type == V_STRING)
-					s.str->refs++;
+				Var& s = stack.back();
+				AddRef(s);
 				v = s;
 			}
 			break;
@@ -270,13 +468,12 @@ void RunCode(RunContext& ctx)
 				assert(global_index < global.size());
 				assert(!stack.empty());
 				Var& v = global[global_index];
+				assert(v.type == V_VOID || v.type == stack.back().type);
 				// free what was in variable previously
-				if(v.type == V_STRING)
-					v.str->Release();
+				ReleaseRef(v);
 				Var& s = stack.back();
 				// incrase reference for new var
-				if(s.type == V_STRING)
-					s.str->refs++;
+				AddRef(s);
 				v = s;
 			}
 			break;
@@ -287,20 +484,55 @@ void RunCode(RunContext& ctx)
 				assert(ctx.ufuncs[current_function].args.size() > arg_index);
 				assert(!stack.empty());
 				Var& v = local[args_offset + arg_index];
+				assert(v.type == stack.back().type);
 				// free what was in variable previously
-				if(v.type == V_STRING)
-					v.str->Release();
+				ReleaseRef(v);
 				Var& s = stack.back();
 				// incrase reference for new var
-				if(s.type == V_STRING)
-					s.str->refs++;
+				AddRef(s);
 				v = s;
+			}
+			break;
+		case SET_MEMBER:
+			{
+				// get class
+				assert(stack.size() >= 2u);
+				Var& cv = stack.back();
+				assert(cv.type >= V_CLASS);
+				Type* type = types[cv.type];
+				uint member_index = *c++;
+				assert(member_index < type->members.size());
+				Member* m = type->members[member_index];
+				Class* c = cv.clas;
+				stack.pop_back();
+
+				// get value
+				Var& v = stack.back();
+				assert(v.type == m->type);
+
+				switch(m->type)
+				{
+				case V_BOOL:
+					c->at<bool>(m->offset) = v.bvalue;
+					break;
+				case V_INT:
+					c->at<int>(m->offset) = v.value;
+					break;
+				case V_FLOAT:
+					c->at<float>(m->offset) = v.fvalue;
+					break;
+				default:
+					assert(0);
+					break;
+				}
+
+				c->Release();
 			}
 			break;
 		case CAST:
 			// allowed casts bool/int/float -> anything
 			{
-				VAR_TYPE type = (VAR_TYPE)*c++;
+				int type = *c++;
 				assert(!stack.empty());
 				Var& v = stack.back();
 				assert(v.type == V_BOOL || v.type == V_INT || v.type == V_FLOAT);
@@ -412,81 +644,42 @@ void RunCode(RunContext& ctx)
 				}
 				else if(op == DEREF)
 				{
-					assert(v.type == V_REF);
-					Var* vr;
-					if(v.value2 == REF_LOCAL)
-					{
-						assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-						assert(ctx.ufuncs[current_function].locals > (uint)v.value1);
-						vr = &local[locals_offset + v.value1];
-					}
-					else if(v.value2 == REF_GLOBAL)
-					{
-						assert(global.size() > (uint)v.value1);
-						vr = &global[v.value1];
-					}
-					else
-					{
-						assert(v.value2 == REF_ARG);
-						assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-						assert(ctx.ufuncs[current_function].args.size() >(uint)v.value1);
-						vr = &local[args_offset + v.value1];
-					}
-					v = *vr;
-					if(v.type == V_STRING)
-						v.str->refs++;
+					auto data = GetRef(v);
+					v.type = data.type;
+					v.value = *data.data;
+					AddRef(v);
 				}
 				else
 				{
-					assert(v.type == V_REF);
-					Var* vr;
-					if(v.value2 == REF_LOCAL)
-					{
-						assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-						assert(ctx.ufuncs[current_function].locals >(uint)v.value1);
-						vr = &local[locals_offset + v.value1];
-					}
-					else if(v.value2 == REF_GLOBAL)
-					{
-						assert(global.size() > (uint)v.value1);
-						vr = &global[v.value1];
-					}
-					else
-					{
-						assert(v.value2 == REF_ARG);
-						assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-						assert(ctx.ufuncs[current_function].args.size() >(uint)v.value1);
-						vr = &local[args_offset + v.value1];
-					}
-					Var& rv = *vr;
-					assert(rv.type == V_INT || rv.type == V_FLOAT);
+					auto data = GetRef(v);
+					assert(data.type == V_INT || data.type == V_FLOAT);
 					switch(op)
 					{
 					case PRE_INC:
-						if(rv.type == V_INT)
-							++rv.value;
+						if(data.type == V_INT)
+							++data.as<int>();
 						else
-							++rv.fvalue;
+							++data.as<float>();
 						break;
 					case PRE_DEC:
-						if(rv.type == V_INT)
-							--rv.value;
+						if(data.type == V_INT)
+							--data.as<int>();
 						else
-							--rv.fvalue;
+							--data.as<float>();
 						break;
 					case POST_INC:
 						stack.pop_back();
-						if(rv.type == V_INT)
-							stack.push_back(Var(rv.value++));
+						if(data.type == V_INT)
+							stack.push_back(Var(data.as<int>()++));
 						else
-							stack.push_back(Var(rv.fvalue++));
+							stack.push_back(Var(data.as<float>()++));
 						break;
 					case POST_DEC:
 						stack.pop_back();
-						if(rv.type == V_INT)
-							stack.push_back(Var(rv.value--));
+						if(data.type == V_INT)
+							stack.push_back(Var(data.as<int>()--));
 						else
-							stack.push_back(Var(rv.fvalue--));
+							stack.push_back(Var(data.as<float>()--));
 						break;
 					}
 				}
@@ -670,7 +863,7 @@ void RunCode(RunContext& ctx)
 			{
 				assert((uint)current_function < ctx.ufuncs.size());
 				UserFunction& f = ctx.ufuncs[current_function];
-				uint to_pop = f.locals + f.GetArgs();
+				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
 				while(to_pop--)
 				{
@@ -680,7 +873,7 @@ void RunCode(RunContext& ctx)
 					local.pop_back();
 				}
 				Var& func_mark = local.back();
-				assert(func_mark.type == V_FUNCTION);
+				assert(func_mark.type == V_SPECIAL && func_mark.special_type == V_FUNCTION);
 				c = start + func_mark.value2;
 				current_function = func_mark.value1;
 				local.pop_back();
@@ -689,9 +882,9 @@ void RunCode(RunContext& ctx)
 					// checking local stack
 					assert((uint)current_function < ctx.ufuncs.size());
 					UserFunction& f = ctx.ufuncs[current_function];
-					uint count = 1 + f.locals + f.GetArgs();
+					uint count = 1 + f.locals + f.args.size();
 					assert(local.size() >= count);
-					assert((local.end() - count)->type == V_FUNCTION);
+					assert((local.end() - count)->type == V_SPECIAL && (local.end() - count)->special_type == V_FUNCTION);
 				}
 				assert(expected_stack.back() == stack.size());
 				if(f.result != V_VOID)
@@ -738,12 +931,12 @@ void RunCode(RunContext& ctx)
 				UserFunction& f = ctx.ufuncs[f_idx];
 				// push function to locals
 				uint pos = c - start;
-				local.push_back(Var(V_FUNCTION, current_function, pos));
+				local.push_back(Var(V_SPECIAL, V_FUNCTION, current_function, pos));
 				// handle args
 				assert(stack.size() >= f.args.size());
 				args_offset = local.size();
-				local.resize(local.size() + f.GetArgs());
-				for(uint i = 0, count = f.GetArgs(); i < count; ++i)
+				local.resize(local.size() + f.args.size());
+				for(uint i = 0, count = f.args.size(); i < count; ++i)
 				{
 					assert(f.args[count - 1 - i] == stack.back().type);
 					local[args_offset + count - 1 - i] = stack.back();
@@ -759,6 +952,15 @@ void RunCode(RunContext& ctx)
 				expected_stack.push_back(expected);
 				current_function = f_idx;
 				c = start + f.pos;
+			}
+			break;
+		case CTOR:
+			{
+				uint type_index = *c++;
+				assert(type_index >= V_CLASS && type_index < types.size());
+				Type* type = types[type_index];
+				Class* c = Class::Create(type);
+				stack.push_back(Var(c));
 			}
 			break;
 		default:

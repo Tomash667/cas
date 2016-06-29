@@ -136,7 +136,6 @@
     <ClInclude Include="Run.h" />
     <ClInclude Include="Tokenizer.h" />
     <ClInclude Include="Type.h" />
-    <ClInclude Include="Var.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Base.cpp" />

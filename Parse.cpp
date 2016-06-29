@@ -1,7 +1,6 @@
 #include "Pch.h"
 #include "Base.h"
 #include "Op.h"
-#include "Var.h"
 #include "Function.h"
 #include "Parse.h"
 #include "Cas.h"
@@ -46,7 +45,8 @@ enum PseudoOp
 	PUSH_BOOL,
 	NOP,
 	IF,
-	PRE_CALL,
+	OBJ_MEMBER,
+	OBJ_FUNC,
 	DO_WHILE,
 	WHILE,
 	FOR,
@@ -74,12 +74,13 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 	{
 		LOCAL,
 		GLOBAL,
-		ARG
+		ARG,
+		MEMBER
 	};
 
 	string name;
 	int index;
-	VAR_TYPE type;
+	int type;
 	Type subtype;
 };
 
@@ -98,11 +99,16 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		string* str;
 		ParseVar* var;
 	};
-	VAR_TYPE type;
+	int type;
 	vector<ParseNode*> childs;
 	RefType ref;
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
+	inline void push(vector<ParseNode*> ps)
+	{
+		for(ParseNode* p : ps)
+			childs.push_back(p);
+	}
 	inline void OnFree() { SafeFree(childs); }
 };
 
@@ -172,7 +178,6 @@ struct ParseFunction : CommonFunction
 	}
 };
 
-
 union Found
 {
 	ParseVar* var;
@@ -228,7 +233,7 @@ ParseNode* ParseLineOrBlock();
 
 FOUND FindItem(const string& id, Found& found)
 {
-	Function* func = FindFunction(id);
+	Function* func = Function::Find(id);
 	if(func)
 	{
 		found.func = func;
@@ -281,7 +286,7 @@ void CheckFindItem(const string& id)
 		t.Throw("Name '%s' already used as %s.", id.c_str(), found.ToString(found_type));
 }
 
-bool TryConstCast(ParseNode* node, VAR_TYPE type)
+bool TryConstCast(ParseNode* node, int type)
 {
 	if(type == V_STRING)
 		return false;
@@ -350,7 +355,7 @@ bool TryConstCast(ParseNode* node, VAR_TYPE type)
 		return false;
 }
 
-void Cast(ParseNode*& node, VAR_TYPE type)
+void Cast(ParseNode*& node, int type)
 {
 	// no cast required?
 	if(type == V_VOID || (node->type == type && node->ref != REF))
@@ -385,14 +390,14 @@ void Cast(ParseNode*& node, VAR_TYPE type)
 }
 
 // used in var assignment, passing argument to function
-bool TryCast(ParseNode*& node, VAR_TYPE type)
+bool TryCast(ParseNode*& node, int type)
 {
 	// no cast required?
 	if(node->type == type)
 		return true;
 
-	// can't cast from void
-	if(node->type == V_VOID)
+	// can't cast from void, can't cast class
+	if(node->type == V_VOID || node->type >= V_CLASS || type >= V_CLASS)
 		return false;
 
 	// no implicit cast from string to bool/int/float
@@ -413,8 +418,8 @@ void VerifyFunctionCall(ParseNode* node, CommonFunction* f)
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
 		if(!TryCast(node->childs[i], f->arg_infos[i].type))
-			t.Throw("Function %s takes %s for argument %d, found %s.", f->name.c_str(), var_info[f->arg_infos[i].type].name, i + 1,
-				var_info[node->childs[i]->type].name);
+			t.Throw("Function %s takes %s for argument %d, found %s.", f->name.c_str(), types[f->arg_infos[i].type]->name.c_str(), i + 1,
+				types[node->childs[i]->type]->name.c_str());
 	}
 
 	// fill default params
@@ -693,14 +698,16 @@ enum LEFT
 	LEFT_POST
 };
 
-bool CanOp(SYMBOL symbol, VAR_TYPE left, VAR_TYPE right, VAR_TYPE& cast, VAR_TYPE& result)
+bool CanOp(SYMBOL symbol, int left, int right, int& cast, int& result)
 {
 	if(left == V_VOID)
 		return false;
 	if(right == V_VOID && symbols[symbol].args != 1)
 		return false;
+	if(left >= V_CLASS || right >= V_CLASS)
+		return false;
 
-	VAR_TYPE type;
+	int type;
 	switch(symbol)
 	{
 	case S_ADD:
@@ -1077,6 +1084,9 @@ void RequireRef(ParseNode* node, cstring op_name)
 		case PUSH_ARG:
 			node->op = PUSH_ARG_REF;
 			break;
+		case PUSH_MEMBER:
+			node->op = PUSH_MEMBER_REF;
+			break;
 		default:
 			assert(0);
 			break;
@@ -1383,11 +1393,16 @@ ParseNode* ParseExpr(char end, char end2)
 				*str = t.MustGetItem();
 				t.Next();
 				ParseNode* node = ParseNode::Get();
-				node->pseudo_op = PRE_CALL;
 				node->type = V_VOID;
 				node->str = str;
 				node->ref = NO_REF;
-				ParseArgs(node->childs);
+				if(t.IsSymbol('('))
+				{
+					ParseArgs(node->childs);
+					node->pseudo_op = OBJ_FUNC;
+				}
+				else
+					node->pseudo_op = OBJ_MEMBER;
 				exit.push_back(node);
 				left = BS_MAX;
 				goto next_symbol;
@@ -1418,9 +1433,9 @@ ParseNode* ParseExpr(char end, char end2)
 				stack2.pop_back();
 				if(si.type == ST_NONE)
 				{
-					VAR_TYPE cast, result;
+					int cast, result;
 					if(!CanOp(sn.symbol, node->type, V_VOID, cast, result))
-						t.Throw("Invalid type '%s' for operation '%s'.", var_info[node->type].name, si.name);
+						t.Throw("Invalid type '%s' for operation '%s'.", types[node->type]->name.c_str(), si.name);
 					Cast(node, cast);
 					if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
 					{
@@ -1437,7 +1452,7 @@ ParseNode* ParseExpr(char end, char end2)
 				{
 					assert(si.type == ST_INC_DEC);
 					if(node->type != V_INT && node->type != V_FLOAT)
-						t.Throw("Invalid type '%s' for operation '%s'.", var_info[node->type].name, si.name);
+						t.Throw("Invalid type '%s' for operation '%s'.", types[node->type]->name.c_str(), si.name);
 					RequireRef(node, si.name);
 
 					ParseNode* op = ParseNode::Get();
@@ -1458,41 +1473,64 @@ ParseNode* ParseExpr(char end, char end2)
 
 				if(si.symbol == S_MEMBER_ACCESS)
 				{
-					assert(right->op == PRE_CALL);
 					if(left->type == V_VOID)
 						t.Throw("Invalid member access for type 'void'.");
-					Function* func = FindFunction(*right->str, left->type);
-					if(!func)
-						t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), var_info[left->type].name);
-					StringPool.Free(right->str);
-					ParseNode* node = ParseNode::Get();
-					node->op = CALL;
-					node->type = func->result;
-					node->value = func->index;
-					node->ref = NO_REF;
-					node->push(left);
-					for(ParseNode* n : right->childs)
-						node->push(n);
-					VerifyFunctionCall(node, func);
-					right->Free();
-					stack2.push_back(node);
+					Type* type = types[left->type];
+					if(right->pseudo_op == OBJ_FUNC)
+					{
+						Function* func = type->FindFunction(*right->str);
+						if(!func)
+							t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+						StringPool.Free(right->str);
+						ParseNode* node = ParseNode::Get();
+						node->op = CALL;
+						node->type = func->result;
+						node->value = func->index;
+						node->ref = NO_REF;
+						node->push(left);
+						for(ParseNode* n : right->childs)
+							node->push(n);
+						VerifyFunctionCall(node, func);
+						right->Free();
+						stack2.push_back(node);
+					}
+					else
+					{
+						assert(right->pseudo_op == OBJ_MEMBER);
+						int m_index;
+						Member* m = type->FindMember(*right->str, m_index);
+						if(!m)
+							t.Throw("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+						StringPool.Free(right->str);
+						ParseNode* node = ParseNode::Get();
+						node->op = PUSH_MEMBER;
+						node->type = m->type;
+						node->value = m_index;
+						node->ref = MAY_REF;
+						node->push(left);
+						right->Free();
+						stack2.push_back(node);
+					}
 				}
 				else if(si.type == ST_ASSIGN)
 				{
-					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL)
+					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER)
 						t.Throw("Can't assign, left value must be variable.");
 
 					ParseNode* set = ParseNode::Get();
-					switch(left->var->subtype)
+					switch(left->op)
 					{
-					case ParseVar::LOCAL:
+					case PUSH_LOCAL:
 						set->op = SET_LOCAL;
 						break;
-					case ParseVar::GLOBAL:
+					case PUSH_GLOBAL:
 						set->op = SET_GLOBAL;
 						break;
-					case ParseVar::ARG:
+					case PUSH_ARG:
 						set->op = SET_ARG;
+						break;
+					case PUSH_MEMBER:
+						set->op = SET_MEMBER;
 						break;
 					default:
 						assert(0);
@@ -1506,15 +1544,19 @@ ParseNode* ParseExpr(char end, char end2)
 					{
 						// assign
 						if(!TryCast(right, left->type))
-							t.Throw("Can't assign '%s' to variable '%s %s'.", var_info[right->type].name, var_info[set->type].name, set->var->name.c_str());
+							t.Throw("Can't assign '%s' to variable '%s %s'.", types[right->type]->name.c_str(), types[set->type]->name.c_str(),
+								set->var->name.c_str());
 						set->push(right);
+						if(left->op == PUSH_MEMBER)
+							set->push(left->childs);
 					}
 					else
 					{
 						// compound assign
-						VAR_TYPE cast, result;
+						int cast, result;
 						if(!CanOp((SYMBOL)si.op, left->type, right->type, cast, result))
-							t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_info[left->type].name, var_info[right->type].name, si.name);
+							t.Throw("Invalid types '%s' and '%s' for operation '%s'.", types[left->type]->name.c_str(), types[right->type]->name.c_str(),
+								si.name);
 
 						Cast(left, cast);
 						Cast(right, cast);
@@ -1526,18 +1568,19 @@ ParseNode* ParseExpr(char end, char end2)
 						op->push(left);
 						op->push(right);
 
-						Cast(op, set->var->type);
-
+						Cast(op, set->type);
 						set->push(op);
+						if(left->op == PUSH_MEMBER)
+							set->push(left->childs);
 					}
 
 					stack2.push_back(set);
 				}
 				else
 				{
-					VAR_TYPE cast, result;
+					int cast, result;
 					if(!CanOp(si.symbol, left->type, right->type, cast, result))
-						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", var_info[left->type].name, var_info[right->type].name, si.name);
+						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", types[left->type]->name.c_str(), types[right->type]->name.c_str(), si.name);
 
 					Cast(left, cast);
 					Cast(right, cast);
@@ -1621,7 +1664,15 @@ ParseNode* ParseVarDecl(VAR_TYPE type, string* _name)
 			expr->value = empty_string;
 			break;
 		default:
-			t.Throw("Missing default value for type '%s'.", var_info[type].name);
+			if(type >= V_CLASS)
+			{
+				expr->type = type;
+				expr->op = CTOR;
+				expr->value = type;
+			}
+			else
+				t.Throw("Missing default value for type '%s'.", types[type]->name.c_str());
+			break;
 		}
 	}
 	else
@@ -1631,7 +1682,7 @@ ParseNode* ParseVarDecl(VAR_TYPE type, string* _name)
 		// expr<,;>
 		expr = ParseExpr(',', ';');
 		if(!TryCast(expr, type))
-			t.Throw("Can't assign type '%s' to variable '%s %s'.", var_info[expr->type].name, var->name.c_str(), var_info[type].name);
+			t.Throw("Can't assign type '%s' to variable '%s %s'.", types[expr->type]->name.c_str(), var->name.c_str(), types[type]->name.c_str());
 	}
 
 	ParseNode* node = ParseNode::Get();
@@ -1664,7 +1715,7 @@ ParseNode* ParseCond()
 	ParseNode* cond = ParseExpr(')');
 	t.AssertSymbol(')');
 	if(!TryCast(cond, V_BOOL))
-		t.Throw("Condition expression with '%s' type.", var_info[cond->type].name);
+		t.Throw("Condition expression with '%s' type.", types[cond->type]->name.c_str());
 	t.Next();
 	return cond;
 }
@@ -1712,6 +1763,20 @@ ParseNode* ParseVarTypeDecl(VAR_TYPE* _type = nullptr, string* _name = nullptr)
 	}
 }
 
+int GetVarType()
+{
+	bool ok = true;
+	if(t.IsKeywordGroup(G_VAR))
+		return t.GetKeywordId(G_VAR);
+	else if(t.IsItem())
+	{
+		Type* type = Type::Find(t.GetItem().c_str());
+		if(type)
+			return type->index;
+	}
+	t.Unexpected("Expecting var type.");
+}
+
 void ParseFunctionArgs(CommonFunction* f, bool real_func)
 {
 	assert(f);
@@ -1725,7 +1790,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 	{
 		while(true)
 		{
-			VAR_TYPE type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
+			int type = GetVarType();
 			t.Next();
 			LocalString id = t.MustGetItem();
 			CheckFindItem(id.get_ref());
@@ -1745,7 +1810,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 				t.Next();
 				ParseNode* item = ParseConstItem();
 				if(!TryCast(item, type))
-					t.Throw("Invalid default value of type '%s', required '%s'.", var_info[item->type].name, var_info[type].name);
+					t.Throw("Invalid default value of type '%s', required '%s'.", types[item->type]->name.c_str(), types[type]->name.c_str());
 				switch(item->op)
 				{
 				case PUSH_BOOL:
@@ -1758,7 +1823,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 					f->arg_infos.push_back(ArgInfo(item->fvalue));
 					break;
 				case PUSH_STRING:
-					f->arg_infos.push_back(ArgInfo(V_STRING, item->value));
+					f->arg_infos.push_back(ArgInfo(V_STRING, item->value, true));
 					break;
 				default:
 					assert(0);
@@ -1769,7 +1834,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 			{
 				if(prev_arg_def)
 					t.Throw("Missing default value for argument '%s'.", id.c_str());
-				f->arg_infos.push_back(ArgInfo(type));
+				f->arg_infos.push_back(ArgInfo(type, 0, false));
 				f->required_args++;
 			}
 			if(t.IsSymbol(')'))
@@ -1886,7 +1951,7 @@ ParseNode* ParseLine()
 				t.Next();
 
 				if(for2 && !TryCast(for2, V_BOOL))
-					t.Throw("Condition expression with '%s' type.", var_info[for2->type].name);
+					t.Throw("Condition expression with '%s' type.", types[for2->type]->name.c_str());
 
 				ParseNode* fo = ParseNode::Get();
 				fo->pseudo_op = FOR;
@@ -1923,7 +1988,7 @@ ParseNode* ParseLine()
 				ret->type = V_VOID;
 				ret->ref = NO_REF;
 				t.Next();
-				VAR_TYPE ret_type;
+				int ret_type;
 				if(!t.IsSymbol(';'))
 				{
 					ret->push(ParseExpr(';'));
@@ -1934,7 +1999,7 @@ ParseNode* ParseLine()
 					ret_type = V_VOID;
 				if(ret_type != current_function->result)
 					t.Throw("Invalid return type '%s', function '%s' require '%s' type.",
-						var_info[ret_type].name, current_function->name.c_str(), var_info[current_function->result].name);
+						types[ret_type]->name.c_str(), current_function->name.c_str(), types[current_function->result]->name.c_str());
 				t.Next();
 				return ret;
 			}
@@ -2465,6 +2530,10 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case CALL:
 	case CALLU:
 	case CAST:
+	case PUSH_MEMBER:
+	case PUSH_MEMBER_REF:
+	case SET_MEMBER:
+	case CTOR:
 		code.push_back(node->op);
 		code.push_back(node->value);
 		break;
@@ -2631,14 +2700,6 @@ bool Parse(ParseContext& ctx)
 
 void InitializeParser()
 {
-	// register var types
-	for(int i = 0; i < V_MAX; ++i)
-	{
-		VarInfo& vi = var_info[i];
-		if(vi.reg)
-			t.AddKeyword(vi.name, i, G_VAR);
-	}
-
 	// register keywords
 	t.AddKeywords(G_KEYWORD, {
 		{"if", K_IF},
@@ -2657,6 +2718,12 @@ void InitializeParser()
 	});
 }
 
+void AddParserType(Type* type)
+{
+	assert(type);
+	t.AddKeyword(type->name.c_str(), type->index, G_VAR);
+}
+
 void CleanupParser()
 {
 	Str::Free(strs);
@@ -2665,7 +2732,7 @@ void CleanupParser()
 
 enum EXT_VAR_TYPE
 {
-	V_FUNCTION = V_MAX,
+	V_FUNCTION = V_CLASS + 1,
 	V_USER_FUNCTION,
 	V_TYPE
 };
@@ -2689,10 +2756,13 @@ OpInfo ops[MAX_OP] = {
 	PUSH_GLOBAL_REF, "push_global_ref", V_INT,
 	PUSH_ARG, "push_arg", V_INT,
 	PUSH_ARG_REF, "push_arg_ref", V_INT,
+	PUSH_MEMBER, "push_member", V_INT,
+	PUSH_MEMBER_REF, "push_member_ref", V_INT,
 	POP, "pop", V_VOID,
 	SET_LOCAL, "set_local", V_INT,
 	SET_GLOBAL, "set_global", V_INT,
 	SET_ARG, "set_arg", V_INT,
+	SET_MEMBER, "set_member", V_INT,
 	CAST, "cast", V_TYPE,
 	NEG, "neg", V_VOID,
 	ADD, "add", V_VOID,
@@ -2725,7 +2795,8 @@ OpInfo ops[MAX_OP] = {
 	FJMP, "fjmp", V_INT,
 	CALL, "call", V_FUNCTION,
 	CALLU, "callu", V_USER_FUNCTION,
-	RET, "ret", V_VOID
+	RET, "ret", V_VOID,
+	CTOR, "ctor", V_TYPE
 };
 
 template<typename To, typename From>
@@ -2794,7 +2865,7 @@ void Decompile(ParseContext& ctx)
 			case V_TYPE:
 				{
 					int type = *c++;
-					cout << Format("[%d %d] %s %s\n", (int)op, type, opi.name, var_info[type].name);
+					cout << Format("[%d %d] %s %s\n", (int)op, type, opi.name, types[type]->name.c_str());
 				}
 				break;
 			}
@@ -2803,7 +2874,7 @@ void Decompile(ParseContext& ctx)
 	cout << "\n";
 }
 
-// var_type <func_name> ( [var_type <arg_name> [= const_item] [, ...]] )
+// var_type <func_name> ( [var_type <arg_name> [= const_item] [, ...]] ) EOF
 Function* ParseFuncDecl(cstring decl)
 {
 	assert(decl);
@@ -2815,7 +2886,7 @@ Function* ParseFuncDecl(cstring decl)
 		t.FromString(decl);
 		t.Next();
 
-		f->result = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
+		f->result = GetVarType();
 		t.Next();
 
 		f->name = t.MustGetItem();
@@ -2836,4 +2907,38 @@ Function* ParseFuncDecl(cstring decl)
 	}
 
 	return f;
+}
+
+// simple_class_type <member_name> EOF
+Member* ParseMember(cstring decl)
+{
+	assert(decl);
+
+	Member* m = new Member;
+
+	try
+	{
+		t.FromString(decl);
+		t.Next();
+
+		m->type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
+		if(m->type == V_VOID)
+			t.Throw("Class member can't be void type.");
+		else if(m->type == V_STRING)
+			t.Throw("Class string member not supported yet.");
+		t.Next();
+
+		m->name = t.MustGetItem();
+		t.Next();
+
+		t.AssertEof();
+	}
+	catch(Tokenizer::Exception& e)
+	{
+		handler(cas::Error, e.ToString());
+		delete m;
+		m = nullptr;
+	}
+
+	return m;
 }

@@ -60,21 +60,53 @@ float f_float_abs(float a)
 	return abs(a);
 }
 
-void AddType(cstring type_name, VAR_TYPE builtin_type)
+struct INT2s
+{
+	int x, y;
+};
+
+int f_int2_sum(INT2s& i)
+{
+	return i.x + i.y;
+}
+
+INT2s f_create_int2(int x, int y)
+{
+	INT2s i;
+	i.x = x;
+	i.y = y;
+	return i;
+}
+
+int f_sum_int2(INT2s& i)
+{
+	return i.x + i.y;
+}
+
+void AddParserType(Type* type);
+
+void AddType(cstring type_name, int size, VAR_TYPE var_type, bool reg = true)
 {
 	Type* type = new Type;
 	type->name = type_name;
-	type->builtin_type = builtin_type;
+	type->size = size;
+	type->index = types.size();
+	assert(type->index == (int)var_type);
 	types.push_back(type);
+	if(reg)
+		AddParserType(type);
 }
 
 void InitCoreLib()
 {
 	// types
-	AddType("bool", V_BOOL);
-	AddType("int", V_INT);
-	AddType("float", V_FLOAT);
-	AddType("string", V_STRING);
+	AddType("void", 0, V_VOID);
+	AddType("bool", sizeof(bool), V_BOOL);
+	AddType("int", sizeof(int), V_INT);
+	AddType("float", sizeof(float), V_FLOAT);
+	AddType("string", sizeof(string), V_STRING);
+	AddType("ref", 0, V_REF, false);
+	AddType("special", 0, V_SPECIAL, false);
 
 	// type functions
 	cas::AddMethod("string", "int length()", f_string_length);
@@ -88,4 +120,12 @@ void InitCoreLib()
 	cas::AddFunction("float getfloat()", f_getfloat);
 	cas::AddFunction("string getstr()", f_getstr);
 	cas::AddFunction("void pause()", f_pause);
+
+	// INT2
+	cas::AddType("INT2", sizeof(INT2s));
+	cas::AddMember("INT2", "int x", offsetof(INT2s, x));
+	cas::AddMember("INT2", "int y", offsetof(INT2s, y));
+	cas::AddMethod("INT2", "int sum()", f_int2_sum);
+	cas::AddFunction("INT2 create_int2(int x, int y)", f_create_int2);
+	cas::AddFunction("int sum_int2(INT2 i)", f_sum_int2);
 }

@@ -32,6 +32,7 @@ var_type:
 	int
 	float
 	string
+	<class_name>
 
 var_decl:
 	<var_name> [ = expr ]
@@ -69,6 +70,7 @@ op:
 	!
 	( expr )
 	. <obj_func> args
+	. <obj_member>
 	[base_op]=
 	=
 	++

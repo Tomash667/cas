@@ -228,5 +228,11 @@ namespace tests
 			Logger::WriteMessage("Test case: BitOp ******************************\n");
 			Test("bit_op.txt", "", "17029\n65534\n38208\n792166400\n7776\n33280\n41701\n28212\n-1194328064\n-9330688\n");
 		}
+
+		TEST_METHOD(Class)
+		{
+			Logger::WriteMessage("Test case: Class ******************************\n");
+			Test("class.txt", "", "x:3 y:4\nx:7 y:11\nx:5 y:8\n7\n55\nx:5 y:4\n");
+		}
 	};
 }

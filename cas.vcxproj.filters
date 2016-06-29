@@ -26,7 +26,6 @@
     <ClInclude Include="Op.h" />
     <ClInclude Include="Parse.h" />
     <ClInclude Include="Run.h" />
-    <ClInclude Include="Var.h" />
     <ClInclude Include="Cas.h" />
     <ClInclude Include="Type.h" />
   </ItemGroup>

@@ -69,7 +69,7 @@ void Tokenizer::FromTokenizer(const Tokenizer& t)
 	if(token == T_KEYWORD)
 	{
 		// need to check keyword because keywords are not copied from other tokenizer, it may be item here
-		CheckItemOrKeyword();
+		CheckItemOrKeyword(item);
 	}
 }
 
@@ -296,7 +296,7 @@ redo:
 		else
 			item = str->substr(pos2, pos - pos2);
 
-		CheckItemOrKeyword();
+		CheckItemOrKeyword(item);
 	}
 
 	return true;
@@ -392,11 +392,11 @@ void Tokenizer::ParseNumber(uint pos2, bool negative)
 }
 
 //=================================================================================================
-void Tokenizer::CheckItemOrKeyword()
+void Tokenizer::CheckItemOrKeyword(const string& _item)
 {
-	Keyword k = { item.c_str(), 0, 0 };
+	Keyword k = { _item.c_str(), 0, 0 };
 	auto it = std::lower_bound(keywords.begin(), keywords.end(), k);
-	if(it != keywords.end() && item == it->name)
+	if(it != keywords.end() && _item == it->name)
 	{
 		// keyword
 		token = T_KEYWORD;
@@ -407,7 +407,7 @@ void Tokenizer::CheckItemOrKeyword()
 			do
 			{
 				++it;
-				if(it == keywords.end() || item != it->name)
+				if(it == keywords.end() || _item != it->name)
 					break;
 				keyword.push_back(&*it);
 			} while(true);

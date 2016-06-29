@@ -1,66 +1,63 @@
 #pragma once
 
-#include "Var.h"
 #include "Type.h"
 
+// function callback
 typedef void(*VoidF)();
+struct Function;
 
+// function argument
+struct ArgInfo
+{
+	int type;
+	union
+	{
+		bool bvalue;
+		int value;
+		float fvalue;
+	};
+	bool have_def_value;
+
+	ArgInfo(bool bvalue) : type(V_BOOL), bvalue(bvalue), have_def_value(true) {}
+	ArgInfo(int value) : type(V_INT), value(value), have_def_value(true) {}
+	ArgInfo(float fvalue) : type(V_FLOAT), fvalue(fvalue), have_def_value(true) {}
+	ArgInfo(int type, int value, bool have_def_value) : type(type), value(value), have_def_value(have_def_value) {}
+};
+
+// common for parse & code function
 struct CommonFunction
 {
 	string name;
-	VAR_TYPE result;
+	int result;
 	vector<ArgInfo> arg_infos;
 	uint required_args;
 	bool method;
 };
 
+// code function
+extern vector<Function*> functions;
 struct Function : CommonFunction
 {
 	void* clbk;
 	int index;
-	Type* type;
+	int type;
+
+	static inline Function* Find(const string& id)
+	{
+		for(Function* f : functions)
+		{
+			if(f->name == id && !f->type)
+				return f;
+		}
+		return nullptr;
+	}
 };
 
+// script function
 struct UserFunction
 {
 	uint pos;
 	uint locals;
-#ifdef _DEBUG
-	vector<VAR_TYPE> args;
-#else
-	uint args;
-#endif
-	VAR_TYPE result;
-
-	inline uint GetArgs() const
-	{
-#ifdef _DEBUG
-		return args.size();
-#else
-		return args;
-#endif
-	}
+	int result;
+	vector<int> args;
 };
-
-extern vector<Function*> functions;
-
-inline Function* FindFunction(const string& id, VAR_TYPE var_type = V_VOID)
-{
-	for(Function* f : functions)
-	{
-		if(id == f->name)
-		{
-			if(var_type == V_VOID)
-			{
-				if(!f->type)
-					return f;
-			}
-			else
-			{
-				if(f->type->builtin_type == var_type)
-					return f;
-			}
-		}
-	}
-	return nullptr;
-}

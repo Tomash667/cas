@@ -685,6 +685,7 @@ public:
 	{
 		flags = _flags;
 	}
+	void CheckItemOrKeyword(const string& item);
 
 private:
 	void ParseNumber(uint pos2, bool negative);
@@ -701,7 +702,6 @@ private:
 		line = 0;
 		charpos = 0;
 	}
-	void CheckItemOrKeyword();
 
 	uint pos, start_pos, line, charpos;
 	const string* str;

@@ -6,14 +6,6 @@
 #include "Cas.h"
 #include "Type.h"
 
-VarInfo var_info[V_MAX] = {
-	V_VOID, "void", true,
-	V_BOOL, "bool", true,
-	V_INT, "int", true,
-	V_FLOAT, "float", true,
-	V_STRING, "string", true
-};
-
 Logger* logger;
 vector<Type*> types;
 vector<Function*> functions;
@@ -59,7 +51,7 @@ bool cas::AddFunction(cstring decl, void* ptr)
 		handler(Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
 		return false;
 	}
-	Function* f2 = FindFunction(f->name);
+	Function* f2 = Function::Find(f->name);
 	if(f2)
 	{
 		handler(Error, Format("Function with name '%s' already exists.", f->name.c_str()));
@@ -68,7 +60,7 @@ bool cas::AddFunction(cstring decl, void* ptr)
 	}
 	f->clbk = ptr;
 	f->index = functions.size();
-	f->type = nullptr;
+	f->type = V_VOID;
 	functions.push_back(f);
 	return true;
 }
@@ -76,7 +68,7 @@ bool cas::AddFunction(cstring decl, void* ptr)
 bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 {
 	assert(type_name && decl && ptr);
-	Type* type = FindType(type_name);
+	Type* type = Type::Find(type_name);
 	if(!type)
 	{
 		handler(Error, Format("Missing type for AddMethod '%s'.", type_name));
@@ -97,11 +89,63 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 	}
 	f->clbk = ptr;
 	f->index = functions.size();
-	f->type = type;
-	f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(f->type->builtin_type));
+	f->type = type->index;
+	f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(f->type, 0, false));
 	f->required_args++;
 	type->funcs.push_back(f);
 	functions.push_back(f);
+	return true;
+}
+
+bool cas::AddType(cstring type_name, int size)
+{
+	assert(type_name && size > 0);
+	t.CheckItemOrKeyword(type_name);
+	if(t.IsKeyword())
+	{
+		handler(Error, Format("Can't declare type '%s', name is keyword.", type_name));
+		return false;
+	}
+	Type* type = Type::Find(type_name);
+	if(type)
+	{
+		handler(Error, Format("Type '%s' already declared.", type_name));
+		return false;
+	}
+	type = new Type;
+	type->name = type_name;
+	type->size = size;
+	type->index = types.size();
+	types.push_back(type);
+	AddParserType(type);
+	return true;
+}
+
+bool cas::AddMember(cstring type_name, cstring decl, int offset)
+{
+	assert(type_name && decl && offset >= 0);
+	Type* type = Type::Find(type_name);
+	if(!type)
+	{
+		handler(Error, Format("Missing type for AddMember '%s'.", type_name));
+		return false;
+	}
+	Member* m = ParseMember(decl);
+	if(!m)
+	{
+		handler(Error, Format("Failed to parse member declaration for AddMemeber '%s'.", decl));
+		return false;
+	}
+	m->offset = offset;
+	int m_index;
+	if(type->FindMember(m->name, m_index))
+	{
+		handler(Error, Format("Member with name '%s.%s' already exists.", type_name, m->name.c_str()));
+		delete m;
+		return false;
+	}
+	assert(offset + types[m->type]->size <= type->size);
+	type->members.push_back(m);
 	return true;
 }
 
