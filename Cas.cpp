@@ -97,7 +97,7 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 	return true;
 }
 
-bool cas::AddType(cstring type_name, int size)
+bool cas::AddType(cstring type_name, int size, bool pod)
 {
 	assert(type_name && size > 0);
 	t.CheckItemOrKeyword(type_name);
@@ -115,6 +115,7 @@ bool cas::AddType(cstring type_name, int size)
 	type = new Type;
 	type->name = type_name;
 	type->size = size;
+	type->pod = pod;
 	type->index = types.size();
 	types.push_back(type);
 	AddParserType(type);

@@ -28,14 +28,15 @@ vector functions:
 	+ operators + - etc
 	+ string member
 	+ class member
-	+ test return struct in register < 64 bit, no ctor/dtor/assign
 	+ class function
 	+ properties
 	+ default value for class argument in function
+	+ unit test register c++ struct (require modules)
 
 + default string for code function
 + allow reuse variable name
 + object/string deconstruction
++ checking ref counter on cleanup (for class/string)
 + builtin unit tests for parsing errors
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)
@@ -69,6 +70,7 @@ vector functions:
 + register enum
 
 calling conventions
+http://www.angelcode.com/dev/callconv/callconv.html
 return value
 	+ bool, int, float, string
 	+ by ref

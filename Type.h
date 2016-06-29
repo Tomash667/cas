@@ -46,6 +46,7 @@ struct Type
 	vector<Function*> funcs;
 	vector<Member*> members;
 	int size, index;
+	bool pod;
 
 	Function* FindFunction(const string& name);
 	inline Member* FindMember(const string& name, int& index)

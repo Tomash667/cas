@@ -83,6 +83,53 @@ int f_sum_int2(INT2s& i)
 	return i.x + i.y;
 }
 
+struct Vec2
+{
+	float x, y;
+};
+
+Vec2 f_create_vec2(float x, float y)
+{
+	Vec2 v;
+	v.x = x;
+	v.y = y;
+	return v;
+}
+
+void f_wypisz_vec2(Vec2& v)
+{
+	cout << "x:" << v.x << " y:" << v.y << "\n";
+}
+
+struct Vec3
+{
+	float x, y, z;
+};
+
+Vec3 f_create_vec3(float x, float y, float z)
+{
+	Vec3 v;
+	v.x = x;
+	v.y = y;
+	v.z = z;
+	return v;
+}
+
+void f_wypisz_vec3(Vec3& v)
+{
+	cout << "x:" << v.x << " y:" << v.y << " z:" << v.z << "\n";
+}
+
+INT2 f_create_int2c(int x, int y)
+{
+	return INT2(x, y);
+}
+
+void f_wypisz_int2c(INT2& i)
+{
+	cout << "x:" << i.x << " y:" << i.y << "\n";
+}
+
 void AddParserType(Type* type);
 
 void AddType(cstring type_name, int size, VAR_TYPE var_type, bool reg = true)
@@ -91,6 +138,7 @@ void AddType(cstring type_name, int size, VAR_TYPE var_type, bool reg = true)
 	type->name = type_name;
 	type->size = size;
 	type->index = types.size();
+	type->pod = true;
 	assert(type->index == (int)var_type);
 	types.push_back(type);
 	if(reg)
@@ -122,10 +170,32 @@ void InitCoreLib()
 	cas::AddFunction("void pause()", f_pause);
 
 	// INT2
-	cas::AddType("INT2", sizeof(INT2s));
+	cas::AddType<INT2s>("INT2");
 	cas::AddMember("INT2", "int x", offsetof(INT2s, x));
 	cas::AddMember("INT2", "int y", offsetof(INT2s, y));
 	cas::AddMethod("INT2", "int sum()", f_int2_sum);
 	cas::AddFunction("INT2 create_int2(int x, int y)", f_create_int2);
 	cas::AddFunction("int sum_int2(INT2 i)", f_sum_int2);
+
+	// Vec2
+	cas::AddType<Vec2>("Vec2");
+	cas::AddMember("Vec2", "float x", offsetof(Vec2, x));
+	cas::AddMember("Vec2", "float y", offsetof(Vec2, y));
+	cas::AddFunction("Vec2 create_vec2(float x, float y)", f_create_vec2);
+	cas::AddFunction("void wypisz_vec2(Vec2 v)", f_wypisz_vec2);
+
+	// Vec3 (pod > 8 byte)
+	cas::AddType<Vec3>("Vec3");
+	cas::AddMember("Vec3", "float x", offsetof(Vec3, x));
+	cas::AddMember("Vec3", "float y", offsetof(Vec3, y));
+	cas::AddMember("Vec3", "float z", offsetof(Vec3, z));
+	cas::AddFunction("Vec3 create_vec3(float x, float y, float z)", f_create_vec3);
+	cas::AddFunction("void wypisz_vec3(Vec3 v)", f_wypisz_vec3);
+
+	// INT2 have ctor
+	cas::AddType<INT2>("INT2c");
+	cas::AddMember("INT2c", "int x", offsetof(INT2, x));
+	cas::AddMember("INT2c", "int y", offsetof(INT2, y));
+	cas::AddFunction("INT2c create_int2c(int x, int y)", f_create_int2c);
+	cas::AddFunction("void wypisz_int2c(INT2c i)", f_wypisz_int2c);
 }

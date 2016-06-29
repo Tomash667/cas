@@ -158,6 +158,27 @@ void ExecuteFunction(Function& f)
 	void* retptr = nullptr;
 	bool in_mem = false;
 
+	if(f.result == V_STRING)
+	{
+		// string return value
+		Str* str = Str::Get();
+		str->refs = 1;
+		packedArgs[packed++] = (int)(&str->s);
+		retptr = str;
+	}
+	else if(f.result >= V_CLASS)
+	{
+		// class return value
+		Type* type = types[f.result];
+		Class* c = Class::Create(type);
+		retptr = c;
+		if(type->size > 8 || !type->pod)
+		{
+			packedArgs[packed++] = (int)c->data();
+			in_mem = true;
+		}
+	}
+
 	// verify and pack args
 	assert(stack.size() >= f.arg_infos.size());
 	for(uint i = 0; i < f.arg_infos.size(); ++i)
@@ -175,35 +196,14 @@ void ExecuteFunction(Function& f)
 		case V_STRING:
 			value = (int)&v.str->s;
 			break;
-		case V_CLASS:
-			value = (int)v.clas->data();
-			break;
 		default:
-			assert(0);
+			if(v.type >= V_CLASS)
+				value = (int)v.clas->data();
+			else
+				assert(0);
 			break;
 		}
 		packedArgs[packed++] = value;
-	}
-
-	if(f.result == V_STRING)
-	{
-		// string return value
-		Str* str = Str::Get();
-		str->refs = 1;
-		packedArgs[packed++] = (int)(&str->s);
-		retptr = str;
-	}
-	else if(f.result >= V_CLASS)
-	{
-		// class return value
-		Type* type = types[f.result];
-		Class* c = Class::Create(type);
-		retptr = c;
-		if(type->size > 8)
-		{
-			packedArgs[packed++] = (int)c->data();
-			in_mem = true;
-		}
 	}
 
 	// call
