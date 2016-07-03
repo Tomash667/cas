@@ -226,7 +226,7 @@ extern cas::EventHandler handler;
 
 void ParseArgs(vector<ParseNode*>& nodes);
 ParseNode* ParseBlock(ParseFunction* f = nullptr);
-ParseNode* ParseExpr(char end, char end2 = 0);
+ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
 ParseNode* ParseLineOrBlock();
 
 
@@ -310,6 +310,15 @@ void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction
 	for(Function* f : type->funcs)
 	{
 		if(f->name == name)
+			funcs.push_back(f);
+	}
+}
+
+void FindAllCtors(Type* type, vector<AnyFunction>& funcs)
+{
+	for(Function* f : type->funcs)
+	{
+		if(f->special == SF_CTOR)
 			funcs.push_back(f);
 	}
 }
@@ -485,7 +494,7 @@ int MatchFunctionCall(ParseNode* node, CommonFunction& f)
 	return (require_cast ? 1 : 2);
 }
 
-void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type)
+void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor)
 {
 	assert(!funcs.empty());
 
@@ -519,7 +528,7 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type)
 			s += "function '";
 		s += match.front().f->name;
 		s += '\'';
-		uint var_offset = (type ? 1 : 0);
+		uint var_offset = ((type && !ctor) ? 1 : 0);
 		if(node->childs.size() > var_offset)
 		{
 			s += " with arguments (";
@@ -654,9 +663,31 @@ ParseNode* ParseConstItem()
 		t.Unexpected();
 }
 
-ParseNode* ParseItem()
+ParseNode* ParseItem(int* type = nullptr)
 {
-	if(t.IsItem())
+	if(t.IsKeywordGroup(G_VAR) || type)
+	{
+		int var_type;
+		if(type)
+			var_type = *type;
+		else
+		{
+			var_type = t.GetKeywordId(G_VAR);
+			t.Next();
+		}
+		t.AssertSymbol('(');
+		Type* rtype = types[var_type];
+		if(!rtype->have_ctor)
+			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
+		ParseNode* node = ParseNode::Get();
+		node->ref = NO_REF;
+		ParseArgs(node->childs);
+		vector<AnyFunction> funcs;
+		FindAllCtors(rtype, funcs);
+		ApplyFunctionCall(node, funcs, rtype, true);
+		return node;
+	}
+	else if(t.IsItem())
 	{
 		const string& id = t.GetItem();
 		Found found;
@@ -698,7 +729,7 @@ ParseNode* ParseItem()
 				node->ref = NO_REF;
 
 				ParseArgs(node->childs);
-				ApplyFunctionCall(node, funcs, nullptr);
+				ApplyFunctionCall(node, funcs, nullptr, false);
 
 				return node;
 			}
@@ -1439,49 +1470,54 @@ void PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL>& stack
 	stack.push_back(symbol);
 }
 
-BASIC_SYMBOL ParseExprPart(vector<SymbolOrNode>& exit, vector<SYMBOL>& stack)
+BASIC_SYMBOL ParseExprPart(vector<SymbolOrNode>& exit, vector<SYMBOL>& stack, int* type)
 {
 	BASIC_SYMBOL symbol = BS_MAX;
 
-	// [unary symbols]
-	while(GetNextSymbol(symbol))
+	if(!type)
 	{
-		BasicSymbolInfo& bsi = basic_symbols[symbol];
-		if(bsi.unary_symbol != S_INVALID)
+		// [unary symbols]
+		while(GetNextSymbol(symbol))
 		{
-			PushSymbol(bsi.unary_symbol, exit, stack);
+			BasicSymbolInfo& bsi = basic_symbols[symbol];
+			if(bsi.unary_symbol != S_INVALID)
+			{
+				PushSymbol(bsi.unary_symbol, exit, stack);
+				t.Next();
+				symbol = BS_MAX;
+			}
+			else
+				break;
+		}
+
+		// [pre symbols]
+		while(GetNextSymbol(symbol))
+		{
+			BasicSymbolInfo& bsi = basic_symbols[symbol];
+			if(bsi.pre_symbol != S_INVALID)
+			{
+				PushSymbol(bsi.pre_symbol, exit, stack);
+				t.Next();
+				symbol = BS_MAX;
+			}
+			else
+				break;
+		}
+
+		// item
+		if(GetNextSymbol(symbol))
+			t.Unexpected();
+		if(t.IsSymbol('('))
+		{
 			t.Next();
-			symbol = BS_MAX;
+			exit.push_back(ParseExpr(')'));
+			t.Next();
 		}
 		else
-			break;
-	}
-
-	// [pre symbols]
-	while(GetNextSymbol(symbol))
-	{
-		BasicSymbolInfo& bsi = basic_symbols[symbol];
-		if(bsi.pre_symbol != S_INVALID)
-		{
-			PushSymbol(bsi.pre_symbol, exit, stack);
-			t.Next();
-			symbol = BS_MAX;
-		}
-		else
-			break;
-	}
-
-	// item
-	if(GetNextSymbol(symbol))
-		t.Unexpected();
-	if(t.IsSymbol('('))
-	{
-		t.Next();
-		exit.push_back(ParseExpr(')'));
-		t.Next();
+			exit.push_back(ParseItem());
 	}
 	else
-		exit.push_back(ParseItem());
+		exit.push_back(ParseItem(type));
 
 	// [post symbol]
 	if(GetNextSymbol(symbol))
@@ -1498,14 +1534,15 @@ BASIC_SYMBOL ParseExprPart(vector<SymbolOrNode>& exit, vector<SYMBOL>& stack)
 	return symbol;
 }
 
-ParseNode* ParseExpr(char end, char end2)
+ParseNode* ParseExpr(char end, char end2, int* type)
 {
 	vector<SymbolOrNode> exit;
 	vector<SYMBOL> stack;
 
 	while(true)
 	{
-		BASIC_SYMBOL left = ParseExprPart(exit, stack);
+		BASIC_SYMBOL left = ParseExprPart(exit, stack, type);
+		type = nullptr;
 		next_symbol:
 		if(GetNextSymbol(left))
 		{
@@ -1618,7 +1655,7 @@ ParseNode* ParseExpr(char end, char end2)
 						for(ParseNode* n : right->childs)
 							node->push(n);
 
-						ApplyFunctionCall(node, funcs, type);
+						ApplyFunctionCall(node, funcs, type, false);
 
 						right->childs.clear();
 						right->Free();
@@ -1740,7 +1777,7 @@ ParseNode* ParseExpr(char end, char end2)
 	return stack2.back();
 }
 
-ParseNode* ParseVarDecl(VAR_TYPE type, string* _name)
+ParseNode* ParseVarDecl(int type, string* _name)
 {
 	// var_name
 	const string& name = (_name ? *_name : t.MustGetItem());
@@ -1796,9 +1833,19 @@ ParseNode* ParseVarDecl(VAR_TYPE type, string* _name)
 		default:
 			if(type >= V_CLASS)
 			{
-				expr->type = type;
-				expr->op = CTOR;
-				expr->value = type;
+				Type* rtype = types[type];
+				if(rtype->have_ctor)
+				{
+					vector<AnyFunction> funcs;
+					FindAllCtors(rtype, funcs);
+					ApplyFunctionCall(expr, funcs, rtype, true);
+				}
+				else
+				{
+					expr->type = type;
+					expr->op = CTOR;
+					expr->value = type;
+				}
 			}
 			else
 				t.Throw("Missing default value for type '%s'.", types[type]->name.c_str());
@@ -1850,14 +1897,14 @@ ParseNode* ParseCond()
 	return cond;
 }
 
-ParseNode* ParseVarTypeDecl(VAR_TYPE* _type = nullptr, string* _name = nullptr)
+ParseNode* ParseVarTypeDecl(int* _type = nullptr, string* _name = nullptr)
 {
 	// var_type
-	VAR_TYPE type;
+	int type;
 	if(_type)
 		type = *_type;
 	else
-		type = (VAR_TYPE)t.GetKeywordId();
+		type = t.GetKeywordId();
 	if(type == V_VOID)
 		t.Throw("Can't declare void variable.");
 	if(!_type)
@@ -2139,9 +2186,19 @@ ParseNode* ParseLine()
 	}
 	else if(t.IsKeywordGroup(G_VAR))
 	{
-		// is this function or var declaration
-		VAR_TYPE type = (VAR_TYPE)t.GetKeywordId(G_VAR);
+		// is this function or var declaration or ctor
+		int type = t.GetKeywordId(G_VAR);
 		t.Next();
+		if(t.IsSymbol('('))
+		{
+			// ctor
+			ParseNode* node = ParseExpr(';', 0, &type);
+			t.AssertSymbol(';');
+			t.Next();
+
+			return node;
+		}
+
 		LocalString str = t.MustGetItem();
 		CheckFindItem(str.get_ref(), true);
 		t.Next();
@@ -2787,7 +2844,10 @@ bool Parse(ParseContext& ctx)
 		if(optimize)
 		{
 			for(ParseFunction* ufunc : ufuncs)
-				OptimizeTree(ufunc->node);
+			{
+				if(ufunc->node)
+					OptimizeTree(ufunc->node);
+			}
 			OptimizeTree(node);
 		}
 
@@ -2800,7 +2860,8 @@ bool Parse(ParseContext& ctx)
 		{
 			ufunc->pos = ctx.code.size();
 			ufunc->locals = ufunc->block->GetMaxVars();
-			ToCode(ctx.code, ufunc->node, nullptr);
+			if(ufunc->node)
+				ToCode(ctx.code, ufunc->node, nullptr);
 			ctx.code.push_back(RET);
 		}
 		ctx.entry_point = ctx.code.size();
@@ -3042,8 +3103,8 @@ void Decompile(ParseContext& ctx)
 	cout << "\n";
 }
 
-// var_type <func_name> ( [var_type <arg_name> [= const_item] [, ...]] ) EOF
-Function* ParseFuncDecl(cstring decl)
+// func_decl
+Function* ParseFuncDecl(cstring decl, Type* type)
 {
 	assert(decl);
 
@@ -3057,8 +3118,18 @@ Function* ParseFuncDecl(cstring decl)
 		f->result = GetVarType();
 		t.Next();
 
-		f->name = t.MustGetItem();
-		t.Next();
+		if(type && type->index == f->result && t.IsSymbol('('))
+		{
+			// ctor
+			f->special = SF_CTOR;
+			f->name = type->name;
+		}
+		else
+		{
+			f->special = SF_NO;
+			f->name = t.MustGetItem();
+			t.Next();
+		}
 
 		t.AssertSymbol('(');
 		t.Next();
@@ -3077,8 +3148,8 @@ Function* ParseFuncDecl(cstring decl)
 	return f;
 }
 
-// simple_class_type <member_name> EOF
-Member* ParseMember(cstring decl)
+// member_decl
+Member* ParseMemberDecl(cstring decl)
 {
 	assert(decl);
 
@@ -3092,8 +3163,8 @@ Member* ParseMember(cstring decl)
 		m->type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
 		if(m->type == V_VOID)
 			t.Throw("Class member can't be void type.");
-		else if(m->type == V_STRING)
-			t.Throw("Class string member not supported yet.");
+		else if(m->type == V_STRING || m->type >= V_CLASS)
+			t.Throw("Class %s member not supported yet.", types[m->type]->name.c_str());
 		t.Next();
 
 		m->name = t.MustGetItem();

@@ -130,7 +130,17 @@ void f_wypisz_vec3(Vec3& v)
 	cout << "x:" << v.x << " y:" << v.y << " z:" << v.z << "\n";
 }
 
-INT2 f_create_int2c(int x, int y)
+INT2 f_int2c_ctor0()
+{
+	return INT2(0, 0);
+}
+
+INT2 f_int2c_ctor1(int xy)
+{
+	return INT2(xy);
+}
+
+INT2 f_int2c_ctor2(int x, int y)
 {
 	return INT2(x, y);
 }
@@ -149,6 +159,7 @@ void AddType(cstring type_name, int size, VAR_TYPE var_type, bool reg = true)
 	type->size = size;
 	type->index = types.size();
 	type->pod = true;
+	type->have_ctor = false;
 	assert(type->index == (int)var_type);
 	types.push_back(type);
 	if(reg)
@@ -208,6 +219,8 @@ void InitCoreLib()
 	cas::AddType<INT2>("INT2c");
 	cas::AddMember("INT2c", "int x", offsetof(INT2, x));
 	cas::AddMember("INT2c", "int y", offsetof(INT2, y));
-	cas::AddFunction("INT2c create_int2c(int x, int y)", f_create_int2c);
+	cas::AddMethod("INT2c", "INT2c()", f_int2c_ctor0);
+	cas::AddMethod("INT2c", "INT2c(int xy)", f_int2c_ctor1);
+	cas::AddMethod("INT2c", "INT2c(int x, int y)", f_int2c_ctor2);
 	cas::AddFunction("void wypisz_int2c(INT2c i)", f_wypisz_int2c);
 }

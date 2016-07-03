@@ -5,8 +5,9 @@ Vec3 w = v;
 w.y += 0.1;
 wypisz_vec3(v);
 
-wypisz_int2c(create_int2c(7,3));
+wypisz_int2c(INT2c());
+wypisz_int2c(INT2c(13));
+wypisz_int2c(INT2c(7,3));
 wypisz_vec2(create_vec2(3.14,0.0015));
 
 pause();
-

@@ -46,7 +46,7 @@ struct Type
 	vector<Function*> funcs;
 	vector<Member*> members;
 	int size, index;
-	bool pod;
+	bool pod, have_ctor;
 
 	Function* FindFunction(const string& name);
 	Function* FindEqualFunction(Function& fc);

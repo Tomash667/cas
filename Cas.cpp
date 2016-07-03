@@ -45,7 +45,7 @@ bool cas::ParseAndRun(cstring input, bool optimize, bool decompile)
 bool cas::AddFunction(cstring decl, void* ptr)
 {
 	assert(decl && ptr);
-	Function* f = ParseFuncDecl(decl);
+	Function* f = ParseFuncDecl(decl, nullptr);
 	if(!f)
 	{
 		handler(Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
@@ -74,7 +74,7 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 		handler(Error, Format("Missing type for AddMethod '%s'.", type_name));
 		return false;
 	}
-	Function* f = ParseFuncDecl(decl);
+	Function* f = ParseFuncDecl(decl, type);
 	if(!f)
 	{
 		handler(Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
@@ -90,8 +90,13 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 	f->clbk = ptr;
 	f->index = functions.size();
 	f->type = type->index;
-	f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(f->type, 0, false));
-	f->required_args++;
+	if(f->special == SF_CTOR)
+		type->have_ctor = true;
+	else
+	{
+		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(f->type, 0, false));
+		f->required_args++;
+	}
 	type->funcs.push_back(f);
 	functions.push_back(f);
 	return true;
@@ -116,6 +121,7 @@ bool cas::AddType(cstring type_name, int size, bool pod)
 	type->name = type_name;
 	type->size = size;
 	type->pod = pod;
+	type->have_ctor = false;
 	type->index = types.size();
 	types.push_back(type);
 	AddParserType(type);
@@ -131,7 +137,7 @@ bool cas::AddMember(cstring type_name, cstring decl, int offset)
 		handler(Error, Format("Missing type for AddMember '%s'.", type_name));
 		return false;
 	}
-	Member* m = ParseMember(decl);
+	Member* m = ParseMemberDecl(decl);
 	if(!m)
 	{
 		handler(Error, Format("Failed to parse member declaration for AddMemeber '%s'.", decl));

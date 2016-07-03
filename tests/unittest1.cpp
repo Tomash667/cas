@@ -238,7 +238,7 @@ namespace tests
 		TEST_METHOD(ComplexClassResult)
 		{
 			Logger::WriteMessage("Test case: ComplexClassResult ******************************\n");
-			Test("complex_class_result.txt", "", "x:1.6 y:2.3 z:4.1\nx:1.6 y:2.4 z:4.1\nx:7 y:3\nx:3.14 y:0.0015\n");
+			Test("complex_class_result.txt", "", "x:1.6 y:2.3 z:4.1\nx:1.6 y:2.4 z:4.1\nx:0 y:0\nx:13 y:13\nx:7 y:3\nx:3.14 y:0.0015\n");
 		}
 
 		TEST_METHOD(FuncOverload)

@@ -6,7 +6,7 @@
 
 using namespace std;
 
-cstring def_filename = "class.txt";
+cstring def_filename = "complex_class_result.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 static bool have_errors;

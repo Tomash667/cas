@@ -1,6 +1,13 @@
 code:
 	[ line_or_block ... ] EOF
 
+func_decl:
+	var_type <func_name> arg_decl EOF
+	<class_name> arg_decl EOF // ctor
+
+member_decl:
+	simple_class_type <member_name> EOF
+
 line_or_block:
 	block
 	line
@@ -9,7 +16,7 @@ block:
 	{ [ line_or_block ...] }
 	
 line:
-	var_type <func_name> ([var_type <arg_name> [= const_item] [, ...] ) block // can only be used in top block
+	var_type <func_name> arg_decl block // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;
 	while cond line_or_block
@@ -19,6 +26,9 @@ line:
 	return [expr] ; // only inside function
 	expr ;
 	;
+
+arg_decl:
+	([var_type <arg_name> [= const_item] [, ...] )
 
 var_type_decl:
 	var_type var_decl [, var_decl ...]
@@ -34,6 +44,11 @@ var_type:
 	string
 	<class_name>
 
+simple_class_type:
+	bool
+	int
+	float
+
 var_decl:
 	<var_name> [ = expr ]
 
@@ -47,6 +62,7 @@ item:
 	const_item
 	<var_name>
 	<func> args
+	<class_name> args
 
 const_item:
 	<int>

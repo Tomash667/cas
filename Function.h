@@ -37,12 +37,20 @@ struct CommonFunction
 	cstring GetName(uint var_offfset = 0) const;
 };
 
+// special function type
+enum SpecialFunction
+{
+	SF_NO,
+	SF_CTOR
+};
+
 // code function
 extern vector<Function*> functions;
 struct Function : CommonFunction
 {
 	void* clbk;
 	int type;
+	SpecialFunction special;
 
 	static Function* Find(const string& name);
 	static Function* FindEqual(Function& fc);
