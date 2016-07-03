@@ -132,23 +132,23 @@ struct Block : ObjectPoolProxy<Block>
 		return count + top;
 	}
 
-	ParseVar* FindVarSingle(const string& id) const
+	ParseVar* FindVarSingle(const string& name) const
 	{
 		for(ParseVar* v : vars)
 		{
-			if(v->name == id)
+			if(v->name == name)
 				return v;
 		}
 		return nullptr;
 	}
 
-	ParseVar* FindVar(const string& id) const
+	ParseVar* FindVar(const string& name) const
 	{
 		const Block* block = this;
 
 		while(block)
 		{
-			ParseVar* var = block->FindVarSingle(id);
+			ParseVar* var = block->FindVarSingle(name);
 			if(var)
 				return var;
 			block = block->parent;
@@ -164,14 +164,13 @@ struct ParseFunction : CommonFunction
 	uint locals;
 	ParseNode* node;
 	Block* block;
-	int index;
 	vector<ParseVar*> args;
 
-	ParseVar* FindArg(const string& id)
+	ParseVar* FindArg(const string& name)
 	{
 		for(ParseVar* arg : args)
 		{
-			if(arg->name == id)
+			if(arg->name == name)
 				return arg;
 		}
 		return nullptr;
@@ -278,11 +277,58 @@ FOUND FindItem(const string& id, Found& found)
 	return F_NONE;
 }
 
-void CheckFindItem(const string& id)
+struct AnyFunction
+{
+	union
+	{
+		Function* f;
+		ParseFunction* pf;
+	};
+	bool is_parse;
+
+	inline AnyFunction(Function* f) : f(f), is_parse(false) {}
+	inline AnyFunction(ParseFunction* pf) : pf(pf), is_parse(true) {}
+};
+
+void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items)
+{
+	for(Function* f : functions)
+	{
+		if(f->name == name && f->type == V_VOID)
+			items.push_back(f);
+	}
+
+	for(ParseFunction* pf : ufuncs)
+	{
+		if(pf->name == name)
+			items.push_back(pf);
+	}
+}
+
+void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs)
+{
+	for(Function* f : type->funcs)
+	{
+		if(f->name == name)
+			funcs.push_back(f);
+	}
+}
+
+ParseFunction* FindEqualFunction(ParseFunction* pf)
+{
+	for(ParseFunction* f : ufuncs)
+	{
+		if(f->name == pf->name && f->Equal(*pf))
+			return f;
+	}
+	return nullptr;
+}
+
+void CheckFindItem(const string& id, bool is_func)
 {
 	Found found;
 	FOUND found_type = FindItem(id, found);
-	if(found_type != F_NONE)
+	if(found_type != F_NONE && !(is_func && (found_type == F_FUNC || found_type == F_USER_FUNC)))
 		t.Throw("Name '%s' already used as %s.", id.c_str(), found.ToString(found_type));
 }
 
@@ -389,68 +435,165 @@ void Cast(ParseNode*& node, int type)
 	node = cast;
 }
 
-// used in var assignment, passing argument to function
-bool TryCast(ParseNode*& node, int type)
+// -1 - can't cast, 0 - no cast required, 1 - can cast,
+int MayCast(ParseNode* node, int type)
 {
 	// no cast required?
 	if(node->type == type)
-		return true;
+		return 0;
 
 	// can't cast from void, can't cast class
 	if(node->type == V_VOID || node->type >= V_CLASS || type >= V_CLASS)
-		return false;
+		return -1;
 
 	// no implicit cast from string to bool/int/float
 	if(node->type == V_STRING && (type == V_BOOL || type == V_INT || type == V_FLOAT))
-		return false;
+		return -1;
 
+	// can cast
+	return 1;
+}
+
+// used in var assignment, passing argument to function
+bool TryCast(ParseNode*& node, int type)
+{
+	int c = MayCast(node, type);
+	if(c == 0)
+		return true;
+	else if(c == -1)
+		return false;
 	Cast(node, type);
 	return true;
 }
 
-void VerifyFunctionCall(ParseNode* node, CommonFunction* f)
+// 0 - don't match, 1 - require cast, 2 - match
+int MatchFunctionCall(ParseNode* node, CommonFunction& f)
 {
-	// check params count
-	if(node->childs.size() > f->arg_infos.size() || node->childs.size() < f->required_args)
-		t.Throw("Function %s with %d arguments not found, function have %d arguments.", f->name.c_str(), node->childs.size(), f->arg_infos.size());
+	if(node->childs.size() > f.arg_infos.size() || node->childs.size() < f.required_args)
+		return 0;
 
-	// verify params
+	bool require_cast = false;
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
-		if(!TryCast(node->childs[i], f->arg_infos[i].type))
-			t.Throw("Function %s takes %s for argument %d, found %s.", f->name.c_str(), types[f->arg_infos[i].type]->name.c_str(), i + 1,
-				types[node->childs[i]->type]->name.c_str());
+		int c = MayCast(node->childs[i], f.arg_infos[i].type);
+		if(c == -1)
+			return 0;
+		else if(c == 1)
+			require_cast = true;
 	}
 
-	// fill default params
-	for(uint i = node->childs.size(); i < f->arg_infos.size(); ++i)
+	return (require_cast ? 1 : 2);
+}
+
+void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type)
+{
+	assert(!funcs.empty());
+
+	int match_level = 0;
+	vector<AnyFunction> match;
+
+	for(AnyFunction& f : funcs)
 	{
-		ArgInfo& arg = f->arg_infos[i];
-		ParseNode* n = ParseNode::Get();
-		n->type = arg.type;
-		switch(arg.type)
+		int m = MatchFunctionCall(node, *f.f);
+		if(m == match_level)
+			match.push_back(f);
+		else if(m > match_level)
 		{
-		case V_BOOL:
-			n->pseudo_op = PUSH_BOOL;
-			n->bvalue = arg.bvalue;
-			break;
-		case V_INT:
-			n->op = PUSH_INT;
-			n->value = arg.value;
-			break;
-		case V_FLOAT:
-			n->op = PUSH_FLOAT;
-			n->fvalue = arg.fvalue;
-			break;
-		case V_STRING:
-			n->op = PUSH_STRING;
-			n->value = arg.value;
-			break;
-		default:
-			assert(0);
-			break;
+			match.clear();
+			match_level = m;
+			match.push_back(f);
 		}
-		node->push(n);
+	}
+	assert(!match.empty());
+
+	if(match.size() >= 2u || match_level == 0)
+	{
+		LocalString s;
+		if(match.size() >= 2u)
+			s = "Ambiguous call to overloaded ";
+		else
+			s = "Not matching call to ";
+		if(type)
+			s += Format("method '%s.", type->name.c_str());
+		else
+			s += "function '";
+		s += match.front().f->name;
+		s += '\'';
+		uint var_offset = (type ? 1 : 0);
+		if(node->childs.size() > var_offset)
+		{
+			s += " with arguments (";
+			bool first = true;
+			for(uint i = var_offset; i < node->childs.size(); ++i)
+			{
+				if(!first)
+					s += ',';
+				first = false;
+				s += types[node->childs[i]->type]->name;
+			}
+			s += ')';
+		}
+		s += ", could be";
+		if(match.size() >= 2u)
+		{
+			s += ':';
+			for(AnyFunction& f : match)
+			{
+				s += "\n\t";
+				s += f.f->GetName(var_offset);
+			}
+		}
+		else
+			s += Format(" '%s'.", match.front().f->GetName(var_offset));
+		t.Throw(s->c_str());
+	}
+	else
+	{
+		AnyFunction f = match.front();
+		CommonFunction& cf = *f.f;
+
+		// cast params
+		if(match_level == 1)
+		{
+			for(uint i = 0; i < node->childs.size(); ++i)
+				Cast(node->childs[i], cf.arg_infos[i].type);
+		}
+
+		// fill default params
+		for(uint i = node->childs.size(); i < cf.arg_infos.size(); ++i)
+		{
+			ArgInfo& arg = cf.arg_infos[i];
+			ParseNode* n = ParseNode::Get();
+			n->type = arg.type;
+			switch(arg.type)
+			{
+			case V_BOOL:
+				n->pseudo_op = PUSH_BOOL;
+				n->bvalue = arg.bvalue;
+				break;
+			case V_INT:
+				n->op = PUSH_INT;
+				n->value = arg.value;
+				break;
+			case V_FLOAT:
+				n->op = PUSH_FLOAT;
+				n->fvalue = arg.fvalue;
+				break;
+			case V_STRING:
+				n->op = PUSH_STRING;
+				n->value = arg.value;
+				break;
+			default:
+				assert(0);
+				break;
+			}
+			node->push(n);
+		}
+
+		// apply type
+		node->op = (f.is_parse ? CALLU : CALL);
+		node->type = cf.result;
+		node->value = cf.index;
 	}
 }
 
@@ -545,32 +688,17 @@ ParseNode* ParseItem()
 				return node;
 			}
 		case F_FUNC:
-			{
-				Function* f = found.func;
-				ParseNode* node = ParseNode::Get();
-				node->op = CALL;
-				node->type = f->result;
-				node->value = f->index;
-				node->ref = NO_REF;
-
-				t.Next();
-				ParseArgs(node->childs);
-				VerifyFunctionCall(node, f);
-
-				return node;
-			}
 		case F_USER_FUNC:
 			{
-				ParseFunction* f = found.ufunc;
+				vector<AnyFunction> funcs;
+				FindAllFunctionOverloads(id, funcs);
+				t.Next();
+
 				ParseNode* node = ParseNode::Get();
-				node->op = CALLU;
-				node->type = f->result;
-				node->value = f->index;
 				node->ref = NO_REF;
 
-				t.Next();
 				ParseArgs(node->childs);
-				VerifyFunctionCall(node, f);
+				ApplyFunctionCall(node, funcs, nullptr);
 
 				return node;
 			}
@@ -1478,19 +1606,21 @@ ParseNode* ParseExpr(char end, char end2)
 					Type* type = types[left->type];
 					if(right->pseudo_op == OBJ_FUNC)
 					{
-						Function* func = type->FindFunction(*right->str);
-						if(!func)
-							t.Throw("Missing function '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+						vector<AnyFunction> funcs;
+						FindAllFunctionOverloads(type, *right->str, funcs);
+						if(funcs.empty())
+							t.Throw("Missing method '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
 						StringPool.Free(right->str);
+
 						ParseNode* node = ParseNode::Get();
-						node->op = CALL;
-						node->type = func->result;
-						node->value = func->index;
 						node->ref = NO_REF;
 						node->push(left);
 						for(ParseNode* n : right->childs)
 							node->push(n);
-						VerifyFunctionCall(node, func);
+
+						ApplyFunctionCall(node, funcs, type);
+
+						right->childs.clear();
 						right->Free();
 						stack2.push_back(node);
 					}
@@ -1615,7 +1745,7 @@ ParseNode* ParseVarDecl(VAR_TYPE type, string* _name)
 	// var_name
 	const string& name = (_name ? *_name : t.MustGetItem());
 	if(!_name)
-		CheckFindItem(name);
+		CheckFindItem(name, false);
 
 	ParseVar* var = ParseVar::Get();
 	var->name = name;
@@ -1793,7 +1923,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 			int type = GetVarType();
 			t.Next();
 			LocalString id = t.MustGetItem();
-			CheckFindItem(id.get_ref());
+			CheckFindItem(id.get_ref(), false);
 			if(real_func)
 			{
 				ParseVar* arg = ParseVar::Get();
@@ -2013,7 +2143,7 @@ ParseNode* ParseLine()
 		VAR_TYPE type = (VAR_TYPE)t.GetKeywordId(G_VAR);
 		t.Next();
 		LocalString str = t.MustGetItem();
-		CheckFindItem(str.get_ref());
+		CheckFindItem(str.get_ref(), true);
 		t.Next();
 		if(t.IsSymbol('('))
 		{
@@ -2028,6 +2158,12 @@ ParseNode* ParseLine()
 
 			// args
 			ParseFunctionArgs(f, true);
+			ParseFunction* f2 = FindEqualFunction(f);
+			if(f2)
+			{
+				delete f;
+				t.Throw("Function '%s' already exists.", f2->GetName());
+			}
 			
 			// block
 			f->node = ParseBlock(f);
@@ -2816,56 +2952,88 @@ void Decompile(ParseContext& ctx)
 {
 	int* c = ctx.code.data();
 	int* end = c + ctx.code.size();
+	int cf = -2;
 
 	cout << "DECOMPILE:\n";
 	while(c != end)
 	{
+		if(cf == -2)
+		{
+			if(ctx.ufuncs.empty())
+			{
+				cf = -1;
+				cout << "Main:\n";
+			}
+			else
+			{
+				cf = 0;
+				cout << "Function " << ufuncs[0]->name << ":\n";
+			}
+		}
+		else if(cf != -1)
+		{
+			uint offset = c - ctx.code.data();
+			if(offset >= ctx.entry_point)
+			{
+				cf = -1;
+				cout << "Main:\n";
+			}
+			else if(cf + 1 < (int)ctx.ufuncs.size())
+			{
+				if(offset >= ctx.ufuncs[cf + 1].pos)
+				{
+					++cf;
+					cout << "Function " << ufuncs[cf]->name << ":\n";
+				}
+			}
+		}
+
 		Op op = (Op)*c++;
 		if(op >= MAX_OP)
-			cout << "MISSING (" << op << ")\n";
+			cout << "\tMISSING (" << op << ")\n";
 		else
 		{
 			OpInfo& opi = ops[op];
 			switch(opi.arg1)
 			{
 			case V_VOID:
-				cout << Format("[%d] %s\n", (int)op, opi.name);
+				cout << Format("\t[%d] %s\n", (int)op, opi.name);
 				break;
 			case V_INT:
 				{
 					int value = *c++;
-					cout << Format("[%d %d] %s %d\n", (int)op, value, opi.name, value);
+					cout << Format("\t[%d %d] %s %d\n", (int)op, value, opi.name, value);
 				}
 				break;
 			case V_FLOAT:
 				{
 					int val = *c++;
 					float value = union_cast<float>(val);
-					cout << Format("[%d %d] %s %g\n", (int)op, val, opi.name, value);
+					cout << Format("\t[%d %d] %s %g\n", (int)op, val, opi.name, value);
 				}
 				break;
 			case V_STRING:
 				{
 					int str_idx = *c++;
-					cout << Format("[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, ctx.strs[str_idx]->s.c_str());
+					cout << Format("\t[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, ctx.strs[str_idx]->s.c_str());
 				}
 				break;
 			case V_FUNCTION:
 				{
 					int f_idx = *c++;
-					cout << Format("[%d %d] %s %s\n", (int)op, f_idx, opi.name, functions[f_idx]->name.c_str());
+					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, functions[f_idx]->name.c_str());
 				}
 				break;
 			case V_USER_FUNCTION:
 				{
 					int f_idx = *c++;
-					cout << Format("[%d %d] %s %s\n", (int)op, f_idx, opi.name, ufuncs[f_idx]->name.c_str());
+					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, ufuncs[f_idx]->name.c_str());
 				}
 				break;
 			case V_TYPE:
 				{
 					int type = *c++;
-					cout << Format("[%d %d] %s %s\n", (int)op, type, opi.name, types[type]->name.c_str());
+					cout << Format("\t[%d %d] %s %s\n", (int)op, type, opi.name, types[type]->name.c_str());
 				}
 				break;
 			}

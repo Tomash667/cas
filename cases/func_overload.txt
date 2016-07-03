@@ -1,0 +1,28 @@
+println(4);
+println();
+
+void f()
+{
+	println("void");
+}
+
+void f(int a)
+{
+	println("int "+a);
+}
+
+void f(string s)
+{
+	println("string " + s);
+}
+
+void f(float a, int b = 3)
+{
+	println("float "+a+", int "+b);
+}
+
+f();
+f(1);
+f("test");
+f(3.14);
+pause();

@@ -28,10 +28,13 @@ struct ArgInfo
 struct CommonFunction
 {
 	string name;
-	int result;
+	int result, index;
 	vector<ArgInfo> arg_infos;
 	uint required_args;
 	bool method;
+
+	bool Equal(CommonFunction& f) const;
+	cstring GetName(uint var_offfset = 0) const;
 };
 
 // code function
@@ -39,18 +42,10 @@ extern vector<Function*> functions;
 struct Function : CommonFunction
 {
 	void* clbk;
-	int index;
 	int type;
 
-	static inline Function* Find(const string& id)
-	{
-		for(Function* f : functions)
-		{
-			if(f->name == id && !f->type)
-				return f;
-		}
-		return nullptr;
-	}
+	static Function* Find(const string& name);
+	static Function* FindEqual(Function& fc);
 };
 
 // script function

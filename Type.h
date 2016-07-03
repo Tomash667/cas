@@ -49,25 +49,7 @@ struct Type
 	bool pod;
 
 	Function* FindFunction(const string& name);
-	inline Member* FindMember(const string& name, int& index)
-	{
-		index = 0;
-		for(Member* m : members)
-		{
-			if(m->name == name)
-				return m;
-			++index;
-		}
-		return nullptr;
-	}
-	static inline Type* Find(cstring name)
-	{
-		assert(name);
-		for(Type* type : types)
-		{
-			if(type->name == name)
-				return type;
-		}
-		return nullptr;
-	}
+	Function* FindEqualFunction(Function& fc);
+	Member* FindMember(const string& name, int& index);
+	static Type* Find(cstring name);
 };

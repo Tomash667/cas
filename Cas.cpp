@@ -51,10 +51,10 @@ bool cas::AddFunction(cstring decl, void* ptr)
 		handler(Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
 		return false;
 	}
-	Function* f2 = Function::Find(f->name);
+	Function* f2 = Function::FindEqual(*f);
 	if(f2)
 	{
-		handler(Error, Format("Function with name '%s' already exists.", f->name.c_str()));
+		handler(Error, Format("Function '%s' already exists.", f->GetName()));
 		delete f;
 		return false;
 	}
@@ -80,10 +80,10 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 		handler(Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
 		return false;
 	}
-	Function* f2 = type->FindFunction(f->name);
+	Function* f2 = type->FindEqualFunction(*f);
 	if(f2)
 	{
-		handler(Error, Format("Method with name '%s.%s' already exists.", type->name.c_str(), f->name.c_str()));
+		handler(Error, Format("Method '%s' for type '%s' already exists.", f->GetName(), type->name.c_str()));
 		delete f;
 		return false;
 	}
@@ -170,6 +170,39 @@ Function* Type::FindFunction(const string& name)
 	return nullptr;
 }
 
+Function* Type::FindEqualFunction(Function& fc)
+{
+	for(Function* f : funcs)
+	{
+		if(f->name == fc.name && f->Equal(fc))
+			return f;
+	}
+	return nullptr;
+}
+
+Member* Type::FindMember(const string& name, int& index)
+{
+	index = 0;
+	for(Member* m : members)
+	{
+		if(m->name == name)
+			return m;
+		++index;
+	}
+	return nullptr;
+}
+
+Type* Type::Find(cstring name)
+{
+	assert(name);
+	for(Type* type : types)
+	{
+		if(type->name == name)
+			return type;
+	}
+	return nullptr;
+}
+
 void cas::Initialize()
 {
 	static bool init = false;
@@ -187,3 +220,48 @@ struct StaticInitializer
 		handler = &EmptyEventHandler;
 	}
 } static_initializer;
+
+cstring CommonFunction::GetName(uint var_offset) const
+{
+	LocalString s = Format("%s %s(", types[result]->name.c_str(), name.c_str());
+	for(uint i = var_offset, count = arg_infos.size(); i < count; ++i)
+	{
+		if(i != var_offset)
+			s += ",";
+		s += types[arg_infos[i].type]->name;
+	}
+	s += ")";
+	return Format("%s", s->c_str());
+}
+
+bool CommonFunction::Equal(CommonFunction& f) const
+{
+	if(f.arg_infos.size() != arg_infos.size())
+		return false;
+	for(uint i = 0, count = arg_infos.size(); i < count; ++i)
+	{
+		if(arg_infos[i].type != f.arg_infos[i].type)
+			return false;
+	}
+	return true;
+}
+
+Function* Function::Find(const string& name)
+{
+	for(Function* f : functions)
+	{
+		if(f->name == name && f->type == V_VOID)
+			return f;
+	}
+	return nullptr;
+}
+
+Function* Function::FindEqual(Function& fc)
+{
+	for(Function* f : functions)
+	{
+		if(f->name == fc.name && f->type == V_VOID && f->Equal(fc))
+			return f;
+	}
+	return nullptr;
+}

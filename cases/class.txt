@@ -18,6 +18,7 @@ wypisz(gi);
 wypisz(ctor(7,11));
 wypisz(create_int2(5,8));
 println(ctor(2,5).sum());
+println(ctor(1,2).sum(3));
 println(sum_int2(ctor(13,42)));
 gi.x += 2;
 wypisz(gi);

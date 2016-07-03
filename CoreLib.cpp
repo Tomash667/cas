@@ -13,6 +13,11 @@ void f_print(string& str)
 	cout << str;
 }
 
+void f_println0()
+{
+	cout << '\n';
+}
+
 void f_println(string& str)
 {
 	cout << str;
@@ -68,6 +73,11 @@ struct INT2s
 int f_int2_sum(INT2s& i)
 {
 	return i.x + i.y;
+}
+
+int f_int2_sum3(INT2s& i, int a)
+{
+	return i.x + i.y + a;
 }
 
 INT2s f_create_int2(int x, int y)
@@ -163,6 +173,7 @@ void InitCoreLib()
 
 	// functions
 	cas::AddFunction("void print(string str)", f_print);
+	cas::AddFunction("void println()", f_println0);
 	cas::AddFunction("void println(string str)", f_println);
 	cas::AddFunction("int getint()", f_getint);
 	cas::AddFunction("float getfloat()", f_getfloat);
@@ -174,6 +185,7 @@ void InitCoreLib()
 	cas::AddMember("INT2", "int x", offsetof(INT2s, x));
 	cas::AddMember("INT2", "int y", offsetof(INT2s, y));
 	cas::AddMethod("INT2", "int sum()", f_int2_sum);
+	cas::AddMethod("INT2", "int sum(int a)", f_int2_sum3);
 	cas::AddFunction("INT2 create_int2(int x, int y)", f_create_int2);
 	cas::AddFunction("int sum_int2(INT2 i)", f_sum_int2);
 

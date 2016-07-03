@@ -15,10 +15,6 @@ vector functions:
 	+ operator []
 
 + variadic functions (params)
-+ function overloads
-	int f();
-	int f(int,int);
-	dla f(1) pisze ¿e brak funkcji f(int), znaleziono f(), f(int,int)
 + call function before declaration
 
 + class
@@ -68,6 +64,11 @@ vector functions:
 + register c++ global
 + enum
 + register enum
++ multiple files/modules (sharing classes, globals - current globals-> 0 level locals)
++ variable shadowing?
++ dictionary/map
++ parse optimizations:
+	+ store functions in map[string] -> vector<Func>
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html

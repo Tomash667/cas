@@ -232,7 +232,19 @@ namespace tests
 		TEST_METHOD(Class)
 		{
 			Logger::WriteMessage("Test case: Class ******************************\n");
-			Test("class.txt", "", "x:3 y:4\nx:7 y:11\nx:5 y:8\n7\n55\nx:5 y:4\n");
+			Test("class.txt", "", "x:3 y:4\nx:7 y:11\nx:5 y:8\n7\n6\n55\nx:5 y:4\n");
+		}
+
+		TEST_METHOD(ComplexClassResult)
+		{
+			Logger::WriteMessage("Test case: ComplexClassResult ******************************\n");
+			Test("complex_class_result.txt", "", "x:1.6 y:2.3 z:4.1\nx:1.6 y:2.4 z:4.1\nx:7 y:3\nx:3.14 y:0.0015\n");
+		}
+
+		TEST_METHOD(FuncOverload)
+		{
+			Logger::WriteMessage("Test case: FuncOverload ******************************\n");
+			Test("func_overload.txt", "", "4\n\nvoid\nint 1\nstring test\nfloat 3.14, int 3\n");
 		}
 	};
 }
