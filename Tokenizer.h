@@ -190,6 +190,9 @@ public:
 		if(to_register.size() > 0)
 			need_sorting = true;
 	}
+	// Remove keyword (function with name is faster)
+	bool RemoveKeyword(cstring name, int id, int group = EMPTY_GROUP);
+	bool RemoveKeyword(int id, int group = EMPTY_GROUP);
 
 	inline Formatter& StartUnexpected() const { formatter.Start();  return formatter; }
 	inline __declspec(noreturn) void Unexpected() const

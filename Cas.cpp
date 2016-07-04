@@ -8,6 +8,7 @@
 
 Logger* logger;
 vector<Type*> types;
+uint builtin_types;
 vector<Function*> functions;
 cas::EventHandler handler;
 Tokenizer t;
@@ -137,7 +138,7 @@ bool cas::AddMember(cstring type_name, cstring decl, int offset)
 		handler(Error, Format("Missing type for AddMember '%s'.", type_name));
 		return false;
 	}
-	Member* m = ParseMemberDecl(decl);
+	Member* m = ParseMemberDecl(decl, true);
 	if(!m)
 	{
 		handler(Error, Format("Failed to parse member declaration for AddMemeber '%s'.", decl));
@@ -164,6 +165,11 @@ void cas::SetHandler(EventHandler _handler)
 		handler = _handler;
 	else
 		handler = &EmptyEventHandler;
+}
+
+Type::~Type()
+{
+	DeleteElements(members);
 }
 
 Function* Type::FindFunction(const string& name)
@@ -214,18 +220,12 @@ void cas::Initialize()
 	static bool init = false;
 	if(init)
 		return;
+	if(!handler)
+		handler = &EmptyEventHandler;
 	InitializeParser();
 	InitCoreLib();
 	init = true;
 }
-
-struct StaticInitializer
-{
-	StaticInitializer()
-	{
-		handler = &EmptyEventHandler;
-	}
-} static_initializer;
 
 cstring CommonFunction::GetName(uint var_offset) const
 {

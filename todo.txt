@@ -18,13 +18,12 @@ vector functions:
 + call function before declaration
 
 + class
-	+ script register (need to have 2 types - one that are initialized once, second that is cleaned up between parsings)
 	+ script method
 	+ script ctor
 	+ dtor
 	+ operators + - etc
 	+ string member
-	+ class member
+	+ class member (detect recursion), allow declare member of same type as class (but prevent it until nullable type, just don't show error of unknown item)
 	+ properties
 	+ default value for class argument in function
 	+ unit test register c++ struct (require modules)

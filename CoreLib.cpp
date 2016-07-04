@@ -223,4 +223,6 @@ void InitCoreLib()
 	cas::AddMethod("INT2c", "INT2c(int xy)", f_int2c_ctor1);
 	cas::AddMethod("INT2c", "INT2c(int x, int y)", f_int2c_ctor2);
 	cas::AddFunction("void wypisz_int2c(INT2c i)", f_wypisz_int2c);
+
+	builtin_types = types.size();
 }

@@ -39,7 +39,6 @@ enum VAR_TYPE
 };
 
 // type
-extern vector<Type*> types;
 struct Type
 {
 	string name;
@@ -48,8 +47,12 @@ struct Type
 	int size, index;
 	bool pod, have_ctor;
 
+	~Type();
 	Function* FindFunction(const string& name);
 	Function* FindEqualFunction(Function& fc);
 	Member* FindMember(const string& name, int& index);
 	static Type* Find(cstring name);
 };
+
+extern vector<Type*> types;
+extern uint builtin_types;

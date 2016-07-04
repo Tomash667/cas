@@ -1,0 +1,35 @@
+class A
+{
+	int x;
+	float y;
+	bool c;
+	bool d;
+	int g;
+	bool h;
+}
+
+A wypelnij()
+{
+	A a;
+	a.x = 3;
+	a.y = 0.14;
+	a.c = true;
+	a.d = false;
+	a.g = a.x + 7;
+	a.h = a.c == a.d;
+	return a;
+}
+
+void wypisz(A a)
+{
+	println("x:"+a.x);
+	println("y:"+a.y);
+	println("c:"+a.c);
+	println("d:"+a.d);
+	println("g:"+a.g);
+	println("h:"+a.h);
+}
+
+A aa = wypelnij();
+wypisz(aa);
+pause();

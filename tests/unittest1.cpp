@@ -246,5 +246,11 @@ namespace tests
 			Logger::WriteMessage("Test case: FuncOverload ******************************\n");
 			Test("func_overload.txt", "", "4\n\nvoid\nint 1\nstring test\nfloat 3.14, int 3\n");
 		}
+
+		TEST_METHOD(ScriptClass)
+		{
+			Logger::WriteMessage("Test case: ScriptClass ******************************\n");
+			Test("script_class.txt", "", "x:3\ny:0.14\nc:true\nd:false\ng:10\nh:false\n");
+		}
 	};
 }

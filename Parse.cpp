@@ -22,7 +22,8 @@ enum KEYWORD
 	K_WHILE,
 	K_FOR,
 	K_BREAK,
-	K_RETURN
+	K_RETURN,
+	K_CLASS
 };
 
 enum CONST
@@ -2023,6 +2024,48 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 	t.Next();
 }
 
+
+// member_decl
+Member* ParseMemberDecl(cstring decl, bool eof)
+{
+	Member* m = new Member;
+
+	try
+	{
+		if(decl)
+		{
+			t.FromString(decl);
+			t.Next();
+		}
+
+		m->type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
+		if(m->type == V_VOID)
+			t.Throw("Class member can't be void type.");
+		else if(m->type == V_STRING || m->type >= V_CLASS)
+			t.Throw("Class %s member not supported yet.", types[m->type]->name.c_str());
+		t.Next();
+
+		m->name = t.MustGetItem();
+		t.Next();
+
+		if(eof)
+			t.AssertEof();
+		else
+		{
+			t.AssertSymbol(';');
+			t.Next();
+		}
+	}
+	catch(Tokenizer::Exception& e)
+	{
+		handler(cas::Error, e.ToString());
+		delete m;
+		m = nullptr;
+	}
+
+	return m;
+}
+
 // can return null
 ParseNode* ParseLine()
 {
@@ -2179,6 +2222,56 @@ ParseNode* ParseLine()
 						types[ret_type]->name.c_str(), current_function->name.c_str(), types[current_function->result]->name.c_str());
 				t.Next();
 				return ret;
+			}
+		case K_CLASS:
+			{
+				if(current_block != main_block)
+					t.Throw("Class can't be declared inside block.");
+
+				// id
+				t.Next();
+				const string& id = t.MustGetItem();
+				CheckFindItem(id, false);
+				Type* type = new Type;
+				type->name = id;
+				type->have_ctor = false;
+				type->index = types.size();
+				type->pod = true;
+				type->size = 0;
+				types.push_back(type);
+				AddParserType(type);
+				t.Next();
+
+				// {
+				t.AssertSymbol('{');
+				t.Next();
+
+				uint pad = 0;
+
+				// [class_decl ...] }
+				while(!t.IsSymbol('}'))
+				{
+					Member* m = ParseMemberDecl(nullptr, false);
+					uint var_size = types[m->type]->size;
+					assert(var_size == 1 || var_size == 4);
+					if(pad == 0 || var_size == 1)
+					{
+						m->offset = type->size;
+						type->size += var_size;
+						pad = (pad + var_size) % 4;
+					}
+					else
+					{
+						type->size += 4 - pad;
+						m->offset = type->size;
+						type->size += var_size;
+						pad = 0;
+					}
+					type->members.push_back(m);
+				}
+				t.Next();
+
+				return nullptr;
 			}
 		default:
 			t.Unexpected();
@@ -2905,7 +2998,8 @@ void InitializeParser()
 		{"while", K_WHILE},
 		{"for", K_FOR},
 		{"break", K_BREAK},
-		{"return", K_RETURN}
+		{"return", K_RETURN},
+		{"class", K_CLASS}
 	});
 
 	// const
@@ -2923,6 +3017,15 @@ void AddParserType(Type* type)
 
 void CleanupParser()
 {
+	// cleanup old types
+	for(uint i = builtin_types, count = types.size(); i<count; ++i)
+	{
+		Type* type = types[i];
+		t.RemoveKeyword(type->name.c_str(), i, G_VAR);
+		delete type;
+	}
+	types.resize(builtin_types);
+
 	Str::Free(strs);
 	DeleteElements(ufuncs);
 }
@@ -3148,36 +3251,3 @@ Function* ParseFuncDecl(cstring decl, Type* type)
 	return f;
 }
 
-// member_decl
-Member* ParseMemberDecl(cstring decl)
-{
-	assert(decl);
-
-	Member* m = new Member;
-
-	try
-	{
-		t.FromString(decl);
-		t.Next();
-
-		m->type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
-		if(m->type == V_VOID)
-			t.Throw("Class member can't be void type.");
-		else if(m->type == V_STRING || m->type >= V_CLASS)
-			t.Throw("Class %s member not supported yet.", types[m->type]->name.c_str());
-		t.Next();
-
-		m->name = t.MustGetItem();
-		t.Next();
-
-		t.AssertEof();
-	}
-	catch(Tokenizer::Exception& e)
-	{
-		handler(cas::Error, e.ToString());
-		delete m;
-		m = nullptr;
-	}
-
-	return m;
-}

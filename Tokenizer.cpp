@@ -395,8 +395,9 @@ void Tokenizer::ParseNumber(uint pos2, bool negative)
 void Tokenizer::CheckItemOrKeyword(const string& _item)
 {
 	Keyword k = { _item.c_str(), 0, 0 };
-	auto it = std::lower_bound(keywords.begin(), keywords.end(), k);
-	if(it != keywords.end() && _item == it->name)
+	auto end = keywords.end();
+	auto it = std::lower_bound(keywords.begin(), end, k);
+	if(it != end && _item == it->name)
 	{
 		// keyword
 		token = T_KEYWORD;
@@ -407,7 +408,7 @@ void Tokenizer::CheckItemOrKeyword(const string& _item)
 			do
 			{
 				++it;
-				if(it == keywords.end() || _item != it->name)
+				if(it == end || _item != it->name)
 					break;
 				keyword.push_back(&*it);
 			} while(true);
@@ -645,6 +646,56 @@ void Tokenizer::AddKeywords(int group, std::initializer_list<KeywordToRegister> 
 
 	if(to_register.size() > 0)
 		need_sorting = true;
+}
+
+//=================================================================================================
+bool Tokenizer::RemoveKeyword(cstring name, int id, int group)
+{
+	Keyword k = { name, 0, 0 };
+	auto end = keywords.end();
+	auto it = std::lower_bound(keywords.begin(), end, k);
+	if(it != end && strcmp(name, it->name) == 0)
+	{
+		if(it->id == id && it->group == group)
+		{
+			// found
+			keywords.erase(it);
+			return true;
+		}
+
+		// not found exact id/group, if multikeywords check next items
+		if(IS_SET(flags, F_MULTI_KEYWORDS))
+		{
+			do
+			{
+				++it;
+				if(it == end || strcmp(it->name, name) != 0)
+					break;
+				if(it->id == id && it->group == group)
+				{
+					keywords.erase(it);
+					return true;
+				}
+			} while(true);
+		}
+	}
+	
+	return false;
+}
+
+//=================================================================================================
+bool Tokenizer::RemoveKeyword(int id, int group)
+{
+	for(vector<Keyword>::iterator it = keywords.begin(), end = keywords.end(); it != end; ++it)
+	{
+		if(it->id == id && it->group == group)
+		{
+			keywords.erase(it);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 //=================================================================================================

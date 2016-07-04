@@ -6,7 +6,7 @@ func_decl:
 	<class_name> arg_decl EOF // ctor
 
 member_decl:
-	simple_class_type <member_name> EOF
+	simple_class_type <member_name> EOF / ;
 
 line_or_block:
 	block
@@ -16,6 +16,7 @@ block:
 	{ [ line_or_block ...] }
 	
 line:
+	class <class_name> { [class_decl ...] }
 	var_type <func_name> arg_decl block // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;
@@ -26,6 +27,9 @@ line:
 	return [expr] ; // only inside function
 	expr ;
 	;
+
+class_decl:
+	simple_var_type <member_name> ;
 
 arg_decl:
 	([var_type <arg_name> [= const_item] [, ...] )

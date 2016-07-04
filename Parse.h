@@ -15,5 +15,5 @@ void InitializeParser();
 void CleanupParser();
 void Decompile(ParseContext& ctx);
 Function* ParseFuncDecl(cstring decl, Type* type);
-Member* ParseMemberDecl(cstring decl);
+Member* ParseMemberDecl(cstring decl, bool eof);
 void AddParserType(Type* type);
