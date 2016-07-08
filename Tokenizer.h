@@ -527,6 +527,7 @@ public:
 	}
 	const string& GetBlock(char open = '{', char close = '}');
 
+	//===========================================================================================================================
 	inline const string& MustGetItem() const
 	{
 		AssertItem();
@@ -625,6 +626,7 @@ public:
 		return item;
 	}
 
+	//===========================================================================================================================
 	void Parse(INT2& i);
 	void Parse(IBOX2D& b);
 #ifndef NO_DIRECT_X
@@ -706,7 +708,7 @@ private:
 		charpos = 0;
 	}
 
-	uint pos, start_pos, line, charpos;
+	uint pos, line, charpos, seek_pos;
 	const string* str;
 	string item;
 	TOKEN token;

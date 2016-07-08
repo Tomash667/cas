@@ -24,6 +24,13 @@ struct ArgInfo
 	ArgInfo(int type, int value, bool have_def_value) : type(type), value(value), have_def_value(have_def_value) {}
 };
 
+// special function type
+enum SpecialFunction
+{
+	SF_NO,
+	SF_CTOR
+};
+
 // common for parse & code function
 struct CommonFunction
 {
@@ -31,17 +38,11 @@ struct CommonFunction
 	int result, index;
 	vector<ArgInfo> arg_infos;
 	uint required_args;
+	SpecialFunction special;
 	bool method;
 
 	bool Equal(CommonFunction& f) const;
 	cstring GetName(uint var_offfset = 0) const;
-};
-
-// special function type
-enum SpecialFunction
-{
-	SF_NO,
-	SF_CTOR
 };
 
 // code function
@@ -50,7 +51,6 @@ struct Function : CommonFunction
 {
 	void* clbk;
 	int type;
-	SpecialFunction special;
 
 	static Function* Find(const string& name);
 	static Function* FindEqual(Function& fc);

@@ -1,14 +1,18 @@
++ declare member
++ call member
++ ctor (ctor0 op - don't zero class when assigning all)
+
 + array
 vector functions:
-		count
-		push
-		pop
-		front
-		back
-		insert
-		erase
-		at
-		empty
+	count
+	push
+	pop
+	front
+	back
+	insert
+	erase
+	at
+	empty
 	+ const size
 	+ braces initialization
 	+ for each
@@ -65,7 +69,9 @@ vector functions:
 + register enum
 + multiple files/modules (sharing classes, globals - current globals-> 0 level locals)
 + variable shadowing?
-+ dictionary/map
++ types
+	+ dictionary/map
+	+ list
 + parse optimizations:
 	+ store functions in map[string] -> vector<Func>
 + delegate/callback
@@ -78,6 +84,9 @@ vector functions:
 	+ remove unused function
 	+ remove unreachable code
 	+ remove call to function without side effects
++ && short circuiting
++ char type
++ remove duplicates in string table
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html

@@ -52,8 +52,7 @@ bool cas::AddFunction(cstring decl, void* ptr)
 		handler(Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
 		return false;
 	}
-	Function* f2 = Function::FindEqual(*f);
-	if(f2)
+	if(Function::FindEqual(*f))
 	{
 		handler(Error, Format("Function '%s' already exists.", f->GetName()));
 		delete f;
@@ -81,8 +80,7 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 		handler(Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
 		return false;
 	}
-	Function* f2 = type->FindEqualFunction(*f);
-	if(f2)
+	if(type->FindEqualFunction(*f))
 	{
 		handler(Error, Format("Method '%s' for type '%s' already exists.", f->GetName(), type->name.c_str()));
 		delete f;
@@ -157,39 +155,12 @@ bool cas::AddMember(cstring type_name, cstring decl, int offset)
 	return true;
 }
 
-static void EmptyEventHandler(cas::EventType, cstring) {}
-
 void cas::SetHandler(EventHandler _handler)
 {
 	if(_handler)
 		handler = _handler;
 	else
-		handler = &EmptyEventHandler;
-}
-
-Type::~Type()
-{
-	DeleteElements(members);
-}
-
-Function* Type::FindFunction(const string& name)
-{
-	for(Function* f : funcs)
-	{
-		if(f->name == name)
-			return f;
-	}
-	return nullptr;
-}
-
-Function* Type::FindEqualFunction(Function& fc)
-{
-	for(Function* f : funcs)
-	{
-		if(f->name == fc.name && f->Equal(fc))
-			return f;
-	}
-	return nullptr;
+		handler = [](cas::EventType, cstring) {};
 }
 
 Member* Type::FindMember(const string& name, int& index)
@@ -221,7 +192,7 @@ void cas::Initialize()
 	if(init)
 		return;
 	if(!handler)
-		handler = &EmptyEventHandler;
+		SetHandler(nullptr);
 	InitializeParser();
 	InitCoreLib();
 	init = true;

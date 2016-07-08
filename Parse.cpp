@@ -278,19 +278,6 @@ FOUND FindItem(const string& id, Found& found)
 	return F_NONE;
 }
 
-struct AnyFunction
-{
-	union
-	{
-		Function* f;
-		ParseFunction* pf;
-	};
-	bool is_parse;
-
-	inline AnyFunction(Function* f) : f(f), is_parse(false) {}
-	inline AnyFunction(ParseFunction* pf) : pf(pf), is_parse(true) {}
-};
-
 void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items)
 {
 	for(Function* f : functions)
@@ -313,6 +300,12 @@ void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction
 		if(f->name == name)
 			funcs.push_back(f);
 	}
+
+	for(ParseFunction* pf : type->ufuncs)
+	{
+		if(pf->name == name)
+			funcs.push_back(pf);
+	}
 }
 
 void FindAllCtors(Type* type, vector<AnyFunction>& funcs)
@@ -322,15 +315,28 @@ void FindAllCtors(Type* type, vector<AnyFunction>& funcs)
 		if(f->special == SF_CTOR)
 			funcs.push_back(f);
 	}
+
+	for(ParseFunction* pf : type->ufuncs)
+	{
+		if(pf->special == SF_CTOR)
+			funcs.push_back(pf);
+	}
 }
 
-ParseFunction* FindEqualFunction(ParseFunction* pf)
+AnyFunction FindEqualFunction(ParseFunction* pf)
 {
+	for(Function* f : functions)
+	{
+		if(f->name == pf->name && f->Equal(*pf))
+			return f;
+	}
+
 	for(ParseFunction* f : ufuncs)
 	{
 		if(f->name == pf->name && f->Equal(*pf))
 			return f;
 	}
+
 	return nullptr;
 }
 
@@ -2248,26 +2254,48 @@ ParseNode* ParseLine()
 
 				uint pad = 0;
 
-				// [class_decl ...] }
+				// [class_item ...] }
 				while(!t.IsSymbol('}'))
 				{
-					Member* m = ParseMemberDecl(nullptr, false);
-					uint var_size = types[m->type]->size;
-					assert(var_size == 1 || var_size == 4);
-					if(pad == 0 || var_size == 1)
+					// member, method or ctor
+					/*int var_type = t.MustGetKeywordId(G_VAR);
+					t.SeekNext();
+					if(t.SeekSymbol('('))
 					{
-						m->offset = type->size;
-						type->size += var_size;
-						pad = (pad + var_size) % 4;
+						// ctor
+						ParseFuncDecl
+					}
+					else if(t.SeekItem())
+					{
+						t.SeekNext();
+						if(t.SeekSymbol('('))
+						{
+							// method
+						}
+						else
+						{*/
+							// member
+							Member* m = ParseMemberDecl(nullptr, false);
+							uint var_size = types[m->type]->size;
+							assert(var_size == 1 || var_size == 4);
+							if(pad == 0 || var_size == 1)
+							{
+								m->offset = type->size;
+								type->size += var_size;
+								pad = (pad + var_size) % 4;
+							}
+							else
+							{
+								type->size += 4 - pad;
+								m->offset = type->size;
+								type->size += var_size;
+								pad = 0;
+							}
+							type->members.push_back(m);
+						/*}
 					}
 					else
-					{
-						type->size += 4 - pad;
-						m->offset = type->size;
-						type->size += var_size;
-						pad = 0;
-					}
-					type->members.push_back(m);
+						t.Unexpected();*/
 				}
 				t.Next();
 
@@ -2308,11 +2336,10 @@ ParseNode* ParseLine()
 
 			// args
 			ParseFunctionArgs(f, true);
-			ParseFunction* f2 = FindEqualFunction(f);
-			if(f2)
+			if(FindEqualFunction(f))
 			{
 				delete f;
-				t.Throw("Function '%s' already exists.", f2->GetName());
+				t.Throw("Function '%s' already exists.", f->GetName());
 			}
 			
 			// block
@@ -3251,3 +3278,42 @@ Function* ParseFuncDecl(cstring decl, Type* type)
 	return f;
 }
 
+Type::~Type()
+{
+	DeleteElements(members);
+	DeleteElements(ufuncs);
+}
+
+AnyFunction Type::FindFunction(const string& name)
+{
+	for(Function* f : funcs)
+	{
+		if(f->name == name)
+			return f;
+	}
+
+	for(ParseFunction* pf : ufuncs)
+	{
+		if(pf->name == name)
+			return pf;
+	}
+
+	return nullptr;
+}
+
+AnyFunction Type::FindEqualFunction(Function& fc)
+{
+	for(Function* f : funcs)
+	{
+		if(f->name == fc.name && f->Equal(fc))
+			return f;
+	}
+
+	for(ParseFunction* pf : ufuncs)
+	{
+		if(pf->name == name && pf->Equal(fc))
+			return pf;
+	}
+
+	return nullptr;
+}

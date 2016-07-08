@@ -5,8 +5,11 @@ func_decl:
 	var_type <func_name> arg_decl EOF
 	<class_name> arg_decl EOF // ctor
 
+func_def:
+	var_type <func_name> arg_decl block
+
 member_decl:
-	simple_class_type <member_name> EOF / ;
+	simple_class_type <member_name> EOF
 
 line_or_block:
 	block
@@ -16,8 +19,8 @@ block:
 	{ [ line_or_block ...] }
 	
 line:
-	class <class_name> { [class_decl ...] }
-	var_type <func_name> arg_decl block // can only be used in top block
+	class <class_name> { [class_item ...] }
+	func_def // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;
 	while cond line_or_block
@@ -28,8 +31,9 @@ line:
 	expr ;
 	;
 
-class_decl:
+class_item:
 	simple_var_type <member_name> ;
+	func_def
 
 arg_decl:
 	([var_type <arg_name> [= const_item] [, ...] )
@@ -121,6 +125,3 @@ inc_dec_op:
 const:
 	true
 	false
-
-=============================
-lvar = rval ;

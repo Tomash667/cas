@@ -53,7 +53,6 @@ bool Tokenizer::FromFile(cstring path)
 //=================================================================================================
 void Tokenizer::FromTokenizer(const Tokenizer& t)
 {
-	start_pos = t.start_pos;
 	str = t.str;
 	pos = t.pos;
 	line = t.line;
@@ -99,7 +98,6 @@ redo:
 	}
 
 	char c = str->at(pos2);
-	start_pos = pos2;
 
 	if(c == '\r')
 	{

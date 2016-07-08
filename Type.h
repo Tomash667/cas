@@ -1,7 +1,26 @@
 #pragma once
 
 struct Function;
+struct CommonFunction;
+struct ParseFunction;
 struct Type;
+
+// code or script function
+struct AnyFunction
+{
+	union
+	{
+		Function* f;
+		ParseFunction* pf;
+		CommonFunction* cf;
+	};
+	bool is_parse;
+
+	inline AnyFunction(std::nullptr_t) : cf(nullptr), is_parse(false) {}
+	inline AnyFunction(Function* f) : f(f), is_parse(false) {}
+	inline AnyFunction(ParseFunction* pf) : pf(pf), is_parse(true) {}
+	inline operator bool() const { return cf != nullptr; }
+};
 
 // string implementation
 struct Str : ObjectPoolProxy<Str>
@@ -43,13 +62,14 @@ struct Type
 {
 	string name;
 	vector<Function*> funcs;
+	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
 	int size, index;
 	bool pod, have_ctor;
 
 	~Type();
-	Function* FindFunction(const string& name);
-	Function* FindEqualFunction(Function& fc);
+	AnyFunction FindFunction(const string& name);
+	AnyFunction FindEqualFunction(Function& fc);
 	Member* FindMember(const string& name, int& index);
 	static Type* Find(cstring name);
 };
