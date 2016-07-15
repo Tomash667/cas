@@ -11,7 +11,7 @@ vector<Type*> types;
 uint builtin_types;
 vector<Function*> functions;
 cas::EventHandler handler;
-Tokenizer t;
+Tokenizer t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE);
 
 void InitCoreLib(std::istream* input, std::ostream* output, bool use_getch);
 

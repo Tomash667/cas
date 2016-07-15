@@ -1188,6 +1188,7 @@ inline bool Unescape(const string& str_in, string& str_out)
 {
 	return Unescape(str_in, 0u, str_in.length(), str_out);
 }
+bool StringInString(cstring s1, cstring s2);
 cstring Escape(cstring str);
 string* ToString(const wchar_t* str);
 

@@ -1658,6 +1658,23 @@ cstring Escape(cstring str)
 }
 
 //=================================================================================================
+bool StringInString(cstring s1, cstring s2)
+{
+	while(true)
+	{
+		if(*s1 == *s2)
+		{
+			++s1;
+			++s2;
+			if(*s2 == 0)
+				return true;
+		}
+		else
+			return false;
+	}
+}
+
+//=================================================================================================
 string* ToString(const wchar_t* str)
 {
 	string* s = StringPool.Get();

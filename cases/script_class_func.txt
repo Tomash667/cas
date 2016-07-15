@@ -1,0 +1,38 @@
+class A
+{
+	int a;
+	float b;
+	
+	float dodaj()
+	{
+		return a+b;
+	}
+	
+	void wypisz_plus1()
+	{
+		++a;
+		println(dodaj());
+	}
+	
+	A()
+	{
+		a = 1;
+		b = 2.5;
+	}
+	
+	A(int _a, float _b)
+	{
+		a = _a;
+		b = _b;
+	}
+}
+
+A a;
+println(a.dodaj());
+A b = A();
+println(b.dodaj());
+A c(7, 8.5);
+println(c.dodaj());
+A d = A(9, 10.5);
+println(d.dodaj());
+pause();

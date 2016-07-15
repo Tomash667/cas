@@ -37,7 +37,8 @@ enum FOUND
 	F_NONE,
 	F_VAR,
 	F_FUNC,
-	F_USER_FUNC
+	F_USER_FUNC,
+	F_MEMBER
 };
 
 enum PseudoOp
@@ -183,6 +184,11 @@ union Found
 	ParseVar* var;
 	Function* func;
 	ParseFunction* ufunc;
+	struct
+	{
+		Member* member;
+		int member_index;
+	};
 
 	inline cstring ToString(FOUND type)
 	{
@@ -205,6 +211,8 @@ union Found
 			return "function";
 		case F_USER_FUNC:
 			return "script function";
+		case F_MEMBER:
+			return "member";
 		default:
 			assert(0);
 			return "undefined";
@@ -219,6 +227,7 @@ static vector<ParseFunction*> ufuncs;
 static Block* main_block;
 static Block* current_block;
 static ParseFunction* current_function;
+static Type* current_type;
 static int breakable_block;
 static int empty_string;
 static bool optimize;
@@ -233,6 +242,28 @@ ParseNode* ParseLineOrBlock();
 
 FOUND FindItem(const string& id, Found& found)
 {
+	if(current_type)
+	{
+		found.member = current_type->FindMember(id, found.member_index);
+		if(found.member)
+			return F_MEMBER;
+
+		AnyFunction f = current_type->FindFunction(id);
+		if(f)
+		{
+			if(f.is_parse)
+			{
+				found.func = f.f;
+				return F_FUNC;
+			}
+			else
+			{
+				found.ufunc = f.pf;
+				return F_USER_FUNC;
+			}
+		}
+	}
+
 	Function* func = Function::Find(id);
 	if(func)
 	{
@@ -738,6 +769,16 @@ ParseNode* ParseItem(int* type = nullptr)
 				ParseArgs(node->childs);
 				ApplyFunctionCall(node, funcs, nullptr, false);
 
+				return node;
+			}
+		case F_MEMBER:
+			{
+				ParseNode* node = ParseNode::Get();
+				node->op = PUSH_THIS_MEMBER;
+				node->type = found.member->type;
+				node->value = found.member->offset;
+				node->ref = MAY_REF;
+				t.Next();
 				return node;
 			}
 		default:
@@ -1253,6 +1294,9 @@ void RequireRef(ParseNode* node, cstring op_name)
 		case PUSH_MEMBER:
 			node->op = PUSH_MEMBER_REF;
 			break;
+		case PUSH_THIS_MEMBER:
+			node->op = PUSH_THIS_MEMBER_REF;
+			break;
 		default:
 			assert(0);
 			break;
@@ -1688,7 +1732,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 				}
 				else if(si.type == ST_ASSIGN)
 				{
-					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER)
+					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER)
 						t.Throw("Can't assign, left value must be variable.");
 
 					ParseNode* set = ParseNode::Get();
@@ -1705,6 +1749,9 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						break;
 					case PUSH_MEMBER:
 						set->op = SET_MEMBER;
+						break;
+					case PUSH_THIS_MEMBER:
+						set->op = SET_THIS_MEMBER;
 						break;
 					default:
 						assert(0);
@@ -2253,52 +2300,94 @@ ParseNode* ParseLine()
 				t.Next();
 
 				uint pad = 0;
+				current_type = type;
 
 				// [class_item ...] }
 				while(!t.IsSymbol('}'))
 				{
 					// member, method or ctor
-					/*int var_type = t.MustGetKeywordId(G_VAR);
-					t.SeekNext();
+					int var_type = t.MustGetKeywordId(G_VAR);
+					bool is_func;
+					t.SeekStart();
 					if(t.SeekSymbol('('))
-					{
-						// ctor
-						ParseFuncDecl
-					}
+						is_func = true; // ctor
 					else if(t.SeekItem())
 					{
 						t.SeekNext();
 						if(t.SeekSymbol('('))
-						{
-							// method
-						}
+							is_func = true; // method
 						else
-						{*/
-							// member
-							Member* m = ParseMemberDecl(nullptr, false);
-							uint var_size = types[m->type]->size;
-							assert(var_size == 1 || var_size == 4);
-							if(pad == 0 || var_size == 1)
-							{
-								m->offset = type->size;
-								type->size += var_size;
-								pad = (pad + var_size) % 4;
-							}
-							else
-							{
-								type->size += 4 - pad;
-								m->offset = type->size;
-								type->size += var_size;
-								pad = 0;
-							}
-							type->members.push_back(m);
-						/*}
+							is_func = false; // member
 					}
 					else
-						t.Unexpected();*/
+						is_func = false; // invalid, will fail at parsing below
+
+					if(is_func)
+					{
+						ParseFunction* f = new ParseFunction;
+						f->result = var_type;
+						t.Next();
+
+						if(type->index == f->result && t.IsSymbol('('))
+						{
+							// ctor
+							f->special = SF_CTOR;
+							f->name = type->name;
+						}
+						else
+						{
+							f->special = SF_NO;
+							f->name = t.MustGetItem();
+							t.Next();
+						}
+
+						t.AssertSymbol('(');
+						t.Next();
+
+						ParseFunctionArgs(f, true);
+
+						if(FindEqualFunction(f))
+							t.Throw("Function '%s' already exists.", f->GetName());
+
+						// block
+						f->node = ParseBlock(f);
+						current_function = nullptr;
+						if(f->special == SF_CTOR)
+							type->have_ctor = true;
+						else
+						{
+							f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(type->index, 0, false));
+							f->required_args++;
+						}
+						f->index = ufuncs.size();
+						f->type = type->index;
+						ufuncs.push_back(f);
+						type->ufuncs.push_back(f);
+					}
+					else
+					{
+						Member* m = ParseMemberDecl(nullptr, false);
+						uint var_size = types[m->type]->size;
+						assert(var_size == 1 || var_size == 4);
+						if(pad == 0 || var_size == 1)
+						{
+							m->offset = type->size;
+							type->size += var_size;
+							pad = (pad + var_size) % 4;
+						}
+						else
+						{
+							type->size += 4 - pad;
+							m->offset = type->size;
+							type->size += var_size;
+							pad = 0;
+						}
+						type->members.push_back(m);
+					}
 				}
 				t.Next();
 
+				current_type = nullptr;
 				return nullptr;
 			}
 		default:
@@ -2435,6 +2524,7 @@ ParseNode* ParseCode()
 	main_block->var_offset = 0u;
 	current_block = main_block;
 	current_function = nullptr;
+	current_type = nullptr;
 
 	ParseNode* node = ParseNode::Get();
 	node->pseudo_op = GROUP;
@@ -2846,6 +2936,9 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case PUSH_MEMBER:
 	case PUSH_MEMBER_REF:
 	case SET_MEMBER:
+	case PUSH_THIS_MEMBER:
+	case PUSH_THIS_MEMBER_REF:
+	case SET_THIS_MEMBER:
 	case CTOR:
 		code.push_back(node->op);
 		code.push_back(node->value);
@@ -2999,6 +3092,7 @@ bool Parse(ParseContext& ctx)
 			uf.result = f.result;
 			for(ParseVar* arg : f.args)
 				uf.args.push_back(arg->type);
+			uf.type = f.type;
 		}
 		ctx.globals = main_block->GetMaxVars();
 
@@ -3081,11 +3175,14 @@ OpInfo ops[MAX_OP] = {
 	PUSH_ARG_REF, "push_arg_ref", V_INT,
 	PUSH_MEMBER, "push_member", V_INT,
 	PUSH_MEMBER_REF, "push_member_ref", V_INT,
+	PUSH_THIS_MEMBER, "push_this_member", V_INT,
+	PUSH_THIS_MEMBER_REF, "push_this_member_ref", V_INT,
 	POP, "pop", V_VOID,
 	SET_LOCAL, "set_local", V_INT,
 	SET_GLOBAL, "set_global", V_INT,
 	SET_ARG, "set_arg", V_INT,
 	SET_MEMBER, "set_member", V_INT,
+	SET_THIS_MEMBER, "set_this_member", V_INT,
 	CAST, "cast", V_TYPE,
 	NEG, "neg", V_VOID,
 	ADD, "add", V_VOID,

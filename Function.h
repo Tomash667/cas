@@ -35,7 +35,7 @@ enum SpecialFunction
 struct CommonFunction
 {
 	string name;
-	int result, index;
+	int result, index, type;
 	vector<ArgInfo> arg_infos;
 	uint required_args;
 	SpecialFunction special;
@@ -50,7 +50,6 @@ extern vector<Function*> functions;
 struct Function : CommonFunction
 {
 	void* clbk;
-	int type;
 
 	static Function* Find(const string& name);
 	static Function* FindEqual(Function& fc);
@@ -63,4 +62,5 @@ struct UserFunction
 	uint locals;
 	int result;
 	vector<int> args;
+	int type;
 };

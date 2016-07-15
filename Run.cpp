@@ -438,6 +438,59 @@ void RunCode(RunContext& ctx)
 				stack.push_back(Var(REF_MEMBER, member_index, c));
 			}
 			break;
+		case PUSH_THIS_MEMBER:
+			{
+				// check is inside script class function
+				assert(current_function != -1);
+				assert((uint)current_function < ctx.ufuncs.size());
+				UserFunction& f = ctx.ufuncs[current_function];
+				assert(f.type >= V_CLASS && (uint)f.type < types.size());
+				Type* type = types[f.type];
+				uint member_index = *c++;
+				assert(member_index < type->members.size());
+				Var& v = local[args_offset];
+				assert(v.type == f.type);
+				Class* c = v.clas;
+				Member* m = type->members[member_index];
+
+				// push value
+				switch(m->type)
+				{
+				case V_BOOL:
+					stack.push_back(Var(c->at<bool>(m->offset)));
+					break;
+				case V_INT:
+					stack.push_back(Var(c->at<int>(m->offset)));
+					break;
+				case V_FLOAT:
+					stack.push_back(Var(c->at<float>(m->offset)));
+					break;
+				default:
+					assert(0);
+					break;
+				}
+			}
+			break;
+		case PUSH_THIS_MEMBER_REF:
+			{
+				// check is inside script class function
+				assert(current_function != -1);
+				assert((uint)current_function < ctx.ufuncs.size());
+				UserFunction& f = ctx.ufuncs[current_function];
+				assert(f.type >= V_CLASS && (uint)f.type < types.size());
+				Type* type = types[f.type];
+				uint member_index = *c++;
+				assert(member_index < type->members.size());
+				Var& v = local[args_offset];
+				assert(v.type == f.type);
+				Class* c = v.clas;
+				Member* m = type->members[member_index];
+
+				// push reference
+				assert(m->type == V_BOOL || m->type == V_INT || m->type == V_FLOAT);
+				stack.push_back(Var(REF_MEMBER, member_index, c));
+			}
+			break;
 		case POP:
 			{
 				assert(!stack.empty());
@@ -527,6 +580,43 @@ void RunCode(RunContext& ctx)
 				}
 
 				c->Release();
+			}
+			break;
+		case SET_THIS_MEMBER:
+			{
+				assert(!stack.empty());
+				Var& v = stack.back();
+
+				// check is inside script class function
+				assert(current_function != -1);
+				assert((uint)current_function < ctx.ufuncs.size());
+				UserFunction& f = ctx.ufuncs[current_function];
+				assert(f.type >= V_CLASS && (uint)f.type < types.size());
+				Type* type = types[f.type];
+				uint member_index = *c++;
+				assert(member_index < type->members.size());
+				Var& vl = local[args_offset];
+				assert(vl.type == f.type);
+				Class* c = vl.clas;
+				Member* m = type->members[member_index];
+				
+				switch(m->type)
+				{
+				case V_BOOL:
+					c->at<bool>(m->offset) = v.bvalue;
+					break;
+				case V_INT:
+					c->at<int>(m->offset) = v.value;
+					break;
+				case V_FLOAT:
+					c->at<float>(m->offset) = v.fvalue;
+					break;
+				default:
+					assert(0);
+					break;
+				}
+
+				stack.pop_back();
 			}
 			break;
 		case CAST:
