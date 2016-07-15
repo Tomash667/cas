@@ -1,6 +1,12 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
 
+#define DO_EXPAND(VAL) VAL ## 0
+#define EXPAND(VAL) DO_EXPAND(VAL)
+#if defined(_CI_MODE) && (EXPAND(_CI_MODE) == 10)
+#	define CI_MODE
+#endif
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace std;
 
@@ -16,6 +22,12 @@ struct PackedData
 	cstring input;
 	bool optimize;
 };
+
+#ifdef CI_MODE
+const int DEFAULT_TIMEOUT = 60;
+#else
+const int DEFAULT_TIMEOUT = 1;
+#endif
 
 unsigned __stdcall ThreadStart(void* data)
 {
@@ -33,6 +45,9 @@ void TestEventHandler(cas::EventType event_type, cstring msg)
 	event_output += m;
 }
 
+std::istringstream s_input;
+std::ostringstream s_output;
+
 namespace tests
 {		
 	TEST_CLASS(UnitTest1)
@@ -41,7 +56,11 @@ namespace tests
 		TEST_CLASS_INITIALIZE(ClassInitialize)
 		{
 			cas::SetHandler(TestEventHandler);
-			cas::Initialize();
+			cas::Settings s;
+			s.input = &s_input;
+			s.output = &s_output;
+			s.use_getch = false;
+			cas::Initialize(&s);
 			Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 		}
 
@@ -54,7 +73,7 @@ namespace tests
 			return str;
 		}
 
-		Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = 1)
+		Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 		{
 			PackedData pdata;
 			pdata.input = content;
@@ -76,12 +95,14 @@ namespace tests
 		{
 			event_output.clear();
 
+#ifndef CI_MODE
 			if(input[0] != 0)
 			{
 				Logger::WriteMessage("Script input:\n");
 				Logger::WriteMessage(input);
 				Logger::WriteMessage("\n\n");
 			}
+#endif
 
 			string path(Format("../../../cases/%s", filename));
 			std::ifstream ifs(path);
@@ -89,14 +110,13 @@ namespace tests
 			std::string content((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
 			ifs.close();
 
-			std::ostringstream oss;
-			std::streambuf* old_cout = std::cout.rdbuf(oss.rdbuf());
-
-			std::istringstream iss(input);
-			std::streambuf* old_cin = std::cin.rdbuf(iss.rdbuf());
+			s_input.clear();
+			s_input.str(input);
+			s_output.clear();
+			s_output.str("");
 
 			Result result = ParseAndRunWithTimeout(content.c_str(), optimize);
-			string s = oss.str();
+			string s = s_output.str();
 			cstring ss = s.c_str();
 			if(result == TIMEOUT)
 			{
@@ -108,12 +128,11 @@ namespace tests
 				cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
 				Assert::Fail(GetWC(output).c_str());
 			}
+#ifndef CI_MODE
 			Logger::WriteMessage("Script output:\n");
 			Logger::WriteMessage(ss);
+#endif
 			Assert::AreEqual(output, ss, "Invalid output.");
-
-			std::cout.rdbuf(old_cout);
-			std::cin.rdbuf(old_cin);
 		}
 		
 		TEST_METHOD(Simple)

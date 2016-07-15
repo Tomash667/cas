@@ -12,7 +12,14 @@ namespace cas
 
 	typedef void(*EventHandler)(EventType event_type, cstring msg);
 
-	void Initialize();
+	struct Settings
+	{
+		void* input;
+		void* output;
+		bool use_getch;
+	};
+
+	void Initialize(Settings* settings = nullptr);
 	void SetHandler(EventHandler handler);
 	bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false);
 	bool AddFunction(cstring decl, void* ptr);
