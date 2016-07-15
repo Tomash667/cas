@@ -7,6 +7,7 @@ func_decl:
 
 func_def:
 	var_type <func_name> arg_decl block
+	<class_name> arg_decl block // ctor
 
 member_decl:
 	simple_class_type <member_name> EOF

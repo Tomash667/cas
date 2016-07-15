@@ -13,7 +13,8 @@ enum REF_TYPE
 
 enum SPECIAL_VAR
 {
-	V_FUNCTION
+	V_FUNCTION,
+	V_CTOR
 };
 
 struct Class
@@ -615,8 +616,6 @@ void RunCode(RunContext& ctx)
 					assert(0);
 					break;
 				}
-
-				stack.pop_back();
 			}
 			break;
 		case CAST:
@@ -955,15 +954,24 @@ void RunCode(RunContext& ctx)
 				UserFunction& f = ctx.ufuncs[current_function];
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
+				Var& func_mark = *(local.end() - to_pop - 1);
+				assert(func_mark.type == V_SPECIAL && (func_mark.special_type == V_FUNCTION || func_mark.special_type == V_CTOR));
+				bool is_ctor = (func_mark.special_type == V_CTOR);
+				if(is_ctor)
+					--to_pop;
 				while(to_pop--)
 				{
 					Var& v = local.back();
-					if(v.type == V_STRING)
-						v.str->Release();
+					ReleaseRef(v);
 					local.pop_back();
 				}
-				Var& func_mark = local.back();
-				assert(func_mark.type == V_SPECIAL && func_mark.special_type == V_FUNCTION);
+				Class* thi = nullptr;
+				if(is_ctor)
+				{
+					assert(local.back().type == f.type);
+					thi = local.back().clas;
+					local.pop_back();
+				}
 				c = start + func_mark.value2;
 				current_function = func_mark.value1;
 				local.pop_back();
@@ -974,8 +982,11 @@ void RunCode(RunContext& ctx)
 					UserFunction& f = ctx.ufuncs[current_function];
 					uint count = 1 + f.locals + f.args.size();
 					assert(local.size() >= count);
-					assert((local.end() - count)->type == V_SPECIAL && (local.end() - count)->special_type == V_FUNCTION);
+					Var& d = *(local.end() - count);
+					assert(d.type == V_SPECIAL && (d.special_type == V_FUNCTION || d.special_type == V_CTOR));
 				}
+				if(thi)
+					stack.push_back(Var(thi));
 				assert(expected_stack.back() == stack.size());
 				if(f.result != V_VOID)
 					assert(stack.back().type == f.result);
@@ -1019,7 +1030,7 @@ void RunCode(RunContext& ctx)
 				uint f_idx = *c++;
 				assert(f_idx < ctx.ufuncs.size());
 				UserFunction& f = ctx.ufuncs[f_idx];
-				// push function to locals
+				// mark function call
 				uint pos = c - start;
 				local.push_back(Var(V_SPECIAL, V_FUNCTION, current_function, pos));
 				// handle args
@@ -1039,6 +1050,37 @@ void RunCode(RunContext& ctx)
 				uint expected = stack.size();
 				if(f.result != V_VOID)
 					++expected;
+				expected_stack.push_back(expected);
+				current_function = f_idx;
+				c = start + f.pos;
+			}
+			break;
+		case CALLU_CTOR:
+			{
+				uint f_idx = *c++;
+				assert(f_idx < ctx.ufuncs.size());
+				UserFunction& f = ctx.ufuncs[f_idx];
+				// mark function call
+				uint pos = c - start;
+				local.push_back(Var(V_SPECIAL, V_CTOR, current_function, pos));
+				// push this
+				args_offset = local.size();
+				assert(f.type >= V_CLASS && (uint)f.type < types.size());
+				local.resize(local.size() + f.args.size());
+				local[args_offset] = Var(Class::Create(types[f.type]));
+				// handle args
+				assert(stack.size() >= f.args.size() - 1);
+				for(uint i = 1, count = f.args.size(); i < count; ++i)
+				{
+					assert(f.args[count - i] == stack.back().type);
+					local[args_offset + count - i] = stack.back();
+					stack.pop_back();
+				}
+				// handle locals
+				locals_offset = local.size();
+				local.resize(local.size() + f.locals);
+				// call
+				uint expected = stack.size() + 1;
 				expected_stack.push_back(expected);
 				current_function = f_idx;
 				c = start + f.pos;

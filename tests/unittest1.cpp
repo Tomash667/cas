@@ -1,11 +1,10 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
 
-#define DO_EXPAND(VAL) VAL ## 0
-#define EXPAND(VAL) DO_EXPAND(VAL)
-#if defined(_CI_MODE) && (EXPAND(_CI_MODE) == 10)
+#if ((_CI_MODE - 1) == 0)
 #	define CI_MODE
 #endif
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace std;

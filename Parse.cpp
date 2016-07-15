@@ -43,17 +43,18 @@ enum FOUND
 
 enum PseudoOp
 {
-	GROUP = MAX_OP,
-	PUSH_BOOL,
+	PUSH_BOOL = MAX_OP,
 	NOP,
-	IF,
 	OBJ_MEMBER,
 	OBJ_FUNC,
+	BREAK,
+	RETURN,
+	SPECIAL_OP, // op code below don't apply child nodes
+	IF = SPECIAL_OP,
 	DO_WHILE,
 	WHILE,
 	FOR,
-	BREAK,
-	RETURN
+	GROUP
 };
 
 enum PseudoOpValue
@@ -99,7 +100,6 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		int value;
 		float fvalue;
 		string* str;
-		ParseVar* var;
 	};
 	int type;
 	vector<ParseNode*> childs;
@@ -273,7 +273,7 @@ FOUND FindItem(const string& id, Found& found)
 
 	for(ParseFunction* ufunc : ufuncs)
 	{
-		if(ufunc->name == id)
+		if(ufunc->name == id && ufunc->type == V_VOID)
 		{
 			found.ufunc = ufunc;
 			return F_USER_FUNC;
@@ -319,8 +319,17 @@ void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items)
 
 	for(ParseFunction* pf : ufuncs)
 	{
-		if(pf->name == name)
+		if(pf->name == name && pf->type == V_VOID)
 			items.push_back(pf);
+	}
+
+	if(current_type)
+	{
+		for(ParseFunction* pf : current_type->ufuncs)
+		{
+			if(pf->name == name)
+				items.push_back(pf);
+		}
 	}
 }
 
@@ -514,15 +523,19 @@ bool TryCast(ParseNode*& node, int type)
 }
 
 // 0 - don't match, 1 - require cast, 2 - match
-int MatchFunctionCall(ParseNode* node, CommonFunction& f)
+int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse)
 {
-	if(node->childs.size() > f.arg_infos.size() || node->childs.size() < f.required_args)
+	uint offset = 0;
+	if((current_type && f.type == current_type->index) || (f.special == SF_CTOR && is_parse))
+		++offset;
+
+	if(node->childs.size() + offset > f.arg_infos.size() || node->childs.size() + offset < f.required_args)
 		return 0;
 
 	bool require_cast = false;
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
-		int c = MayCast(node->childs[i], f.arg_infos[i].type);
+		int c = MayCast(node->childs[i], f.arg_infos[i + offset].type);
 		if(c == -1)
 			return 0;
 		else if(c == 1)
@@ -541,7 +554,7 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 
 	for(AnyFunction& f : funcs)
 	{
-		int m = MatchFunctionCall(node, *f.f);
+		int m = MatchFunctionCall(node, *f.f, f.is_parse);
 		if(m == match_level)
 			match.push_back(f);
 		else if(m > match_level)
@@ -559,7 +572,7 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 		if(match.size() >= 2u)
 			s = "Ambiguous call to overloaded ";
 		else
-			s = "Not matching call to ";
+			s = "No matching call to ";
 		if(type)
 			s += Format("method '%s.", type->name.c_str());
 		else
@@ -587,17 +600,34 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 			for(AnyFunction& f : match)
 			{
 				s += "\n\t";
-				s += f.f->GetName(var_offset);
+				s += f.f->GetName();
 			}
 		}
 		else
-			s += Format(" '%s'.", match.front().f->GetName(var_offset));
+			s += Format(" '%s'.", match.front().f->GetName());
 		t.Throw(s->c_str());
 	}
 	else
 	{
 		AnyFunction f = match.front();
 		CommonFunction& cf = *f.f;
+		bool callu_ctor = false;
+
+		if(current_type && cf.type == current_type->index)
+		{
+			// push this
+			ParseNode* thi = ParseNode::Get();
+			thi->op = PUSH_ARG;
+			thi->type = cf.type;
+			thi->value = 0;
+			thi->ref = NO_REF;
+			node->childs.insert(node->childs.begin(), thi);
+		}
+		else if(cf.special == SF_CTOR && f.is_parse)
+		{
+			// user constructor call
+			callu_ctor = true;
+		}
 
 		// cast params
 		if(match_level == 1)
@@ -607,7 +637,7 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 		}
 
 		// fill default params
-		for(uint i = node->childs.size(); i < cf.arg_infos.size(); ++i)
+		for(uint i = node->childs.size() + (callu_ctor ? 1 : 0); i < cf.arg_infos.size(); ++i)
 		{
 			ArgInfo& arg = cf.arg_infos[i];
 			ParseNode* n = ParseNode::Get();
@@ -638,7 +668,7 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 		}
 
 		// apply type
-		node->op = (f.is_parse ? CALLU : CALL);
+		node->op = (f.is_parse ? (callu_ctor ? CALLU_CTOR : CALLU) : CALL);
 		node->type = cf.result;
 		node->value = cf.index;
 	}
@@ -736,6 +766,9 @@ ParseNode* ParseItem(int* type = nullptr)
 			{
 				ParseVar* var = found.var;
 				ParseNode* node = ParseNode::Get();
+				node->type = var->type;
+				node->value = var->index;
+				node->ref = MAY_REF;
 				switch(var->subtype)
 				{
 				default:
@@ -748,11 +781,10 @@ ParseNode* ParseItem(int* type = nullptr)
 					break;
 				case ParseVar::ARG:
 					node->op = PUSH_ARG;
+					if(current_type)
+						node->value++;
 					break;
 				}
-				node->type = var->type;
-				node->var = var;
-				node->ref = MAY_REF;
 				t.Next();
 				return node;
 			}
@@ -776,7 +808,7 @@ ParseNode* ParseItem(int* type = nullptr)
 				ParseNode* node = ParseNode::Get();
 				node->op = PUSH_THIS_MEMBER;
 				node->type = found.member->type;
-				node->value = found.member->offset;
+				node->value = found.member_index;
 				node->ref = MAY_REF;
 				t.Next();
 				return node;
@@ -1757,7 +1789,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						assert(0);
 						break;
 					}
-					set->var = left->var;
+					set->value = left->value;
 					set->type = left->type;
 					set->ref = NO_REF;
 
@@ -1765,8 +1797,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 					{
 						// assign
 						if(!TryCast(right, left->type))
-							t.Throw("Can't assign '%s' to variable '%s %s'.", types[right->type]->name.c_str(), types[set->type]->name.c_str(),
-								set->var->name.c_str());
+							t.Throw("Can't assign '%s' to type '%s'.", types[right->type]->name.c_str(), types[set->type]->name.c_str());
 						set->push(right);
 						if(left->op == PUSH_MEMBER)
 							set->push(left->childs);
@@ -1933,7 +1964,7 @@ ParseNode* ParseVarDecl(int type, string* _name)
 		break;
 	}
 	node->type = var->type;
-	node->var = var;
+	node->value = var->index;
 	node->ref = NO_REF;
 	node->push(expr);
 	return node;
@@ -2270,9 +2301,14 @@ ParseNode* ParseLine()
 				}
 				else
 					ret_type = V_VOID;
-				if(ret_type != current_function->result)
-					t.Throw("Invalid return type '%s', function '%s' require '%s' type.",
-						types[ret_type]->name.c_str(), current_function->name.c_str(), types[current_function->result]->name.c_str());
+				int req_type;
+				if(current_function->special == SF_CTOR)
+					req_type = V_VOID;
+				else
+					req_type = current_function->result;
+				if(ret_type != req_type)
+					t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", types[ret_type]->name.c_str(),
+						current_function->type == V_VOID ? "function" : "method", current_function->GetName(), types[req_type]->name.c_str());
 				t.Next();
 				return ret;
 			}
@@ -2354,11 +2390,8 @@ ParseNode* ParseLine()
 						current_function = nullptr;
 						if(f->special == SF_CTOR)
 							type->have_ctor = true;
-						else
-						{
-							f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(type->index, 0, false));
-							f->required_args++;
-						}
+						f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(type->index, 0, false));
+						f->required_args++;
 						f->index = ufuncs.size();
 						f->type = type->index;
 						ufuncs.push_back(f);
@@ -2422,6 +2455,7 @@ ParseNode* ParseLine()
 			f->name = str;
 			f->index = ufuncs.size();
 			f->result = type;
+			f->type = V_VOID;
 
 			// args
 			ParseFunctionArgs(f, true);
@@ -2719,210 +2753,220 @@ ParseNode* OptimizeTree(ParseNode* node)
 
 void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 {
-	if(node->pseudo_op == IF)
+	if(node->pseudo_op >= SPECIAL_OP)
 	{
-		// if condition
-		assert(node->childs.size() == 2u || node->childs.size() == 3u);
-		ToCode(code, node->childs[0], break_pos);
-		code.push_back(FJMP);
-		uint tjmp_pos = code.size();
-		code.push_back(0);
-		if(node->childs.size() == 3u)
+		switch(node->pseudo_op)
 		{
-			/*
-			if expr
-			fjmp else_block
-			if_block: if code
-			jmp end
-			else_block: else code
-			end:
-			*/
-			if(node->childs[1])
+		case IF:
 			{
-				ToCode(code, node->childs[1], break_pos);
-				if(node->childs[1]->type != V_VOID)
-					code.push_back(POP);
+				// if condition
+				assert(node->childs.size() == 2u || node->childs.size() == 3u);
+				ToCode(code, node->childs[0], break_pos);
+				code.push_back(FJMP);
+				uint tjmp_pos = code.size();
+				code.push_back(0);
+				if(node->childs.size() == 3u)
+				{
+					/*
+					if expr
+					fjmp else_block
+					if_block: if code
+					jmp end
+					else_block: else code
+					end:
+					*/
+					if(node->childs[1])
+					{
+						ToCode(code, node->childs[1], break_pos);
+						if(node->childs[1]->type != V_VOID)
+							code.push_back(POP);
+					}
+					code.push_back(JMP);
+					uint jmp_pos = code.size();
+					code.push_back(0);
+					uint else_start = code.size();
+					if(node->childs[2])
+					{
+						ToCode(code, node->childs[2], break_pos);
+						if(node->childs[2]->type != V_VOID)
+							code.push_back(POP);
+					}
+					uint end_start = code.size();
+					code[tjmp_pos] = else_start;
+					code[jmp_pos] = end_start;
+				}
+				else
+				{
+					/*
+					if expr
+					fjmp end
+					if_code
+					end:
+					*/
+					if(node->childs[1])
+					{
+						ToCode(code, node->childs[1], break_pos);
+						if(node->childs[1]->type != V_VOID)
+							code.push_back(POP);
+					}
+					uint end_start = code.size();
+					code[tjmp_pos] = end_start;
+				}
 			}
-			code.push_back(JMP);
-			uint jmp_pos = code.size();
-			code.push_back(0);
-			uint else_start = code.size();
-			if(node->childs[2])
+			break;
+		case DO_WHILE:
 			{
-				ToCode(code, node->childs[2], break_pos);
-				if(node->childs[2]->type != V_VOID)
-					code.push_back(POP);
+				assert(node->childs.size() == 2u);
+				uint start = code.size();
+				vector<uint> wh_break_pos;
+				ParseNode* block = node->childs[0];
+				ParseNode* cond = node->childs[1];
+				if(block)
+					ToCode(code, block, &wh_break_pos);
+				if(node->value == DO_WHILE_NORMAL)
+				{
+					/*
+					start:
+					block
+					cond
+					tjmp start
+					end:
+					*/
+					ToCode(code, cond, &wh_break_pos);
+					code.push_back(TJMP);
+					code.push_back(start);
+				}
+				else if(node->value == DO_WHILE_INF)
+				{
+					/*
+					start:
+					block
+					jmp start
+					end:
+					*/
+					code.push_back(JMP);
+					code.push_back(start);
+				}
+				uint end_pos = code.size();
+				for(uint p : wh_break_pos)
+					code[p] = end_pos;
 			}
-			uint end_start = code.size();
-			code[tjmp_pos] = else_start;
-			code[jmp_pos] = end_start;
-		}
-		else
-		{
-			/*
-			if expr
-			fjmp end
-			if_code
-			end:
-			*/
-			if(node->childs[1])
+			break;
+		case WHILE:
 			{
-				ToCode(code, node->childs[1], break_pos);
-				if(node->childs[1]->type != V_VOID)
-					code.push_back(POP);
+				assert(node->childs.size() == 2u);
+				uint start = code.size();
+				vector<uint> wh_break_pos;
+				ParseNode* cond = node->childs[0];
+				ParseNode* block = node->childs[1];
+				if(cond)
+				{
+					/*
+					start:
+					cond
+					fjmp end
+					block
+					jmp start
+					end:
+					*/
+					ToCode(code, cond, &wh_break_pos);
+					code.push_back(FJMP);
+					uint end_jmp = code.size();
+					code.push_back(0);
+					if(block)
+						ToCode(code, block, &wh_break_pos);
+					code.push_back(JMP);
+					code.push_back(start);
+					code[end_jmp] = code.size();
+				}
+				else
+				{
+					/*
+					start:
+					block
+					jmp start
+					*/
+					if(block)
+						ToCode(code, block, &wh_break_pos);
+					code.push_back(JMP);
+					code.push_back(start);
+				}
+				uint end_pos = code.size();
+				for(uint p : wh_break_pos)
+					code[p] = end_pos;
 			}
-			uint end_start = code.size();
-			code[tjmp_pos] = end_start;
-		}
-		return;
-	}
-	else if(node->pseudo_op == DO_WHILE)
-	{
-		assert(node->childs.size() == 2u);
-		uint start = code.size();
-		vector<uint> wh_break_pos;
-		ParseNode* block = node->childs[0];
-		ParseNode* cond = node->childs[1];
-		if(block)
-			ToCode(code, block, &wh_break_pos);
-		if(node->value == DO_WHILE_NORMAL)
-		{
-			/*
-			start:
+			break;
+		case FOR:
+			{
+				/*
+				for1
+				start:
+				[for2
+				fjmp end]
 				block
-				cond
-				tjmp start
-			end:
-			*/
-			ToCode(code, cond, &wh_break_pos);
-			code.push_back(TJMP);
-			code.push_back(start);
-		}
-		else if(node->value == DO_WHILE_INF)
-		{
-			/*
-			start:
-				block
+				for3
 				jmp start
-			end:
-			*/
-			code.push_back(JMP);
-			code.push_back(start);
-		}
-		uint end_pos = code.size();
-		for(uint p : wh_break_pos)
-			code[p] = end_pos;
-		return;
-	}
-	else if(node->pseudo_op == WHILE)
-	{
-		assert(node->childs.size() == 2u);
-		uint start = code.size();
-		vector<uint> wh_break_pos;
-		ParseNode* cond = node->childs[0];
-		ParseNode* block = node->childs[1];
-		if(cond)
-		{
-			/*
-			start:
-				cond
-				fjmp end
-				block
-				jmp start
-			end:
-			*/
-			ToCode(code, cond, &wh_break_pos);
-			code.push_back(FJMP);
-			uint end_jmp = code.size();
-			code.push_back(0);
-			if(block)
-				ToCode(code, block, &wh_break_pos);
-			code.push_back(JMP);
-			code.push_back(start);
-			code[end_jmp] = code.size();
-		}
-		else
-		{
-			/*
-			start:
-				block
-				jmp start
-			*/
-			if(block)
-				ToCode(code, block, &wh_break_pos);
-			code.push_back(JMP);
-			code.push_back(start);
-		}
-		uint end_pos = code.size();
-		for(uint p : wh_break_pos)
-			code[p] = end_pos;
-		return;
-	}
-	else if(node->pseudo_op == FOR)
-	{
-		/*
-		for1
-		start:
-			[for2
-			fjmp end]
-			block
-			for3
-			jmp start
-		end:
-		*/
-		assert(node->childs.size() == 4u);
-		ParseNode* for1 = node->childs[0];
-		ParseNode* for2 = node->childs[1];
-		ParseNode* for3 = node->childs[2];
-		ParseNode* block = node->childs[3];
-		vector<uint> wh_break_pos;
-		if(for1)
-		{
-			ToCode(code, for1, &wh_break_pos);
-			if(for1->type != V_VOID)
-				code.push_back(POP);
-		}
-		uint start = code.size();
-		uint fjmp_pos = 0;
-		if(for2)
-		{
-			ToCode(code, for2, &wh_break_pos);
-			code.push_back(FJMP);
-			fjmp_pos = code.size();
-			code.push_back(0);
-		}
-		if(block)
-		{
-			ToCode(code, block, &wh_break_pos);
-			if(block->type != V_VOID)
-				code.push_back(POP);
-		}
-		if(for3)
-		{
-			ToCode(code, for3, &wh_break_pos);
-			if(for3->type != V_VOID)
-				code.push_back(POP);
-		}
-		code.push_back(JMP);
-		code.push_back(start);
-		uint end_pos = code.size();
-		if(fjmp_pos != 0)
-			code[fjmp_pos] = end_pos;
-		for(uint p : wh_break_pos)
-			code[p] = end_pos;
-		return;
-	}
-	else if(node->pseudo_op == GROUP)
-	{
-		for(ParseNode* n : node->childs)
-		{
-			ToCode(code, n, break_pos);
-			if(n->type != V_VOID)
-				code.push_back(POP);
+				end:
+				*/
+				assert(node->childs.size() == 4u);
+				ParseNode* for1 = node->childs[0];
+				ParseNode* for2 = node->childs[1];
+				ParseNode* for3 = node->childs[2];
+				ParseNode* block = node->childs[3];
+				vector<uint> wh_break_pos;
+				if(for1)
+				{
+					ToCode(code, for1, &wh_break_pos);
+					if(for1->type != V_VOID)
+						code.push_back(POP);
+				}
+				uint start = code.size();
+				uint fjmp_pos = 0;
+				if(for2)
+				{
+					ToCode(code, for2, &wh_break_pos);
+					code.push_back(FJMP);
+					fjmp_pos = code.size();
+					code.push_back(0);
+				}
+				if(block)
+				{
+					ToCode(code, block, &wh_break_pos);
+					if(block->type != V_VOID)
+						code.push_back(POP);
+				}
+				if(for3)
+				{
+					ToCode(code, for3, &wh_break_pos);
+					if(for3->type != V_VOID)
+						code.push_back(POP);
+				}
+				code.push_back(JMP);
+				code.push_back(start);
+				uint end_pos = code.size();
+				if(fjmp_pos != 0)
+					code[fjmp_pos] = end_pos;
+				for(uint p : wh_break_pos)
+					code[p] = end_pos;
+			}
+			break;
+		case GROUP:
+			{
+				for(ParseNode* n : node->childs)
+				{
+					ToCode(code, n, break_pos);
+					if(n->type != V_VOID)
+						code.push_back(POP);
+				}
+			}
+			break;
+		default:
+			assert(0);
+			break;
 		}
 		return;
 	}
-
+	
 	for(ParseNode* n : node->childs)
 		ToCode(code, n, break_pos);
 	
@@ -2932,28 +2976,26 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case PUSH_STRING:
 	case CALL:
 	case CALLU:
+	case CALLU_CTOR:
 	case CAST:
-	case PUSH_MEMBER:
-	case PUSH_MEMBER_REF:
-	case SET_MEMBER:
-	case PUSH_THIS_MEMBER:
-	case PUSH_THIS_MEMBER_REF:
-	case SET_THIS_MEMBER:
-	case CTOR:
-		code.push_back(node->op);
-		code.push_back(node->value);
-		break;
 	case PUSH_LOCAL:
 	case PUSH_LOCAL_REF:
 	case PUSH_GLOBAL:
 	case PUSH_GLOBAL_REF:
 	case PUSH_ARG:
 	case PUSH_ARG_REF:
+	case PUSH_MEMBER:
+	case PUSH_MEMBER_REF:
+	case PUSH_THIS_MEMBER:
+	case PUSH_THIS_MEMBER_REF:
 	case SET_LOCAL:
 	case SET_GLOBAL:
 	case SET_ARG:
+	case SET_MEMBER:
+	case SET_THIS_MEMBER:
+	case CTOR:
 		code.push_back(node->op);
-		code.push_back(node->var->index);
+		code.push_back(node->value);
 		break;
 	case PUSH_FLOAT:
 		code.push_back(node->op);
@@ -3028,11 +3070,14 @@ bool VerifyNodeReturnValue(ParseNode* node)
 
 void VerifyFunctionReturnValue(ParseFunction* f)
 {
-	if(f->result == V_VOID)
+	if(f->result == V_VOID || f->special == SF_CTOR)
 		return;
 		
 	if(f->node)
 	{
+		if(f->node->pseudo_op == RETURN)
+			return;
+
 		for(vector<ParseNode*>::reverse_iterator it = f->node->childs.rbegin(), end = f->node->childs.rend(); it != end; ++it)
 		{
 			if(VerifyNodeReturnValue(*it))
@@ -3040,7 +3085,7 @@ void VerifyFunctionReturnValue(ParseFunction* f)
 		}
 	}
 
-	t.Throw("Function '%s' not always return value.", f->name.c_str());
+	t.Throw("%s '%s' not always return value.", f->type == V_VOID ? "Function" : "Method", f->GetName());
 }
 
 bool Parse(ParseContext& ctx)
@@ -3075,11 +3120,13 @@ bool Parse(ParseContext& ctx)
 			ufunc->locals = ufunc->block->GetMaxVars();
 			if(ufunc->node)
 				ToCode(ctx.code, ufunc->node, nullptr);
-			ctx.code.push_back(RET);
+			if(!ctx.code.empty() && ctx.code.back() != RET)
+				ctx.code.push_back(RET);
 		}
 		ctx.entry_point = ctx.code.size();
 		ToCode(ctx.code, node, nullptr);
-		ctx.code.push_back(RET);
+		if(!ctx.code.empty() && ctx.code.back() != RET)
+			ctx.code.push_back(RET);
 
 		ctx.strs = strs;
 		ctx.ufuncs.resize(ufuncs.size());
@@ -3090,8 +3137,8 @@ bool Parse(ParseContext& ctx)
 			uf.pos = f.pos;
 			uf.locals = f.locals;
 			uf.result = f.result;
-			for(ParseVar* arg : f.args)
-				uf.args.push_back(arg->type);
+			for(auto& arg : f.arg_infos)
+				uf.args.push_back(arg.type);
 			uf.type = f.type;
 		}
 		ctx.globals = main_block->GetMaxVars();
@@ -3215,6 +3262,7 @@ OpInfo ops[MAX_OP] = {
 	FJMP, "fjmp", V_INT,
 	CALL, "call", V_FUNCTION,
 	CALLU, "callu", V_USER_FUNCTION,
+	CALLU_CTOR, "callu_ctor", V_USER_FUNCTION,
 	RET, "ret", V_VOID,
 	CTOR, "ctor", V_TYPE
 };
@@ -3251,7 +3299,7 @@ void Decompile(ParseContext& ctx)
 			else
 			{
 				cf = 0;
-				cout << "Function " << ufuncs[0]->name << ":\n";
+				cout << "Function " << ufuncs[0]->GetName(false) << ":\n";
 			}
 		}
 		else if(cf != -1)
@@ -3267,7 +3315,7 @@ void Decompile(ParseContext& ctx)
 				if(offset >= ctx.ufuncs[cf + 1].pos)
 				{
 					++cf;
-					cout << "Function " << ufuncs[cf]->name << ":\n";
+					cout << "Function " << ufuncs[cf]->GetName(false) << ":\n";
 				}
 			}
 		}
@@ -3305,13 +3353,13 @@ void Decompile(ParseContext& ctx)
 			case V_FUNCTION:
 				{
 					int f_idx = *c++;
-					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, functions[f_idx]->name.c_str());
+					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, functions[f_idx]->GetName(false));
 				}
 				break;
 			case V_USER_FUNCTION:
 				{
 					int f_idx = *c++;
-					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, ufuncs[f_idx]->name.c_str());
+					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, ufuncs[f_idx]->GetName(false));
 				}
 				break;
 			case V_TYPE:

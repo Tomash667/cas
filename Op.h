@@ -55,6 +55,7 @@ enum Op
 	FJMP,
 	CALL,
 	CALLU,
+	CALLU_CTOR,
 	RET,
 	CTOR,
 	MAX_OP

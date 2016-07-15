@@ -42,7 +42,7 @@ struct CommonFunction
 	bool method;
 
 	bool Equal(CommonFunction& f) const;
-	cstring GetName(uint var_offfset = 0) const;
+	cstring GetName(bool write_result = true) const;
 };
 
 // code function

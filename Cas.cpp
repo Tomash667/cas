@@ -207,9 +207,23 @@ void cas::Initialize(Settings* settings)
 	init = true;
 }
 
-cstring CommonFunction::GetName(uint var_offset) const
+cstring CommonFunction::GetName(bool write_result) const
 {
-	LocalString s = Format("%s %s(", types[result]->name.c_str(), name.c_str());
+	LocalString s = "";
+	if(write_result && type == V_VOID)
+	{
+		s += types[result]->name;
+		s += ' ';
+	}
+	uint var_offset = 0;
+	if(type != V_VOID)
+	{
+		s += types[type]->name;
+		s += '.';
+		++var_offset;
+	}
+	s += name;
+	s += '(';
 	for(uint i = var_offset, count = arg_infos.size(); i < count; ++i)
 	{
 		if(i != var_offset)
