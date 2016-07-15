@@ -2970,12 +2970,8 @@ bool Parse(ParseContext& ctx)
 			uf.pos = f.pos;
 			uf.locals = f.locals;
 			uf.result = f.result;
-#ifdef _DEBUG
 			for(ParseVar* arg : f.args)
 				uf.args.push_back(arg->type);
-#else
-			uf.args = f.args.size();
-#endif
 		}
 		ctx.globals = main_block->GetMaxVars();
 
