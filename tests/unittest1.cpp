@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
 
+#if (_CI_MODE == 1)
+#	define CI_MODE
+#endif
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace std;
 
@@ -16,6 +20,12 @@ struct PackedData
 	cstring input;
 	bool optimize;
 };
+
+#ifdef CI_MODE
+const int DEFAULT_TIMEOUT = 60;
+#else
+const int DEFAULT_TIMEOUT = 1;
+#endif
 
 unsigned __stdcall ThreadStart(void* data)
 {
@@ -54,7 +64,7 @@ namespace tests
 			return str;
 		}
 
-		Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = 1)
+		Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 		{
 			PackedData pdata;
 			pdata.input = content;
@@ -76,12 +86,14 @@ namespace tests
 		{
 			event_output.clear();
 
+#ifndef CI_MODE
 			if(input[0] != 0)
 			{
 				Logger::WriteMessage("Script input:\n");
 				Logger::WriteMessage(input);
 				Logger::WriteMessage("\n\n");
 			}
+#endif
 
 			string path(Format("../../../cases/%s", filename));
 			std::ifstream ifs(path);
@@ -108,8 +120,10 @@ namespace tests
 				cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
 				Assert::Fail(GetWC(output).c_str());
 			}
+#ifndef CI_MODE
 			Logger::WriteMessage("Script output:\n");
 			Logger::WriteMessage(ss);
+#endif
 			Assert::AreEqual(output, ss, "Invalid output.");
 
 			std::cout.rdbuf(old_cout);
