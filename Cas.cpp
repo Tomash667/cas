@@ -13,7 +13,7 @@ vector<Function*> functions;
 cas::EventHandler handler;
 Tokenizer t;
 
-void InitCoreLib();
+void InitCoreLib(std::istream* input, std::ostream* output, bool use_getch);
 
 bool cas::ParseAndRun(cstring input, bool optimize, bool decompile)
 {
@@ -215,15 +215,24 @@ Type* Type::Find(cstring name)
 	return nullptr;
 }
 
-void cas::Initialize()
+void cas::Initialize(Settings* settings)
 {
 	static bool init = false;
 	if(init)
 		return;
 	if(!handler)
 		handler = &EmptyEventHandler;
+	std::istream* input = &cin;
+	std::ostream* output = &cout;
+	bool use_getch = true;
+	if(settings)
+	{
+		input = (std::istream*)settings->input;
+		output = (std::ostream*)settings->output;
+		use_getch = settings->use_getch;
+	}
 	InitializeParser();
-	InitCoreLib();
+	InitCoreLib(input, output, use_getch);
 	init = true;
 }
 

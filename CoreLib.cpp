@@ -8,46 +8,51 @@
 #include <conio.h>
 #undef NULL
 
+static std::istream* s_input;
+static std::ostream* s_output;
+static bool s_use_getch;
+
 void f_print(string& str)
 {
-	cout << str;
+	(*s_output) << str;
 }
 
 void f_println0()
 {
-	cout << '\n';
+	(*s_output) << '\n';
 }
 
 void f_println(string& str)
 {
-	cout << str;
-	cout << '\n';
+	(*s_output) << str;
+	(*s_output) << '\n';
 }
 
 int f_getint()
 {
 	int val;
-	cin >> val;
+	(*s_input) >> val;
 	return val;
 }
 
 float f_getfloat()
 {
 	float val;
-	cin >> val;
+	(*s_input) >> val;
 	return val;
 }
 
 string f_getstr()
 {
 	string s;
-	cin >> s;
+	(*s_input) >> s;
 	return s;
 }
 
 void f_pause()
 {
-	_getch();
+	if(s_use_getch)
+		_getch();
 }
 
 int f_string_length(string& str)
@@ -108,7 +113,7 @@ Vec2 f_create_vec2(float x, float y)
 
 void f_wypisz_vec2(Vec2& v)
 {
-	cout << "x:" << v.x << " y:" << v.y << "\n";
+	(*s_output) << "x:" << v.x << " y:" << v.y << "\n";
 }
 
 struct Vec3
@@ -127,7 +132,7 @@ Vec3 f_create_vec3(float x, float y, float z)
 
 void f_wypisz_vec3(Vec3& v)
 {
-	cout << "x:" << v.x << " y:" << v.y << " z:" << v.z << "\n";
+	(*s_output) << "x:" << v.x << " y:" << v.y << " z:" << v.z << "\n";
 }
 
 INT2 f_int2c_ctor0()
@@ -147,7 +152,7 @@ INT2 f_int2c_ctor2(int x, int y)
 
 void f_wypisz_int2c(INT2& i)
 {
-	cout << "x:" << i.x << " y:" << i.y << "\n";
+	(*s_output) << "x:" << i.x << " y:" << i.y << "\n";
 }
 
 void AddParserType(Type* type);
@@ -166,8 +171,12 @@ void AddType(cstring type_name, int size, VAR_TYPE var_type, bool reg = true)
 		AddParserType(type);
 }
 
-void InitCoreLib()
+void InitCoreLib(std::istream* input, std::ostream* output, bool use_getch)
 {
+	s_input = input;
+	s_output = output;
+	s_use_getch = use_getch;
+
 	// types
 	AddType("void", 0, V_VOID);
 	AddType("bool", sizeof(bool), V_BOOL);
