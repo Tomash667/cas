@@ -252,10 +252,7 @@ namespace tokenizer
 		template<typename T>
 		inline __declspec(noreturn) void Throw(cstring msg, T arg, ...)
 		{
-			va_list list;
-			va_start(list, msg);
-			cstring err = FormatList(msg, list);
-			va_end(list);
+			cstring err = FormatList(msg, (va_list)&arg);
 			formatter.Throw(err);
 		}
 

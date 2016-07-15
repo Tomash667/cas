@@ -45,4 +45,9 @@
       <Filter>Doc</Filter>
     </Text>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="readme.md">
+      <Filter>Doc</Filter>
+    </None>
+  </ItemGroup>
 </Project>

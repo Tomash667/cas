@@ -6,6 +6,7 @@ namespace cas
 {
 	enum EventType
 	{
+		Info,
 		Warning,
 		Error
 	};

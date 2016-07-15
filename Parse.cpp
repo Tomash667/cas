@@ -106,7 +106,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	RefType ref;
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
-	inline void push(vector<ParseNode*> ps)
+	inline void push(vector<ParseNode*>& ps)
 	{
 		for(ParseNode* p : ps)
 			childs.push_back(p);
@@ -2027,7 +2027,6 @@ ParseNode* ParseVarTypeDecl(int* _type = nullptr, string* _name = nullptr)
 
 int GetVarType()
 {
-	bool ok = true;
 	if(t.IsKeywordGroup(G_VAR))
 		return t.GetKeywordId(G_VAR);
 	else if(t.IsItem())
@@ -2456,6 +2455,7 @@ ParseNode* ParseLine()
 			f->index = ufuncs.size();
 			f->result = type;
 			f->type = V_VOID;
+			f->special = SF_NO;
 
 			// args
 			ParseFunctionArgs(f, true);
@@ -3422,7 +3422,6 @@ Function* ParseFuncDecl(cstring decl, Type* type)
 Type::~Type()
 {
 	DeleteElements(members);
-	DeleteElements(ufuncs);
 }
 
 AnyFunction Type::FindFunction(const string& name)

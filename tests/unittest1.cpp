@@ -40,7 +40,21 @@ string event_output;
 
 void TestEventHandler(cas::EventType event_type, cstring msg)
 {
-	cstring m = Format("%s: %s\n", event_type == cas::Error ? "ERROR" : "WARN", msg);
+	cstring type;
+	switch(event_type)
+	{
+	case cas::Info:
+		type = "INFO";
+		break;
+	case cas::Warning:
+		type = "WARN";
+		break;
+	case cas::Error:
+	default:
+		type = "ERROR";
+		break;
+	}
+	cstring m = Format("%s: %s\n", type, msg);
 	Logger::WriteMessage(m);
 	event_output += m;
 }
@@ -62,6 +76,11 @@ namespace tests
 			s.use_getch = false;
 			cas::Initialize(&s);
 			Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
+
+			if(CI_MODE)
+				Logger::WriteMessage("+++ CI MODE +++\n\n");
+			else
+				Logger::WriteMessage("+++ NORMAL MODE +++\n\n");
 		}
 
 		wstring GetWC(cstring s)

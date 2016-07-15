@@ -153,6 +153,7 @@ redo:
 		s.charpos += len;
 		uint block_start = s.pos;
 		bool ok = false;
+		len = strlen(ALTER_END);
 
 		for(; s.pos < str->length(); ++s.pos)
 		{
@@ -160,7 +161,6 @@ redo:
 			{
 				s.item = str->substr(block_start, s.pos - block_start);
 				s.token = T_STRING;
-				len = strlen(ALTER_END);
 				s.pos += len;
 				s.charpos += len;
 				ok = true;
