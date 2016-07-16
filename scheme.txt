@@ -33,7 +33,7 @@ line:
 	;
 
 class_item:
-	simple_var_type <member_name> ;
+	simple_var_type <member_name> [, <member_name> ...] ;
 	func_def
 
 arg_decl:
@@ -84,6 +84,7 @@ args:
 
 op:
 	base_op
+	is
 	==
 	!=
 	>

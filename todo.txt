@@ -25,7 +25,12 @@ vector functions:
 	+ properties
 	+ default value for class argument in function
 	+ unit test register c++ struct (require modules)
+	+ copy ctor (default)
+	+ inhertiance
+	+ interfaces
 
++ is operator
+	+ compare object and type if(a is INT2)
 + default string for code function
 + allow reuse variable name
 + object/string deconstruction
@@ -75,6 +80,7 @@ vector functions:
 	+ remove unreachable code
 	+ remove call to function without side effects
 	+ don't initialize members that won't be used until overwritten
+	+ TryConstExpr for IS
 + && short circuiting
 + char type
 + remove duplicates in string table

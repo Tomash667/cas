@@ -136,7 +136,7 @@ bool cas::AddMember(cstring type_name, cstring decl, int offset)
 		handler(Error, Format("Missing type for AddMember '%s'.", type_name));
 		return false;
 	}
-	Member* m = ParseMemberDecl(decl, true);
+	Member* m = ParseMemberDecl(decl);
 	if(!m)
 	{
 		handler(Error, Format("Failed to parse member declaration for AddMemeber '%s'.", decl));

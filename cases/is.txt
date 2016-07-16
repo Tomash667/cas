@@ -1,0 +1,39 @@
+string f(string s)
+{
+	return s;
+}
+
+string f2(string s)
+{
+	return s + 1;
+}
+
+string a = "1";
+if(a is a)
+	println(1);
+if(a is f(a))
+	println(2);
+if(!(a is f2(a)))
+	println(3);
+	
+class X
+{
+	int x, y;
+}
+
+X b;
+if(b is b)
+	println(4);
+	
+X dodo(X s)
+{
+	s.x += 1;
+	s.y -= 1;
+	return s;
+}
+
+X c = dodo(b);
+if(b is c)
+	println(5);
+	
+pause();

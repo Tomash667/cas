@@ -7,7 +7,7 @@
 
 using namespace std;
 
-cstring def_filename = "script_class_func.txt;func_overload.txt;script_class_func.txt";
+cstring def_filename = "is.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 static bool have_errors;

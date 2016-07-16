@@ -275,5 +275,10 @@ namespace tests
 		{
 			Test("script_class_func.txt", "", "3.5\n3.5\n19.5\n20.5\n");
 		}
+
+		TestMethod(Is)
+		{
+			Test("is.txt", "", "1\n2\n3\n4\n5\n");
+		}
 	};
 }

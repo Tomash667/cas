@@ -792,6 +792,7 @@ void RunCode(RunContext& ctx)
 		case BIT_XOR:
 		case BIT_LSHIFT:
 		case BIT_RSHIFT:
+		case IS:
 			{
 				assert(stack.size() >= 2u);
 				Var right = stack.back();
@@ -806,6 +807,8 @@ void RunCode(RunContext& ctx)
 					assert(left.type == V_BOOL);
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
 					assert(left.type == V_INT);
+				else if(op == IS)
+					assert(left.type == V_STRING || left.type >= V_CLASS);
 				else
 					assert(left.type == V_INT || left.type == V_FLOAT);
 
@@ -937,6 +940,13 @@ void RunCode(RunContext& ctx)
 					break;
 				case BIT_RSHIFT:
 					left.value = (left.value >> right.value);
+					break;
+				case IS:
+					if(left.type == V_STRING)
+						left.bvalue = (left.str == right.str);
+					else
+						left.bvalue = (left.clas == right.clas);
+					left.type = V_BOOL;
 					break;
 				}
 			}

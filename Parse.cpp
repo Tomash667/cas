@@ -23,7 +23,8 @@ enum KEYWORD
 	K_FOR,
 	K_BREAK,
 	K_RETURN,
-	K_CLASS
+	K_CLASS,
+	K_IS
 };
 
 enum CONST
@@ -863,6 +864,7 @@ enum SYMBOL
 	S_PRE_DEC,
 	S_POST_INC,
 	S_POST_DEC,
+	S_IS,
 	S_INVALID,
 	S_MAX
 };
@@ -924,6 +926,7 @@ SymbolInfo symbols[S_MAX] = {
 	S_PRE_DEC, "pre decrement", 3, false, 1, PRE_DEC, ST_INC_DEC,
 	S_POST_INC, "post increment", 2, true, 1, POST_INC, ST_INC_DEC,
 	S_POST_DEC, "post decrement", 2, true, 1, POST_DEC, ST_INC_DEC,
+	S_IS, "reference equal", 9, true, 2, IS, ST_NONE,
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE
 };
 
@@ -943,7 +946,7 @@ bool CanOp(SYMBOL symbol, int left, int right, int& cast, int& result)
 		return false;
 	if(right == V_VOID && symbols[symbol].args != 1)
 		return false;
-	if(left >= V_CLASS || right >= V_CLASS)
+	if((left >= V_CLASS || right >= V_CLASS) && symbol != S_IS)
 		return false;
 
 	int type;
@@ -1044,6 +1047,21 @@ bool CanOp(SYMBOL symbol, int left, int right, int& cast, int& result)
 		cast = V_INT;
 		result = V_INT;
 		return true;
+	case S_IS:
+		if(left == V_STRING && right == V_STRING)
+		{
+			cast = V_STRING;
+			result = V_BOOL;
+			return true;
+		}
+		else if(left >= V_CLASS && left == right)
+		{
+			cast = left;
+			result = V_BOOL;
+			return true;
+		}
+		else
+			return false;
 	default:
 		assert(0);
 		return false;
@@ -1373,6 +1391,7 @@ enum BASIC_SYMBOL
 	BS_DOT, // .
 	BS_INC, // ++
 	BS_DEC, // --
+	BS_IS, // is
 	BS_MAX
 };
 
@@ -1421,11 +1440,16 @@ BasicSymbolInfo basic_symbols[BS_MAX] = {
 	BS_DOT, ".", S_INVALID, S_INVALID, S_INVALID, S_MEMBER_ACCESS,
 	BS_INC, "++", S_INVALID, S_PRE_INC, S_POST_INC, S_INVALID,
 	BS_DEC, "--", S_INVALID, S_PRE_DEC, S_POST_DEC, S_INVALID,
+	BS_IS, "is", S_INVALID, S_INVALID, S_INVALID, S_IS
 };
 
 BASIC_SYMBOL GetSymbol()
 {
-	char c = t.MustGetSymbol();
+	if(t.IsKeyword(K_IS, G_KEYWORD))
+		return BS_IS;
+	if(!t.IsSymbol())
+		return BS_MAX;
+	char c = t.GetSymbol();
 	switch(c)
 	{
 	case '+':
@@ -1521,8 +1545,6 @@ bool GetNextSymbol(BASIC_SYMBOL& symbol)
 {
 	if(symbol != BS_MAX)
 		return true;
-	if(!t.IsSymbol())
-		return false;
 	symbol = GetSymbol();
 	return (symbol != BS_MAX);
 }
@@ -2107,37 +2129,32 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 	t.Next();
 }
 
+int GetVarTypeForMember()
+{
+	int type = t.MustGetKeywordId(G_VAR);
+	if(type == V_VOID)
+		t.Throw("Class member can't be void type.");
+	else if(type == V_STRING || type >= V_CLASS)
+		t.Throw("Class '%s' member not supported yet.", types[type]->name.c_str());
+	t.Next();
+	return type;
+}
 
-// member_decl
-Member* ParseMemberDecl(cstring decl, bool eof)
+Member* ParseMemberDecl(cstring decl)
 {
 	Member* m = new Member;
 
 	try
 	{
-		if(decl)
-		{
-			t.FromString(decl);
-			t.Next();
-		}
-
-		m->type = (VAR_TYPE)t.MustGetKeywordId(G_VAR);
-		if(m->type == V_VOID)
-			t.Throw("Class member can't be void type.");
-		else if(m->type == V_STRING || m->type >= V_CLASS)
-			t.Throw("Class %s member not supported yet.", types[m->type]->name.c_str());
+		t.FromString(decl);
 		t.Next();
+
+		m->type = GetVarTypeForMember();
 
 		m->name = t.MustGetItem();
 		t.Next();
 
-		if(eof)
-			t.AssertEof();
-		else
-		{
-			t.AssertSymbol(';');
-			t.Next();
-		}
+		t.AssertEof();
 	}
 	catch(Tokenizer::Exception& e)
 	{
@@ -2147,6 +2164,46 @@ Member* ParseMemberDecl(cstring decl, bool eof)
 	}
 
 	return m;
+}
+
+void ParseMemberDeclClass(Type* type, uint& pad)
+{
+	int var_type = GetVarTypeForMember();
+	uint var_size = types[var_type]->size;
+	assert(var_size == 1 || var_size == 4);
+
+	do
+	{
+		Member* m = new Member;
+		m->type = var_type;
+		m->name = t.MustGetItem();
+		int index;
+		if(type->FindMember(m->name, index))
+			t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
+		t.Next();
+
+		if(pad == 0 || var_size == 1)
+		{
+			m->offset = type->size;
+			type->size += var_size;
+			pad = (pad + var_size) % 4;
+		}
+		else
+		{
+			type->size += 4 - pad;
+			m->offset = type->size;
+			type->size += var_size;
+			pad = 0;
+		}
+		type->members.push_back(m);
+
+		if(t.IsSymbol(';'))
+			break;
+		t.AssertSymbol(',');
+		t.Next();
+	} while(1);
+
+	t.Next();
 }
 
 // can return null
@@ -2397,25 +2454,7 @@ ParseNode* ParseLine()
 						type->ufuncs.push_back(f);
 					}
 					else
-					{
-						Member* m = ParseMemberDecl(nullptr, false);
-						uint var_size = types[m->type]->size;
-						assert(var_size == 1 || var_size == 4);
-						if(pad == 0 || var_size == 1)
-						{
-							m->offset = type->size;
-							type->size += var_size;
-							pad = (pad + var_size) % 4;
-						}
-						else
-						{
-							type->size += 4 - pad;
-							m->offset = type->size;
-							type->size += var_size;
-							pad = 0;
-						}
-						type->members.push_back(m);
-					}
+						ParseMemberDeclClass(type, pad);
 				}
 				t.Next();
 
@@ -3027,6 +3066,7 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case BIT_LSHIFT:
 	case BIT_RSHIFT:
 	case BIT_NOT:
+	case IS:
 		code.push_back(node->op);
 		break;
 	case PUSH_BOOL:
@@ -3163,7 +3203,8 @@ void InitializeParser()
 		{"for", K_FOR},
 		{"break", K_BREAK},
 		{"return", K_RETURN},
-		{"class", K_CLASS}
+		{"class", K_CLASS},
+		{"is", K_IS}
 	});
 
 	// const
@@ -3247,6 +3288,7 @@ OpInfo ops[MAX_OP] = {
 	POST_INC, "post_inc", V_VOID,
 	POST_DEC, "post_dec", V_VOID,
 	DEREF, "deref", V_VOID,
+	IS, "is", V_VOID,
 	EQ, "eq", V_VOID,
 	NOT_EQ, "not_eq", V_VOID,
 	GR, "gr", V_VOID,

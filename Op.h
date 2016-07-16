@@ -40,6 +40,7 @@ enum Op
 	POST_INC,
 	POST_DEC,
 	DEREF,
+	IS,
 	EQ,
 	NOT_EQ,
 	GR,
