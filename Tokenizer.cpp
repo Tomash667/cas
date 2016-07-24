@@ -32,6 +32,7 @@ bool Tokenizer::FromFile(cstring path)
 	if(!LoadFileToString(path, g_tmp_string))
 		return false;
 	str = &g_tmp_string;
+	filename = path;
 	Reset();
 	return true;
 }
@@ -1082,4 +1083,20 @@ cstring Tokenizer::GetTokenValue(const SeekData& s)
 	default:
 		return name;
 	}
+}
+
+//=================================================================================================
+int Tokenizer::IsKeywordGroup(std::initializer_list<int> const & groups) const
+{
+	if(!IsKeyword())
+		return MISSING_GROUP;
+	for(int group : groups)
+	{
+		for(Keyword* k : normal_seek.keyword)
+		{
+			if(k->group == group)
+				return group;
+		}
+	}
+	return MISSING_GROUP;
 }

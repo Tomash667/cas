@@ -71,11 +71,7 @@ extern HRESULT _d_hr;
 #define __STR1__(x) __STR2__(x)
 #define __LOC2__ __FILE__ "("__STR1__(__LINE__)") : "
 #ifndef _DEBUG
-#	ifdef IS_DEV
-#		define FIXME __pragma(message(__LOC2__ "warning: FIXME in release build."))
-#	else
-#		define FIXME __pragma(message(__LOC2__ "error: FIXME in release build!"))
-#	endif
+#	define FIXME __pragma(message(__LOC2__ "error: FIXME in release build!"))
 #else
 #	define FIXME
 #endif
@@ -1067,16 +1063,7 @@ struct BOX
 	{
 		return v.x >= v1.x && v.x <= v2.x && v.y >= v1.y && v.y <= v2.y && v.z >= v1.z && v.z <= v2.z;
 	}
-
-	//inline void Rotate()
-	//{
-	/* + - - +     + - +
-	|     | --> |   |
-	+ - - +     |   |
-	+ - + */
-
-	//}
-
+	
 	inline VEC3 GetRandomPos() const
 	{
 		return VEC3(random(v1.x, v2.x), random(v1.y, v2.y), random(v1.z, v2.z));
@@ -1158,8 +1145,6 @@ inline void D3DXQuaternionRotation(QUAT& q, const VEC3& rot)
 {
 	D3DXQuaternionRotationYawPitchRoll(&q, rot.y, rot.x, rot.z);
 }
-
-void D3DXMatrixScaleRotPos(MATRIX& mat, const VEC3& scale, const VEC3& rot, const VEC3& pos);
 
 /// !! ta funkcja zak³ada okreœlon¹ kolejnoœæ wykonywania obrotów (chyba YXZ), w blenderze domyœlnie jest XYZ ale mo¿na zmieniæ
 // nie u¿ywaæ, u¿ywaæ quaternion xD
@@ -1482,7 +1467,6 @@ struct Logger
 	virtual ~Logger() {}
 	void GetTime(tm& time);
 
-
 	virtual void Log(cstring category, cstring text, LOG_LEVEL level) = 0;
 	virtual void Log(cstring category, cstring text, LOG_LEVEL level, const tm& time) = 0;
 	virtual void Flush() = 0;
@@ -1599,7 +1583,6 @@ inline bool LineToRectangleSize(const VEC2& start, const VEC2& end, const VEC2& 
 {
 	return LineToRectangle(start, end, rect_pos - rect_size, rect_pos + rect_size, t);
 }
-bool RectangleToRotatedRectangle(float x1, float y1, float x2, float y2, const VEC2& pos, float w, float h, float rot);
 // szeœcian - szeœcian
 bool BoxToBox(const BOX& box1, const BOX& box2);
 // obrócony szeœcian - obrócony szeœcian
@@ -1802,17 +1785,13 @@ inline void ReadStringArray(HANDLE file, vector<string>& strings)
 //-----------------------------------------------------------------------------
 // kontener u¿ywany na tymczasowe obiekty które s¹ potrzebne od czasu do czasu
 //-----------------------------------------------------------------------------
-#ifdef _DEBUG
-//#	define CHECK_POOL_LEAK
-#endif
+//#define CHECK_POOL_LEAK
 template<typename T>
 struct ObjectPool
 {
 	~ObjectPool()
 	{
 		DeleteElements(pool);
-#ifdef CHECK_POOL_LEAK
-#endif
 	}
 
 	inline T* Get()
@@ -2188,6 +2167,11 @@ struct LocalVector2
 		return *v;
 	}
 
+	inline void clear()
+	{
+		v->clear();
+	}
+
 private:
 	VectorPtr v;
 };
@@ -2232,23 +2216,23 @@ struct Trimmer
 };
 
 // trim from start
-inline string& ltrim(string& s)
+inline string& ltrim(string& str)
 {
-	s.erase(s.begin(), std::find_if(s.begin(), s.end(), Trimmer()));
-	return s;
+	str.erase(str.begin(), find_if(str.begin(), str.end(), [](char& ch)->bool { return !isspace(ch); }));
+	return str;
 }
 
 // trim from end
-inline string& rtrim(string& s)
+inline string& rtrim(string& str)
 {
-	s.erase(std::find_if(s.rbegin(), s.rend(), Trimmer()).base(), s.end());
-	return s;
+	str.erase(find_if(str.rbegin(), str.rend(), [](char& ch)->bool { return !isspace(ch); }).base(), str.end());
+	return str;
 }
 
 // trim from both ends
-inline string& trim(string& s)
+inline string& trim(string& str)
 {
-	return ltrim(rtrim(s));
+	return ltrim(rtrim(str));
 }
 
 #include "Tokenizer.h"
@@ -2760,8 +2744,31 @@ inline bool In(T val, const std::initializer_list<T>& lis)
 //-----------------------------------------------------------------------------
 struct AnyString
 {
-	inline AnyString(cstring s) : s(s) {}
-	inline AnyString(const string& str) : s(str.c_str()) {}
+	inline AnyString(cstring s) : s(s)
+	{
+		assert(s);
+		assert(strlen(s) > 0);
+	}
+	inline AnyString(const string& str) : s(str.c_str())
+	{
+		assert(!str.empty());
+	}
+
+	cstring s;
+};
+
+//-----------------------------------------------------------------------------
+struct AnyStringNull
+{
+	inline AnyStringNull(cstring s) : s(s)
+	{
+		if(s)
+			assert(strlen(s) > 0);
+	}
+	inline AnyStringNull(const string& str) : s(str.c_str())
+	{
+		assert(!str.empty());
+	}
 
 	cstring s;
 };
@@ -2854,6 +2861,15 @@ inline T checked_cast(T2& a)
 }
 
 //-----------------------------------------------------------------------------
+// Offset cast
+template<typename T>
+inline T& offset_cast(void* data, uint offset)
+{
+	byte* b = ((byte*)data) + offset;
+	return *(T*)b;
+}
+
+//-----------------------------------------------------------------------------
 // Loop over list and erase elements that returned true
 template<typename T, typename Action>
 inline void LoopAndRemove(vector<T>& items, Action action)
@@ -2890,7 +2906,7 @@ template<typename T>
 class LocalVector3
 {
 public:
-	struct iterator
+	struct iterator : std::iterator<std::input_iterator_tag, T>
 	{
 		friend class LocalVector3;
 
@@ -2899,16 +2915,59 @@ public:
 			return v->at(offset);
 		}
 
-		inline bool operator != (const iterator& it)
+		inline bool operator == (const iterator& it) const
 		{
 			assert(it.v == v);
-			return it.offset == offset;
+			return offset == it.offset;
+		}
+
+		inline bool operator != (const iterator& it) const
+		{
+			assert(it.v == v);
+			return offset != it.offset;
+		}
+
+		inline bool operator < (const iterator& it) const
+		{
+			assert(it.v == v);
+			return offset < it.offset;
 		}
 
 		inline iterator& operator ++ ()
 		{
 			++offset;
 			return *this;
+		}
+
+		inline iterator operator ++ (int)
+		{
+			iterator it(v, offset);
+			++offset;
+			return it;
+		}
+
+		inline iterator& operator -- ()
+		{
+			--offset;
+			return *this;
+		}
+
+		inline iterator& operator + (uint count)
+		{
+			offset += count;
+			return *this;
+		}
+
+		inline iterator& operator - (uint count)
+		{
+			offset -= count;
+			return *this;
+		}
+
+		inline int operator - (const iterator& it) const
+		{
+			assert(it.v == v);
+			return offset - it.offset;
 		}
 
 	private:
@@ -2933,6 +2992,12 @@ public:
 	{
 		assert(offset < size());
 		return ((T*)buf->data())[offset];
+	}
+
+	inline T& back()
+	{
+		assert(!empty());
+		return ((T*)buf->data())[size() - 1];
 	}
 
 	inline iterator begin()

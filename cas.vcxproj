@@ -125,6 +125,7 @@
   <ItemGroup>
     <Text Include="scheme.txt" />
     <Text Include="todo.txt" />
+    <Text Include="unlicense.txt" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Base.h" />

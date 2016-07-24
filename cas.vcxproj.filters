@@ -44,6 +44,9 @@
     <Text Include="todo.txt">
       <Filter>Doc</Filter>
     </Text>
+    <Text Include="unlicense.txt">
+      <Filter>Doc</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="readme.md">

@@ -23,6 +23,9 @@ namespace tokenizer
 		T_COMPOUND_SYMBOL
 	};
 
+	static const int EMPTY_GROUP = -1;
+	static const int MISSING_GROUP = -2;
+
 	struct Keyword
 	{
 		cstring name;
@@ -77,11 +80,11 @@ namespace tokenizer
 		{
 		public:
 			int line, charpos;
-			string* str;
+			string* str, *filename;
 
 			inline cstring ToString() const
 			{
-				return Format("(%d:%d) %s", line, charpos, str->c_str());
+				return Format("%s(%d:%d) %s", filename ? filename->c_str() : "", line, charpos, str->c_str());
 			}
 		};
 
@@ -95,6 +98,25 @@ namespace tokenizer
 				if(count > 0)
 					s += ", ";
 				s += t->FormatToken(token, what, what2);
+				++count;
+				return *this;
+			}
+
+			inline Formatter& AddList(TOKEN token, std::initializer_list<int> const & items)
+			{
+				if(count > 0)
+					s += ", ";
+				s += t->FormatToken(token);
+				s += "{";
+				bool first = true;
+				for(int item : items)
+				{
+					if(first)
+						first = false;
+					s += ", ";
+					s += Format("%d", item);
+				}
+				s += "}";
 				++count;
 				return *this;
 			}
@@ -118,6 +140,16 @@ namespace tokenizer
 				sd = &t->normal_seek;
 			}
 
+			inline void Prepare()
+			{
+				e.line = t->GetLine();
+				e.charpos = t->GetCharPos();
+				if(IS_SET(t->flags, Tokenizer::F_FILE_INFO))
+					e.filename = &t->filename;
+				else
+					e.filename = nullptr;
+			}
+
 			inline void Start()
 			{
 				Prepare();
@@ -139,12 +171,6 @@ namespace tokenizer
 				throw e;
 			}
 
-			inline void Prepare()
-			{
-				e.line = sd->line + 1;
-				e.charpos = sd->charpos + 1;
-			}
-
 			Exception e;
 			Tokenizer* t;
 			const SeekData* sd;
@@ -159,6 +185,7 @@ namespace tokenizer
 			F_UNESCAPE = 1 << 2, // unescape strings
 			F_MULTI_KEYWORDS = 1 << 3, // allows multiple keywords
 			F_SEEK = 1 << 4, // allows to use seek operations
+			F_FILE_INFO = 1 << 5, // add filename in errors
 		};
 
 		explicit Tokenizer(int _flags = F_UNESCAPE) : need_sorting(false), formatter(this)
@@ -307,6 +334,7 @@ namespace tokenizer
 			}
 			return false;
 		}
+		int IsKeywordGroup(std::initializer_list<int> const & groups) const;
 		inline bool IsBool() const { return IsInt() && (normal_seek._int == 0 || normal_seek._int == 1); }
 		inline bool IsBrokenNumber() const { return IsToken(T_BROKEN_NUMBER); }
 
@@ -347,6 +375,13 @@ namespace tokenizer
 		{
 			if(!IsKeywordGroup(group))
 				Unexpected(T_KEYWORD_GROUP, &group);
+		}
+		template<typename T>
+		inline void AssertKeywordGroup(std::initializer_list<T> const & groups)
+		{
+			int group = IsKeywordGroup(groups);
+			if(group == MISSING_GROUP)
+				StartUnexpected().AddList(T_KEYWORD_GROUP, groups);
 		}
 		inline void AssertSymbol(char c) const
 		{
@@ -567,6 +602,14 @@ namespace tokenizer
 			AssertKeyword(id);
 			return GetKeywordGroup(id);
 		}
+		template<typename T>
+		inline T MustGetKeywordGroup(std::initializer_list<T> const & groups)
+		{
+			int group = IsKeywordGroup(groups);
+			if(group == MISSING_GROUP)
+				StartUnexpected().AddList(T_KEYWORD_GROUP, groups);
+			return (T)group;
+		}
 		inline const string& MustGetText() const
 		{
 			AssertText();
@@ -683,6 +726,7 @@ namespace tokenizer
 
 		const string* str;
 		int flags;
+		string filename;
 		vector<Keyword> keywords;
 		SeekData normal_seek;
 		SeekData* seek;
