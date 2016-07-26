@@ -2,55 +2,54 @@
 
 enum Op
 {
-	PUSH_TRUE,
-	PUSH_FALSE,
-	PUSH_INT,
-	PUSH_FLOAT,
-	PUSH_STRING,
-	PUSH_LOCAL,
-	PUSH_LOCAL_REF,
-	PUSH_GLOBAL,
-	PUSH_GLOBAL_REF,
-	PUSH_ARG,
-	PUSH_ARG_REF,
+	PUSH, // [] ..., x -> ..., x, x
+	PUSH_TRUE, // [] ... -> ..., true
+	PUSH_FALSE, // [] ... -> ..., false
+	PUSH_INT, // [int] ... -> ..., int
+	PUSH_FLOAT, // [float] ... -> ..., float
+	PUSH_STRING, // [str_index] ... -> ..., string
+	PUSH_LOCAL, // [local_index] ... -> ..., local value
+	//PUSH_LOCAL_REF, // [local_index] ... -> ..., local address
+	PUSH_GLOBAL, // [global_index] ... -> ..., global value
+	//PUSH_GLOBAL_REF, // [global_index] ... -> ..., global address
+	PUSH_ARG, // [arg_index] ... -> ..., arg value
+	//PUSH_ARG_REF, // [arg_index] ... -> ..., arg address
 	PUSH_MEMBER,
-	PUSH_MEMBER_REF,
+	//PUSH_MEMBER_REF,
 	PUSH_THIS_MEMBER,
-	PUSH_THIS_MEMBER_REF,
-	POP,
+	//PUSH_THIS_MEMBER_REF,
+	POP, // [] ..., x -> ...
 	SET_LOCAL,
 	SET_GLOBAL,
 	SET_ARG,
 	SET_MEMBER,
 	SET_THIS_MEMBER,
 	CAST,
-	NEG,
-	ADD,
-	SUB,
-	MUL,
-	DIV,
-	MOD,
-	BIT_AND,
-	BIT_OR,
-	BIT_XOR,
-	BIT_LSHIFT,
-	BIT_RSHIFT,
-	PRE_INC,
-	PRE_DEC,
-	POST_INC,
-	POST_DEC,
-	DEREF,
-	IS,
-	EQ,
-	NOT_EQ,
-	GR,
-	GR_EQ,
-	LE,
-	LE_EQ,
-	AND,
-	OR,
-	NOT,
-	BIT_NOT,
+	NEG, // [] ..., x -> ..., -x (x=int/float)
+	ADD, // [] ..., x, y -> ..., x+y (x,y=int/float/string)
+	SUB, // [] ..., x, y -> ..., x-y (x,y=int/float)
+	MUL, // [] ..., x, y -> ..., x*y (x,y=int/float)
+	DIV, // [] ..., x, y -> ..., x/y (x,y=int/float)
+	MOD, // [] ..., x, y -> ..., x%y (x,y=int/float)
+	BIT_AND, // [] ..., x, y -> ..., x&y (x,y=int)
+	BIT_OR, // [] ..., x, y -> ..., x|y (x,y=int)
+	BIT_XOR, // [] ..., x, y -> ..., x^y (x,y=int)
+	BIT_LSHIFT, // [] ..., x, y -> ..., x<<y (x,y=int)
+	BIT_RSHIFT, // [] ..., x, y -> ..., x>>y (x,y=int)
+	INC, // [] ..., x -> ..., x+1 (x,y=int/float)
+	DEC, // [] ..., x -> ..., x-1 (x,y=int/float)
+	//DEREF,
+	IS, // [] ..., x, y -> ..., x is y (x,y=string,class,ref)
+	EQ, // [] ..., x, y -> ..., x==y (x,y=bool)
+	NOT_EQ, // [] ..., x, y -> ..., x!=y (x,y=bool)
+	GR, // [] ..., x, y -> ..., x>y (x,y=bool)
+	GR_EQ, // [] ..., x, y -> ..., x>=y (x,y=bool)
+	LE, // [] ..., x, y -> ..., x<y (x,y=bool)
+	LE_EQ, // [] ..., x, y -> ..., x<=y (x,y=bool)
+	AND, // [] ..., x, y -> ..., x&&y (x,y=bool)
+	OR, // [] ..., x, y -> ..., x||y (x,y=bool)
+	NOT, // [] ..., x -> ..., !x (x=bool)
+	BIT_NOT, // [] ..., x -> ..., ~x (x=int)
 	JMP,
 	TJMP,
 	FJMP,

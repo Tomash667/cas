@@ -4,12 +4,12 @@
 #include "Function.h"
 #include "Op.h"
 
-enum REF_TYPE
+/*enum REF_TYPE
 {
 	REF_GLOBAL,
 	REF_LOCAL,
 	REF_MEMBER
-};
+};*/
 
 enum SPECIAL_VAR
 {
@@ -65,12 +65,12 @@ struct Var
 		int value;
 		float fvalue;
 		Str* str;
-		struct
+		/*struct
 		{
 			REF_TYPE ref_type;
 			Class* ref_class;
 			uint ref_index;
-		};
+		};*/
 		Class* clas;
 		struct
 		{
@@ -85,7 +85,7 @@ struct Var
 	inline explicit Var(int value) : type(V_INT), value(value) {}
 	inline explicit Var(float fvalue) : type(V_FLOAT), fvalue(fvalue) {}
 	inline explicit Var(Str* str) : type(V_STRING), str(str) {}
-	inline Var(REF_TYPE ref_type, uint ref_index, Class* ref_class) : type(V_REF), ref_type(ref_type), ref_index(ref_index), ref_class(ref_class) {}
+	//inline Var(REF_TYPE ref_type, uint ref_index, Class* ref_class) : type(V_REF), ref_type(ref_type), ref_index(ref_index), ref_class(ref_class) {}
 	inline explicit Var(Class* clas) : type(clas->type->index), clas(clas) {}
 	inline Var(int type, int special_type, int value1, int value2) : type(type), special_type(special_type), value1(value1), value2(value2) {}
 };
@@ -96,7 +96,7 @@ int current_function, args_offset, locals_offset;
 
 void AddRef(Var& v)
 {
-	assert(v.type != V_VOID && v.type != V_REF);
+	assert(v.type != V_VOID /*&& v.type != V_REF*/);
 	if(v.type == V_STRING)
 		v.str->refs++;
 	else if(v.type >= V_CLASS)
@@ -109,10 +109,11 @@ void ReleaseRef(Var& v)
 		v.str->Release();
 	else if(v.type >= V_CLASS)
 		v.clas->Release();
-	else if(v.type == V_REF && v.ref_type == REF_MEMBER)
-		v.ref_class->Release();
+	//else if(v.type == V_REF && v.ref_type == REF_MEMBER)
+	//	v.ref_class->Release();
 }
 
+/*
 struct GetRefData
 {
 	int* data;
@@ -150,6 +151,7 @@ GetRefData GetRef(Var& v)
 		return GetRefData((int*)c->at_data(m->offset), m->type);
 	}
 }
+*/
 
 void ExecuteFunction(Function& f)
 {
@@ -306,6 +308,14 @@ void RunCode(RunContext& ctx)
 		Op op = (Op)*c++;
 		switch(op)
 		{
+		case PUSH:
+			{
+				assert(!stack.empty());
+				Var& v = stack.back();
+				AddRef(v);
+				stack.push_back(v);
+			}
+			break;
 		case PUSH_TRUE:
 			stack.push_back(Var(true));
 			break;
@@ -344,7 +354,7 @@ void RunCode(RunContext& ctx)
 				stack.push_back(v);
 			}
 			break;
-		case PUSH_LOCAL_REF:
+		/*case PUSH_LOCAL_REF:
 			{
 				uint local_index = *c++;
 				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
@@ -354,7 +364,7 @@ void RunCode(RunContext& ctx)
 				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
 				stack.push_back(Var(REF_LOCAL, index, nullptr));
 			}
-			break;
+			break;*/
 		case PUSH_GLOBAL:
 			{
 				uint global_index = *c++;
@@ -364,7 +374,7 @@ void RunCode(RunContext& ctx)
 				stack.push_back(v);
 			}
 			break;
-		case PUSH_GLOBAL_REF:
+		/*case PUSH_GLOBAL_REF:
 			{
 				uint global_index = *c++;
 				assert(global_index < global.size());
@@ -372,7 +382,7 @@ void RunCode(RunContext& ctx)
 				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
 				stack.push_back(Var(REF_GLOBAL, global_index, nullptr));
 			}
-			break;
+			break;*/
 		case PUSH_ARG:
 			{
 				uint arg_index = *c++;
@@ -383,7 +393,7 @@ void RunCode(RunContext& ctx)
 				stack.push_back(v);
 			}
 			break;
-		case PUSH_ARG_REF:
+		/*case PUSH_ARG_REF:
 			{
 				uint arg_index = *c++;
 				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
@@ -393,7 +403,7 @@ void RunCode(RunContext& ctx)
 				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
 				stack.push_back(Var(REF_LOCAL, index, nullptr));
 			}
-			break;
+			break;*/
 		case PUSH_MEMBER:
 			{
 				assert(!stack.empty());
@@ -423,7 +433,7 @@ void RunCode(RunContext& ctx)
 				c->Release();
 			}
 			break;
-		case PUSH_MEMBER_REF:
+		/*case PUSH_MEMBER_REF:
 			{
 				// don't release class ref because MEMBER_REF increase by 1
 				assert(!stack.empty());
@@ -438,7 +448,7 @@ void RunCode(RunContext& ctx)
 				stack.pop_back();
 				stack.push_back(Var(REF_MEMBER, member_index, c));
 			}
-			break;
+			break;*/
 		case PUSH_THIS_MEMBER:
 			{
 				// check is inside script class function
@@ -472,7 +482,7 @@ void RunCode(RunContext& ctx)
 				}
 			}
 			break;
-		case PUSH_THIS_MEMBER_REF:
+		/*case PUSH_THIS_MEMBER_REF:
 			{
 				// check is inside script class function
 				assert(current_function != -1);
@@ -491,7 +501,7 @@ void RunCode(RunContext& ctx)
 				assert(m->type == V_BOOL || m->type == V_INT || m->type == V_FLOAT);
 				stack.push_back(Var(REF_MEMBER, member_index, c));
 			}
-			break;
+			break;*/
 		case POP:
 			{
 				assert(!stack.empty());
@@ -705,11 +715,9 @@ void RunCode(RunContext& ctx)
 		case NEG:
 		case NOT:
 		case BIT_NOT:
-		case PRE_INC:
-		case PRE_DEC:
-		case POST_INC:
-		case POST_DEC:
-		case DEREF:
+		case INC:
+		case DEC:
+		//case DEREF:
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
@@ -731,45 +739,29 @@ void RunCode(RunContext& ctx)
 					assert(v.type == V_INT);
 					v.value = ~v.value;
 				}
-				else if(op == DEREF)
+				/*else if(op == DEREF)
 				{
 					auto data = GetRef(v);
 					v.type = data.type;
 					v.value = *data.data;
 					AddRef(v);
-				}
+				}*/
 				else
 				{
-					auto data = GetRef(v);
-					assert(data.type == V_INT || data.type == V_FLOAT);
-					switch(op)
+					assert(v.type == V_INT || v.type == V_FLOAT);
+					if(op == INC)
 					{
-					case PRE_INC:
-						if(data.type == V_INT)
-							++data.as<int>();
+						if(v.type == V_INT)
+							v.value++;
 						else
-							++data.as<float>();
-						break;
-					case PRE_DEC:
-						if(data.type == V_INT)
-							--data.as<int>();
+							v.fvalue++;
+					}
+					else
+					{
+						if(v.type == V_INT)
+							v.value--;
 						else
-							--data.as<float>();
-						break;
-					case POST_INC:
-						stack.pop_back();
-						if(data.type == V_INT)
-							stack.push_back(Var(data.as<int>()++));
-						else
-							stack.push_back(Var(data.as<float>()++));
-						break;
-					case POST_DEC:
-						stack.pop_back();
-						if(data.type == V_INT)
-							stack.push_back(Var(data.as<int>()--));
-						else
-							stack.push_back(Var(data.as<float>()--));
-						break;
+							v.fvalue--;
 					}
 				}
 			}

@@ -183,7 +183,7 @@ void InitCoreLib(std::istream* input, std::ostream* output, bool use_getch)
 	AddType("int", sizeof(int), V_INT);
 	AddType("float", sizeof(float), V_FLOAT);
 	AddType("string", sizeof(string), V_STRING);
-	AddType("ref", 0, V_REF, false);
+	//AddType("ref", 0, V_REF, false);
 	AddType("special", 0, V_SPECIAL, false);
 
 	// type functions

@@ -1,3 +1,12 @@
++ string is value type
++ pass by reference
++ struct
++ nullable
++ string as struct (remove op add)
++ inc, dec reference
+	void a(int& x) {++x;}
+	int& a(); ... a()++;
+
 + array
 vector functions:
 	count
@@ -16,6 +25,7 @@ vector functions:
 
 + variadic functions (params)
 + call function before declaration
++ custom assert that breaks parse/run in test mode
 
 + class
 	+ dtor

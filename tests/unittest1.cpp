@@ -228,7 +228,7 @@ namespace tests
 
 		TestMethod(IncDec)
 		{
-			Test("inc_dec.txt", "7", "8\n10\n10\n11\n");
+			Test("inc_dec.txt", "7", "7\n8\n7\n7\n8\n7\n");
 		}
 
 		TestMethod(UserFunc)

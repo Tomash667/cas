@@ -50,6 +50,7 @@ enum PseudoOp
 	OBJ_FUNC,
 	BREAK,
 	RETURN,
+	INTERNAL_GROUP,
 	SPECIAL_OP, // op code below don't apply child nodes
 	IF = SPECIAL_OP,
 	DO_WHILE,
@@ -65,12 +66,12 @@ enum PseudoOpValue
 	DO_WHILE_INF = 2
 };
 
-enum RefType
+/*enum RefType
 {
 	NO_REF,
 	MAY_REF,
 	REF
-};
+};*/
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
 {
@@ -104,7 +105,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	};
 	int type;
 	vector<ParseNode*> childs;
-	RefType ref;
+	//RefType ref;
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void push(vector<ParseNode*>& ps)
@@ -461,14 +462,14 @@ bool TryConstCast(ParseNode* node, int type)
 void Cast(ParseNode*& node, int type)
 {
 	// no cast required?
-	if(type == V_VOID || (node->type == type && node->ref != REF))
+	if(type == V_VOID || (node->type == type /*&& node->ref != REF*/))
 		return;
 
 	// can const cast?
 	if(TryConstCast(node, type))
 		return;
 
-	if(node->ref == REF)
+	/*if(node->ref == REF)
 	{
 		// dereference
 		ParseNode* deref = ParseNode::Get();
@@ -480,14 +481,14 @@ void Cast(ParseNode*& node, int type)
 
 		if(node->type == type)
 			return;
-	}
+	}*/
 
 	// normal cast
 	ParseNode* cast = ParseNode::Get();
 	cast->op = CAST;
 	cast->value = type;
 	cast->type = type;
-	cast->ref = NO_REF;
+	//cast->ref = NO_REF;
 	cast->push(node);
 	node = cast;
 }
@@ -621,7 +622,7 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 			thi->op = PUSH_ARG;
 			thi->type = cf.type;
 			thi->value = 0;
-			thi->ref = NO_REF;
+			//thi->ref = NO_REF;
 			node->childs.insert(node->childs.begin(), thi);
 		}
 		else if(cf.special == SF_CTOR && f.is_parse)
@@ -685,7 +686,7 @@ ParseNode* ParseConstItem()
 		node->op = PUSH_INT;
 		node->type = V_INT;
 		node->value = val;
-		node->ref = NO_REF;
+		//node->ref = NO_REF;
 		t.Next();
 		return node;
 	}
@@ -697,7 +698,7 @@ ParseNode* ParseConstItem()
 		node->op = PUSH_FLOAT;
 		node->type = V_FLOAT;
 		node->fvalue = val;
-		node->ref = NO_REF;
+		//node->ref = NO_REF;
 		t.Next();
 		return node;
 	}
@@ -713,7 +714,7 @@ ParseNode* ParseConstItem()
 		node->op = PUSH_STRING;
 		node->value = index;
 		node->type = V_STRING;
-		node->ref = NO_REF;
+		//node->ref = NO_REF;
 		t.Next();
 		return node;
 	}
@@ -725,7 +726,7 @@ ParseNode* ParseConstItem()
 		node->pseudo_op = PUSH_BOOL;
 		node->bvalue = (c == C_TRUE);
 		node->type = V_BOOL;
-		node->ref = NO_REF;
+		//node->ref = NO_REF;
 		return node;
 	}
 	else
@@ -749,7 +750,7 @@ ParseNode* ParseItem(int* type = nullptr)
 		if(!rtype->have_ctor)
 			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 		ParseNode* node = ParseNode::Get();
-		node->ref = NO_REF;
+		//node->ref = NO_REF;
 		ParseArgs(node->childs);
 		vector<AnyFunction> funcs;
 		FindAllCtors(rtype, funcs);
@@ -769,7 +770,7 @@ ParseNode* ParseItem(int* type = nullptr)
 				ParseNode* node = ParseNode::Get();
 				node->type = var->type;
 				node->value = var->index;
-				node->ref = MAY_REF;
+				//node->ref = MAY_REF;
 				switch(var->subtype)
 				{
 				default:
@@ -797,7 +798,7 @@ ParseNode* ParseItem(int* type = nullptr)
 				t.Next();
 
 				ParseNode* node = ParseNode::Get();
-				node->ref = NO_REF;
+				//node->ref = NO_REF;
 
 				ParseArgs(node->childs);
 				ApplyFunctionCall(node, funcs, nullptr, false);
@@ -810,7 +811,7 @@ ParseNode* ParseItem(int* type = nullptr)
 				node->op = PUSH_THIS_MEMBER;
 				node->type = found.member->type;
 				node->value = found.member_index;
-				node->ref = MAY_REF;
+				//node->ref = MAY_REF;
 				t.Next();
 				return node;
 			}
@@ -922,10 +923,10 @@ SymbolInfo symbols[S_MAX] = {
 	S_ASSIGN_BIT_XOR, "assign bit xor", 15, false, 2, S_BIT_XOR, ST_ASSIGN,
 	S_ASSIGN_BIT_LSHIFT, "assign bit left shift", 15, false, 2, S_BIT_LSHIFT, ST_ASSIGN,
 	S_ASSIGN_BIT_RSHIFT, "assign bit right shift", 15, false, 2, S_BIT_RSHIFT, ST_ASSIGN,
-	S_PRE_INC, "pre increment", 3, false, 1, PRE_INC, ST_INC_DEC,
-	S_PRE_DEC, "pre decrement", 3, false, 1, PRE_DEC, ST_INC_DEC,
-	S_POST_INC, "post increment", 2, true, 1, POST_INC, ST_INC_DEC,
-	S_POST_DEC, "post decrement", 2, true, 1, POST_DEC, ST_INC_DEC,
+	S_PRE_INC, "pre increment", 3, false, 1, INC, ST_INC_DEC,
+	S_PRE_DEC, "pre decrement", 3, false, 1, DEC, ST_INC_DEC,
+	S_POST_INC, "post increment", 2, true, 1, INC, ST_INC_DEC,
+	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC,
 	S_IS, "reference equal", 9, true, 2, IS, ST_NONE,
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE
 };
@@ -1323,7 +1324,7 @@ void ParseArgs(vector<ParseNode*>& nodes)
 	t.Next();
 }
 
-void RequireRef(ParseNode* node, cstring op_name)
+/*void RequireRef(ParseNode* node, cstring op_name)
 {
 	assert(node);
 	if(node->ref == NO_REF)
@@ -1353,7 +1354,7 @@ void RequireRef(ParseNode* node, cstring op_name)
 		}
 		node->ref = REF;
 	}
-}
+}*/
 
 enum BASIC_SYMBOL
 {
@@ -1665,7 +1666,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 				ParseNode* node = ParseNode::Get();
 				node->type = V_VOID;
 				node->str = str;
-				node->ref = NO_REF;
+				//node->ref = NO_REF;
 				if(t.IsSymbol('('))
 				{
 					ParseArgs(node->childs);
@@ -1713,7 +1714,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						op->op = (Op)si.op;
 						op->type = result;
 						op->push(node);
-						op->ref = NO_REF;
+						//op->ref = NO_REF;
 						node = op;
 					}
 					stack2.push_back(node);
@@ -1723,13 +1724,80 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 					assert(si.type == ST_INC_DEC);
 					if(node->type != V_INT && node->type != V_FLOAT)
 						t.Throw("Invalid type '%s' for operation '%s'.", types[node->type]->name.c_str(), si.name);
-					RequireRef(node, si.name);
+
+					Op set_op;
+					switch(node->op)
+					{
+					case PUSH_LOCAL:
+						set_op = SET_LOCAL;
+						break;
+					case PUSH_GLOBAL:
+						set_op = SET_GLOBAL;
+						break;
+					case PUSH_ARG:
+						set_op = SET_ARG;
+						break;
+					case PUSH_MEMBER:
+						set_op = SET_MEMBER;
+						break;
+					case PUSH_THIS_MEMBER:
+						set_op = SET_THIS_MEMBER;
+						break;
+					default:
+						t.Throw("Operation '%s' require variable.", si.name);
+					}
 
 					ParseNode* op = ParseNode::Get();
-					op->op = (Op)si.op;
+					op->pseudo_op = INTERNAL_GROUP;
 					op->type = node->type;
-					op->ref = ((si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC) ? REF : NO_REF);
 					op->push(node);
+
+					bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
+					bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
+
+					if(pre)
+					{
+						/* ++a
+						push_xxx  a
+						inc  a+1
+						set_xxx  a+1 => a
+						*/
+						ParseNode* incdec = ParseNode::Get();
+						incdec->op = (inc ? INC : DEC);
+						op->push(incdec);
+
+						ParseNode* set = ParseNode::Get();
+						set->op = set_op;
+						set->value = node->value;
+						op->push(set);
+					}
+					else
+					{
+						/* a++
+						push_xxx  a
+						push  a,a
+						inc  a,a+1
+						set_xxx  a,a+1 => a
+						pop  a
+						*/
+						ParseNode* dup = ParseNode::Get();
+						dup->op = PUSH;
+						op->push(dup);
+
+						ParseNode* incdec = ParseNode::Get();
+						incdec->op = (inc ? INC : DEC);
+						op->push(incdec);
+
+						ParseNode* set = ParseNode::Get();
+						set->op = set_op;
+						set->value = node->value;
+						op->push(set);
+
+						ParseNode* pop = ParseNode::Get();
+						pop->op = POP;
+						op->push(pop);
+					}
+
 					stack2.push_back(op);
 				}
 			}
@@ -1755,7 +1823,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						StringPool.Free(right->str);
 
 						ParseNode* node = ParseNode::Get();
-						node->ref = NO_REF;
+						//node->ref = NO_REF;
 						node->push(left);
 						for(ParseNode* n : right->childs)
 							node->push(n);
@@ -1778,7 +1846,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						node->op = PUSH_MEMBER;
 						node->type = m->type;
 						node->value = m_index;
-						node->ref = MAY_REF;
+						//node->ref = MAY_REF;
 						node->push(left);
 						right->Free();
 						stack2.push_back(node);
@@ -1813,7 +1881,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 					}
 					set->value = left->value;
 					set->type = left->type;
-					set->ref = NO_REF;
+					//set->ref = NO_REF;
 
 					if(si.op == NOP)
 					{
@@ -1838,7 +1906,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						ParseNode* op = ParseNode::Get();
 						op->op = (Op)symbols[si.op].op;
 						op->type = result;
-						op->ref = NO_REF;
+						//op->ref = NO_REF;
 						op->push(left);
 						op->push(right);
 
@@ -1861,7 +1929,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 
 					ParseNode* op = ParseNode::Get();
 					op->type = result;
-					op->ref = NO_REF;
+					//op->ref = NO_REF;
 
 					if(!TryConstExpr(left, right, op, si.symbol))
 					{
@@ -1906,7 +1974,7 @@ ParseNode* ParseVarDecl(int type, string* _name)
 	if(!t.IsSymbol('='))
 	{
 		expr = ParseNode::Get();
-		expr->ref = NO_REF;
+		//expr->ref = NO_REF;
 		switch(type)
 		{
 		case V_BOOL:
@@ -1987,7 +2055,7 @@ ParseNode* ParseVarDecl(int type, string* _name)
 	}
 	node->type = var->type;
 	node->value = var->index;
-	node->ref = NO_REF;
+	//node->ref = NO_REF;
 	node->push(expr);
 	return node;
 }
@@ -2041,7 +2109,7 @@ ParseNode* ParseVarTypeDecl(int* _type = nullptr, string* _name = nullptr)
 		ParseNode* node = ParseNode::Get();
 		node->pseudo_op = GROUP;
 		node->type = V_VOID;
-		node->ref = NO_REF;
+		//node->ref = NO_REF;
 		node->childs = nodes;
 		return node;
 	}
@@ -2228,7 +2296,7 @@ ParseNode* ParseLine()
 				ParseNode* if_op = ParseNode::Get();
 				if_op->pseudo_op = IF;
 				if_op->type = V_VOID;
-				if_op->ref = NO_REF;
+				//if_op->ref = NO_REF;
 				if_op->push(if_expr);
 				if_op->push(ParseLineOrBlock());
 
@@ -2258,7 +2326,7 @@ ParseNode* ParseLine()
 				do_whil->pseudo_op = DO_WHILE;
 				do_whil->type = V_VOID;
 				do_whil->value = DO_WHILE_NORMAL;
-				do_whil->ref = NO_REF;
+				//do_whil->ref = NO_REF;
 				do_whil->push(block);
 				do_whil->push(cond);
 				return do_whil;
@@ -2273,7 +2341,7 @@ ParseNode* ParseLine()
 				ParseNode* whil = ParseNode::Get();
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
-				whil->ref = NO_REF;
+				//whil->ref = NO_REF;
 				whil->push(cond);
 				whil->push(block);
 				return whil;
@@ -2316,7 +2384,7 @@ ParseNode* ParseLine()
 				ParseNode* fo = ParseNode::Get();
 				fo->pseudo_op = FOR;
 				fo->type = V_VOID;
-				fo->ref = NO_REF;
+				//fo->ref = NO_REF;
 				fo->push(for1);
 				fo->push(for2);
 				fo->push(for3);
@@ -2336,7 +2404,7 @@ ParseNode* ParseLine()
 				ParseNode* br = ParseNode::Get();
 				br->pseudo_op = BREAK;
 				br->type = V_VOID;
-				br->ref = NO_REF;
+				//br->ref = NO_REF;
 				return br;
 			}
 		case K_RETURN:
@@ -2346,7 +2414,7 @@ ParseNode* ParseLine()
 				ParseNode* ret = ParseNode::Get();
 				ret->pseudo_op = RETURN;
 				ret->type = V_VOID;
-				ret->ref = NO_REF;
+				//ret->ref = NO_REF;
 				t.Next();
 				int ret_type;
 				if(!t.IsSymbol(';'))
@@ -2573,7 +2641,7 @@ ParseNode* ParseBlock(ParseFunction* f)
 		ParseNode* node = ParseNode::Get();
 		node->pseudo_op = GROUP;
 		node->type = V_VOID;
-		node->ref = NO_REF;
+		//node->ref = NO_REF;
 		node->childs = nodes;
 		return node;
 	}
@@ -2602,7 +2670,7 @@ ParseNode* ParseCode()
 	ParseNode* node = ParseNode::Get();
 	node->pseudo_op = GROUP;
 	node->type = V_VOID;
-	node->ref = NO_REF;
+	//node->ref = NO_REF;
 
 	t.Next();
 	while(!t.IsEof())
@@ -2664,7 +2732,7 @@ ParseNode* OptimizeTree(ParseNode* node)
 				ParseNode* not = ParseNode::Get();
 				not->op = NOT;
 				not->type = V_BOOL;
-				not->ref = NO_REF;
+				//not->ref = NO_REF;
 				not->push(cond);
 				node->childs[0] = not;
 				node->childs[1] = node->childs[2];
@@ -3011,6 +3079,8 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	
 	switch(node->op)
 	{
+	case INTERNAL_GROUP:
+		break;
 	case PUSH_INT:
 	case PUSH_STRING:
 	case CALL:
@@ -3018,15 +3088,15 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case CALLU_CTOR:
 	case CAST:
 	case PUSH_LOCAL:
-	case PUSH_LOCAL_REF:
+	//case PUSH_LOCAL_REF:
 	case PUSH_GLOBAL:
-	case PUSH_GLOBAL_REF:
+	//case PUSH_GLOBAL_REF:
 	case PUSH_ARG:
-	case PUSH_ARG_REF:
+	//case PUSH_ARG_REF:
 	case PUSH_MEMBER:
-	case PUSH_MEMBER_REF:
+	//case PUSH_MEMBER_REF:
 	case PUSH_THIS_MEMBER:
-	case PUSH_THIS_MEMBER_REF:
+	//case PUSH_THIS_MEMBER_REF:
 	case SET_LOCAL:
 	case SET_GLOBAL:
 	case SET_ARG:
@@ -3040,6 +3110,8 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		code.push_back(node->op);
 		code.push_back(*(int*)&node->fvalue);
 		break;
+	case PUSH:
+	case POP:
 	case NEG:
 	case ADD:
 	case SUB:
@@ -3055,11 +3127,9 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case AND:
 	case OR:
 	case NOT:
-	case PRE_INC:
-	case PRE_DEC:
-	case POST_INC:
-	case POST_DEC:
-	case DEREF:
+	case INC:
+	case DEC:
+	//case DEREF:
 	case BIT_AND:
 	case BIT_OR:
 	case BIT_XOR:
@@ -3250,21 +3320,22 @@ struct OpInfo
 };
 
 OpInfo ops[MAX_OP] = {
+	PUSH, "push", V_VOID,
 	PUSH_TRUE, "push_true", V_VOID,
 	PUSH_FALSE, "push_false", V_VOID,
 	PUSH_INT, "push_int", V_INT,
 	PUSH_FLOAT, "push_float", V_FLOAT,
 	PUSH_STRING, "push_string", V_STRING,
 	PUSH_LOCAL, "push_local", V_INT,
-	PUSH_LOCAL_REF, "push_local_ref", V_INT,
+	//PUSH_LOCAL_REF, "push_local_ref", V_INT,
 	PUSH_GLOBAL, "push_global", V_INT,
-	PUSH_GLOBAL_REF, "push_global_ref", V_INT,
+	//PUSH_GLOBAL_REF, "push_global_ref", V_INT,
 	PUSH_ARG, "push_arg", V_INT,
-	PUSH_ARG_REF, "push_arg_ref", V_INT,
+	//PUSH_ARG_REF, "push_arg_ref", V_INT,
 	PUSH_MEMBER, "push_member", V_INT,
-	PUSH_MEMBER_REF, "push_member_ref", V_INT,
+	//PUSH_MEMBER_REF, "push_member_ref", V_INT,
 	PUSH_THIS_MEMBER, "push_this_member", V_INT,
-	PUSH_THIS_MEMBER_REF, "push_this_member_ref", V_INT,
+	//PUSH_THIS_MEMBER_REF, "push_this_member_ref", V_INT,
 	POP, "pop", V_VOID,
 	SET_LOCAL, "set_local", V_INT,
 	SET_GLOBAL, "set_global", V_INT,
@@ -3283,11 +3354,9 @@ OpInfo ops[MAX_OP] = {
 	BIT_XOR, "bit_xor", V_VOID,
 	BIT_LSHIFT, "bit_lshift", V_VOID,
 	BIT_RSHIFT, "bit_rshift", V_VOID,
-	PRE_INC, "pre_inc", V_VOID,
-	PRE_DEC, "pre_dec", V_VOID,
-	POST_INC, "post_inc", V_VOID,
-	POST_DEC, "post_dec", V_VOID,
-	DEREF, "deref", V_VOID,
+	INC, "inc", V_VOID,
+	DEC, "dec", V_VOID,
+	//DEREF, "deref", V_VOID,
 	IS, "is", V_VOID,
 	EQ, "eq", V_VOID,
 	NOT_EQ, "not_eq", V_VOID,
