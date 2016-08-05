@@ -1,19 +1,16 @@
-+ Type.is_ref
 + ref
-	+ arg
+	+ arg script
 	+ ret value
 	+ var
 	+ ref arg default value
 	+ ref arg default value for script
 	+ class function return ref
+	+ take reference op
 + string is value type
 + pass by reference
 + struct
 + nullable
 + string as struct (remove op add)
-+ inc, dec reference
-	void a(int& x) {++x;}
-	int& a(); ... a()++;
 
 + array
 vector functions:
@@ -74,7 +71,6 @@ vector functions:
 + allow to turn off optimize const expr
 + superbreak
 + detect unreachable code
-+ function taking or returning reference (this require containing pointer to Var in local/global - this need to not change between uses)
 + const
 + advanced function default params (using expr not const_item)
 + object

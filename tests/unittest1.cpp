@@ -280,5 +280,10 @@ namespace tests
 		{
 			Test("is.txt", "", "1\n2\n3\n4\n5\n");
 		}
+
+		TestMethod(Ref)
+		{
+			Test("ref.txt", "11 13", "12\n12\n26,2\n");
+		}
 	};
 }

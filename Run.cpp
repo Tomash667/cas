@@ -816,7 +816,8 @@ void RunCode(RunContext& ctx)
 				Var right = stack.back();
 				stack.pop_back();
 				Var& left = stack.back();
-				assert(left.type == right.type);
+				if(op != SET_ADR)
+					assert(left.type == right.type);
 				if(op == ADD)
 					assert(left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
@@ -1026,6 +1027,8 @@ void RunCode(RunContext& ctx)
 					assert(local.size() >= count);
 					Var& d = *(local.end() - count);
 					assert(d.type == V_SPECIAL && (d.special_type == V_FUNCTION || d.special_type == V_CTOR));
+					locals_offset = local.size() - f.locals;
+					args_offset = locals_offset - f.args.size();
 				}
 				if(thi)
 					stack.push_back(Var(thi));

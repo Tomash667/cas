@@ -1,52 +1,12 @@
-/*class A
+void f(int& a)
 {
-	int a,b;
-	
-	void wypisz()
-	{
-		println(a+","+b);
-	}
-	
-	int& get(bool aa)
-	{
-		if(aa)
-			return a;
-		else
-			return b;
-	}
+	println(++a);
 }
 
-A x;
-x.get(true) = 3;
-x.get(false) = 7;
-x.wypisz();
-
-void wypisz(int r)
+void f2(int& a)
 {
-	println(r);
+	println(a++);
 }
-
-void dodaj(int a, int b, int& wynik)
-{
-	wynik = a + b;
-	wypisz(wynik);
-}
-
-void inc(int& a)
-{
-	++a;
-	a++;
-}
-
-int r = 7;
-inc(r);
-println(r);
-
-dodaj(4,8,r);
-println(r);
-
-pause();
-*/
 
 void dodaj(int a, int b, int& wynik)
 {
@@ -55,17 +15,17 @@ void dodaj(int a, int b, int& wynik)
 
 void dodaj2(int& a, int& b)
 {
-	a = a + b;
+	dodaj(a,b,a);
 	b = 0;
+	++b;
+	b++;
 }
 
-int a, b, w;
+int a, b;
 a = getint();
 b = getint();
-dodaj(a,b,w);
-println(w);
-
+f(a);
+f2(a);
 dodaj2(a,b);
 println(a+","+b);
-
 pause();

@@ -113,6 +113,19 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		for(ParseNode* p : ps)
 			childs.push_back(p);
 	}
+	inline void push(Op op)
+	{
+		ParseNode* node = ParseNode::Get();
+		node->op = op;
+		push(node);
+	}
+	inline void push(Op op, int value)
+	{
+		ParseNode* node = ParseNode::Get();
+		node->op = op;
+		node->value = value;
+		push(node);
+	}
 	inline void OnFree() { SafeFree(childs); }
 };
 
@@ -1737,77 +1750,103 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 					if(node->type != V_INT && node->type != V_FLOAT)
 						t.Throw("Invalid type '%s' for operation '%s'.", types[node->type]->name.c_str(), si.name);
 
-					Op set_op;
-					switch(node->op)
-					{
-					case PUSH_LOCAL:
-						set_op = SET_LOCAL;
-						break;
-					case PUSH_GLOBAL:
-						set_op = SET_GLOBAL;
-						break;
-					case PUSH_ARG:
-						set_op = SET_ARG;
-						break;
-					case PUSH_MEMBER:
-						set_op = SET_MEMBER;
-						break;
-					case PUSH_THIS_MEMBER:
-						set_op = SET_THIS_MEMBER;
-						break;
-					default:
-						t.Throw("Operation '%s' require variable.", si.name);
-					}
+					bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
+					bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
+					Op oper = (inc ? INC : DEC);
 
 					ParseNode* op = ParseNode::Get();
 					op->pseudo_op = INTERNAL_GROUP;
 					op->type = node->type;
-					op->push(node);
 
-					bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
-					bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
-
-					if(pre)
+					if(node->ref != REF_YES)
 					{
-						/* ++a
-						push_xxx  a
-						inc  a+1
-						set_xxx  a+1 => a
-						*/
-						ParseNode* incdec = ParseNode::Get();
-						incdec->op = (inc ? INC : DEC);
-						op->push(incdec);
+						Op set_op;
+						switch(node->op)
+						{
+						case PUSH_LOCAL:
+							set_op = SET_LOCAL;
+							break;
+						case PUSH_GLOBAL:
+							set_op = SET_GLOBAL;
+							break;
+						case PUSH_ARG:
+							set_op = SET_ARG;
+							break;
+						case PUSH_MEMBER:
+							set_op = SET_MEMBER;
+							break;
+						case PUSH_THIS_MEMBER:
+							set_op = SET_THIS_MEMBER;
+							break;
+						default:
+							t.Throw("Operation '%s' require variable.", si.name);
+						}
 
-						ParseNode* set = ParseNode::Get();
-						set->op = set_op;
-						set->value = node->value;
-						op->push(set);
+						if(pre)
+						{
+							/* ++a
+							push a; a
+							inc; a+1
+							set; a+1  a->a+1
+							*/
+							op->push(node);
+							op->push(oper);
+							op->push(set_op, node->value);
+						}
+						else
+						{
+							/* a++
+							push a; a
+							push; a,a
+							inc; a,a+1
+							set; a,a+1  a->a+1
+							pop; a
+							*/
+							op->push(node);
+							op->push(PUSH);
+							op->push(oper);
+							op->push(set_op, node->value);
+							op->push(POP);
+						}
 					}
 					else
 					{
-						/* a++
-						push_xxx  a
-						push  a,a
-						inc  a,a+1
-						set_xxx  a,a+1 => a
-						pop  a
-						*/
-						ParseNode* dup = ParseNode::Get();
-						dup->op = PUSH;
-						op->push(dup);
-
-						ParseNode* incdec = ParseNode::Get();
-						incdec->op = (inc ? INC : DEC);
-						op->push(incdec);
-
-						ParseNode* set = ParseNode::Get();
-						set->op = set_op;
-						set->value = node->value;
-						op->push(set);
-
-						ParseNode* pop = ParseNode::Get();
-						pop->op = POP;
-						op->push(pop);
+						if(pre)
+						{
+							/* ++a (a is reference)
+							push a; a
+							push; a,a
+							deref; a,[a]
+							inc; a,[a]+1
+							set_arg; [a]+1  a->a+1
+							*/
+							op->push(node);
+							op->push(PUSH);
+							op->push(DEREF);
+							op->push(INC);
+							op->push(SET_ADR);
+						}
+						else
+						{
+							/* a++ (a is reference)
+							push a; a
+							deref; [a]
+							push a; [a],a
+							push; [a],a,a
+							deref; [a],a,[a]
+							inc; [a],a,[a]+1
+							set_adr; [a],[a]+1  a->a+1
+							pop; [a]
+							*/
+							op->push(node);
+							op->push(DEREF);
+							op->push(node);
+							op->push(PUSH);
+							op->push(DEREF);
+							op->push(INC);
+							op->push(SET_ADR);
+							op->push(POP);
+						}
 					}
 
 					stack2.push_back(op);
@@ -1932,8 +1971,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 					}
 					else
 					{
-						set->pseudo_op = INTERNAL_GROUP;
-						set->type = right->type;
+						set->type = left->type;
 						set->ref = REF_NO;
 
 						if(si.op == NOP)
@@ -1941,10 +1979,32 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 							// assign
 							if(!TryCast(right, VarType(left->type)))
 								t.Throw("Can't assign '%s' to type '%s'.", types[right->type]->name.c_str(), types[left->type]->name.c_str());
-							set->push(right);
+							set->op = SET_ADR;
 							set->push(left);
+							set->push(right);
+						}
+						else
+						{
+							// compound assign
+							int cast, result;
+							if(!CanOp((SYMBOL)si.op, left->type, right->type, cast, result))
+								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", types[left->type]->name.c_str(), types[right->type]->name.c_str(),
+									si.name);
+
+							Cast(left, VarType(cast));
+							Cast(right, VarType(cast));
+
 							ParseNode* op = ParseNode::Get();
-							op->op = SET_ADR;
+							op->op = (Op)symbols[si.op].op;
+							op->type = result;
+							op->ref = REF_NO;
+							op->push(left);
+							set->push(PUSH);
+							set->push(DEREF);
+							op->push(right);
+
+							Cast(op, VarType(set->type));
+							set->op = SET_ADR;
 							set->push(op);
 						}
 					}
@@ -2135,8 +2195,6 @@ ParseNode* ParseVarTypeDecl(int* _type = nullptr, string* _name = nullptr)
 	// node
 	if(nodes.empty())
 		return nullptr;
-	else if(nodes.size() == 1u)
-		return nodes.back();
 	else
 	{
 		ParseNode* node = ParseNode::Get();
@@ -2671,8 +2729,6 @@ ParseNode* ParseBlock(ParseFunction* f)
 
 	if(nodes.empty())
 		return nullptr;
-	else if(nodes.size() == 1u)
-		return nodes.front();
 	else
 	{
 		ParseNode* node = ParseNode::Get();

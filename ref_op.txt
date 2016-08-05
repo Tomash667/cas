@@ -47,3 +47,37 @@ deref
 push_arg a
 add
 set_adr
+
+left op= right
+push left
+push
+(cast left to op result)
+deref
+push right
+(cast right to op result)
+op
+(cast to left)
+set_adr
+
+
+++a;
+
+push a; a
+push; a,a
+deref; a,[a]
+inc; a,[a]+1
+set_arg; [a]+1
+
+
+
+
+a++;
+
+push a; a
+deref; [a]
+push a;[a],a
+push; [a],a,a
+deref; [a],a,[a]
+inc; [a],a,[a]+1
+set_adr; [a],[a]+1
+pop; [a]
