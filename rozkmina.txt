@@ -1,0 +1,40 @@
+f(int a) { a = 0; } - a jest na stosie locals jako int, prosta modyfikacja [push_int 0, set_arg 0]
+	f(7); push_int
+	int a=1; f(a); push_local ...
+	int a=1; f(&a); push_local_ref 0, deref -> OPT -> push_local
+	int& a...; [push_local 0, deref]
+	int? a...; f(a); push_local 0 (ref), deref -> null = Exception
+f(int& a) { a = 0; } - a jest REF int [push_arg 0, push_int 0, set_ref]
+	f(7); -> błąd kompilacji, cannot create reference to const value (dla cont int& by poszło)
+	int a=1; f(a); [push_local_ref 0, call...] ok
+	int& a = ...; f(a); [push_local 0, call]
+	int? a = ...; f(a); [push_local 0, test_ref, call] EXCEPTION
+f(int? a) { a = 0; }
+	jw, tylko dla bez test_ref
+f(string s) { s = ""; }
+	f("abc"); push_string "abc", call - str ma 2 ref, potem przy [push_str "", set_arg 0] rozdziela na 2 stringi
+	string s = "abc"; f(s); [push_local 0, call] - jw
+	string& s = ...; f(s); [push_local 0, deref, call]
+	string? s = ...; f(s); [push_local 0, deref EXC, call]
+f(string& s) { s = ""; } - set ref
+	f("abc") -> błąd kompilacji, cannot create reference to const value (dla cont string& by poszło)
+	string s = "abc"; f(s); [push_local_ref 0, call]
+f(string? s) { s = ""; }
+struct A {int x;}
+f(A a) { a.x = 0; }
+f(A a) { a = A(7); }
+f(A& a)
+?
+class
+...
+
+
+
+
+int& x = ...    // zmienna
+	int& x = 3; // error
+	int a; int& x = a; // error, ma być \/
+	int a; int& x = &a;
+	
+void f(int& x)  // argument
+int& f()        // wynik

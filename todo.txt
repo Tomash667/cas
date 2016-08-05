@@ -1,3 +1,11 @@
++ Type.is_ref
++ ref
+	+ arg
+	+ ret value
+	+ var
+	+ ref arg default value
+	+ ref arg default value for script
+	+ class function return ref
 + string is value type
 + pass by reference
 + struct
@@ -95,6 +103,10 @@ vector functions:
 + char type
 + remove duplicates in string table
 + shorter class initialization: A b(3,4) ?
++ await/async for spawning units
+	+ wait for spawn
+	+ spawn instantly
+	+ don't wait
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html

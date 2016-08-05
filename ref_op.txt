@@ -1,0 +1,49 @@
+dodaj(int,int,int&) wynik = a+b
+	push_arg 0
+	push_arg 1
+	add
+	push_arg 2
+	set_adr
+	ret
+	
+dodaj2(int&,int&) a=a+b b=0
+	push_arg 0
+	deref
+	push_arg 1
+	deref
+	add
+	push_arg 0
+	set_adr
+	push_int 0
+	push_arg 1
+	deref
+	ret
+
+
+--------------------------------------------------------------------------------
+
+int a,b,&wynik;
+wynik = a + b;
+
+push_arg wynik
+push_arg a
+push_arg b
+add
+set_adr
+
+left = right
+push (cast left type)right
+push left
+set_adr
+
+
+
+int a, &wynik;
+wynik += a;
+
+push_arg wynik
+push
+deref
+push_arg a
+add
+set_adr

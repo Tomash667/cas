@@ -157,7 +157,7 @@ void f_wypisz_int2c(INT2& i)
 
 void AddParserType(Type* type);
 
-void AddType(cstring type_name, int size, VAR_TYPE var_type, bool reg = true)
+void AddType(cstring type_name, int size, CoreVarType var_type, bool is_ref, bool reg = true)
 {
 	Type* type = new Type;
 	type->name = type_name;
@@ -165,6 +165,7 @@ void AddType(cstring type_name, int size, VAR_TYPE var_type, bool reg = true)
 	type->index = types.size();
 	type->pod = true;
 	type->have_ctor = false;
+	type->is_ref = is_ref;
 	assert(type->index == (int)var_type);
 	types.push_back(type);
 	if(reg)
@@ -178,13 +179,13 @@ void InitCoreLib(std::istream* input, std::ostream* output, bool use_getch)
 	s_use_getch = use_getch;
 
 	// types
-	AddType("void", 0, V_VOID);
-	AddType("bool", sizeof(bool), V_BOOL);
-	AddType("int", sizeof(int), V_INT);
-	AddType("float", sizeof(float), V_FLOAT);
-	AddType("string", sizeof(string), V_STRING);
-	//AddType("ref", 0, V_REF, false);
-	AddType("special", 0, V_SPECIAL, false);
+	AddType("void", 0, V_VOID, false);
+	AddType("bool", sizeof(bool), V_BOOL, false);
+	AddType("int", sizeof(int), V_INT, false);
+	AddType("float", sizeof(float), V_FLOAT, false);
+	AddType("string", sizeof(string), V_STRING, true);
+	AddType("ref", 0, V_REF, true, false);
+	AddType("special", 0, V_SPECIAL, false, false);
 
 	// type functions
 	cas::AddMethod("string", "int length()", f_string_length);

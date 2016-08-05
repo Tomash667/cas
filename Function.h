@@ -9,7 +9,7 @@ struct Function;
 // function argument
 struct ArgInfo
 {
-	int type;
+	VarType type;
 	union
 	{
 		bool bvalue;
@@ -21,7 +21,7 @@ struct ArgInfo
 	ArgInfo(bool bvalue) : type(V_BOOL), bvalue(bvalue), have_def_value(true) {}
 	ArgInfo(int value) : type(V_INT), value(value), have_def_value(true) {}
 	ArgInfo(float fvalue) : type(V_FLOAT), fvalue(fvalue), have_def_value(true) {}
-	ArgInfo(int type, int value, bool have_def_value) : type(type), value(value), have_def_value(have_def_value) {}
+	ArgInfo(VarType type, int value, bool have_def_value) : type(type), value(value), have_def_value(have_def_value) {}
 };
 
 // special function type
@@ -35,7 +35,8 @@ enum SpecialFunction
 struct CommonFunction
 {
 	string name;
-	int result, index, type;
+	VarType result;
+	int index, type;
 	vector<ArgInfo> arg_infos;
 	uint required_args;
 	SpecialFunction special;
@@ -60,7 +61,7 @@ struct UserFunction
 {
 	uint pos;
 	uint locals;
-	int result;
-	vector<int> args;
+	VarType result;
+	vector<VarType> args;
 	int type;
 };

@@ -93,7 +93,7 @@ bool cas::AddMethod(cstring type_name, cstring decl, void* ptr)
 		type->have_ctor = true;
 	else
 	{
-		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(f->type, 0, false));
+		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(f->type), 0, false));
 		f->required_args++;
 	}
 	type->funcs.push_back(f);
@@ -121,6 +121,7 @@ bool cas::AddType(cstring type_name, int size, bool pod)
 	type->size = size;
 	type->pod = pod;
 	type->have_ctor = false;
+	type->is_ref = true;
 	type->index = types.size();
 	types.push_back(type);
 	AddParserType(type);
@@ -207,12 +208,19 @@ void cas::Initialize(Settings* settings)
 	init = true;
 }
 
+void AddName(LocalString& s, const VarType& type)
+{
+	s += types[type.core]->name;
+	if(type.special == SV_REF)
+		s += '&';
+}
+
 cstring CommonFunction::GetName(bool write_result) const
 {
 	LocalString s = "";
 	if(write_result && type == V_VOID)
 	{
-		s += types[result]->name;
+		AddName(s, result);
 		s += ' ';
 	}
 	uint var_offset = 0;
@@ -228,7 +236,7 @@ cstring CommonFunction::GetName(bool write_result) const
 	{
 		if(i != var_offset)
 			s += ",";
-		s += types[arg_infos[i].type]->name;
+		AddName(s, arg_infos[i].type);
 	}
 	s += ")";
 	return Format("%s", s->c_str());

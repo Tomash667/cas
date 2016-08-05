@@ -9,15 +9,15 @@ enum Op
 	PUSH_FLOAT, // [float] ... -> ..., float
 	PUSH_STRING, // [str_index] ... -> ..., string
 	PUSH_LOCAL, // [local_index] ... -> ..., local value
-	//PUSH_LOCAL_REF, // [local_index] ... -> ..., local address
+	PUSH_LOCAL_REF, // [local_index] ... -> ..., local address
 	PUSH_GLOBAL, // [global_index] ... -> ..., global value
-	//PUSH_GLOBAL_REF, // [global_index] ... -> ..., global address
+	PUSH_GLOBAL_REF, // [global_index] ... -> ..., global address
 	PUSH_ARG, // [arg_index] ... -> ..., arg value
-	//PUSH_ARG_REF, // [arg_index] ... -> ..., arg address
+	PUSH_ARG_REF, // [arg_index] ... -> ..., arg address
 	PUSH_MEMBER,
-	//PUSH_MEMBER_REF,
+	PUSH_MEMBER_REF,
 	PUSH_THIS_MEMBER,
-	//PUSH_THIS_MEMBER_REF,
+	PUSH_THIS_MEMBER_REF,
 	POP, // [] ..., x -> ...
 	SET_LOCAL,
 	SET_GLOBAL,
@@ -38,7 +38,8 @@ enum Op
 	BIT_RSHIFT, // [] ..., x, y -> ..., x>>y (x,y=int)
 	INC, // [] ..., x -> ..., x+1 (x,y=int/float)
 	DEC, // [] ..., x -> ..., x-1 (x,y=int/float)
-	//DEREF,
+	DEREF, // [] ..., x -> ..., [x] (x=address)
+	SET_ADR, // [] ..., x, y -> ..., y (x=address, y=value, op= [x]=y)
 	IS, // [] ..., x, y -> ..., x is y (x,y=string,class,ref)
 	EQ, // [] ..., x, y -> ..., x==y (x,y=bool)
 	NOT_EQ, // [] ..., x, y -> ..., x!=y (x,y=bool)

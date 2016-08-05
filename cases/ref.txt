@@ -1,0 +1,71 @@
+/*class A
+{
+	int a,b;
+	
+	void wypisz()
+	{
+		println(a+","+b);
+	}
+	
+	int& get(bool aa)
+	{
+		if(aa)
+			return a;
+		else
+			return b;
+	}
+}
+
+A x;
+x.get(true) = 3;
+x.get(false) = 7;
+x.wypisz();
+
+void wypisz(int r)
+{
+	println(r);
+}
+
+void dodaj(int a, int b, int& wynik)
+{
+	wynik = a + b;
+	wypisz(wynik);
+}
+
+void inc(int& a)
+{
+	++a;
+	a++;
+}
+
+int r = 7;
+inc(r);
+println(r);
+
+dodaj(4,8,r);
+println(r);
+
+pause();
+*/
+
+void dodaj(int a, int b, int& wynik)
+{
+	wynik = a + b;
+}
+
+void dodaj2(int& a, int& b)
+{
+	a = a + b;
+	b = 0;
+}
+
+int a, b, w;
+a = getint();
+b = getint();
+dodaj(a,b,w);
+println(w);
+
+dodaj2(a,b);
+println(a+","+b);
+
+pause();

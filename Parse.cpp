@@ -66,12 +66,12 @@ enum PseudoOpValue
 	DO_WHILE_INF = 2
 };
 
-/*enum RefType
+enum RefType
 {
-	NO_REF,
-	MAY_REF,
-	REF
-};*/
+	REF_NO,
+	REF_MAY,
+	REF_YES
+};
 
 struct ParseVar : ObjectPoolProxy<ParseVar>
 {
@@ -85,7 +85,7 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 
 	string name;
 	int index;
-	int type;
+	VarType type;
 	Type subtype;
 };
 
@@ -105,7 +105,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	};
 	int type;
 	vector<ParseNode*> childs;
-	//RefType ref;
+	RefType ref;
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void push(vector<ParseNode*>& ps)
@@ -392,6 +392,7 @@ void CheckFindItem(const string& id, bool is_func)
 
 bool TryConstCast(ParseNode* node, int type)
 {
+	// can cast only const literal
 	if(type == V_STRING)
 		return false;
 
@@ -459,61 +460,100 @@ bool TryConstCast(ParseNode* node, int type)
 		return false;
 }
 
-void Cast(ParseNode*& node, int type)
+void Cast(ParseNode*& node, VarType type)
 {
+	bool need_cast = (node->type != type.core);
+	int need_ref = 0; // -1 deref, 0-none, 1-take ref
+	if(type.special == SV_NORMAL)
+	{
+		// require value type
+		if(node->ref == REF_YES)
+			need_ref = -1; // deref
+	}
+	else
+	{
+		// require reference to value type
+		if(node->ref == REF_MAY)
+			need_ref = 1; // take ref
+	}
+
 	// no cast required?
-	if(type == V_VOID || (node->type == type /*&& node->ref != REF*/))
+	if(!need_cast && need_ref == 0)
 		return;
 
 	// can const cast?
-	if(TryConstCast(node, type))
+	if(TryConstCast(node, type.core))
 		return;
 
-	/*if(node->ref == REF)
+	if(need_ref == -1)
 	{
 		// dereference
 		ParseNode* deref = ParseNode::Get();
 		deref->op = DEREF;
 		deref->type = node->type;
-		deref->ref = NO_REF;
+		deref->ref = REF_NO;
 		deref->push(node);
 		node = deref;
-
-		if(node->type == type)
-			return;
-	}*/
-
-	// normal cast
-	ParseNode* cast = ParseNode::Get();
-	cast->op = CAST;
-	cast->value = type;
-	cast->type = type;
-	//cast->ref = NO_REF;
-	cast->push(node);
-	node = cast;
+	}
+	else if(need_ref == 1)
+	{
+		// take address
+		assert(node->op == PUSH_LOCAL || node->op == PUSH_GLOBAL || node->op == PUSH_ARG || node->op == PUSH_MEMBER || node->op == PUSH_THIS_MEMBER);
+		node->op = Op(node->op + 1);
+		node->ref = REF_YES;
+	}
+	
+	// cast
+	if(need_cast)
+	{
+		ParseNode* cast = ParseNode::Get();
+		cast->op = CAST;
+		cast->value = type.core;
+		cast->type = type.core;
+		cast->ref = REF_NO;
+		cast->push(node);
+		node = cast;
+	}
 }
 
-// -1 - can't cast, 0 - no cast required, 1 - can cast,
-int MayCast(ParseNode* node, int type)
+// -1 - can't cast, 0 - no cast required, 1 - can cast
+int MayCast(ParseNode* node, VarType type)
 {
-	// no cast required?
-	if(node->type == type)
-		return 0;
-
-	// can't cast from void, can't cast class
-	if(node->type == V_VOID || node->type >= V_CLASS || type >= V_CLASS)
+	// can't cast from void
+	if(node->type == V_VOID)
 		return -1;
 
 	// no implicit cast from string to bool/int/float
-	if(node->type == V_STRING && (type == V_BOOL || type == V_INT || type == V_FLOAT))
+	if(node->type == V_STRING && (type.core == V_BOOL || type.core == V_INT || type.core == V_FLOAT))
 		return -1;
 
-	// can cast
-	return 1;
+	bool cast = (node->type != type.core);
+	// can't cast class
+	if(cast && (node->type >= V_CLASS || type.core >= V_CLASS))
+		return -1;
+
+	if(type.special == SV_NORMAL)
+	{
+		// require value type
+		if(node->ref == REF_YES)
+			return 1; // dereference (and cast if required)
+		else
+			return cast ? 1 : 0; // cast if required
+	}
+	else
+	{
+		// require reference to value type
+		if(node->ref == REF_YES)
+			return (cast ? -1 : 0); // pass reference or can't cast to different type
+		else if(node->ref == REF_MAY)
+			return (cast ? -1 : 1); // take address or can't cast to different type
+		else
+			return -1; // can't take address
+	}
 }
 
 // used in var assignment, passing argument to function
-bool TryCast(ParseNode*& node, int type)
+bool TryCast(ParseNode*& node, VarType type)
 {
 	int c = MayCast(node, type);
 	if(c == 0)
@@ -622,7 +662,7 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 			thi->op = PUSH_ARG;
 			thi->type = cf.type;
 			thi->value = 0;
-			//thi->ref = NO_REF;
+			thi->ref = REF_NO;
 			node->childs.insert(node->childs.begin(), thi);
 		}
 		else if(cf.special == SF_CTOR && f.is_parse)
@@ -643,8 +683,9 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 		{
 			ArgInfo& arg = cf.arg_infos[i];
 			ParseNode* n = ParseNode::Get();
-			n->type = arg.type;
-			switch(arg.type)
+			n->type = arg.type.core;
+			assert(arg.type.special == SV_NORMAL);
+			switch(arg.type.core)
 			{
 			case V_BOOL:
 				n->pseudo_op = PUSH_BOOL;
@@ -671,7 +712,8 @@ void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, 
 
 		// apply type
 		node->op = (f.is_parse ? (callu_ctor ? CALLU_CTOR : CALLU) : CALL);
-		node->type = cf.result;
+		node->type = cf.result.core;
+		node->ref = (cf.result.special == SV_NORMAL ? REF_NO : REF_YES);
 		node->value = cf.index;
 	}
 }
@@ -686,7 +728,7 @@ ParseNode* ParseConstItem()
 		node->op = PUSH_INT;
 		node->type = V_INT;
 		node->value = val;
-		//node->ref = NO_REF;
+		node->ref = REF_NO;
 		t.Next();
 		return node;
 	}
@@ -698,7 +740,7 @@ ParseNode* ParseConstItem()
 		node->op = PUSH_FLOAT;
 		node->type = V_FLOAT;
 		node->fvalue = val;
-		//node->ref = NO_REF;
+		node->ref = REF_NO;
 		t.Next();
 		return node;
 	}
@@ -714,7 +756,7 @@ ParseNode* ParseConstItem()
 		node->op = PUSH_STRING;
 		node->value = index;
 		node->type = V_STRING;
-		//node->ref = NO_REF;
+		node->ref = REF_NO;
 		t.Next();
 		return node;
 	}
@@ -726,7 +768,7 @@ ParseNode* ParseConstItem()
 		node->pseudo_op = PUSH_BOOL;
 		node->bvalue = (c == C_TRUE);
 		node->type = V_BOOL;
-		//node->ref = NO_REF;
+		node->ref = REF_NO;
 		return node;
 	}
 	else
@@ -750,7 +792,7 @@ ParseNode* ParseItem(int* type = nullptr)
 		if(!rtype->have_ctor)
 			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 		ParseNode* node = ParseNode::Get();
-		//node->ref = NO_REF;
+		node->ref = REF_NO;
 		ParseArgs(node->childs);
 		vector<AnyFunction> funcs;
 		FindAllCtors(rtype, funcs);
@@ -768,9 +810,9 @@ ParseNode* ParseItem(int* type = nullptr)
 			{
 				ParseVar* var = found.var;
 				ParseNode* node = ParseNode::Get();
-				node->type = var->type;
+				node->type = var->type.core;
 				node->value = var->index;
-				//node->ref = MAY_REF;
+				node->ref = (var->type.special == SV_NORMAL ? REF_MAY : REF_YES);
 				switch(var->subtype)
 				{
 				default:
@@ -798,7 +840,7 @@ ParseNode* ParseItem(int* type = nullptr)
 				t.Next();
 
 				ParseNode* node = ParseNode::Get();
-				//node->ref = NO_REF;
+				node->ref = REF_NO;
 
 				ParseArgs(node->childs);
 				ApplyFunctionCall(node, funcs, nullptr, false);
@@ -811,7 +853,7 @@ ParseNode* ParseItem(int* type = nullptr)
 				node->op = PUSH_THIS_MEMBER;
 				node->type = found.member->type;
 				node->value = found.member_index;
-				//node->ref = MAY_REF;
+				node->ref = REF_MAY;
 				t.Next();
 				return node;
 			}
@@ -1324,38 +1366,6 @@ void ParseArgs(vector<ParseNode*>& nodes)
 	t.Next();
 }
 
-/*void RequireRef(ParseNode* node, cstring op_name)
-{
-	assert(node);
-	if(node->ref == NO_REF)
-		t.Throw("Need reference value for operation '%s'.", op_name);
-	else if(node->ref == MAY_REF)
-	{
-		switch(node->op)
-		{
-		case PUSH_LOCAL:
-			node->op = PUSH_LOCAL_REF;
-			break;
-		case PUSH_GLOBAL:
-			node->op = PUSH_GLOBAL_REF;
-			break;
-		case PUSH_ARG:
-			node->op = PUSH_ARG_REF;
-			break;
-		case PUSH_MEMBER:
-			node->op = PUSH_MEMBER_REF;
-			break;
-		case PUSH_THIS_MEMBER:
-			node->op = PUSH_THIS_MEMBER_REF;
-			break;
-		default:
-			assert(0);
-			break;
-		}
-		node->ref = REF;
-	}
-}*/
-
 enum BASIC_SYMBOL
 {
 	BS_PLUS, // +
@@ -1666,7 +1676,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 				ParseNode* node = ParseNode::Get();
 				node->type = V_VOID;
 				node->str = str;
-				//node->ref = NO_REF;
+				node->ref = REF_NO;
 				if(t.IsSymbol('('))
 				{
 					ParseArgs(node->childs);
@@ -1704,23 +1714,25 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 				stack2.pop_back();
 				if(si.type == ST_NONE)
 				{
+					// unrary operator
 					int cast, result;
 					if(!CanOp(sn.symbol, node->type, V_VOID, cast, result))
 						t.Throw("Invalid type '%s' for operation '%s'.", types[node->type]->name.c_str(), si.name);
-					Cast(node, cast);
+					Cast(node, VarType(cast));
 					if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
 					{
 						ParseNode* op = ParseNode::Get();
 						op->op = (Op)si.op;
 						op->type = result;
 						op->push(node);
-						//op->ref = NO_REF;
+						op->ref = REF_NO;
 						node = op;
 					}
 					stack2.push_back(node);
 				}
 				else
 				{
+					// inc dec
 					assert(si.type == ST_INC_DEC);
 					if(node->type != V_INT && node->type != V_FLOAT)
 						t.Throw("Invalid type '%s' for operation '%s'.", types[node->type]->name.c_str(), si.name);
@@ -1823,7 +1835,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						StringPool.Free(right->str);
 
 						ParseNode* node = ParseNode::Get();
-						//node->ref = NO_REF;
+						node->ref = REF_NO;
 						node->push(left);
 						for(ParseNode* n : right->childs)
 							node->push(n);
@@ -1846,7 +1858,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						node->op = PUSH_MEMBER;
 						node->type = m->type;
 						node->value = m_index;
-						//node->ref = MAY_REF;
+						node->ref = REF_MAY;
 						node->push(left);
 						right->Free();
 						stack2.push_back(node);
@@ -1858,62 +1870,83 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 						t.Throw("Can't assign, left value must be variable.");
 
 					ParseNode* set = ParseNode::Get();
-					switch(left->op)
+					if(left->ref != REF_YES)
 					{
-					case PUSH_LOCAL:
-						set->op = SET_LOCAL;
-						break;
-					case PUSH_GLOBAL:
-						set->op = SET_GLOBAL;
-						break;
-					case PUSH_ARG:
-						set->op = SET_ARG;
-						break;
-					case PUSH_MEMBER:
-						set->op = SET_MEMBER;
-						break;
-					case PUSH_THIS_MEMBER:
-						set->op = SET_THIS_MEMBER;
-						break;
-					default:
-						assert(0);
-						break;
-					}
-					set->value = left->value;
-					set->type = left->type;
-					//set->ref = NO_REF;
+						switch(left->op)
+						{
+						case PUSH_LOCAL:
+							set->op = SET_LOCAL;
+							break;
+						case PUSH_GLOBAL:
+							set->op = SET_GLOBAL;
+							break;
+						case PUSH_ARG:
+							set->op = SET_ARG;
+							break;
+						case PUSH_MEMBER:
+							set->op = SET_MEMBER;
+							break;
+						case PUSH_THIS_MEMBER:
+							set->op = SET_THIS_MEMBER;
+							break;
+						default:
+							assert(0);
+							break;
+						}
+						set->value = left->value;
+						set->type = left->type;
+						set->ref = REF_NO;
 
-					if(si.op == NOP)
-					{
-						// assign
-						if(!TryCast(right, left->type))
-							t.Throw("Can't assign '%s' to type '%s'.", types[right->type]->name.c_str(), types[set->type]->name.c_str());
-						set->push(right);
-						if(left->op == PUSH_MEMBER)
-							set->push(left->childs);
+						if(si.op == NOP)
+						{
+							// assign
+							if(!TryCast(right, VarType(left->type)))
+								t.Throw("Can't assign '%s' to type '%s'.", types[right->type]->name.c_str(), types[set->type]->name.c_str());
+							set->push(right);
+							if(left->op == PUSH_MEMBER)
+								set->push(left->childs);
+						}
+						else
+						{
+							// compound assign
+							int cast, result;
+							if(!CanOp((SYMBOL)si.op, left->type, right->type, cast, result))
+								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", types[left->type]->name.c_str(), types[right->type]->name.c_str(),
+									si.name);
+
+							Cast(left, VarType(cast));
+							Cast(right, VarType(cast));
+
+							ParseNode* op = ParseNode::Get();
+							op->op = (Op)symbols[si.op].op;
+							op->type = result;
+							op->ref = REF_NO;
+							op->push(left);
+							op->push(right);
+
+							Cast(op, VarType(set->type));
+							set->push(op);
+							if(left->op == PUSH_MEMBER)
+								set->push(left->childs);
+						}
 					}
 					else
 					{
-						// compound assign
-						int cast, result;
-						if(!CanOp((SYMBOL)si.op, left->type, right->type, cast, result))
-							t.Throw("Invalid types '%s' and '%s' for operation '%s'.", types[left->type]->name.c_str(), types[right->type]->name.c_str(),
-								si.name);
+						set->pseudo_op = INTERNAL_GROUP;
+						set->type = right->type;
+						set->ref = REF_NO;
 
-						Cast(left, cast);
-						Cast(right, cast);
-
-						ParseNode* op = ParseNode::Get();
-						op->op = (Op)symbols[si.op].op;
-						op->type = result;
-						//op->ref = NO_REF;
-						op->push(left);
-						op->push(right);
-
-						Cast(op, set->type);
-						set->push(op);
-						if(left->op == PUSH_MEMBER)
-							set->push(left->childs);
+						if(si.op == NOP)
+						{
+							// assign
+							if(!TryCast(right, VarType(left->type)))
+								t.Throw("Can't assign '%s' to type '%s'.", types[right->type]->name.c_str(), types[left->type]->name.c_str());
+							set->push(right);
+							set->push(left);
+							ParseNode* op = ParseNode::Get();
+							op->op = SET_ADR;
+							set->push(op);
+						}
 					}
 
 					stack2.push_back(set);
@@ -1924,12 +1957,12 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 					if(!CanOp(si.symbol, left->type, right->type, cast, result))
 						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", types[left->type]->name.c_str(), types[right->type]->name.c_str(), si.name);
 
-					Cast(left, cast);
-					Cast(right, cast);
+					Cast(left, VarType(cast));
+					Cast(right, VarType(cast));
 
 					ParseNode* op = ParseNode::Get();
 					op->type = result;
-					//op->ref = NO_REF;
+					op->ref = REF_NO;
 
 					if(!TryConstExpr(left, right, op, si.symbol))
 					{
@@ -1961,7 +1994,7 @@ ParseNode* ParseVarDecl(int type, string* _name)
 
 	ParseVar* var = ParseVar::Get();
 	var->name = name;
-	var->type = type;
+	var->type = VarType(type);
 	var->index = current_block->var_offset;
 	var->subtype = (current_function == nullptr ? ParseVar::GLOBAL : ParseVar::LOCAL);
 	current_block->vars.push_back(var);
@@ -1974,7 +2007,7 @@ ParseNode* ParseVarDecl(int type, string* _name)
 	if(!t.IsSymbol('='))
 	{
 		expr = ParseNode::Get();
-		//expr->ref = NO_REF;
+		expr->ref = REF_NO;
 		switch(type)
 		{
 		case V_BOOL:
@@ -2033,7 +2066,7 @@ ParseNode* ParseVarDecl(int type, string* _name)
 
 		// expr<,;>
 		expr = ParseExpr(',', ';');
-		if(!TryCast(expr, type))
+		if(!TryCast(expr, VarType(type)))
 			t.Throw("Can't assign type '%s' to variable '%s %s'.", types[expr->type]->name.c_str(), var->name.c_str(), types[type]->name.c_str());
 	}
 
@@ -2053,9 +2086,9 @@ ParseNode* ParseVarDecl(int type, string* _name)
 		assert(0);
 		break;
 	}
-	node->type = var->type;
+	node->type = var->type.core;
 	node->value = var->index;
-	//node->ref = NO_REF;
+	node->ref = REF_NO;
 	node->push(expr);
 	return node;
 }
@@ -2066,7 +2099,7 @@ ParseNode* ParseCond()
 	t.Next();
 	ParseNode* cond = ParseExpr(')');
 	t.AssertSymbol(')');
-	if(!TryCast(cond, V_BOOL))
+	if(!TryCast(cond, VarType(V_BOOL)))
 		t.Throw("Condition expression with '%s' type.", types[cond->type]->name.c_str());
 	t.Next();
 	return cond;
@@ -2109,23 +2142,28 @@ ParseNode* ParseVarTypeDecl(int* _type = nullptr, string* _name = nullptr)
 		ParseNode* node = ParseNode::Get();
 		node->pseudo_op = GROUP;
 		node->type = V_VOID;
-		//node->ref = NO_REF;
+		node->ref = REF_NO;
 		node->childs = nodes;
 		return node;
 	}
 }
 
-int GetVarType()
+VarType GetVarType()
 {
-	if(t.IsKeywordGroup(G_VAR))
-		return t.GetKeywordId(G_VAR);
-	else if(t.IsItem())
+	if(!t.IsKeywordGroup(G_VAR))
+		t.Unexpected("Expecting var type.");
+	int type = t.GetKeywordId(G_VAR);
+	t.Next();
+	if(t.IsSymbol('&'))
 	{
-		Type* type = Type::Find(t.GetItem().c_str());
-		if(type)
-			return type->index;
+		Type* ty = types[type];
+		if(ty->is_ref)
+			t.Throw("Can't create reference to reference type '%s'.", ty->name.c_str());
+		t.Next();
+		return VarType(type, SV_REF);
 	}
-	t.Unexpected("Expecting var type.");
+	else
+		return VarType(type);
 }
 
 void ParseFunctionArgs(CommonFunction* f, bool real_func)
@@ -2141,8 +2179,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 	{
 		while(true)
 		{
-			int type = GetVarType();
-			t.Next();
+			VarType type = GetVarType();
 			LocalString id = t.MustGetItem();
 			CheckFindItem(id.get_ref(), false);
 			if(real_func)
@@ -2161,7 +2198,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 				t.Next();
 				ParseNode* item = ParseConstItem();
 				if(!TryCast(item, type))
-					t.Throw("Invalid default value of type '%s', required '%s'.", types[item->type]->name.c_str(), types[type]->name.c_str());
+					t.Throw("Invalid default value of type '%s', required '%s'.", types[item->type]->name.c_str(), type.GetName());
 				switch(item->op)
 				{
 				case PUSH_BOOL:
@@ -2174,7 +2211,7 @@ void ParseFunctionArgs(CommonFunction* f, bool real_func)
 					f->arg_infos.push_back(ArgInfo(item->fvalue));
 					break;
 				case PUSH_STRING:
-					f->arg_infos.push_back(ArgInfo(V_STRING, item->value, true));
+					f->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
 					break;
 				default:
 					assert(0);
@@ -2296,7 +2333,7 @@ ParseNode* ParseLine()
 				ParseNode* if_op = ParseNode::Get();
 				if_op->pseudo_op = IF;
 				if_op->type = V_VOID;
-				//if_op->ref = NO_REF;
+				if_op->ref = REF_NO;
 				if_op->push(if_expr);
 				if_op->push(ParseLineOrBlock());
 
@@ -2326,7 +2363,7 @@ ParseNode* ParseLine()
 				do_whil->pseudo_op = DO_WHILE;
 				do_whil->type = V_VOID;
 				do_whil->value = DO_WHILE_NORMAL;
-				//do_whil->ref = NO_REF;
+				do_whil->ref = REF_NO;
 				do_whil->push(block);
 				do_whil->push(cond);
 				return do_whil;
@@ -2341,7 +2378,7 @@ ParseNode* ParseLine()
 				ParseNode* whil = ParseNode::Get();
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
-				//whil->ref = NO_REF;
+				whil->ref = REF_NO;
 				whil->push(cond);
 				whil->push(block);
 				return whil;
@@ -2378,13 +2415,13 @@ ParseNode* ParseLine()
 					for3 = ParseExpr(')');
 				t.Next();
 
-				if(for2 && !TryCast(for2, V_BOOL))
+				if(for2 && !TryCast(for2, VarType(V_BOOL)))
 					t.Throw("Condition expression with '%s' type.", types[for2->type]->name.c_str());
 
 				ParseNode* fo = ParseNode::Get();
 				fo->pseudo_op = FOR;
 				fo->type = V_VOID;
-				//fo->ref = NO_REF;
+				fo->ref = REF_NO;
 				fo->push(for1);
 				fo->push(for2);
 				fo->push(for3);
@@ -2404,7 +2441,7 @@ ParseNode* ParseLine()
 				ParseNode* br = ParseNode::Get();
 				br->pseudo_op = BREAK;
 				br->type = V_VOID;
-				//br->ref = NO_REF;
+				br->ref = REF_NO;
 				return br;
 			}
 		case K_RETURN:
@@ -2414,25 +2451,25 @@ ParseNode* ParseLine()
 				ParseNode* ret = ParseNode::Get();
 				ret->pseudo_op = RETURN;
 				ret->type = V_VOID;
-				//ret->ref = NO_REF;
+				ret->ref = REF_NO;
 				t.Next();
-				int ret_type;
+				VarType ret_type(V_VOID);
 				if(!t.IsSymbol(';'))
 				{
 					ret->push(ParseExpr(';'));
-					ret_type = ret->childs[0]->type;
+					ret_type.core = ret->childs[0]->type;
+					if(ret->childs[0]->ref == REF_YES)
+						ret_type.special = SV_REF;
 					t.AssertSymbol(';');
 				}
-				else
-					ret_type = V_VOID;
-				int req_type;
+				VarType req_type;
 				if(current_function->special == SF_CTOR)
-					req_type = V_VOID;
+					req_type = VarType(V_VOID);
 				else
 					req_type = current_function->result;
 				if(ret_type != req_type)
-					t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", types[ret_type]->name.c_str(),
-						current_function->type == V_VOID ? "function" : "method", current_function->GetName(), types[req_type]->name.c_str());
+					t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", ret_type.GetName(),
+						current_function->type == V_VOID ? "function" : "method", current_function->GetName(), req_type.GetName());
 				t.Next();
 				return ret;
 			}
@@ -2485,10 +2522,10 @@ ParseNode* ParseLine()
 					if(is_func)
 					{
 						ParseFunction* f = new ParseFunction;
-						f->result = var_type;
+						f->result = VarType(var_type);
 						t.Next();
 
-						if(type->index == f->result && t.IsSymbol('('))
+						if(VarType(type->index) == f->result && t.IsSymbol('('))
 						{
 							// ctor
 							f->special = SF_CTOR;
@@ -2514,7 +2551,7 @@ ParseNode* ParseLine()
 						current_function = nullptr;
 						if(f->special == SF_CTOR)
 							type->have_ctor = true;
-						f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(type->index, 0, false));
+						f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
 						f->required_args++;
 						f->index = ufuncs.size();
 						f->type = type->index;
@@ -2560,7 +2597,7 @@ ParseNode* ParseLine()
 			ParseFunction* f = new ParseFunction;
 			f->name = str;
 			f->index = ufuncs.size();
-			f->result = type;
+			f->result = VarType(type);
 			f->type = V_VOID;
 			f->special = SF_NO;
 
@@ -2641,7 +2678,7 @@ ParseNode* ParseBlock(ParseFunction* f)
 		ParseNode* node = ParseNode::Get();
 		node->pseudo_op = GROUP;
 		node->type = V_VOID;
-		//node->ref = NO_REF;
+		node->ref = REF_NO;
 		node->childs = nodes;
 		return node;
 	}
@@ -2670,7 +2707,7 @@ ParseNode* ParseCode()
 	ParseNode* node = ParseNode::Get();
 	node->pseudo_op = GROUP;
 	node->type = V_VOID;
-	//node->ref = NO_REF;
+	node->ref = REF_NO;
 
 	t.Next();
 	while(!t.IsEof())
@@ -2732,7 +2769,7 @@ ParseNode* OptimizeTree(ParseNode* node)
 				ParseNode* not = ParseNode::Get();
 				not->op = NOT;
 				not->type = V_BOOL;
-				//not->ref = NO_REF;
+				not->ref = REF_NO;
 				not->push(cond);
 				node->childs[0] = not;
 				node->childs[1] = node->childs[2];
@@ -3088,15 +3125,15 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case CALLU_CTOR:
 	case CAST:
 	case PUSH_LOCAL:
-	//case PUSH_LOCAL_REF:
+	case PUSH_LOCAL_REF:
 	case PUSH_GLOBAL:
-	//case PUSH_GLOBAL_REF:
+	case PUSH_GLOBAL_REF:
 	case PUSH_ARG:
-	//case PUSH_ARG_REF:
+	case PUSH_ARG_REF:
 	case PUSH_MEMBER:
-	//case PUSH_MEMBER_REF:
+	case PUSH_MEMBER_REF:
 	case PUSH_THIS_MEMBER:
-	//case PUSH_THIS_MEMBER_REF:
+	case PUSH_THIS_MEMBER_REF:
 	case SET_LOCAL:
 	case SET_GLOBAL:
 	case SET_ARG:
@@ -3129,7 +3166,8 @@ void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case NOT:
 	case INC:
 	case DEC:
-	//case DEREF:
+	case DEREF:
+	case SET_ADR:
 	case BIT_AND:
 	case BIT_OR:
 	case BIT_XOR:
@@ -3180,7 +3218,7 @@ bool VerifyNodeReturnValue(ParseNode* node)
 
 void VerifyFunctionReturnValue(ParseFunction* f)
 {
-	if(f->result == V_VOID || f->special == SF_CTOR)
+	if(f->result.core == V_VOID || f->special == SF_CTOR)
 		return;
 		
 	if(f->node)
@@ -3327,15 +3365,15 @@ OpInfo ops[MAX_OP] = {
 	PUSH_FLOAT, "push_float", V_FLOAT,
 	PUSH_STRING, "push_string", V_STRING,
 	PUSH_LOCAL, "push_local", V_INT,
-	//PUSH_LOCAL_REF, "push_local_ref", V_INT,
+	PUSH_LOCAL_REF, "push_local_ref", V_INT,
 	PUSH_GLOBAL, "push_global", V_INT,
-	//PUSH_GLOBAL_REF, "push_global_ref", V_INT,
+	PUSH_GLOBAL_REF, "push_global_ref", V_INT,
 	PUSH_ARG, "push_arg", V_INT,
-	//PUSH_ARG_REF, "push_arg_ref", V_INT,
+	PUSH_ARG_REF, "push_arg_ref", V_INT,
 	PUSH_MEMBER, "push_member", V_INT,
-	//PUSH_MEMBER_REF, "push_member_ref", V_INT,
+	PUSH_MEMBER_REF, "push_member_ref", V_INT,
 	PUSH_THIS_MEMBER, "push_this_member", V_INT,
-	//PUSH_THIS_MEMBER_REF, "push_this_member_ref", V_INT,
+	PUSH_THIS_MEMBER_REF, "push_this_member_ref", V_INT,
 	POP, "pop", V_VOID,
 	SET_LOCAL, "set_local", V_INT,
 	SET_GLOBAL, "set_global", V_INT,
@@ -3356,7 +3394,8 @@ OpInfo ops[MAX_OP] = {
 	BIT_RSHIFT, "bit_rshift", V_VOID,
 	INC, "inc", V_VOID,
 	DEC, "dec", V_VOID,
-	//DEREF, "deref", V_VOID,
+	DEREF, "deref", V_VOID,
+	SET_ADR, "set_adr", V_VOID,
 	IS, "is", V_VOID,
 	EQ, "eq", V_VOID,
 	NOT_EQ, "not_eq", V_VOID,
@@ -3452,7 +3491,7 @@ void Decompile(ParseContext& ctx)
 				{
 					int val = *c++;
 					float value = union_cast<float>(val);
-					cout << Format("\t[%d %d] %s %g\n", (int)op, val, opi.name, value);
+					cout << Format("\t[%d %d] %s %.2g\n", (int)op, val, opi.name, value);
 				}
 				break;
 			case V_STRING:
@@ -3498,9 +3537,8 @@ Function* ParseFuncDecl(cstring decl, Type* type)
 		t.Next();
 
 		f->result = GetVarType();
-		t.Next();
 
-		if(type && type->index == f->result && t.IsSymbol('('))
+		if(type && type->index == f->result.core && t.IsSymbol('('))
 		{
 			// ctor
 			f->special = SF_CTOR;

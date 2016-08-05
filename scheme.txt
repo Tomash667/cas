@@ -10,7 +10,7 @@ func_def:
 	<class_name> arg_decl block // ctor
 
 member_decl:
-	simple_class_type <member_name> EOF
+	simple_var_type <member_name> EOF
 
 line_or_block:
 	block
@@ -46,14 +46,12 @@ cond:
 	( expr ) // expr returns must return bool
 
 var_type:
+	simple_var_type [&]
 	void
-	bool
-	int
-	float
 	string
 	<class_name>
 
-simple_class_type:
+simple_var_type:
 	bool
 	int
 	float

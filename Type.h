@@ -45,16 +45,44 @@ struct Member
 };
 
 // var type
-enum VAR_TYPE
+enum CoreVarType : short
 {
 	V_VOID,
 	V_BOOL,
 	V_INT,
 	V_FLOAT,
 	V_STRING,
-	//V_REF,
+	V_REF,
 	V_SPECIAL,
 	V_CLASS
+};
+
+enum SpecialVarType : short
+{
+	SV_NORMAL,
+	SV_REF
+};
+
+struct VarType
+{
+	short core;
+	SpecialVarType special;
+
+	VarType() {}
+	explicit VarType(CoreVarType core) : core(core), special(SV_NORMAL) {}
+	explicit VarType(int type, SpecialVarType special = SV_NORMAL) : core(type), special(special) {}
+
+	inline bool operator == (const VarType& type) const
+	{
+		return core == type.core && special == type.special;
+	}
+
+	inline bool operator != (const VarType& type) const
+	{
+		return core != type.core || special != type.special;
+	}
+
+	cstring GetName();
 };
 
 // type
@@ -65,7 +93,7 @@ struct Type
 	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
 	int size, index;
-	bool pod, have_ctor;
+	bool pod, have_ctor, is_ref;
 
 	~Type();
 	AnyFunction FindFunction(const string& name);
@@ -76,3 +104,12 @@ struct Type
 
 extern vector<Type*> types;
 extern uint builtin_types;
+
+inline cstring VarType::GetName()
+{
+	cstring name = types[core]->name.c_str();
+	if(special == SV_NORMAL)
+		return name;
+	else
+		return Format("%s&", name);
+}
