@@ -1,6 +1,12 @@
+- fixed crash with invalid return type from function
+- allowed cast of return type
+- fixed calling function cause loop
++ cast value -> ref
+
 + ref
+	+ class (arg, return)
 	+ arg script
-	+ ret value
+	+ ret value script
 	+ var
 	+ ref arg default value
 	+ ref arg default value for script
@@ -95,6 +101,7 @@ vector functions:
 	+ remove call to function without side effects
 	+ don't initialize members that won't be used until overwritten
 	+ TryConstExpr for IS
+	+ exclude functions without side effects or empty and don't call them
 + && short circuiting
 + char type
 + remove duplicates in string table
@@ -103,6 +110,8 @@ vector functions:
 	+ wait for spawn
 	+ spawn instantly
 	+ don't wait
++ stdlib
+	+ math: random, rand, floor, ceil, round, abs, sin, cos
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html

@@ -107,6 +107,8 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	vector<ParseNode*> childs;
 	RefType ref;
 
+	inline void OnFree() { SafeFree(childs); }
+
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void push(vector<ParseNode*>& ps)
 	{
@@ -126,7 +128,10 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		node->value = value;
 		push(node);
 	}
-	inline void OnFree() { SafeFree(childs); }
+	inline VarType GetVarType()
+	{
+		return VarType(type, ref == REF_YES ? SV_REF : SV_NORMAL);
+	}
 };
 
 struct Block : ObjectPoolProxy<Block>
@@ -792,16 +797,17 @@ ParseNode* ParseItem(int* type = nullptr)
 {
 	if(t.IsKeywordGroup(G_VAR) || type)
 	{
-		int var_type;
+		VarType var_type(V_VOID);
 		if(type)
-			var_type = *type;
+			var_type.core = *type;
 		else
 		{
-			var_type = t.GetKeywordId(G_VAR);
+			var_type.core = t.GetKeywordId(G_VAR);
 			t.Next();
 		}
+
 		t.AssertSymbol('(');
-		Type* rtype = types[var_type];
+		Type* rtype = types[var_type.core];
 		if(!rtype->have_ctor)
 			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 		ParseNode* node = ParseNode::Get();
@@ -1905,7 +1911,8 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 				}
 				else if(si.type == ST_ASSIGN)
 				{
-					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER)
+					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
+						&& left->ref != REF_YES)
 						t.Throw("Can't assign, left value must be variable.");
 
 					ParseNode* set = ParseNode::Get();
@@ -2511,13 +2518,9 @@ ParseNode* ParseLine()
 				ret->type = V_VOID;
 				ret->ref = REF_NO;
 				t.Next();
-				VarType ret_type(V_VOID);
 				if(!t.IsSymbol(';'))
 				{
 					ret->push(ParseExpr(';'));
-					ret_type.core = ret->childs[0]->type;
-					if(ret->childs[0]->ref == REF_YES)
-						ret_type.special = SV_REF;
 					t.AssertSymbol(';');
 				}
 				VarType req_type;
@@ -2525,8 +2528,8 @@ ParseNode* ParseLine()
 					req_type = VarType(V_VOID);
 				else
 					req_type = current_function->result;
-				if(ret_type != req_type)
-					t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", ret_type.GetName(),
+				if(!TryCast(ret->childs[0], req_type))
+					t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", ret->childs[0]->GetVarType().GetName(),
 						current_function->type == V_VOID ? "function" : "method", current_function->GetName(), req_type.GetName());
 				t.Next();
 				return ret;
@@ -2564,6 +2567,8 @@ ParseNode* ParseLine()
 					int var_type = t.MustGetKeywordId(G_VAR);
 					bool is_func;
 					t.SeekStart();
+					if(t.SeekSymbol('&'))
+						t.SeekNext();
 					if(t.SeekSymbol('('))
 						is_func = true; // ctor
 					else if(t.SeekItem())
@@ -2582,10 +2587,17 @@ ParseNode* ParseLine()
 						ParseFunction* f = new ParseFunction;
 						f->result = VarType(var_type);
 						t.Next();
+						if(t.IsSymbol('&'))
+						{
+							f->result.special = SV_REF;
+							t.Next();
+						}
 
 						if(VarType(type->index) == f->result && t.IsSymbol('('))
 						{
 							// ctor
+							if(f->result.special == SV_REF)
+								t.Unexpected();
 							f->special = SF_CTOR;
 							f->name = type->name;
 						}
@@ -2605,6 +2617,7 @@ ParseNode* ParseLine()
 							t.Throw("Function '%s' already exists.", f->GetName());
 
 						// block
+						f->type = type->index;
 						f->node = ParseBlock(f);
 						current_function = nullptr;
 						if(f->special == SF_CTOR)
@@ -2612,7 +2625,6 @@ ParseNode* ParseLine()
 						f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
 						f->required_args++;
 						f->index = ufuncs.size();
-						f->type = type->index;
 						ufuncs.push_back(f);
 						type->ufuncs.push_back(f);
 					}
@@ -2631,16 +2643,22 @@ ParseNode* ParseLine()
 	else if(t.IsKeywordGroup(G_VAR))
 	{
 		// is this function or var declaration or ctor
-		int type = t.GetKeywordId(G_VAR);
+		VarType type((CoreVarType)t.GetKeywordId(G_VAR));
 		t.Next();
 		if(t.IsSymbol('('))
 		{
 			// ctor
-			ParseNode* node = ParseExpr(';', 0, &type);
+			int var_type = type.core;
+			ParseNode* node = ParseExpr(';', 0, &var_type);
 			t.AssertSymbol(';');
 			t.Next();
 
 			return node;
+		}
+		else if(t.IsSymbol('&'))
+		{
+			type.special = SV_REF;
+			t.Next();
 		}
 
 		LocalString str = t.MustGetItem();
@@ -2655,7 +2673,7 @@ ParseNode* ParseLine()
 			ParseFunction* f = new ParseFunction;
 			f->name = str;
 			f->index = ufuncs.size();
-			f->result = VarType(type);
+			f->result = type;
 			f->type = V_VOID;
 			f->special = SF_NO;
 
@@ -2676,7 +2694,10 @@ ParseNode* ParseLine()
 		else
 		{
 			// var
-			ParseNode* node = ParseVarTypeDecl(&type, str.get_ptr());
+			if(type.special != SV_NORMAL)
+				t.Throw("Reference variable unavailable yet.");
+			int var_type = type.core;
+			ParseNode* node = ParseVarTypeDecl(&var_type, str.get_ptr());
 			t.Next();
 			return node;
 		}
@@ -3322,14 +3343,16 @@ bool Parse(ParseContext& ctx)
 		{
 			ufunc->pos = ctx.code.size();
 			ufunc->locals = ufunc->block->GetMaxVars();
+			uint old_size = ctx.code.size();
 			if(ufunc->node)
 				ToCode(ctx.code, ufunc->node, nullptr);
-			if(!ctx.code.empty() && ctx.code.back() != RET)
+			if(old_size == ctx.code.size() || ctx.code.back() != RET)
 				ctx.code.push_back(RET);
 		}
 		ctx.entry_point = ctx.code.size();
+		uint old_size = ctx.code.size();
 		ToCode(ctx.code, node, nullptr);
-		if(!ctx.code.empty() && ctx.code.back() != RET)
+		if(old_size == ctx.code.size() || ctx.code.back() != RET)
 			ctx.code.push_back(RET);
 
 		ctx.strs = strs;

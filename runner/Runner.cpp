@@ -7,7 +7,7 @@
 
 using namespace std;
 
-cstring def_filename = "ref.txt";
+cstring def_filename = "cast.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 static bool have_errors;

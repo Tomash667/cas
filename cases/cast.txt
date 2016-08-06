@@ -1,0 +1,46 @@
+// cast return value
+int f(float x)
+{
+	return x;
+}
+println(f(3.14));
+
+float fx=1.7, fy=2.4, fz;
+int ix=2, iy=4, iz;
+
+// cast left
+fz = ix + fy;
+println(fz);
+
+// cast right
+fz = fx + iy;
+println(fz);
+
+// cast left and result
+iz = ix + fy;
+println(iz);
+
+// cast right and result
+iz = fx + iy;
+println(iz);
+
+// cast for op and result
+iz = ix;
+iz += fx;
+println(iz);
+
+// assign cast
+float a = 1; // int->float
+println(a);
+int b = 4.49; // float->int
+println(b);
+
+// condition cast
+int x = 4;
+if(x) println("ok");
+
+// arg cast
+void f2(float d) {}
+f2(x);
+
+pause();

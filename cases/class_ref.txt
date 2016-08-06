@@ -1,0 +1,40 @@
+int g_a;
+
+float GGG(int x)
+{
+	return x;
+}
+
+class A
+{
+	int x,y;
+	
+	void sum(int& w)
+	{
+		w = x+y;
+		++w;
+		w++;
+		w += 7;
+	}
+	
+	int& index(int i)
+	{
+		if(i == 0)
+			return x;
+		else
+			return y;
+	}
+	
+	int& sens()
+	{
+		int a = 3; // bug
+		return a;
+	}
+	
+	int& sens2()
+	{
+		return g_a;
+	}
+}
+
+pause();

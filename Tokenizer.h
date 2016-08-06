@@ -443,8 +443,8 @@ namespace tokenizer
 			assert(IsNumber());
 			return normal_seek._float;
 		}
-		inline uint GetLine() const { return normal_seek.line; }
-		inline uint GetCharPos() const { return normal_seek.charpos; }
+		inline uint GetLine() const { return normal_seek.line + 1; }
+		inline uint GetCharPos() const { return normal_seek.charpos + 1; }
 		inline const Keyword* GetKeyword() const
 		{
 			assert(IsKeyword());
