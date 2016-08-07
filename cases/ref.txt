@@ -22,6 +22,7 @@ void dodaj2(int& a, int& b)
 	b = 0;
 	++b;
 	b++;
+	b += 2;
 }
 
 int a, b;

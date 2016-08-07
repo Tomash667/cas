@@ -2018,6 +2018,7 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", types[left->type]->name.c_str(), types[right->type]->name.c_str(),
 									si.name);
 
+							ParseNode* real_left = left;
 							Cast(left, VarType(cast));
 							Cast(right, VarType(cast));
 
@@ -2026,15 +2027,14 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 							op->type = result;
 							op->ref = REF_NO;
 							op->push(left);
-							set->push(PUSH);
-							set->push(DEREF);
 							op->push(right);
 
 							if(!TryCast(op, VarType(set->type)))
 								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", types[op->type]->name.c_str(),
 									types[set->type]->name.c_str(), si.name);
-							set->op = SET_ADR;
+							set->push(real_left);
 							set->push(op);
+							set->op = SET_ADR;
 						}
 					}
 

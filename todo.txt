@@ -1,5 +1,4 @@
 + ref
-	+ class (arg, return)
 	+ arg script
 	+ ret value script
 	+ var
@@ -13,6 +12,7 @@
 + nullable
 + string as struct (remove op add)
 
++ checking ref counter on cleanup (for class/string)
 + allow vars with same name as function
 + call function before declaration
 
@@ -52,7 +52,6 @@ vector functions:
 + default string for code function
 + allow reuse variable name
 + object/string deconstruction
-+ checking ref counter on cleanup (for class/string)
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)
 + custom cast operators
@@ -107,6 +106,7 @@ vector functions:
 	+ don't wait
 + stdlib
 	+ math: random, rand, floor, ceil, round, abs, sin, cos
++ include code in decompile
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html

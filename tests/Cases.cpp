@@ -145,7 +145,12 @@ namespace tests
 
 		TestMethod(Ref)
 		{
-			RunFileTest("ref.txt", "11 13", "12\n12\n26,2\n4,999\n999,4\n");
+			RunFileTest("ref.txt", "11 13", "12\n12\n26,4\n4,999\n999,4\n");
+		}
+
+		TestMethod(ClassRef)
+		{
+			RunFileTest("class_ref.txt", "", "20\n4\n11,22\n12\n");
 		}
 
 		TestMethod(Cast)

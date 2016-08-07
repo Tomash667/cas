@@ -17,6 +17,13 @@ enum SPECIAL_VAR
 	V_CTOR
 };
 
+//#define CHECK_LEAKS
+
+#ifdef CHECK_LEAKS
+struct Class;
+vector<Class*> all_clases;
+#endif
+
 struct Class
 {
 	int refs;
@@ -46,6 +53,10 @@ struct Class
 		Class* c = (Class*)data;
 		c->refs = 1;
 		c->type = type;
+#ifdef CHECK_LEAKS
+		++c->refs;
+		all_clases.push_back(c);
+#endif
 		return c;
 	}
 
@@ -520,6 +531,7 @@ void RunCode(RunContext& ctx)
 				Var& v = local[args_offset];
 				assert(v.type == f.type);
 				Class* c = v.clas;
+				++c->refs;
 				Member* m = type->members[member_index];
 
 				// push reference
@@ -989,6 +1001,10 @@ void RunCode(RunContext& ctx)
 			{
 				assert(stack.empty());
 				assert(local.empty());
+#ifdef CHECK_LEAKS
+				for(Class* c : all_clases)
+					assert(c->refs == 1);
+#endif
 				return;
 			}
 			else
