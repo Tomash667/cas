@@ -87,6 +87,11 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 	int index;
 	VarType type;
 	Type subtype;
+
+	inline cstring GetName()
+	{
+		return Format("%s %s", types[type.core]->name.c_str(), name.c_str());
+	}
 };
 
 struct ParseNode : ObjectPoolProxy<ParseNode>
@@ -176,6 +181,19 @@ struct Block : ObjectPoolProxy<Block>
 			block = block->parent;
 		}
 
+		return nullptr;
+	}
+
+	ParseVar* GetVar(uint index) const
+	{
+		for(ParseVar* v : vars)
+		{
+			if(v->index == index)
+				return v;
+		}
+		if(parent)
+			return GetVar(index);
+		assert(0);
 		return nullptr;
 	}
 };
@@ -1970,7 +1988,9 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 							op->push(left);
 							op->push(right);
 
-							Cast(op, VarType(set->type));
+							if(!TryCast(op, VarType(set->type)))
+								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", types[op->type]->name.c_str(),
+									types[set->type]->name.c_str(), si.name);
 							set->push(op);
 							if(left->op == PUSH_MEMBER)
 								set->push(left->childs);
@@ -2010,7 +2030,9 @@ ParseNode* ParseExpr(char end, char end2, int* type)
 							set->push(DEREF);
 							op->push(right);
 
-							Cast(op, VarType(set->type));
+							if(!TryCast(op, VarType(set->type)))
+								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", types[op->type]->name.c_str(),
+									types[set->type]->name.c_str(), si.name);
 							set->op = SET_ADR;
 							set->push(op);
 						}
@@ -2376,6 +2398,27 @@ void ParseMemberDeclClass(Type* type, uint& pad)
 	t.Next();
 }
 
+ParseVar* GetVar(ParseNode* node)
+{
+	switch(node->op)
+	{
+	case PUSH_GLOBAL:
+	case PUSH_GLOBAL_REF:
+		return main_block->vars[node->value];
+	case PUSH_LOCAL:
+	case PUSH_LOCAL_REF:
+		assert(current_block);
+		return current_block->GetVar(node->value);
+	case PUSH_ARG:
+	case PUSH_ARG_REF:
+		assert(current_function);
+		return current_function->args[node->value];
+	default:
+		assert(0);
+		return nullptr;
+	}
+}
+
 // can return null
 ParseNode* ParseLine()
 {
@@ -2531,6 +2574,12 @@ ParseNode* ParseLine()
 				if(!TryCast(ret->childs[0], req_type))
 					t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", ret->childs[0]->GetVarType().GetName(),
 						current_function->type == V_VOID ? "function" : "method", current_function->GetName(), req_type.GetName());
+				if(current_function->special == SF_NO && current_function->result.special == SV_REF)
+				{
+					ParseNode* r = ret->childs[0];
+					if(r->op == PUSH_LOCAL_REF || r->op == PUSH_ARG_REF)
+						t.Throw("Returning reference to temporary variable '%s'.", GetVar(r)->GetName());
+				}
 				t.Next();
 				return ret;
 			}
@@ -2611,19 +2660,19 @@ ParseNode* ParseLine()
 						t.AssertSymbol('(');
 						t.Next();
 
+						f->type = type->index;
 						ParseFunctionArgs(f, true);
+						f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
+						f->required_args++;
 
 						if(FindEqualFunction(f))
 							t.Throw("Function '%s' already exists.", f->GetName());
 
 						// block
-						f->type = type->index;
 						f->node = ParseBlock(f);
 						current_function = nullptr;
 						if(f->special == SF_CTOR)
 							type->have_ctor = true;
-						f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
-						f->required_args++;
 						f->index = ufuncs.size();
 						ufuncs.push_back(f);
 						type->ufuncs.push_back(f);
@@ -2681,8 +2730,9 @@ ParseNode* ParseLine()
 			ParseFunctionArgs(f, true);
 			if(FindEqualFunction(f))
 			{
+				cstring name = f->GetName();
 				delete f;
-				t.Throw("Function '%s' already exists.", f->GetName());
+				t.Throw("Function '%s' already exists.", name);
 			}
 			
 			// block

@@ -218,7 +218,7 @@ void AddName(LocalString& s, const VarType& type)
 cstring CommonFunction::GetName(bool write_result) const
 {
 	LocalString s = "";
-	if(write_result && type == V_VOID)
+	if(write_result && special != SF_CTOR)
 	{
 		AddName(s, result);
 		s += ' ';

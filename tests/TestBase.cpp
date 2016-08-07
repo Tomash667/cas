@@ -143,6 +143,27 @@ void RunFileTest(cstring filename, cstring input, cstring output, bool optimize)
 	Assert::AreEqual(output, ss, "Invalid output.");
 }
 
+void RunTest(cstring code)
+{
+	event_output.clear();
+
+	s_input.clear();
+	s_input.str("");
+	s_output.clear();
+	s_output.str("");
+
+	Result result = ParseAndRunWithTimeout(code, true);
+	string s = s_output.str();
+	cstring ss = s.c_str();
+	if(result == TIMEOUT)
+		Assert::Fail(L"Test timeout.");
+	else if(result == FAILED)
+	{
+		cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
+		Assert::Fail(GetWC(output).c_str());
+	}
+}
+
 void RunFailureTest(cstring code, cstring error)
 {
 	event_output.clear();

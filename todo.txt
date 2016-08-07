@@ -1,8 +1,3 @@
-- fixed crash with invalid return type from function
-- allowed cast of return type
-- fixed calling function cause loop
-+ cast value -> ref
-
 + ref
 	+ class (arg, return)
 	+ arg script
@@ -17,6 +12,9 @@
 + struct
 + nullable
 + string as struct (remove op add)
+
++ allow vars with same name as function
++ call function before declaration
 
 + array
 vector functions:
@@ -35,7 +33,6 @@ vector functions:
 	+ operator []
 
 + variadic functions (params)
-+ call function before declaration
 + custom assert that breaks parse/run in test mode
 
 + class
@@ -56,7 +53,6 @@ vector functions:
 + allow reuse variable name
 + object/string deconstruction
 + checking ref counter on cleanup (for class/string)
-+ builtin unit tests for parsing errors
 + cast operator (type)x or x as type ?
 + warn about implict cast (setting)
 + custom cast operators
@@ -87,7 +83,6 @@ vector functions:
 + enum
 + register enum
 + multiple files/modules (sharing classes, globals - current globals-> 0 level locals)
-+ variable shadowing?
 + types
 	+ dictionary/map
 	+ list
