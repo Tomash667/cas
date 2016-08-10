@@ -20,5 +20,10 @@ namespace tests
 			*/
 			RunTest("void f() {} f();");
 		}
+
+		TEST_METHOD(ReturnInVoidFunction)
+		{
+			RunTest("void f() {return;}");
+		}
 	};
 }

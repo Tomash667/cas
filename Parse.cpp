@@ -259,9 +259,16 @@ union Found
 };
 
 
+struct ReturnInfo
+{
+	ParseNode* node;
+	int line, charpos;
+};
+
 extern Tokenizer t;
 static vector<Str*> strs;
 static vector<ParseFunction*> ufuncs;
+static vector<ReturnInfo> global_returns;
 static Block* main_block;
 static Block* current_block;
 static ParseFunction* current_function;
@@ -2554,8 +2561,6 @@ ParseNode* ParseLine()
 			}
 		case K_RETURN:
 			{
-				if(!current_function)
-					t.Unexpected("Not inside function.");
 				ParseNode* ret = ParseNode::Get();
 				ret->pseudo_op = RETURN;
 				ret->type = V_VOID;
@@ -2566,19 +2571,54 @@ ParseNode* ParseLine()
 					ret->push(ParseExpr(';'));
 					t.AssertSymbol(';');
 				}
-				VarType req_type;
-				if(current_function->special == SF_CTOR)
-					req_type = VarType(V_VOID);
-				else
-					req_type = current_function->result;
-				if(!TryCast(ret->childs[0], req_type))
-					t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", ret->childs[0]->GetVarType().GetName(),
-						current_function->type == V_VOID ? "function" : "method", current_function->GetName(), req_type.GetName());
-				if(current_function->special == SF_NO && current_function->result.special == SV_REF)
+				if(current_function)
 				{
-					ParseNode* r = ret->childs[0];
-					if(r->op == PUSH_LOCAL_REF || r->op == PUSH_ARG_REF)
-						t.Throw("Returning reference to temporary variable '%s'.", GetVar(r)->GetName());
+					VarType req_type;
+					if(current_function->special == SF_CTOR)
+						req_type = VarType(V_VOID);
+					else
+						req_type = current_function->result;
+
+					bool ok = true;
+					cstring type_name = nullptr;
+					if(ret->childs.empty())
+					{
+						if(req_type.core != V_VOID)
+						{
+							ok = false;
+							type_name = types[V_VOID]->name.c_str();
+						}
+					}
+					else
+					{
+						ParseNode*& r = ret->childs[0];
+						if(!TryCast(r, req_type))
+						{
+							ok = false;
+							type_name = r->GetVarType().GetName();
+						}
+							
+						if(ok && current_function->special == SF_NO && current_function->result.special == SV_REF)
+						{
+							if(r->op == PUSH_LOCAL_REF || r->op == PUSH_ARG_REF)
+								t.Throw("Returning reference to temporary variable '%s'.", GetVar(r)->GetName());
+						}
+					}
+
+					if(!ok)
+						t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", type_name, current_function->type == V_VOID ? "function" : "method",
+							current_function->GetName(), req_type.GetName());
+				}
+				else
+				{
+					if(!ret->childs.empty())
+					{
+						ParseNode* r = ret->childs[0];
+						if((r->type != V_INT && r->type != V_BOOL && r->type != V_FLOAT) || r->ref == REF_YES)
+							t.Throw("Invalid type '%s' for global return.", r->GetVarType().GetName());
+					}
+					ReturnInfo info = { ret, t.GetLine(), t.GetCharPos() };
+					global_returns.push_back(info);
 				}
 				t.Next();
 				return ret;
@@ -2830,6 +2870,7 @@ ParseNode* ParseCode()
 	current_block = main_block;
 	current_function = nullptr;
 	current_type = nullptr;
+	global_returns.clear();
 
 	ParseNode* node = ParseNode::Get();
 	node->pseudo_op = GROUP;
@@ -3363,6 +3404,31 @@ void VerifyFunctionReturnValue(ParseFunction* f)
 	t.Throw("%s '%s' not always return value.", f->type == V_VOID ? "Function" : "Method", f->GetName());
 }
 
+int GetReturnType(ParseNode* node)
+{
+	if(node->childs.empty())
+		return V_VOID;
+	else
+		return node->childs.front()->type;
+}
+
+int CommonType(int a, int b)
+{
+	if(a == b)
+		return a;
+	if(a == V_VOID || b == V_VOID)
+		return -1;
+	if(a == V_FLOAT || b == V_FLOAT)
+		return V_FLOAT;
+	else if(a == V_INT || b == V_INT)
+		return V_INT;
+	else
+	{
+		assert(0);
+		return -1;
+	}
+}
+
 bool Parse(ParseContext& ctx)
 {
 	try
@@ -3372,6 +3438,45 @@ bool Parse(ParseContext& ctx)
 
 		// parse
 		ParseNode* node = ParseCode();
+
+		// check return type
+		if(!global_returns.empty())
+		{
+			int common = GetReturnType(global_returns[0].node);
+
+			// verify common type
+			for(uint i = 1; i < global_returns.size(); ++i)
+			{
+				ReturnInfo& info = global_returns[i];
+				int other_type = GetReturnType(info.node);
+				int new_common = CommonType(common, other_type);
+				if(new_common == -1)
+					t.ThrowAt(info.line, info.charpos, "Mismatched return type '%s' and '%s'.", types[common]->name.c_str(), types[other_type]->name.c_str());
+				common = new_common;
+			}
+
+			// cast to common type
+			for(ReturnInfo& info : global_returns)
+			{
+				int type = GetReturnType(info.node);
+				if(type != common)
+				{
+					ParseNode* ret = info.node;
+					ParseNode* expr = info.node->childs[0];
+					ParseNode* cast = ParseNode::Get();
+					cast->push(expr);
+					cast->op = CAST;
+					cast->type = common;
+					cast->value = common;
+					cast->ref = REF_NO;
+					ret->childs[0] = cast;
+				}
+			}
+
+			ctx.result = (CoreVarType)common;
+		}
+		else
+			ctx.result = V_VOID;
 
 		// optimize
 		if(optimize)
@@ -3418,7 +3523,7 @@ bool Parse(ParseContext& ctx)
 				uf.args.push_back(arg.type);
 			uf.type = f.type;
 		}
-		ctx.globals = main_block->GetMaxVars();
+		ctx.globals = main_block->GetMaxVars(); 
 
 		return true;
 	}

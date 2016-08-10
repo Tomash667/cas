@@ -165,6 +165,7 @@
     <ClInclude Include="TestBase.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Code.cpp" />
     <ClCompile Include="Failures.cpp" />
     <ClCompile Include="Fixes.cpp" />
     <ClCompile Include="stdafx.cpp">

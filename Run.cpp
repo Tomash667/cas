@@ -3,6 +3,7 @@
 #include "Run.h"
 #include "Function.h"
 #include "Op.h"
+#include "Cas.h"
 
 enum REF_TYPE
 {
@@ -104,6 +105,7 @@ struct Var
 vector<Var> stack, global, local;
 vector<uint> expected_stack;
 int current_function, args_offset, locals_offset;
+extern cas::ReturnValue return_value;
 
 void AddRef(Var& v)
 {
@@ -999,8 +1001,21 @@ void RunCode(RunContext& ctx)
 		case RET:
 			if(current_function == -1)
 			{
-				assert(stack.empty());
 				assert(local.empty());
+				if(ctx.result == V_VOID)
+				{
+					assert(stack.empty());
+					return_value.type = cas::ReturnValue::Void;
+				}
+				else
+				{
+					assert(stack.size() == 1u);
+					Var& v = stack.back();
+					assert(v.type == ctx.result);
+					return_value.type = (cas::ReturnValue::Type)ctx.result;
+					return_value.int_value = v.value;
+					stack.pop_back();
+				}
 #ifdef CHECK_LEAKS
 				for(Class* c : all_clases)
 					assert(c->refs == 1);

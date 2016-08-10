@@ -28,7 +28,7 @@ line:
 	for ( [ var_type_decl / expr ] ; [ expr ] ; [ expr ] ) line_or_block
 	var_type_decl ;
 	break ;  // must be inside loop block
-	return [expr] ; // only inside function
+	return [expr] ;
 	expr ;
 	;
 

@@ -140,14 +140,19 @@ namespace tokenizer
 				sd = &t->normal_seek;
 			}
 
-			inline void Prepare()
+			inline void SetFilename()
 			{
-				e.line = t->GetLine();
-				e.charpos = t->GetCharPos();
 				if(IS_SET(t->flags, Tokenizer::F_FILE_INFO))
 					e.filename = &t->filename;
 				else
 					e.filename = nullptr;
+			}
+
+			inline void Prepare()
+			{
+				e.line = t->GetLine();
+				e.charpos = t->GetCharPos();
+				SetFilename();
 			}
 
 			inline void Start()
@@ -168,6 +173,16 @@ namespace tokenizer
 				assert(msg);
 				s = msg;
 				Prepare();
+				throw e;
+			}
+
+			inline __declspec(noreturn) void ThrowAt(int line, int charpos, cstring msg)
+			{
+				assert(msg);
+				s = msg;
+				e.line = line;
+				e.charpos = charpos;
+				SetFilename();
 				throw e;
 			}
 
@@ -281,6 +296,16 @@ namespace tokenizer
 		{
 			cstring err = FormatList(msg, (va_list)&arg);
 			formatter.Throw(err);
+		}
+		inline __declspec(noreturn) void ThrowAt(int line, int charpos, cstring msg)
+		{
+			formatter.ThrowAt(line, charpos, msg);
+		}
+		template<typename T>
+		inline __declspec(noreturn) void ThrowAt(int line, int charpos, cstring msg, T arg, ...)
+		{
+			cstring err = FormatList(msg, (va_list)&arg);
+			formatter.ThrowAt(line, charpos, err);
 		}
 
 		//===========================================================================================================================

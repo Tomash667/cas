@@ -28,6 +28,7 @@
     <ClInclude Include="Run.h" />
     <ClInclude Include="Cas.h" />
     <ClInclude Include="Type.h" />
+    <ClInclude Include="Module.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Core">

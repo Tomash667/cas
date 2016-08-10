@@ -72,20 +72,28 @@ unsigned __stdcall ThreadStart(void* data)
 
 Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 {
-	PackedData pdata;
-	pdata.input = content;
-	pdata.optimize = optimize;
-	HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
-	DWORD result = WaitForSingleObject(thread, timeout * 1000);
-	Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
-	if(result == WAIT_TIMEOUT)
+	if(IsDebuggerPresent())
 	{
-		TerminateThread(thread, 2);
-		return TIMEOUT;
+		bool result = cas::ParseAndRun(content, optimize);
+		return (result ? OK : FAILED);
 	}
-	DWORD exit_code;
-	GetExitCodeThread(thread, &exit_code);
-	return exit_code == 1u ? OK : FAILED;
+	else
+	{
+		PackedData pdata;
+		pdata.input = content;
+		pdata.optimize = optimize;
+		HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
+		DWORD result = WaitForSingleObject(thread, timeout * 1000);
+		Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
+		if(result == WAIT_TIMEOUT)
+		{
+			TerminateThread(thread, 2);
+			return TIMEOUT;
+		}
+		DWORD exit_code;
+		GetExitCodeThread(thread, &exit_code);
+		return exit_code == 1u ? OK : FAILED;
+	}
 }
 
 wstring GetWC(cstring s)

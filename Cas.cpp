@@ -12,6 +12,7 @@ uint builtin_types;
 vector<Function*> functions;
 cas::EventHandler handler;
 Tokenizer t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE);
+cas::ReturnValue return_value;
 
 void InitCoreLib(std::istream* input, std::ostream* output, bool use_getch);
 
@@ -37,6 +38,7 @@ bool cas::ParseAndRun(cstring input, bool optimize, bool decompile)
 	rctx.code = std::move(ctx.code);
 	rctx.strs = std::move(ctx.strs);
 	rctx.ufuncs = std::move(ctx.ufuncs);
+	rctx.result = ctx.result;
 
 	// run
 	RunCode(rctx);
@@ -272,4 +274,9 @@ Function* Function::FindEqual(Function& fc)
 			return f;
 	}
 	return nullptr;
+}
+
+cas::ReturnValue cas::GetReturnValue()
+{
+	return return_value;
 }

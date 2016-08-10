@@ -101,12 +101,7 @@ namespace tests
 		{
 			RunFailureTest("break;", "Not in breakable block.");
 		}
-
-		TEST_METHOD(InvalidReturn)
-		{
-			RunFailureTest("return 1;", "Not inside function.");
-		}
-
+		
 		TEST_METHOD(InvalidReturnType)
 		{
 			RunFailureTest("int f() { return \"dodo\";", "Invalid return type 'string', function 'int f()' require 'int' type.");
@@ -161,6 +156,18 @@ namespace tests
 		{
 			RunFailureTest("int a; a=\"dodo\";", "Can't assign 'string' to type 'int'.");
 			RunFailureTest("void f(int& a) {a=\"dodo\";}", "Can't assign 'string' to type 'int'.");
+		}
+
+		TEST_METHOD(MixedGlobalReturnType)
+		{
+			RunFailureTest("return; return 1;", "Mismatched return type 'void' and 'int'.");
+		}
+
+		TEST_METHOD(InvalidGlobalReturnType)
+		{
+			RunFailureTest("return \"dada\";", "Invalid type 'string' for global return.");
+			RunFailureTest("class A{} A a; return a;", "Invalid type 'A' for global return.");
+			RunFailureTest("int& f(int& a){return a;} int a; return f(a);", "Invalid type 'int&' for global return.");
 		}
 	};
 }

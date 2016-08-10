@@ -7,6 +7,7 @@ struct ParseContext
 	vector<int> code;
 	vector<UserFunction> ufuncs;
 	uint globals, entry_point;
+	CoreVarType result;
 	bool optimize;
 };
 

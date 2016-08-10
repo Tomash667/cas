@@ -20,6 +20,25 @@ namespace cas
 		bool use_getch;
 	};
 
+	struct ReturnValue
+	{
+		enum Type
+		{
+			Void,
+			Bool,
+			Int,
+			Float
+		};
+
+		Type type;
+		union
+		{
+			bool bool_value;
+			int int_value;
+			float float_value;
+		};
+	};
+
 	void Initialize(Settings* settings = nullptr);
 	void SetHandler(EventHandler handler);
 	bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false);
@@ -27,6 +46,7 @@ namespace cas
 	bool AddMethod(cstring type_name, cstring decl, void* ptr);
 	bool AddType(cstring type_name, int size, bool pod);
 	bool AddMember(cstring type_name, cstring decl, int offset);
+	ReturnValue GetReturnValue();
 
 	template<typename T>
 	inline bool AddType(cstring type_name)

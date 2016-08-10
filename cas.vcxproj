@@ -131,6 +131,7 @@
     <ClInclude Include="Base.h" />
     <ClInclude Include="Cas.h" />
     <ClInclude Include="Function.h" />
+    <ClInclude Include="Module.h" />
     <ClInclude Include="Op.h" />
     <ClInclude Include="Parse.h" />
     <ClInclude Include="Pch.h" />
