@@ -34,6 +34,7 @@ vector functions:
 
 + variadic functions (params)
 + custom assert that breaks parse/run in test mode
++ signaling parse/run thread to exit, not using TerminateThread
 
 + class
 	+ dtor

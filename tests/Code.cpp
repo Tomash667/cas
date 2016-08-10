@@ -23,6 +23,9 @@ namespace Microsoft
 					return L"int";
 				case cas::ReturnValue::Float:
 					return L"float";
+				default:
+					Assert::Fail(L"Unknown ReturnValue type.");
+					return L"unknown";
 				}
 			}
 		}

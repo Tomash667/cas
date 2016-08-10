@@ -262,7 +262,7 @@ union Found
 struct ReturnInfo
 {
 	ParseNode* node;
-	int line, charpos;
+	uint line, charpos;
 };
 
 extern Tokenizer t;
@@ -2637,6 +2637,7 @@ ParseNode* ParseLine()
 				type->have_ctor = false;
 				type->index = types.size();
 				type->pod = true;
+				type->is_ref = true;
 				type->size = 0;
 				types.push_back(type);
 				AddParserType(type);
