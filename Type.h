@@ -93,7 +93,7 @@ struct Type
 	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
 	int size, index;
-	bool pod, have_ctor, is_ref;
+	bool pod, have_ctor, is_ref, hidden;
 
 	~Type();
 	AnyFunction FindFunction(const string& name);
@@ -102,14 +102,14 @@ struct Type
 	static Type* Find(cstring name);
 };
 
-extern vector<Type*> types;
-extern uint builtin_types;
+//extern vector<Type*> types;
+//extern uint builtin_types;
 
-inline cstring VarType::GetName()
+/*inline cstring VarType::GetName()
 {
 	cstring name = types[core]->name.c_str();
 	if(special == SV_NORMAL)
 		return name;
 	else
 		return Format("%s&", name);
-}
+}*/

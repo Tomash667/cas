@@ -11,6 +11,12 @@
     <ClCompile Include="Parse.cpp" />
     <ClCompile Include="Run.cpp" />
     <ClCompile Include="CoreLib.cpp" />
+    <ClCompile Include="Module.cpp">
+      <Filter>Implementation</Filter>
+    </ClCompile>
+    <ClCompile Include="Parser.cpp">
+      <Filter>Implementation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Base.h">
@@ -22,13 +28,34 @@
     <ClInclude Include="Pch.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="Function.h" />
     <ClInclude Include="Op.h" />
     <ClInclude Include="Parse.h" />
     <ClInclude Include="Run.h" />
-    <ClInclude Include="Cas.h" />
     <ClInclude Include="Type.h" />
-    <ClInclude Include="Module.h" />
+    <ClInclude Include="IModule.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Module.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="ReturnValue.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="Function.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="Cas.h">
+      <Filter>Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="CasImpl.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="Parser.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="ParserImpl.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Core">
@@ -36,6 +63,12 @@
     </Filter>
     <Filter Include="Doc">
       <UniqueIdentifier>{f02a0e98-0fe8-432f-9708-ee3801106c44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Interface">
+      <UniqueIdentifier>{e151f593-22e9-43a0-9610-10f2de1718d9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Implementation">
+      <UniqueIdentifier>{9e908eac-4773-40a2-870a-c153f01624de}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

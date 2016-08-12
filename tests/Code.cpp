@@ -31,6 +31,11 @@ namespace Microsoft
 
 namespace tests
 {
+	void pow(int& a)
+	{
+		a = a*a;
+	}
+
 	TEST_CLASS(Code)
 	{
 	public:
@@ -67,6 +72,16 @@ namespace tests
 			cas::ReturnValue ret = cas::GetReturnValue();
 			Assert::AreEqual(ret.type, cas::ReturnValue::Float);
 			Assert::AreEqual(ret.float_value, 7.f);
+		}
+
+		TEST_METHOD(CodeFunctionTakesRef)
+		{
+			cas::Module* module = cas::GetModule();
+			module->AddFunction("void pow(int& a)", pow);
+			module->ParseAndRun("int a = 3; pow(a); return a;");
+			cas::ReturnValue ret = module->GetReturnValue();
+			Assert::AreEqual(ret.type, cas::ReturnValue::Int);
+			Assert::AreEqual(ret.int_value, 9);
 		}
 	};
 }
