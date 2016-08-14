@@ -81,8 +81,6 @@ struct VarType
 	{
 		return core != type.core || special != type.special;
 	}
-
-	cstring GetName();
 };
 
 // type
@@ -96,20 +94,5 @@ struct Type
 	bool pod, have_ctor, is_ref, hidden;
 
 	~Type();
-	AnyFunction FindFunction(const string& name);
-	AnyFunction FindEqualFunction(Function& fc);
 	Member* FindMember(const string& name, int& index);
-	static Type* Find(cstring name);
 };
-
-//extern vector<Type*> types;
-//extern uint builtin_types;
-
-/*inline cstring VarType::GetName()
-{
-	cstring name = types[core]->name.c_str();
-	if(special == SV_NORMAL)
-		return name;
-	else
-		return Format("%s&", name);
-}*/

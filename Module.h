@@ -31,7 +31,6 @@ public:
 	Type* FindType(cstring type_name);
 	void AddParentModule(Module* parent_module);
 
-	static vector<Module*> all_modules;
 	std::map<int, Module*> modules;
 	vector<Function*> functions;
 	vector<Type*> types;
@@ -39,4 +38,6 @@ public:
 	Parser* parser;
 	int index, refs;
 	bool inherited, released;
+	static vector<Module*> all_modules;
+	static bool all_modules_shutdown;
 };

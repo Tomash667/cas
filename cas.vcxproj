@@ -135,12 +135,11 @@
     <ClInclude Include="IModule.h" />
     <ClInclude Include="Module.h" />
     <ClInclude Include="Op.h" />
-    <ClInclude Include="Parse.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="ParserImpl.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="ReturnValue.h" />
-    <ClInclude Include="Run.h" />
+    <ClInclude Include="RunModule.h" />
     <ClInclude Include="Tokenizer.h" />
     <ClInclude Include="Type.h" />
   </ItemGroup>
@@ -148,10 +147,11 @@
     <ClCompile Include="Base.cpp" />
     <ClCompile Include="Cas.cpp" />
     <ClCompile Include="CoreLib.cpp" />
+    <ClCompile Include="Decompile.cpp" />
     <ClCompile Include="Module.cpp" />
-    <ClCompile Include="Parse.cpp" />
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="Run.cpp" />
+    <ClCompile Include="RunModule.cpp" />
     <ClCompile Include="Tokenizer.cpp" />
   </ItemGroup>
   <ItemGroup>

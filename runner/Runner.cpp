@@ -7,7 +7,7 @@
 
 using namespace std;
 
-cstring def_filename = "class_ref.txt";
+cstring def_filename = "class.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 static bool have_errors;
@@ -112,6 +112,8 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
+	cas::IModule* module = cas::CreateModule();
+
 	bool first = true;
 	string content;
 	for(auto& item : input)
@@ -130,20 +132,21 @@ int main(int argc, char** argv)
 			{
 				cout << Format("Failed to open file '%s'.\n\n(OK)", item.first.c_str());
 				_getch();
-				return 2;
+				continue;
 			}
 			content = string((istreambuf_iterator<char>(ifs)), (istreambuf_iterator<char>()));
 			ifs.close();
 		}
 
-		bool result = cas::ParseAndRun(content.c_str(), optimize, decompile);
+		bool result = module->ParseAndRun(content.c_str(), optimize, decompile);
 		if(!result)
 		{
 			cout << "\n\n(OK)";
 			_getch();
-			return 1;
+			continue;
 		}
-	}	
+	}
 
+	cas::Shutdown();
 	return 0;
 }

@@ -6,6 +6,8 @@
 #include "Parser.h"
 
 vector<Module*> Module::all_modules;
+bool Module::all_modules_shutdown;
+cas::ReturnValue return_value;
 
 Module::Module(int index, Module* parent_module) : inherited(false), parser(nullptr), index(index), refs(1), released(false)
 {
@@ -22,7 +24,8 @@ Module::~Module()
 {
 	delete parser;
 
-	RemoveElement(all_modules, this);
+	if(!all_modules_shutdown)
+		RemoveElement(all_modules, this);
 }
 
 void Module::RemoveRef(bool release)
@@ -56,12 +59,12 @@ bool Module::AddFunction(cstring decl, void* ptr)
 	}
 	if(FindEqualFunction(*f))
 	{
-		handler(Error, Format("Function '%s' already exists.", f->GetName()));
+		handler(Error, Format("Function '%s' already exists.", parser->GetName(f)));
 		delete f;
 		return false;
 	}
 	f->clbk = ptr;
-	f->index = functions.size();
+	f->index = (index << 16) | functions.size();
 	f->type = V_VOID;
 	functions.push_back(f);
 	return true;
@@ -82,14 +85,14 @@ bool Module::AddMethod(cstring type_name, cstring decl, void* ptr)
 		handler(Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
 		return false;
 	}
-	if(type->FindEqualFunction(*f))
+	if(parser->FindEqualFunction(type, *f))
 	{
-		handler(Error, Format("Method '%s' for type '%s' already exists.", f->GetName(), type->name.c_str()));
+		handler(Error, Format("Method '%s' for type '%s' already exists.", parser->GetName(f), type->name.c_str()));
 		delete f;
 		return false;
 	}
 	f->clbk = ptr;
-	f->index = functions.size();
+	f->index = (index << 16) | functions.size();
 	f->type = type->index;
 	if(f->special == SF_CTOR)
 		type->have_ctor = true;
@@ -112,7 +115,7 @@ bool Module::AddType(cstring type_name, int size, bool pod)
 		handler(Error, Format("Can't declare type '%s', name is keyword.", type_name));
 		return false;
 	}
-	Type* type = Type::Find(type_name);
+	Type* type = FindType(type_name);
 	if(type)
 	{
 		handler(Error, Format("Type '%s' already declared.", type_name));
@@ -124,7 +127,7 @@ bool Module::AddType(cstring type_name, int size, bool pod)
 	type->pod = pod;
 	type->have_ctor = false;
 	type->is_ref = true;
-	type->index = types.size() + (index << 16);
+	type->index = types.size() | (index << 16);
 	types.push_back(type);
 	parser->AddType(type);
 	return true;
@@ -133,7 +136,7 @@ bool Module::AddType(cstring type_name, int size, bool pod)
 bool Module::AddMember(cstring type_name, cstring decl, int offset)
 {
 	assert(type_name && decl && offset >= 0);
-	Type* type = Type::Find(type_name);
+	Type* type = FindType(type_name);
 	if(!type)
 	{
 		handler(Error, Format("Missing type for AddMember '%s'.", type_name));
@@ -165,33 +168,24 @@ ReturnValue Module::GetReturnValue()
 
 bool Module::ParseAndRun(cstring input, bool optimize, bool decompile)
 {
-	CleanupParser();
-
 	// parse
-	ParseContext ctx;
-	ctx.input = input;
-	ctx.optimize = optimize;
-	if(!Parse(ctx))
+	ParseSettings settings;
+	settings.input = input;
+	settings.optimize = optimize;
+	RunModule* run_module = parser->Parse(settings);
+	if(!run_module)
 		return false;
 
 	// decompile
 	if(decompile)
-		Decompile(ctx);
-
-	// convert
-	RunContext rctx;
-	rctx.globals = ctx.globals;
-	rctx.entry_point = ctx.entry_point;
-	rctx.code = std::move(ctx.code);
-	rctx.strs = std::move(ctx.strs);
-	rctx.ufuncs = std::move(ctx.ufuncs);
-	rctx.result = ctx.result;
-
+		Decompile(*run_module);
+		
 	// run
-	RunCode(rctx);
-	return true;
+	Run(*run_module, return_value);
 
-	return false;
+	// cleanup
+	parser->Cleanup();
+	return true;
 }
 
 void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool is_ref, bool hidden)
@@ -229,7 +223,7 @@ Function* Module::FindEqualFunction(Function& fc)
 
 Type* Module::FindType(cstring type_name)
 {
-	assert(name);
+	assert(type_name);
 
 	for(auto& module : modules)
 	{

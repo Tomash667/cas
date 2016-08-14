@@ -11,18 +11,20 @@ namespace Microsoft
 		namespace CppUnitTestFramework
 		{
 			template<>
-			static std::wstring ToString(const cas::ReturnValue::Type& type)
+			static std::wstring ToString(const ReturnValue::Type& type)
 			{
 				switch(type)
 				{
-				case cas::ReturnValue::Void:
+				case ReturnValue::Void:
 					return L"void";
-				case cas::ReturnValue::Bool:
+				case ReturnValue::Bool:
 					return L"bool";
-				case cas::ReturnValue::Int:
+				case ReturnValue::Int:
 					return L"int";
-				case cas::ReturnValue::Float:
+				case ReturnValue::Float:
 					return L"float";
+				default:
+					return L"invalid";
 				}
 			}
 		}
@@ -43,25 +45,25 @@ namespace tests
 		{
 			// void
 			RunTest("return;");
-			cas::ReturnValue ret = cas::GetReturnValue();
-			Assert::AreEqual(ret.type, cas::ReturnValue::Void);
+			ReturnValue ret = def_module->GetReturnValue();
+			Assert::AreEqual(ret.type, ReturnValue::Void);
 
 			// bool
 			RunTest("return true;");
-			ret = cas::GetReturnValue();
-			Assert::AreEqual(ret.type, cas::ReturnValue::Bool);
+			ret = def_module->GetReturnValue();
+			Assert::AreEqual(ret.type, ReturnValue::Bool);
 			Assert::AreEqual(ret.bool_value, true);
 
 			// int
 			RunTest("return 3;");
-			ret = cas::GetReturnValue();
-			Assert::AreEqual(ret.type, cas::ReturnValue::Int);
+			ret = def_module->GetReturnValue();
+			Assert::AreEqual(ret.type, ReturnValue::Int);
 			Assert::AreEqual(ret.int_value, 3);
 
 			// float
 			RunTest("return 3.14;");
-			ret = cas::GetReturnValue();
-			Assert::AreEqual(ret.type, cas::ReturnValue::Float);
+			ret = def_module->GetReturnValue();
+			Assert::AreEqual(ret.type, ReturnValue::Float);
 			Assert::AreEqual(ret.float_value, 3.14f);
 		}
 
@@ -69,19 +71,21 @@ namespace tests
 		{
 			// will upcast to common type - float
 			RunTest("return 7; return 14.11; return false;");
-			cas::ReturnValue ret = cas::GetReturnValue();
-			Assert::AreEqual(ret.type, cas::ReturnValue::Float);
+			ReturnValue ret = def_module->GetReturnValue();
+			Assert::AreEqual(ret.type, ReturnValue::Float);
 			Assert::AreEqual(ret.float_value, 7.f);
 		}
 
 		TEST_METHOD(CodeFunctionTakesRef)
 		{
-			cas::Module* module = cas::GetModule();
+			IModule* module = CreateModule();
 			module->AddFunction("void pow(int& a)", pow);
+			RunTest(module, "int a = 3; pow(a); return a;");
 			module->ParseAndRun("int a = 3; pow(a); return a;");
-			cas::ReturnValue ret = module->GetReturnValue();
-			Assert::AreEqual(ret.type, cas::ReturnValue::Int);
+			ReturnValue ret = module->GetReturnValue();
+			Assert::AreEqual(ret.type, ReturnValue::Int);
 			Assert::AreEqual(ret.int_value, 9);
+			DestroyModule(module);
 		}
 	};
 }

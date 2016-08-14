@@ -8,6 +8,7 @@ const int DEFAULT_TIMEOUT = (CI_MODE ? 60 : 1);
 std::istringstream s_input;
 std::ostringstream s_output;
 string event_output;
+IModule* def_module;
 
 enum Result
 {
@@ -18,22 +19,23 @@ enum Result
 
 struct PackedData
 {
+	IModule* module;
 	cstring input;
 	bool optimize;
 };
 
-void TestEventHandler(cas::EventType event_type, cstring msg)
+void TestEventHandler(EventType event_type, cstring msg)
 {
 	cstring type;
 	switch(event_type)
 	{
-	case cas::Info:
+	case Info:
 		type = "INFO";
 		break;
-	case cas::Warning:
+	case Warning:
 		type = "WARN";
 		break;
-	case cas::Error:
+	case Error:
 	default:
 		type = "ERROR";
 		break;
@@ -45,13 +47,15 @@ void TestEventHandler(cas::EventType event_type, cstring msg)
 
 TEST_MODULE_INITIALIZE(ModuleInitialize)
 {
-	cas::SetHandler(TestEventHandler);
-	cas::Settings s;
+	SetHandler(TestEventHandler);
+	Settings s;
 	s.input = &s_input;
 	s.output = &s_output;
 	s.use_getch = false;
-	cas::Initialize(&s);
+	Initialize(&s);
 	Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
+
+	def_module = CreateModule();
 
 	if(CI_MODE)
 		Logger::WriteMessage("+++ CI MODE +++\n\n");
@@ -61,27 +65,30 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 
 TEST_MODULE_CLEANUP(ModuleCleanup)
 {
+	Shutdown();
 }
 
 unsigned __stdcall ThreadStart(void* data)
 {
 	PackedData* pdata = (PackedData*)data;
-	bool result = cas::ParseAndRun(pdata->input, pdata->optimize);
+	bool result = pdata->module->ParseAndRun(pdata->input, pdata->optimize);
 	return (result ? 1u : 0u);
 }
 
-Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
+Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 {
 	if(IsDebuggerPresent())
 	{
-		bool result = cas::ParseAndRun(content, optimize);
+		bool result = module->ParseAndRun(content, optimize);
 		return (result ? OK : FAILED);
 	}
 	else
 	{
 		PackedData pdata;
+		pdata.module = module;
 		pdata.input = content;
 		pdata.optimize = optimize;
+
 		HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
 		DWORD result = WaitForSingleObject(thread, timeout * 1000);
 		Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
@@ -90,6 +97,7 @@ Result ParseAndRunWithTimeout(cstring content, bool optimize, int timeout = DEFA
 			TerminateThread(thread, 2);
 			return TIMEOUT;
 		}
+
 		DWORD exit_code;
 		GetExitCodeThread(thread, &exit_code);
 		return exit_code == 1u ? OK : FAILED;
@@ -105,7 +113,7 @@ wstring GetWC(cstring s)
 	return str;
 }
 
-void RunFileTest(cstring filename, cstring input, cstring output, bool optimize)
+void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize)
 {
 	event_output.clear();
 
@@ -127,7 +135,7 @@ void RunFileTest(cstring filename, cstring input, cstring output, bool optimize)
 	s_output.clear();
 	s_output.str("");
 
-	Result result = ParseAndRunWithTimeout(content.c_str(), optimize);
+	Result result = ParseAndRunWithTimeout(module, content.c_str(), optimize);
 	string s = s_output.str();
 	cstring ss = s.c_str();
 	if(result == TIMEOUT)
@@ -151,7 +159,7 @@ void RunFileTest(cstring filename, cstring input, cstring output, bool optimize)
 	Assert::AreEqual(output, ss, "Invalid output.");
 }
 
-void RunTest(cstring code)
+void RunTest(IModule* module, cstring code)
 {
 	event_output.clear();
 
@@ -160,7 +168,7 @@ void RunTest(cstring code)
 	s_output.clear();
 	s_output.str("");
 
-	Result result = ParseAndRunWithTimeout(code, true);
+	Result result = ParseAndRunWithTimeout(module, code, true);
 	string s = s_output.str();
 	cstring ss = s.c_str();
 	if(result == TIMEOUT)
@@ -172,7 +180,7 @@ void RunTest(cstring code)
 	}
 }
 
-void RunFailureTest(cstring code, cstring error)
+void RunFailureTest(IModule* module, cstring code, cstring error)
 {
 	event_output.clear();
 	
@@ -181,7 +189,7 @@ void RunFailureTest(cstring code, cstring error)
 	s_output.clear();
 	s_output.str("");
 
-	Result result = ParseAndRunWithTimeout(code, true);
+	Result result = ParseAndRunWithTimeout(module, code, true);
 	string s = s_output.str();
 	cstring ss = s.c_str();
 	if(result == TIMEOUT)

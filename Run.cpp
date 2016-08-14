@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "Base.h"
-#include "Run.h"
-#include "Function.h"
+#include "CasImpl.h"
+#include "RunModule.h"
+#include "Module.h"
 #include "Op.h"
-#include "Cas.h"
 
 enum REF_TYPE
 {
@@ -105,7 +105,6 @@ struct Var
 vector<Var> stack, global, local;
 vector<uint> expected_stack;
 int current_function, args_offset, locals_offset;
-extern cas::ReturnValue return_value;
 
 void AddRef(Var& v)
 {
@@ -164,7 +163,7 @@ GetRefData GetRef(Var& v)
 	}
 }
 
-void ExecuteFunction(Function& f)
+void ExecuteFunction(RunModule& run_module, Function& f)
 {
 	assert(f.arg_infos.size() < 15u);
 	int packedArgs[16];
@@ -184,7 +183,7 @@ void ExecuteFunction(Function& f)
 	else if(f.result.core >= V_CLASS)
 	{
 		// class return value
-		Type* type = types[f.result.core];
+		Type* type = run_module.GetType(f.result.core);
 		Class* c = Class::Create(type);
 		retptr = c;
 		if(type->size > 8 || !type->pod)
@@ -329,17 +328,17 @@ bool CompareVar(Var& v, const VarType& type)
 	}
 }
 
-void RunCode(RunContext& ctx)
+void Run(RunModule& run_module, ReturnValue& retval)
 {
 	stack.clear();
 	global.clear();
-	global.resize(ctx.globals);
+	global.resize(run_module.globals);
 	local.clear();
 	current_function = -1;
 
-	int* start = ctx.code.data();
-	int* end = start + ctx.code.size();
-	int* c = start + ctx.entry_point;
+	int* start = run_module.code.data();
+	int* end = start + run_module.code.size();
+	int* c = start + run_module.entry_point;
 
 	while(true)
 	{
@@ -376,8 +375,8 @@ void RunCode(RunContext& ctx)
 		case PUSH_STRING:
 			{
 				uint str_index = *c++;
-				assert(str_index < ctx.strs.size());
-				Str* str = ctx.strs[str_index];
+				assert(str_index < run_module.strs.size());
+				Str* str = run_module.strs[str_index];
 				str->refs++;
 				stack.push_back(Var(str));
 			}
@@ -385,8 +384,8 @@ void RunCode(RunContext& ctx)
 		case PUSH_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-				assert(ctx.ufuncs[current_function].locals > local_index);
+				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
+				assert(run_module.ufuncs[current_function].locals > local_index);
 				Var& v = local[locals_offset + local_index];
 				AddRef(v);
 				stack.push_back(v);
@@ -395,8 +394,8 @@ void RunCode(RunContext& ctx)
 		case PUSH_LOCAL_REF:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-				assert(ctx.ufuncs[current_function].locals > local_index);
+				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
+				assert(run_module.ufuncs[current_function].locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
 				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
@@ -424,8 +423,8 @@ void RunCode(RunContext& ctx)
 		case PUSH_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-				assert(ctx.ufuncs[current_function].args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
+				assert(run_module.ufuncs[current_function].args.size() > arg_index);
 				Var& v = local[args_offset + arg_index];
 				AddRef(v);
 				stack.push_back(v);
@@ -434,8 +433,8 @@ void RunCode(RunContext& ctx)
 		case PUSH_ARG_REF:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-				assert(ctx.ufuncs[current_function].args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
+				assert(run_module.ufuncs[current_function].args.size() > arg_index);
 				uint index = args_offset + arg_index;
 				Var& v = local[index];
 				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && v.type < V_CLASS);
@@ -447,7 +446,7 @@ void RunCode(RunContext& ctx)
 				assert(!stack.empty());
 				Var& v = stack.back();
 				assert(v.type >= V_CLASS);
-				Type* type = types[v.type];
+				Type* type = run_module.GetType(v.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
@@ -477,7 +476,7 @@ void RunCode(RunContext& ctx)
 				assert(!stack.empty());
 				Var& v = stack.back();
 				assert(v.type >= V_CLASS);
-				Type* type = types[v.type];
+				Type* type = run_module.GetType(v.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
@@ -491,10 +490,10 @@ void RunCode(RunContext& ctx)
 			{
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < ctx.ufuncs.size());
-				UserFunction& f = ctx.ufuncs[current_function];
-				assert(f.type >= V_CLASS && (uint)f.type < types.size());
-				Type* type = types[f.type];
+				assert((uint)current_function < run_module.ufuncs.size());
+				UserFunction& f = run_module.ufuncs[current_function];
+				assert(f.type >= V_CLASS);
+				Type* type = run_module.GetType(f.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Var& v = local[args_offset];
@@ -524,10 +523,10 @@ void RunCode(RunContext& ctx)
 			{
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < ctx.ufuncs.size());
-				UserFunction& f = ctx.ufuncs[current_function];
-				assert(f.type >= V_CLASS && (uint)f.type < types.size());
-				Type* type = types[f.type];
+				assert((uint)current_function < run_module.ufuncs.size());
+				UserFunction& f = run_module.ufuncs[current_function];
+				assert(f.type >= V_CLASS);
+				Type* type = run_module.GetType(f.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Var& v = local[args_offset];
@@ -552,8 +551,8 @@ void RunCode(RunContext& ctx)
 		case SET_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-				assert(ctx.ufuncs[current_function].locals > local_index);
+				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
+				assert(run_module.ufuncs[current_function].locals > local_index);
 				assert(!stack.empty());
 				Var& v = local[locals_offset + local_index];
 				assert(v.type == V_VOID || v.type == stack.back().type);
@@ -583,8 +582,8 @@ void RunCode(RunContext& ctx)
 		case SET_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < ctx.ufuncs.size());
-				assert(ctx.ufuncs[current_function].args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
+				assert(run_module.ufuncs[current_function].args.size() > arg_index);
 				assert(!stack.empty());
 				Var& v = local[args_offset + arg_index];
 				assert(v.type == stack.back().type);
@@ -602,7 +601,7 @@ void RunCode(RunContext& ctx)
 				assert(stack.size() >= 2u);
 				Var& cv = stack.back();
 				assert(cv.type >= V_CLASS);
-				Type* type = types[cv.type];
+				Type* type = run_module.GetType(cv.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
@@ -639,10 +638,10 @@ void RunCode(RunContext& ctx)
 
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < ctx.ufuncs.size());
-				UserFunction& f = ctx.ufuncs[current_function];
-				assert(f.type >= V_CLASS && (uint)f.type < types.size());
-				Type* type = types[f.type];
+				assert((uint)current_function < run_module.ufuncs.size());
+				UserFunction& f = run_module.ufuncs[current_function];
+				assert(f.type >= V_CLASS);
+				Type* type = run_module.GetType(f.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Var& vl = local[args_offset];
@@ -845,7 +844,7 @@ void RunCode(RunContext& ctx)
 				else if(op == SET_ADR)
 				{
 					assert(left.type == V_REF);
-					assert(!types[right.type]->is_ref);
+					assert(!run_module.GetType(right.type)->is_ref);
 				}
 				else
 					assert(left.type == V_INT || left.type == V_FLOAT);
@@ -990,7 +989,7 @@ void RunCode(RunContext& ctx)
 					{
 						GetRefData ref = GetRef(left);
 						assert(ref.type == right.type);
-						memcpy(ref.data, &right.value, types[right.type]->size);
+						memcpy(ref.data, &right.value, run_module.GetType(right.type)->size);
 						stack.pop_back();
 						stack.push_back(right);
 					}
@@ -1002,18 +1001,18 @@ void RunCode(RunContext& ctx)
 			if(current_function == -1)
 			{
 				assert(local.empty());
-				if(ctx.result == V_VOID)
+				if(run_module.result == V_VOID)
 				{
 					assert(stack.empty());
-					return_value.type = cas::ReturnValue::Void;
+					retval.type = cas::ReturnValue::Void;
 				}
 				else
 				{
 					assert(stack.size() == 1u);
 					Var& v = stack.back();
-					assert(v.type == ctx.result);
-					return_value.type = (cas::ReturnValue::Type)ctx.result;
-					return_value.int_value = v.value;
+					assert(v.type == run_module.result);
+					retval.type = (cas::ReturnValue::Type)run_module.result;
+					retval.int_value = v.value;
 					stack.pop_back();
 				}
 #ifdef CHECK_LEAKS
@@ -1024,8 +1023,8 @@ void RunCode(RunContext& ctx)
 			}
 			else
 			{
-				assert((uint)current_function < ctx.ufuncs.size());
-				UserFunction& f = ctx.ufuncs[current_function];
+				assert((uint)current_function < run_module.ufuncs.size());
+				UserFunction& f = run_module.ufuncs[current_function];
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
 				Var& func_mark = *(local.end() - to_pop - 1);
@@ -1052,8 +1051,8 @@ void RunCode(RunContext& ctx)
 				if(current_function != -1)
 				{
 					// checking local stack
-					assert((uint)current_function < ctx.ufuncs.size());
-					UserFunction& f = ctx.ufuncs[current_function];
+					assert((uint)current_function < run_module.ufuncs.size());
+					UserFunction& f = run_module.ufuncs[current_function];
 					uint count = 1 + f.locals + f.args.size();
 					assert(local.size() >= count);
 					Var& d = *(local.end() - count);
@@ -1096,16 +1095,15 @@ void RunCode(RunContext& ctx)
 		case CALL:
 			{
 				uint f_idx = *c++;
-				assert(f_idx < functions.size());
-				Function& f = *functions[f_idx];
-				ExecuteFunction(f);
+				Function* f = run_module.GetFunction(f_idx);
+				ExecuteFunction(run_module, *f);
 			}
 			break;
 		case CALLU:
 			{
 				uint f_idx = *c++;
-				assert(f_idx < ctx.ufuncs.size());
-				UserFunction& f = ctx.ufuncs[f_idx];
+				assert(f_idx < run_module.ufuncs.size());
+				UserFunction& f = run_module.ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
 				local.push_back(Var(V_SPECIAL, V_FUNCTION, current_function, pos));
@@ -1134,16 +1132,16 @@ void RunCode(RunContext& ctx)
 		case CALLU_CTOR:
 			{
 				uint f_idx = *c++;
-				assert(f_idx < ctx.ufuncs.size());
-				UserFunction& f = ctx.ufuncs[f_idx];
+				assert(f_idx < run_module.ufuncs.size());
+				UserFunction& f = run_module.ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
 				local.push_back(Var(V_SPECIAL, V_CTOR, current_function, pos));
 				// push this
 				args_offset = local.size();
-				assert(f.type >= V_CLASS && (uint)f.type < types.size());
+				assert(f.type >= V_CLASS);
 				local.resize(local.size() + f.args.size());
-				local[args_offset] = Var(Class::Create(types[f.type]));
+				local[args_offset] = Var(Class::Create(run_module.GetType(f.type)));
 				// handle args
 				assert(stack.size() >= f.args.size() - 1);
 				for(uint i = 1, count = f.args.size(); i < count; ++i)
@@ -1165,8 +1163,8 @@ void RunCode(RunContext& ctx)
 		case CTOR:
 			{
 				uint type_index = *c++;
-				assert(type_index >= V_CLASS && type_index < types.size());
-				Type* type = types[type_index];
+				assert(type_index >= V_CLASS);
+				Type* type = run_module.GetType(type_index);
 				Class* c = Class::Create(type);
 				stack.push_back(Var(c));
 			}

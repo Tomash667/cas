@@ -1,6 +1,5 @@
 #include "Pch.h"
 #include "Base.h"
-#include "Run.h"
 #include "Function.h"
 #include "CasImpl.h"
 #include "Type.h"
@@ -14,7 +13,7 @@ static Module* core_module;
 static int module_index;
 static bool initialized;
 
-IModule* CreateModule()
+IModule* cas::CreateModule()
 {
 	assert(initialized);
 	if(!initialized)
@@ -26,7 +25,7 @@ IModule* CreateModule()
 	return module;
 }
 
-void DestroyModule(IModule* _module)
+void cas::DestroyModule(IModule* _module)
 {
 	Module* module = (Module*)_module;
 
@@ -38,7 +37,7 @@ void DestroyModule(IModule* _module)
 	module->RemoveRef(true);
 }
 
-void Initialize(Settings* settings)
+void cas::Initialize(Settings* settings)
 {
 	assert(!initialized);
 	if(initialized)
@@ -57,24 +56,25 @@ void Initialize(Settings* settings)
 	}
 	module_index = 1;
 	core_module = new Module(0, nullptr);
-	InitCoreLib(core_module, input, output, use_getch);
+	InitCoreLib(*core_module, input, output, use_getch);
 
 	initialized = true;
 }
 
-void Shutdown()
+void cas::Shutdown()
 {
 	assert(initialized);
 	if(!initialized)
 		return;
 
 	initialized = false;
+	Module::all_modules_shutdown = true;
 	for(Module* m : Module::all_modules)
 		delete m;
 	Module::all_modules.clear();
 }
 
-void SetHandler(EventHandler _handler)
+void cas::SetHandler(EventHandler _handler)
 {
 	if(_handler)
 		handler = _handler;
@@ -82,8 +82,12 @@ void SetHandler(EventHandler _handler)
 		handler = [](cas::EventType, cstring) {};
 }
 
-//=============================================================================================================================================================
-/*Member* Type::FindMember(const string& name, int& index)
+Type::~Type()
+{
+	DeleteElements(members);
+}
+
+Member* Type::FindMember(const string& name, int& index)
 {
 	index = 0;
 	for(Member* m : members)
@@ -93,40 +97,6 @@ void SetHandler(EventHandler _handler)
 		++index;
 	}
 	return nullptr;
-}
-
-void AddName(LocalString& s, const VarType& type)
-{
-	s += types[type.core]->name;
-	if(type.special == SV_REF)
-		s += '&';
-}
-
-cstring CommonFunction::GetName(bool write_result) const
-{
-	LocalString s = "";
-	if(write_result && special != SF_CTOR)
-	{
-		AddName(s, result);
-		s += ' ';
-	}
-	uint var_offset = 0;
-	if(type != V_VOID)
-	{
-		s += types[type]->name;
-		s += '.';
-		++var_offset;
-	}
-	s += name;
-	s += '(';
-	for(uint i = var_offset, count = arg_infos.size(); i < count; ++i)
-	{
-		if(i != var_offset)
-			s += ",";
-		AddName(s, arg_infos[i].type);
-	}
-	s += ")";
-	return Format("%s", s->c_str());
 }
 
 bool CommonFunction::Equal(CommonFunction& f) const
@@ -140,23 +110,3 @@ bool CommonFunction::Equal(CommonFunction& f) const
 	}
 	return true;
 }
-
-Function* Function::Find(const string& name)
-{
-	for(Function* f : functions)
-	{
-		if(f->name == name && f->type == V_VOID)
-			return f;
-	}
-	return nullptr;
-}
-
-Function* Function::FindEqual(Function& fc)
-{
-	for(Function* f : functions)
-	{
-		if(f->name == fc.name && f->type == V_VOID && f->Equal(fc))
-			return f;
-	}
-	return nullptr;
-}*/

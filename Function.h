@@ -43,17 +43,12 @@ struct CommonFunction
 	bool method;
 
 	bool Equal(CommonFunction& f) const;
-	cstring GetName(bool write_result = true) const;
 };
 
 // code function
-extern vector<Function*> functions;
 struct Function : CommonFunction
 {
 	void* clbk;
-
-	static Function* Find(const string& name);
-	static Function* FindEqual(Function& fc);
 };
 
 // script function

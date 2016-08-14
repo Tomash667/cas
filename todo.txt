@@ -15,6 +15,9 @@
 + checking ref counter on cleanup (for class/string)
 + allow vars with same name as function
 + call function before declaration
++ better Type* handling, not passing magic index
++ remove not required interactions between Module/Parser and Decompile/Parser (for example ParserMethod/FindEqualFunction should be inside RegisterMethod)
++ cas::Initialize return bool
 
 + array
 vector functions:
