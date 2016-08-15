@@ -79,7 +79,7 @@ namespace tokenizer
 		class Exception
 		{
 		public:
-			int line, charpos;
+			uint line, charpos;
 			string* str, *filename;
 
 			inline cstring ToString() const
@@ -176,7 +176,7 @@ namespace tokenizer
 				throw e;
 			}
 
-			inline __declspec(noreturn) void ThrowAt(int line, int charpos, cstring msg)
+			inline __declspec(noreturn) void ThrowAt(uint line, uint charpos, cstring msg)
 			{
 				assert(msg);
 				s = msg;
@@ -297,12 +297,12 @@ namespace tokenizer
 			cstring err = FormatList(msg, (va_list)&arg);
 			formatter.Throw(err);
 		}
-		inline __declspec(noreturn) void ThrowAt(int line, int charpos, cstring msg)
+		inline __declspec(noreturn) void ThrowAt(uint line, uint charpos, cstring msg)
 		{
 			formatter.ThrowAt(line, charpos, msg);
 		}
 		template<typename T>
-		inline __declspec(noreturn) void ThrowAt(int line, int charpos, cstring msg, T arg, ...)
+		inline __declspec(noreturn) void ThrowAt(uint line, uint charpos, cstring msg, T arg, ...)
 		{
 			cstring err = FormatList(msg, (va_list)&arg);
 			formatter.ThrowAt(line, charpos, err);
