@@ -127,6 +127,8 @@ bool Module::AddType(cstring type_name, int size, bool pod)
 	type->pod = pod;
 	type->have_ctor = false;
 	type->is_ref = true;
+	type->hidden = false;
+	type->is_class = true;
 	type->index = types.size() | (index << 16);
 	types.push_back(type);
 	parser->AddType(type);
@@ -202,6 +204,7 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 	type->pod = true;
 	type->have_ctor = false;
 	type->is_ref = is_ref;
+	type->is_class = false;
 	type->hidden = hidden;
 	types.push_back(type);
 	parser->AddType(type);

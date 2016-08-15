@@ -189,12 +189,10 @@ void Parser::Cleanup()
 	assert(run_module);
 
 	// cleanup old types
-	uint index = 0;
 	for(Type* type : run_module->types)
 	{
-		t.RemoveKeyword(type->name.c_str(), index, G_VAR);
+		t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
 		delete type;
-		++index;
 	}
 
 	Str::Free(strs);
@@ -501,6 +499,8 @@ ParseNode* Parser::ParseLine()
 				type->index = (0xFFFF0000 | run_module->types.size());
 				type->pod = true;
 				type->is_ref = true;
+				type->hidden = false;
+				type->is_class = true;
 				type->size = 0;
 				run_module->types.push_back(type);
 				AddType(type);
@@ -950,8 +950,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 			}
 			expr->value = empty_string;
 			break;
-		default:
-			if(type >= V_CLASS)
+		default: // class
 			{
 				Type* rtype = GetType(type);
 				if(rtype->have_ctor)
@@ -967,8 +966,6 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 					expr->value = type;
 				}
 			}
-			else
-				t.Throw("Missing default value for type '%s'.", GetType(type)->name.c_str());
 			break;
 		}
 	}
@@ -1677,13 +1674,17 @@ VarType Parser::GetVarType()
 
 int Parser::GetVarTypeForMember()
 {
-	int type = t.MustGetKeywordId(G_VAR);
-	if(type == V_VOID)
+	int type_index = t.MustGetKeywordId(G_VAR);
+	if(type_index == V_VOID)
 		t.Throw("Class member can't be void type.");
-	else if(type == V_STRING || type >= V_CLASS)
-		t.Throw("Class '%s' member not supported yet.", GetType(type)->name.c_str());
+	else
+	{
+		Type* type = GetType(type_index);
+		if(type_index == V_STRING || type->is_class)
+			t.Throw("Class '%s' member not supported yet.", type->name.c_str());
+	}
 	t.Next();
-	return type;
+	return type_index;
 }
 
 void Parser::PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL>& stack)
@@ -1824,7 +1825,9 @@ bool Parser::CanOp(SYMBOL symbol, int left, int right, int& cast, int& result)
 		return false;
 	if(right == V_VOID && symbols[symbol].args != 1)
 		return false;
-	if((left >= V_CLASS || right >= V_CLASS) && symbol != S_IS)
+	Type* ltype = GetType(left);
+	Type* rtype = GetType(right);
+	if((ltype->is_class || rtype->is_class) && symbol != S_IS)
 		return false;
 
 	int type;
@@ -1932,7 +1935,7 @@ bool Parser::CanOp(SYMBOL symbol, int left, int right, int& cast, int& result)
 			result = V_BOOL;
 			return true;
 		}
-		else if(left >= V_CLASS && left == right)
+		else if(ltype->is_class && left == right)
 		{
 			cast = left;
 			result = V_BOOL;
@@ -2318,7 +2321,7 @@ int Parser::MayCast(ParseNode* node, VarType type)
 
 	bool cast = (node->type != type.core);
 	// can't cast class
-	if(cast && (node->type >= V_CLASS || type.core >= V_CLASS))
+	if(cast && (GetType(node->type)->is_class || GetType(type.core)->is_class))
 		return -1;
 
 	if(type.special == SV_NORMAL)

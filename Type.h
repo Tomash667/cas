@@ -45,7 +45,7 @@ struct Member
 };
 
 // var type
-enum CoreVarType : short
+enum CoreVarType
 {
 	V_VOID,
 	V_BOOL,
@@ -53,11 +53,10 @@ enum CoreVarType : short
 	V_FLOAT,
 	V_STRING,
 	V_REF,
-	V_SPECIAL,
-	V_CLASS
+	V_SPECIAL
 };
 
-enum SpecialVarType : short
+enum SpecialVarType
 {
 	SV_NORMAL,
 	SV_REF
@@ -65,7 +64,7 @@ enum SpecialVarType : short
 
 struct VarType
 {
-	short core;
+	int core;
 	SpecialVarType special;
 
 	VarType() {}
@@ -91,7 +90,7 @@ struct Type
 	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
 	int size, index;
-	bool pod, have_ctor, is_ref, hidden;
+	bool pod, have_ctor, is_ref, hidden, is_class;
 
 	~Type();
 	Member* FindMember(const string& name, int& index);

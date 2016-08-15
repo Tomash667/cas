@@ -1,5 +1,4 @@
 + ref
-	+ arg script
 	+ ret value script
 	+ var
 	+ ref arg default value

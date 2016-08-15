@@ -7,7 +7,7 @@
 
 using namespace std;
 
-cstring def_filename = "class.txt";
+cstring def_filename = "class_ref.txt;class.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 static bool have_errors;
@@ -66,7 +66,7 @@ int main(int argc, char** argv)
 				"-op - optimize bytecode\n"
 				"-noop - don't optimize bytecode\n"
 				"-str - use code from string in next parameter\n"
-				"Other paramters are used as filename to run. Only last path is used.\n";
+				"Other paramters are used as filename to run.\n";
 		}
 		else if(strcmp(arg, "-debug") == 0)
 		{

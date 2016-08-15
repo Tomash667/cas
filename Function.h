@@ -21,7 +21,7 @@ struct ArgInfo
 	ArgInfo(bool bvalue) : type(V_BOOL), bvalue(bvalue), have_def_value(true) {}
 	ArgInfo(int value) : type(V_INT), value(value), have_def_value(true) {}
 	ArgInfo(float fvalue) : type(V_FLOAT), fvalue(fvalue), have_def_value(true) {}
-	ArgInfo(VarType type, int value, bool have_def_value) : type(type), value(value), have_def_value(have_def_value) {}
+	ArgInfo(const VarType& type, int value, bool have_def_value) : type(type), value(value), have_def_value(have_def_value) {}
 };
 
 // special function type
