@@ -52,7 +52,23 @@ char(&_ArraySizeHelper(T(&array)[N]))[N];
 #define FLT_2(x) FLT_(x, 100)
 
 //-----------------------------------------------------------------------------
+// Typy zmiennych
+typedef unsigned char byte;
+typedef unsigned short word;
+typedef unsigned int uint;
+typedef __int64 int64;
+typedef unsigned __int64 uint64;
+typedef const char* cstring;
+
+//-----------------------------------------------------------------------------
 // Debugowanie
+#ifdef assert
+#	undef assert
+#endif
+typedef void(*AssertHandler)(cstring msg, cstring file, uint line);
+void assert_handler(cstring msg, cstring file, uint line);
+void set_assert_handler(AssertHandler handler);
+AssertHandler get_assert_handler();
 #ifdef _DEBUG
 #	ifndef NO_DIRECT_X
 extern HRESULT _d_hr;
@@ -60,12 +76,14 @@ extern HRESULT _d_hr;
 #	endif
 #	define DEBUG_DO(x) (x)
 #	define C(x) assert(x)
+#	define assert(expression) (void)((!!(expression)) || (assert_handler(#expression, __FILE__, (uint)(__LINE__)), 0))
 #else
 #	ifndef NO_DIRECT_X
 #		define V(x) (x)
 #	endif
 #	define DEBUG_DO(x)
 #	define C(x) x
+#	define assert(expression) ((void)0)
 #endif
 #define __STR2__(x) #x
 #define __STR1__(x) __STR2__(x)
@@ -75,15 +93,6 @@ extern HRESULT _d_hr;
 #else
 #	define FIXME
 #endif
-
-//-----------------------------------------------------------------------------
-// Typy zmiennych
-typedef unsigned char byte;
-typedef unsigned short word;
-typedef unsigned int uint;
-typedef __int64 int64;
-typedef unsigned __int64 uint64;
-typedef const char* cstring;
 
 //-----------------------------------------------------------------------------
 // Inne typy

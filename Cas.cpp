@@ -13,6 +13,11 @@ static Module* core_module;
 static int module_index;
 static bool initialized;
 
+void AssertEventHandler(cstring msg, cstring file, uint line)
+{ 
+	handler(EventType::Assert, Format("Assert failed in '%s(%u)', expression '%s'.", file, line, msg));
+}
+
 IModule* cas::CreateModule()
 {
 	assert(initialized);
@@ -53,6 +58,8 @@ void cas::Initialize(Settings* settings)
 		input = (std::istream*)settings->input;
 		output = (std::ostream*)settings->output;
 		use_getch = settings->use_getch;
+		if(settings->use_assert_handler)
+			set_assert_handler(AssertEventHandler);
 	}
 	module_index = 1;
 	core_module = new Module(0, nullptr);

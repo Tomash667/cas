@@ -54,12 +54,12 @@ bool Module::AddFunction(cstring decl, void* ptr)
 	Function* f = parser->ParseFuncDecl(decl, nullptr);
 	if(!f)
 	{
-		handler(cas::Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
+		handler(EventType::Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
 		return false;
 	}
 	if(FindEqualFunction(*f))
 	{
-		handler(Error, Format("Function '%s' already exists.", parser->GetName(f)));
+		handler(EventType::Error, Format("Function '%s' already exists.", parser->GetName(f)));
 		delete f;
 		return false;
 	}
@@ -76,18 +76,18 @@ bool Module::AddMethod(cstring type_name, cstring decl, void* ptr)
 	Type* type = FindType(type_name);
 	if(!type)
 	{
-		handler(Error, Format("Missing type for AddMethod '%s'.", type_name));
+		handler(EventType::Error, Format("Missing type for AddMethod '%s'.", type_name));
 		return false;
 	}
 	Function* f = parser->ParseFuncDecl(decl, type);
 	if(!f)
 	{
-		handler(Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
+		handler(EventType::Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
 		return false;
 	}
 	if(parser->FindEqualFunction(type, *f))
 	{
-		handler(Error, Format("Method '%s' for type '%s' already exists.", parser->GetName(f), type->name.c_str()));
+		handler(EventType::Error, Format("Method '%s' for type '%s' already exists.", parser->GetName(f), type->name.c_str()));
 		delete f;
 		return false;
 	}
@@ -112,13 +112,13 @@ bool Module::AddType(cstring type_name, int size, bool pod)
 	assert(!inherited); // can't add types to inherited module (until fixed)
 	if(!parser->VerifyTypeName(type_name))
 	{
-		handler(Error, Format("Can't declare type '%s', name is keyword.", type_name));
+		handler(EventType::Error, Format("Can't declare type '%s', name is keyword.", type_name));
 		return false;
 	}
 	Type* type = FindType(type_name);
 	if(type)
 	{
-		handler(Error, Format("Type '%s' already declared.", type_name));
+		handler(EventType::Error, Format("Type '%s' already declared.", type_name));
 		return false;
 	}
 	type = new Type;
@@ -141,20 +141,20 @@ bool Module::AddMember(cstring type_name, cstring decl, int offset)
 	Type* type = FindType(type_name);
 	if(!type)
 	{
-		handler(Error, Format("Missing type for AddMember '%s'.", type_name));
+		handler(EventType::Error, Format("Missing type for AddMember '%s'.", type_name));
 		return false;
 	}
 	Member* m = parser->ParseMemberDecl(decl);
 	if(!m)
 	{
-		handler(Error, Format("Failed to parse member declaration for AddMemeber '%s'.", decl));
+		handler(EventType::Error, Format("Failed to parse member declaration for AddMemeber '%s'.", decl));
 		return false;
 	}
 	m->offset = offset;
 	int m_index;
 	if(type->FindMember(m->name, m_index))
 	{
-		handler(Error, Format("Member with name '%s.%s' already exists.", type_name, m->name.c_str()));
+		handler(EventType::Error, Format("Member with name '%s.%s' already exists.", type_name, m->name.c_str()));
 		delete m;
 		return false;
 	}

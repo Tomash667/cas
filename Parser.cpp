@@ -158,7 +158,7 @@ RunModule* Parser::Parse(ParseSettings& settings)
 	}
 	catch(const Tokenizer::Exception& e)
 	{
-		handler(cas::Error, e.ToString());
+		handler(EventType::Error, e.ToString());
 		Cleanup();
 	}
 	
@@ -702,7 +702,7 @@ Function* Parser::ParseFuncDecl(cstring decl, Type* type)
 	}
 	catch(Tokenizer::Exception& e)
 	{
-		handler(cas::Error, e.ToString());
+		handler(EventType::Error, e.ToString());
 		delete f;
 		f = nullptr;
 	}
@@ -728,7 +728,7 @@ Member* Parser::ParseMemberDecl(cstring decl)
 	}
 	catch(Tokenizer::Exception& e)
 	{
-		handler(cas::Error, e.ToString());
+		handler(EventType::Error, e.ToString());
 		delete m;
 		m = nullptr;
 	}

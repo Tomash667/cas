@@ -9,7 +9,8 @@ enum REF_TYPE
 {
 	REF_GLOBAL,
 	REF_LOCAL,
-	REF_MEMBER
+	REF_MEMBER,
+	REF_CODE
 };
 
 enum SPECIAL_VAR
@@ -80,8 +81,20 @@ struct Var
 		struct
 		{
 			REF_TYPE ref_type;
-			Class* ref_class;
-			uint ref_index;
+			union
+			{
+				struct
+				{
+					Class* ref_class;
+					uint ref_index;
+				};
+				struct
+				{
+					int* ref_adr;
+					int ref_var_type;
+				};
+			};
+			
 		};
 		Class* clas;
 		struct
@@ -153,24 +166,31 @@ struct GetRefData
 GetRefData GetRef(Var& v)
 {
 	assert(v.type == V_REF);
-	if(v.ref_type == REF_LOCAL)
+	switch(v.ref_type)
 	{
-		assert(v.ref_index < local.size());
-		Var& vr = local[v.ref_index];
-		return GetRefData(&vr.value, vr.type);
-	}
-	else if(v.ref_type == REF_GLOBAL)
-	{
-		assert(v.ref_index < global.size());
-		Var& vr = global[v.ref_index];
-		return GetRefData(&vr.value, vr.type);
-	}
-	else
-	{
-		assert(v.ref_type == REF_MEMBER);
-		Class* c = v.ref_class;
-		Member* m = c->type->members[v.ref_index];
-		return GetRefData((int*)c->at_data(m->offset), m->type);
+	case REF_LOCAL:
+		{
+			assert(v.ref_index < local.size());
+			Var& vr = local[v.ref_index];
+			return GetRefData(&vr.value, vr.type);
+		}
+	case REF_GLOBAL:
+		{
+			assert(v.ref_index < global.size());
+			Var& vr = global[v.ref_index];
+			return GetRefData(&vr.value, vr.type);
+		}
+	case REF_MEMBER:
+		{
+			Class* c = v.ref_class;
+			Member* m = c->type->members[v.ref_index];
+			return GetRefData((int*)c->at_data(m->offset), m->type);
+		}
+	case REF_CODE:
+		return GetRefData(v.ref_adr, v.ref_var_type);
+	default:
+		assert(0);
+		return GetRefData(nullptr, 0);
 	}
 }
 
@@ -182,7 +202,6 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 	void* retptr = nullptr;
 	bool in_mem = false;
 
-	assert(f.result.special == SV_NORMAL);
 	Type* result_type = run_module.GetType(f.result.core);
 	if(f.result.core == V_STRING)
 	{
@@ -295,31 +314,39 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 	}
 
 	// push result
-	switch(f.result.core)
+	if(f.result.special == SV_NORMAL)
 	{
-	case V_VOID:
-		break;
-	case V_BOOL:
-		stack.push_back(Var(result.low != 0));
-		break;
-	case V_INT:
-		stack.push_back(Var(result.low));
-		break;
-	case V_FLOAT:
-		stack.push_back(Var(fresult));
-		break;
-	case V_STRING:
-		stack.push_back(Var((Str*)retptr));
-		break;
-	default:
+		switch(f.result.core)
 		{
-			assert(result_type->is_class);
-			Class* c = (Class*)retptr;
-			if(!in_mem)
-				memcpy(c->data(), &result, c->type->size);
-			stack.push_back(Var(c));
+		case V_VOID:
+			break;
+		case V_BOOL:
+			stack.push_back(Var(result.low != 0));
+			break;
+		case V_INT:
+			stack.push_back(Var(result.low));
+			break;
+		case V_FLOAT:
+			stack.push_back(Var(fresult));
+			break;
+		case V_STRING:
+			stack.push_back(Var((Str*)retptr));
+			break;
+		default:
+			{
+				assert(result_type->is_class);
+				Class* c = (Class*)retptr;
+				if(!in_mem)
+					memcpy(c->data(), &result, c->type->size);
+				stack.push_back(Var(c));
+			}
+			break;
 		}
-		break;
+	}
+	else
+	{
+		assert(f.result.core == V_BOOL || f.result.core == V_INT || f.result.core == V_FLOAT);
+		stack.push_back(Var(V_REF, REF_CODE, result.low, f.result.core));
 	}
 }
 

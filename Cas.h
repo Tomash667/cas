@@ -6,11 +6,12 @@ namespace cas
 {
 	class IModule;
 
-	enum EventType
+	enum class EventType
 	{
 		Info,
 		Warning,
-		Error
+		Error,
+		Assert
 	};
 
 	typedef void(*EventHandler)(EventType event_type, cstring msg);
@@ -20,6 +21,7 @@ namespace cas
 		void* input;
 		void* output;
 		bool use_getch;
+		bool use_assert_handler;
 	};
 
 	IModule* CreateModule();

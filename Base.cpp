@@ -12,6 +12,31 @@ ObjectPool<vector<void*>> VectorPool;
 ObjectPool<vector<byte>> BufPool;
 char BUF[256];
 string g_tmp_string, g_escp;
+AssertHandler _assert_handler;
+
+void assert_handler(cstring msg, cstring file, uint line)
+{
+	if(_assert_handler)
+		_assert_handler(msg, file, line);
+	else
+	{
+		static wchar_t msg_buf[256];
+		static wchar_t file_buf[256];
+		mbstowcs(msg_buf, msg, 256);
+		mbstowcs(file_buf, file, 256);
+		_wassert(msg_buf, file_buf, line);
+	}
+}
+
+void set_assert_handler(AssertHandler handler)
+{
+	_assert_handler = handler;
+}
+
+AssertHandler get_assert_handler()
+{
+	return _assert_handler;
+}
 
 //=================================================================================================
 // Zwraca k¹t pomiêdzy dwoma punktami

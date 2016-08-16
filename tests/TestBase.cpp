@@ -14,7 +14,8 @@ enum Result
 {
 	OK,
 	TIMEOUT,
-	FAILED
+	FAILED,
+	ASSERT
 };
 
 struct PackedData
@@ -24,25 +25,39 @@ struct PackedData
 	bool optimize;
 };
 
+wstring GetWC(cstring s)
+{
+	const size_t len = strlen(s);
+	wstring str;
+	str.resize(len);
+	mbstowcs((wchar_t*)str.data(), s, len);
+	return str;
+}
+
 void TestEventHandler(EventType event_type, cstring msg)
 {
 	cstring type;
 	switch(event_type)
 	{
-	case Info:
+	case EventType::Info:
 		type = "INFO";
 		break;
-	case Warning:
+	case EventType::Warning:
 		type = "WARN";
 		break;
-	case Error:
+	case EventType::Error:
 	default:
 		type = "ERROR";
+		break;
+	case EventType::Assert:
+		type = "ASSERT";
 		break;
 	}
 	cstring m = Format("%s: %s\n", type, msg);
 	Logger::WriteMessage(m);
 	event_output += m;
+	if(event_type == EventType::Assert)
+		throw msg;
 }
 
 TEST_MODULE_INITIALIZE(ModuleInitialize)
@@ -52,6 +67,7 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 	s.input = &s_input;
 	s.output = &s_output;
 	s.use_getch = false;
+	s.use_assert_handler = true;// !IsDebuggerPresent();
 	Initialize(&s);
 	Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 
@@ -68,49 +84,51 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 	Shutdown();
 }
 
+Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
+{
+	Result result;
+	try
+	{
+		if(!module->ParseAndRun(input, optimize))
+			result = FAILED;
+		else
+			result = OK;
+	}
+	catch(cstring)
+	{
+		result = ASSERT;
+	}
+	return result;
+}
+
 unsigned __stdcall ThreadStart(void* data)
 {
 	PackedData* pdata = (PackedData*)data;
-	bool result = pdata->module->ParseAndRun(pdata->input, pdata->optimize);
-	return (result ? 1u : 0u);
+	return ParseAndRunChecked(pdata->module, pdata->input, pdata->optimize);
 }
 
 Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 {
 	if(IsDebuggerPresent())
+		return ParseAndRunChecked(module, content, optimize);
+
+	PackedData pdata;
+	pdata.module = module;
+	pdata.input = content;
+	pdata.optimize = optimize;
+
+	HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
+	DWORD result = WaitForSingleObject(thread, timeout * 1000);
+	Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
+	if(result == WAIT_TIMEOUT)
 	{
-		bool result = module->ParseAndRun(content, optimize);
-		return (result ? OK : FAILED);
+		TerminateThread(thread, 2);
+		return TIMEOUT;
 	}
-	else
-	{
-		PackedData pdata;
-		pdata.module = module;
-		pdata.input = content;
-		pdata.optimize = optimize;
 
-		HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
-		DWORD result = WaitForSingleObject(thread, timeout * 1000);
-		Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
-		if(result == WAIT_TIMEOUT)
-		{
-			TerminateThread(thread, 2);
-			return TIMEOUT;
-		}
-
-		DWORD exit_code;
-		GetExitCodeThread(thread, &exit_code);
-		return exit_code == 1u ? OK : FAILED;
-	}
-}
-
-wstring GetWC(cstring s)
-{
-	const size_t len = strlen(s);
-	wstring str;
-	str.resize(len);
-	mbstowcs((wchar_t*)str.data(), s, len);
-	return str;
+	DWORD exit_code;
+	GetExitCodeThread(thread, &exit_code);
+	return (Result)exit_code;
 }
 
 void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize)
@@ -138,15 +156,23 @@ void RunFileTest(IModule* module, cstring filename, cstring input, cstring outpu
 	Result result = ParseAndRunWithTimeout(module, content.c_str(), optimize);
 	string s = s_output.str();
 	cstring ss = s.c_str();
-	if(result == TIMEOUT)
+	switch(result)
 	{
-		cstring output = Format("Script execution/parsing timeout. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
-		Assert::Fail(GetWC(output).c_str());
-	}
-	else if(result == FAILED)
-	{
-		cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
-		Assert::Fail(GetWC(output).c_str());
+	case TIMEOUT:
+		{
+			cstring output = Format("Script execution/parsing timeout. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
+			Assert::Fail(GetWC(output).c_str());
+		}
+		break;
+	case ASSERT:
+		Assert::Fail(GetWC(event_output.c_str()).c_str());
+		break;
+	case FAILED:
+		{
+			cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
+			Assert::Fail(GetWC(output).c_str());
+		}
+		break;
 	}
 
 	if(!CI_MODE)
@@ -171,12 +197,21 @@ void RunTest(IModule* module, cstring code)
 	Result result = ParseAndRunWithTimeout(module, code, true);
 	string s = s_output.str();
 	cstring ss = s.c_str();
-	if(result == TIMEOUT)
-		Assert::Fail(L"Test timeout.");
-	else if(result == FAILED)
+
+	switch(result)
 	{
-		cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
-		Assert::Fail(GetWC(output).c_str());
+	case TIMEOUT:
+		Assert::Fail(L"Test timeout.");
+		break;
+	case ASSERT:
+		Assert::Fail(GetWC(event_output.c_str()).c_str());
+		break;
+	case FAILED:
+		{
+			cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
+			Assert::Fail(GetWC(output).c_str());
+		}
+		break;
 	}
 }
 
@@ -192,14 +227,25 @@ void RunFailureTest(IModule* module, cstring code, cstring error)
 	Result result = ParseAndRunWithTimeout(module, code, true);
 	string s = s_output.str();
 	cstring ss = s.c_str();
-	if(result == TIMEOUT)
-		Assert::Fail(L"Failure timeout.");
-	else if(result == FAILED)
+
+	switch(result)
 	{
-		cstring r = strstr(event_output.c_str(), error);
-		if(!r)
-			Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
-	}
-	else
+	case OK:
 		Assert::Fail(L"Failure without error.");
+		break;
+	case TIMEOUT:
+		Assert::Fail(L"Failure timeout.");
+		break;
+	case ASSERT:
+		Assert::Fail(GetWC(event_output.c_str()).c_str());
+		break;
+	case FAILED:
+		{
+			cstring r = strstr(event_output.c_str(), error);
+			if(!r)
+				Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
+		}
+		break;
+	}
+		
 }

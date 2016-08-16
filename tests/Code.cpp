@@ -33,9 +33,20 @@ namespace Microsoft
 
 namespace tests
 {
+	int global_a;
+	int global_b;
+
 	void pow(int& a)
 	{
 		a = a*a;
+	}
+
+	int& getref(bool is_a)
+	{
+		if(is_a)
+			return global_a;
+		else
+			return global_b;
 	}
 
 	TEST_CLASS(Code)
@@ -46,25 +57,25 @@ namespace tests
 			// void
 			RunTest("return;");
 			ReturnValue ret = def_module->GetReturnValue();
-			Assert::AreEqual(ret.type, ReturnValue::Void);
+			Assert::AreEqual(ReturnValue::Void, ret.type);
 
 			// bool
 			RunTest("return true;");
 			ret = def_module->GetReturnValue();
-			Assert::AreEqual(ret.type, ReturnValue::Bool);
-			Assert::AreEqual(ret.bool_value, true);
+			Assert::AreEqual(ReturnValue::Bool, ret.type);
+			Assert::AreEqual(true, ret.bool_value);
 
 			// int
 			RunTest("return 3;");
 			ret = def_module->GetReturnValue();
-			Assert::AreEqual(ret.type, ReturnValue::Int);
-			Assert::AreEqual(ret.int_value, 3);
+			Assert::AreEqual(ReturnValue::Int, ret.type);
+			Assert::AreEqual(3, ret.int_value);
 
 			// float
 			RunTest("return 3.14;");
 			ret = def_module->GetReturnValue();
-			Assert::AreEqual(ret.type, ReturnValue::Float);
-			Assert::AreEqual(ret.float_value, 3.14f);
+			Assert::AreEqual(ReturnValue::Float, ret.type);
+			Assert::AreEqual(3.14f, ret.float_value);
 		}
 
 		TEST_METHOD(MultipleReturnValueToCode)
@@ -72,8 +83,8 @@ namespace tests
 			// will upcast to common type - float
 			RunTest("return 7; return 14.11; return false;");
 			ReturnValue ret = def_module->GetReturnValue();
-			Assert::AreEqual(ret.type, ReturnValue::Float);
-			Assert::AreEqual(ret.float_value, 7.f);
+			Assert::AreEqual(ReturnValue::Float, ret.type);
+			Assert::AreEqual(7.f, ret.float_value);
 		}
 
 		TEST_METHOD(CodeFunctionTakesRef)
@@ -83,9 +94,20 @@ namespace tests
 			RunTest(module, "int a = 3; pow(a); return a;");
 			module->ParseAndRun("int a = 3; pow(a); return a;");
 			ReturnValue ret = module->GetReturnValue();
-			Assert::AreEqual(ret.type, ReturnValue::Int);
-			Assert::AreEqual(ret.int_value, 9);
+			Assert::AreEqual(ReturnValue::Int, ret.type);
+			Assert::AreEqual(9, ret.int_value);
 			DestroyModule(module);
+		}
+
+		TEST_METHOD(CodeFunctionReturnsRef)
+		{
+			IModule* module = CreateModule();
+			module->AddFunction("int& getref(bool is_a)", getref);
+			global_a = 1;
+			global_b = 2;
+			RunTest(module, "getref(true) = 7; getref(false) *= 3;");
+			Assert::AreEqual(7, global_a);
+			Assert::AreEqual(6, global_b);
 		}
 	};
 }

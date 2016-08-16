@@ -6,26 +6,27 @@
 #include <vector>
 
 using namespace std;
+using namespace cas;
 
 cstring def_filename = "class_ref.txt;class.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 static bool have_errors;
 
-void HandleEvents(cas::EventType event_type, cstring msg)
+void HandleEvents(EventType event_type, cstring msg)
 {
-	if(event_type == cas::Error)
+	if(event_type == EventType::Error)
 		have_errors = true;
 	cstring type;
 	switch(event_type)
 	{
-	case cas::Info:
+	case EventType::Info:
 		type = "INFO";
 		break;
-	case cas::Warning:
+	case EventType::Warning:
 		type = "WARN";
 		break;
-	case cas::Error:
+	case EventType::Error:
 	default:
 		type = "ERROR";
 		break;
@@ -37,8 +38,8 @@ void HandleEvents(cas::EventType event_type, cstring msg)
 
 int main(int argc, char** argv)
 {
-	cas::SetHandler(HandleEvents);
-	cas::Initialize();
+	SetHandler(HandleEvents);
+	Initialize();
 
 	if(have_errors)
 	{
@@ -112,7 +113,7 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
-	cas::IModule* module = cas::CreateModule();
+	IModule* module = CreateModule();
 
 	bool first = true;
 	string content;
@@ -147,6 +148,6 @@ int main(int argc, char** argv)
 		}
 	}
 
-	cas::Shutdown();
+	Shutdown();
 	return 0;
 }
