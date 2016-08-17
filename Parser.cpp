@@ -158,7 +158,7 @@ RunModule* Parser::Parse(ParseSettings& settings)
 	}
 	catch(const Tokenizer::Exception& e)
 	{
-		handler(EventType::Error, e.ToString());
+		Event(EventType::Error, e.ToString());
 		Cleanup();
 	}
 	
@@ -392,7 +392,7 @@ ParseNode* Parser::ParseLine()
 				t.Next();
 
 				if(for2 && !TryCast(for2, VarType(V_BOOL)))
-					t.Throw("Condition expression with '%s' type.", GetType(for2->type)->name.c_str());
+					t.Throw("Condition expression with '%s' type.", GetTypeName(for2));
 
 				ParseNode* fo = ParseNode::Get();
 				fo->pseudo_op = FOR;
@@ -702,7 +702,7 @@ Function* Parser::ParseFuncDecl(cstring decl, Type* type)
 	}
 	catch(Tokenizer::Exception& e)
 	{
-		handler(EventType::Error, e.ToString());
+		Event(EventType::Error, e.ToString());
 		delete f;
 		f = nullptr;
 	}
@@ -728,7 +728,7 @@ Member* Parser::ParseMemberDecl(cstring decl)
 	}
 	catch(Tokenizer::Exception& e)
 	{
-		handler(EventType::Error, e.ToString());
+		Event(EventType::Error, e.ToString());
 		delete m;
 		m = nullptr;
 	}
@@ -808,7 +808,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool real_func)
 				t.Next();
 				ParseNode* item = ParseConstItem();
 				if(!TryCast(item, type))
-					t.Throw("Invalid default value of type '%s', required '%s'.", GetType(item->type)->name.c_str(), GetName(type));
+					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(type));
 				switch(item->op)
 				{
 				case PUSH_BOOL:
@@ -892,7 +892,7 @@ ParseNode* Parser::ParseCond()
 	ParseNode* cond = ParseExpr(')');
 	t.AssertSymbol(')');
 	if(!TryCast(cond, VarType(V_BOOL)))
-		t.Throw("Condition expression with '%s' type.", GetType(cond->type)->name.c_str());
+		t.Throw("Condition expression with '%s' type.", GetTypeName(cond));
 	t.Next();
 	return cond;
 }
@@ -976,7 +976,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 		// expr<,;>
 		expr = ParseExpr(',', ';');
 		if(!TryCast(expr, VarType(type)))
-			t.Throw("Can't assign type '%s' to variable '%s %s'.", GetType(expr->type)->name.c_str(), var->name.c_str(), GetType(type)->name.c_str());
+			t.Throw("Can't assign type '%s' to variable '%s'.", GetTypeName(expr), GetName(var));
 	}
 
 	ParseNode* node = ParseNode::Get();
@@ -1067,10 +1067,11 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				if(si.type == ST_NONE)
 				{
 					// unrary operator
-					int cast, result;
-					if(!CanOp(sn.symbol, node->type, V_VOID, cast, result))
-						t.Throw("Invalid type '%s' for operation '%s'.", GetType(node->type)->name.c_str(), si.name);
-					Cast(node, VarType(cast));
+					VarType cast;
+					int result;
+					if(!CanOp(sn.symbol, node->GetVarType(), VarType(V_VOID), cast, result))
+						t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
+					Cast(node, cast);
 					if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
 					{
 						ParseNode* op = ParseNode::Get();
@@ -1087,7 +1088,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 					// inc dec
 					assert(si.type == ST_INC_DEC);
 					if(node->type != V_INT && node->type != V_FLOAT)
-						t.Throw("Invalid type '%s' for operation '%s'.", GetType(node->type)->name.c_str(), si.name);
+						t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
 
 					bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
 					bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
@@ -1280,7 +1281,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						{
 							// assign
 							if(!TryCast(right, VarType(left->type)))
-								t.Throw("Can't assign '%s' to type '%s'.", GetType(right->type)->name.c_str(), GetType(set->type)->name.c_str());
+								t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
 							set->push(right);
 							if(left->op == PUSH_MEMBER)
 								set->push(left->childs);
@@ -1288,13 +1289,13 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						else
 						{
 							// compound assign
-							int cast, result;
-							if(!CanOp((SYMBOL)si.op, left->type, right->type, cast, result))
-								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetType(left->type)->name.c_str(),
-									GetType(right->type)->name.c_str(), si.name);
+							VarType cast;
+							int result;
+							if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
+								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-							Cast(left, VarType(cast));
-							Cast(right, VarType(cast));
+							Cast(left, cast);
+							Cast(right, cast);
 
 							ParseNode* op = ParseNode::Get();
 							op->op = (Op)symbols[si.op].op;
@@ -1304,8 +1305,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							op->push(right);
 
 							if(!TryCast(op, VarType(set->type)))
-								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetType(op->type)->name.c_str(),
-									GetType(set->type)->name.c_str(), si.name);
+								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
 							set->push(op);
 							if(left->op == PUSH_MEMBER)
 								set->push(left->childs);
@@ -1320,7 +1320,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						{
 							// assign
 							if(!TryCast(right, VarType(left->type)))
-								t.Throw("Can't assign '%s' to type '%s'.", GetType(right->type)->name.c_str(), GetType(left->type)->name.c_str());
+								t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(left));
 							set->op = SET_ADR;
 							set->push(left);
 							set->push(right);
@@ -1328,14 +1328,14 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						else
 						{
 							// compound assign
-							int cast, result;
-							if(!CanOp((SYMBOL)si.op, left->type, right->type, cast, result))
-								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetType(left->type)->name.c_str(),
-									GetType(right->type)->name.c_str(), si.name);
+							VarType cast;
+							int result;
+							if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
+								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
 							ParseNode* real_left = left;
-							Cast(left, VarType(cast));
-							Cast(right, VarType(cast));
+							Cast(left, cast);
+							Cast(right, cast);
 
 							ParseNode* op = ParseNode::Get();
 							op->op = (Op)symbols[si.op].op;
@@ -1345,8 +1345,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							op->push(right);
 
 							if(!TryCast(op, VarType(set->type)))
-								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetType(op->type)->name.c_str(),
-									GetType(set->type)->name.c_str(), si.name);
+								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
 							set->push(real_left);
 							set->push(op);
 							set->op = SET_ADR;
@@ -1357,13 +1356,13 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				}
 				else
 				{
-					int cast, result;
-					if(!CanOp(si.symbol, left->type, right->type, cast, result))
-						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetType(left->type)->name.c_str(), GetType(right->type)->name.c_str(),
-							si.name);
+					VarType cast;
+					int result;
+					if(!CanOp(si.symbol, left->GetVarType(), right->GetVarType(), cast, result))
+						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-					Cast(left, VarType(cast));
-					Cast(right, VarType(cast));
+					Cast(left, cast);
+					Cast(right, cast);
 
 					ParseNode* op = ParseNode::Get();
 					op->type = result;
@@ -1819,8 +1818,12 @@ BASIC_SYMBOL Parser::GetSymbol()
 	}
 }
 
-bool Parser::CanOp(SYMBOL symbol, int left, int right, int& cast, int& result)
+bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& castvar, int& result)
 {
+	int& cast = castvar.core;
+	castvar.special = SV_NORMAL;
+	int left = leftvar.core;
+	int right = rightvar.core;
 	if(left == V_VOID)
 		return false;
 	if(right == V_VOID && symbols[symbol].args != 1)
@@ -1938,6 +1941,13 @@ bool Parser::CanOp(SYMBOL symbol, int left, int right, int& cast, int& result)
 		else if(ltype->is_class && left == right)
 		{
 			cast = left;
+			result = V_BOOL;
+			return true;
+		}
+		else if(leftvar.special == SV_REF && rightvar.special == SV_REF && left == right)
+		{
+			cast = left;
+			castvar.special = SV_REF;
 			result = V_BOOL;
 			return true;
 		}
@@ -3018,6 +3028,11 @@ cstring Parser::GetName(VarType type)
 		return t->name.c_str();
 	else
 		return Format("%s&", t->name.c_str());
+}
+
+cstring Parser::GetTypeName(ParseNode* node)
+{
+	return GetName(node->GetVarType());
 }
 
 cstring Parser::GetParserFunctionName(uint index)

@@ -8,15 +8,12 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "class_ref.txt;class.txt";
+cstring def_filename = "is.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
-static bool have_errors;
 
 void HandleEvents(EventType event_type, cstring msg)
 {
-	if(event_type == EventType::Error)
-		have_errors = true;
 	cstring type;
 	switch(event_type)
 	{
@@ -39,9 +36,7 @@ void HandleEvents(EventType event_type, cstring msg)
 int main(int argc, char** argv)
 {
 	SetHandler(HandleEvents);
-	Initialize();
-
-	if(have_errors)
+	if(!Initialize())
 	{
 		cout << "Failed to initialize Cas.\n\n(OK)";
 		_getch();

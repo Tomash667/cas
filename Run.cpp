@@ -875,7 +875,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
 					assert(left.type == V_INT);
 				else if(op == IS)
-					assert(left.type == V_STRING || run_module.GetType(left.type)->is_class);
+					assert(left.type == V_STRING || run_module.GetType(left.type)->is_class || left.type == V_REF);
 				else if(op == SET_ADR)
 				{
 					assert(left.type == V_REF);
@@ -1016,6 +1016,13 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				case IS:
 					if(left.type == V_STRING)
 						left.bvalue = (left.str == right.str);
+					else if(left.type == V_REF)
+					{
+						assert(left.ref_type == right.ref_type);
+						GetRefData refl = GetRef(left);
+						GetRefData refr = GetRef(right);
+						left.bvalue = (refl.data == refr.data);
+					}
 					else
 						left.bvalue = (left.clas == right.clas);
 					left.type = V_BOOL;

@@ -1,6 +1,34 @@
 #pragma once
 
 using namespace cas;
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace Microsoft
+{
+	namespace VisualStudio
+	{
+		namespace CppUnitTestFramework
+		{
+			template<>
+			static std::wstring ToString(const ReturnValue::Type& type)
+			{
+				switch(type)
+				{
+				case ReturnValue::Void:
+					return L"void";
+				case ReturnValue::Bool:
+					return L"bool";
+				case ReturnValue::Int:
+					return L"int";
+				case ReturnValue::Float:
+					return L"float";
+				default:
+					return L"invalid";
+				}
+			}
+		}
+	}
+}
 
 const bool CI_MODE = ((_CI_MODE - 1) == 0);
 
@@ -24,3 +52,74 @@ inline void RunFailureTest(cstring code, cstring error)
 	RunFailureTest(def_module, code, error);
 }
 
+struct Retval
+{
+	Retval(IModule* _module = nullptr)
+	{
+		if(!_module)
+			module = def_module;
+		else
+			module = _module;
+	}
+	
+	void IsVoid()
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(ReturnValue::Void, ret.type);
+	}
+
+	void IsBool(bool expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(ReturnValue::Bool, ret.type);
+		Assert::AreEqual(expected, ret.bool_value);
+	}
+
+	void IsInt(int expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(ReturnValue::Int, ret.type);
+		Assert::AreEqual(expected, ret.int_value);
+	}
+
+	void IsFloat(float expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(ReturnValue::Float, ret.type);
+		Assert::AreEqual(expected, ret.float_value);
+	}
+
+private:
+	IModule* module;
+};
+
+struct ModuleRef
+{
+	ModuleRef()
+	{
+		module = CreateModule();
+	}
+
+	~ModuleRef()
+	{
+		DestroyModule(module);
+	}
+
+	IModule* operator -> ()
+	{
+		return module;
+	}
+
+	Retval ret()
+	{
+		return Retval(module);
+	}
+
+	void RunTest(cstring code)
+	{
+		::RunTest(module, code);
+	}
+	
+private:
+	IModule* module;
+};

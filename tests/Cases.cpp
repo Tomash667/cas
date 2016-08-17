@@ -140,7 +140,7 @@ namespace tests
 
 		TestMethod(Is)
 		{
-			RunFileTest("is.txt", "", "1\n2\n3\n4\n5\n");
+			RunFileTest("is.txt", "", "1\n2\n3\n4\n5\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\n");
 		}
 
 		TestMethod(Ref)

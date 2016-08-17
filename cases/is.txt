@@ -36,4 +36,28 @@ X c = dodo(b);
 if(b is c)
 	println(5);
 	
+// check is for global ref
+void cmp(int& g, int& h)
+{
+	println(g is h);
+}
+int global, global2;
+cmp(global, global);
+cmp(global, global2);
+
+// check is for global ref
+void f16()
+{
+	int local, local2;
+	cmp(local, local);
+	cmp(local, local2);
+}
+f16();
+
+// check is for member ref
+class XR { int x; }
+XR x1, x2;
+cmp(x1.x, x1.x);
+cmp(x1.x, x2.x);
+	
 pause();

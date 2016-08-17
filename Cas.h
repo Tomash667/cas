@@ -24,11 +24,11 @@ namespace cas
 		bool use_assert_handler;
 	};
 
-	IModule* CreateModule();
-	void DestroyModule(IModule* module);
-	void Initialize(Settings* settings = nullptr);
+	bool Initialize(Settings* settings = nullptr);
 	void Shutdown();
 	void SetHandler(EventHandler handler);
+	IModule* CreateModule();
+	void DestroyModule(IModule* module);
 };
 
 // helper

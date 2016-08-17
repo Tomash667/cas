@@ -2,7 +2,6 @@
 	+ var
 	+ ref arg default value
 	+ ref arg default value for script
-	+ class function return ref
 	+ take reference op
 + string is value type
 + pass by reference
@@ -15,7 +14,6 @@
 + call function before declaration
 + better Type* handling, not passing magic index
 + remove not required interactions between Module/Parser and Decompile/Parser (for example ParserMethod/FindEqualFunction should be inside RegisterMethod)
-+ cas::Initialize return bool
 + safer reference returning (incrase ref counter for class if this is member, what with script registered?)
 + refactor register class/funcs in core lib to new unit tests
 

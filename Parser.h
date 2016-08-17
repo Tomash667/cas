@@ -69,7 +69,7 @@ private:
 	void PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL>& stack);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
 	BASIC_SYMBOL GetSymbol();
-	bool CanOp(SYMBOL symbol, int left, int right, int& cast, int& result);
+	bool CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& cast, int& result);
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
@@ -92,6 +92,7 @@ private:
 	int GetReturnType(ParseNode* node);
 	cstring GetName(ParseVar* var);
 	cstring GetName(VarType type);
+	cstring GetTypeName(ParseNode* node);
 	int CommonType(int a, int b);
 	FOUND FindItem(const string& id, Found& found);
 	Function* FindFunction(const string& name);

@@ -67,9 +67,9 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 	s.input = &s_input;
 	s.output = &s_output;
 	s.use_getch = false;
-	s.use_assert_handler = true;// !IsDebuggerPresent();
-	Initialize(&s);
-	Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
+	s.use_assert_handler = !IsDebuggerPresent();
+	if(!Initialize(&s))
+		Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 
 	def_module = CreateModule();
 

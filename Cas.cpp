@@ -12,10 +12,70 @@ EventHandler handler;
 static Module* core_module;
 static int module_index;
 static bool initialized;
+static bool have_errors;
 
 void AssertEventHandler(cstring msg, cstring file, uint line)
 { 
 	handler(EventType::Assert, Format("Assert failed in '%s(%u)', expression '%s'.", file, line, msg));
+}
+
+void Event(EventType event_type, cstring msg)
+{
+	if(event_type == EventType::Error)
+		have_errors = true;
+	if(handler)
+		handler(event_type, msg);
+}
+
+bool cas::Initialize(Settings* settings)
+{
+	assert(!initialized);
+	if(initialized)
+		return false;
+
+	std::istream* input = &cin;
+	std::ostream* output = &cout;
+	bool use_getch = true;
+	if(settings)
+	{
+		input = (std::istream*)settings->input;
+		output = (std::ostream*)settings->output;
+		use_getch = settings->use_getch;
+		if(settings->use_assert_handler)
+			set_assert_handler(AssertEventHandler);
+	}
+
+	module_index = 1;
+	core_module = new Module(0, nullptr);
+
+	have_errors = false;
+	InitCoreLib(*core_module, input, output, use_getch);
+	if(have_errors)
+	{
+		delete core_module;
+		return false;
+	}
+
+	initialized = true;
+	return true;
+}
+
+void cas::Shutdown()
+{
+	assert(initialized);
+	if(!initialized)
+		return;
+
+	initialized = false;
+	Module::all_modules_shutdown = true;
+	for(Module* m : Module::all_modules)
+		delete m;
+	Module::all_modules.clear();
+}
+
+void cas::SetHandler(EventHandler _handler)
+{
+	handler = _handler;
 }
 
 IModule* cas::CreateModule()
@@ -40,53 +100,6 @@ void cas::DestroyModule(IModule* _module)
 		return;
 
 	module->RemoveRef(true);
-}
-
-void cas::Initialize(Settings* settings)
-{
-	assert(!initialized);
-	if(initialized)
-		return;
-
-	if(!handler)
-		SetHandler(nullptr);
-	std::istream* input = &cin;
-	std::ostream* output = &cout;
-	bool use_getch = true;
-	if(settings)
-	{
-		input = (std::istream*)settings->input;
-		output = (std::ostream*)settings->output;
-		use_getch = settings->use_getch;
-		if(settings->use_assert_handler)
-			set_assert_handler(AssertEventHandler);
-	}
-	module_index = 1;
-	core_module = new Module(0, nullptr);
-	InitCoreLib(*core_module, input, output, use_getch);
-
-	initialized = true;
-}
-
-void cas::Shutdown()
-{
-	assert(initialized);
-	if(!initialized)
-		return;
-
-	initialized = false;
-	Module::all_modules_shutdown = true;
-	for(Module* m : Module::all_modules)
-		delete m;
-	Module::all_modules.clear();
-}
-
-void cas::SetHandler(EventHandler _handler)
-{
-	if(_handler)
-		handler = _handler;
-	else
-		handler = [](cas::EventType, cstring) {};
 }
 
 Type::~Type()

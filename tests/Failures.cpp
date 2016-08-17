@@ -66,7 +66,7 @@ namespace tests
 
 		TEST_METHOD(InvalidAssignType)
 		{
-			RunFailureTest("class A{} A a; int b = a;", "Can't assign type 'A' to variable 'b int'.");
+			RunFailureTest("class A{} A a; int b = a;", "Can't assign type 'A' to variable 'int b'.");
 		}
 
 		TEST_METHOD(InvalidConditionType)
@@ -155,7 +155,7 @@ namespace tests
 		TEST_METHOD(InvalidAssignTypes)
 		{
 			RunFailureTest("int a; a=\"dodo\";", "Can't assign 'string' to type 'int'.");
-			RunFailureTest("void f(int& a) {a=\"dodo\";}", "Can't assign 'string' to type 'int'.");
+			RunFailureTest("void f(int& a) {a=\"dodo\";}", "Can't assign 'string' to type 'int&'.");
 		}
 
 		TEST_METHOD(MixedGlobalReturnType)
