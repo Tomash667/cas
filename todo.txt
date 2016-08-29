@@ -1,8 +1,3 @@
-+ ref
-	+ var
-	+ ref arg default value
-	+ ref arg default value for script
-	+ take reference op
 + string is value type
 + pass by reference
 + struct
@@ -108,6 +103,9 @@ vector functions:
 + stdlib
 	+ math: random, rand, floor, ceil, round, abs, sin, cos
 + include code in decompile
++ ref variable
++ ref arg default value
++ take reference operator
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html
