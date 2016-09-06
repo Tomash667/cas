@@ -1,0 +1,3 @@
+[submodule "cacore"]
+	path = cacore
+	url = https://github.com/Tomash667/cacore

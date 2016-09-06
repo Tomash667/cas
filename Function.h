@@ -2,10 +2,6 @@
 
 #include "Type.h"
 
-// function callback
-typedef void(*VoidF)();
-struct Function;
-
 // function argument
 struct ArgInfo
 {
