@@ -142,7 +142,7 @@ void RunFileTest(IModule* module, cstring filename, cstring input, cstring outpu
 		Logger::WriteMessage("\n");
 	}
 
-	string path(Format("../../cases/%s", filename));
+	string path(Format("../cases/%s", filename));
 	std::ifstream ifs(path);
 	Assert::IsTrue(ifs.is_open(), GetWC(Format("Failed to open file '%s'.", path.c_str())).c_str());
 	std::string content((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
