@@ -1,3 +1,8 @@
++ "is.txt;ref.txt" -> assert
+- bez CleanupPools siê wywala
+
+--gtest_filter=Cases.Is:Cases.Ref
+
 + string is value type
 + pass by reference
 + struct

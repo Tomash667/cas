@@ -1,29 +1,21 @@
-#include "stdafx.h"
-#include "CppUnitTest.h"
+#include "Pch.h"
 #include "TestBase.h"
 
-using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+/*
 
-const int DEFAULT_TIMEOUT = (CI_MODE ? 60 : 1);
-std::istringstream s_input;
-std::ostringstream s_output;
-string event_output;
-IModule* def_module;
+#ifdef _DEBUG
+_CrtMemState mem_start, mem_test_start, mem_end, mem_cmp;
+unsigned total_leaks, total_leaks_size;
+#endif
 
-enum Result
+struct Result
 {
-	OK,
-	TIMEOUT,
-	FAILED,
-	ASSERT
+	
+	ResultId code;
+	bool mem_leaks;
 };
 
-struct PackedData
-{
-	IModule* module;
-	cstring input;
-	bool optimize;
-};
+
 
 wstring GetWC(cstring s)
 {
@@ -34,218 +26,163 @@ wstring GetWC(cstring s)
 	return str;
 }
 
-void TestEventHandler(EventType event_type, cstring msg)
-{
-	cstring type;
-	switch(event_type)
-	{
-	case EventType::Info:
-		type = "INFO";
-		break;
-	case EventType::Warning:
-		type = "WARN";
-		break;
-	case EventType::Error:
-	default:
-		type = "ERROR";
-		break;
-	case EventType::Assert:
-		type = "ASSERT";
-		break;
-	}
-	cstring m = Format("%s: %s\n", type, msg);
-	Logger::WriteMessage(m);
-	event_output += m;
-	if(event_type == EventType::Assert)
-		throw msg;
-}
 
-TEST_MODULE_INITIALIZE(ModuleInitialize)
-{
-	SetHandler(TestEventHandler);
-	Settings s;
-	s.input = &s_input;
-	s.output = &s_output;
-	s.use_getch = false;
-	s.use_assert_handler = !IsDebuggerPresent();
-	if(!Initialize(&s))
-		Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
-
-	def_module = CreateModule();
-
-	if(CI_MODE)
-		Logger::WriteMessage("+++ CI MODE +++\n\n");
-	else
-		Logger::WriteMessage("+++ NORMAL MODE +++\n\n");
-}
 
 TEST_MODULE_CLEANUP(ModuleCleanup)
 {
 	Shutdown();
+
+#ifdef _DEBUG
+	_CrtMemCheckpoint(&mem_end);
+	if(_CrtMemDifference(&mem_cmp, &mem_start, &mem_end))
+	{
+		Logger::WriteMessage(Format("%u MEMORY LEAKS detected in module cleanup (%u bytes).", mem_cmp.lCounts[_NORMAL_BLOCK], mem_cmp.lSizes[_NORMAL_BLOCK]));
+		total_leaks += mem_cmp.lCounts[_NORMAL_BLOCK];
+		total_leaks_size += mem_cmp.lSizes[_NORMAL_BLOCK];
+	}
+	if(total_leaks)
+		Logger::WriteMessage(Format("TOTAL LEAKS COUNT %u (%u BYTES)!", total_leaks, total_leaks_size));
+#endif
 }
 
-Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
+
+
+Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 {
+#ifdef _DEBUG
+	_CrtMemCheckpoint(&mem_test_start);
+#endif
+
 	Result result;
-	try
+	result.mem_leaks = false;
+	result.code = ParseAndRunWithTimeoutInternal(module, content, optimize, timeout);
+
+	cas::CleanupPools();
+
+#ifdef _DEBUG
+	_CrtMemCheckpoint(&mem_end);
+	if(_CrtMemDifference(&mem_cmp, &mem_test_start, &mem_end))
 	{
-		if(!module->ParseAndRun(input, optimize))
-			result = FAILED;
-		else
-			result = OK;
+		Logger::WriteMessage(Format("%u MEMORY LEAKS detected in test cleanup (%u bytes).", mem_cmp.lCounts[_NORMAL_BLOCK], mem_cmp.lSizes[_NORMAL_BLOCK]));
+		result.mem_leaks = true;
+		total_leaks += mem_cmp.lCounts[_NORMAL_BLOCK];
+		total_leaks_size += mem_cmp.lSizes[_NORMAL_BLOCK];
 	}
-	catch(cstring)
-	{
-		result = ASSERT;
-	}
+#endif
+
 	return result;
+}
+
+
+*/
+
+struct PackedData
+{
+	TestBase* test;
+	IModule* module;
+	cstring input;
+	bool optimize;
+};
+
+TestBase::TestBase() : env(TestEnvironment::Get())
+{
+
+}
+
+void TestBase::SetUp()
+{
+	module = CreateModule();
+	env.current_module = module;
+}
+
+void TestBase::TearDown()
+{
+	DestroyModule(module);
+	env.current_module = nullptr;
 }
 
 unsigned __stdcall ThreadStart(void* data)
 {
 	PackedData* pdata = (PackedData*)data;
-	return ParseAndRunChecked(pdata->module, pdata->input, pdata->optimize);
+	return (unsigned)pdata->test->ParseAndRunChecked(pdata->module, pdata->input, pdata->optimize);
 }
 
-Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
+Result TestBase::ParseAndRunWithTimeout(IModule* run_module, cstring content, bool optimize, int timeout)
 {
-	if(IsDebuggerPresent())
-		return ParseAndRunChecked(module, content, optimize);
+	ret.Set(run_module);
+
+	if(IsDebuggerPresent() || timeout == 0)
+		return ParseAndRunChecked(run_module, content, optimize);
+
+	if(timeout < 0)
+		timeout = env.DEFAULT_TIMEOUT;
 
 	PackedData pdata;
-	pdata.module = module;
+	pdata.test = this;
+	pdata.module = run_module;
 	pdata.input = content;
 	pdata.optimize = optimize;
 
 	HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
 	DWORD result = WaitForSingleObject(thread, timeout * 1000);
-	Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
+	EXPECT_TRUE(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT) << "Failed to create parsing thread.";
 	if(result == WAIT_TIMEOUT)
 	{
 		TerminateThread(thread, 2);
-		return TIMEOUT;
+		return Result::TIMEOUT;
 	}
+	else if(result != WAIT_OBJECT_0)
+		return Result::FAILED;
 
 	DWORD exit_code;
 	GetExitCodeThread(thread, &exit_code);
 	return (Result)exit_code;
 }
 
-void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize)
+Result TestBase::ParseAndRunChecked(IModule* run_module, cstring input, bool optimize)
 {
-	event_output.clear();
-
-	if(!CI_MODE && input[0] != 0)
+	Result result;
+	try
 	{
-		Logger::WriteMessage("\nScript input:\n");
-		Logger::WriteMessage(input);
-		Logger::WriteMessage("\n");
+		if(!module->ParseAndRun(input, optimize, env.decompile))
+			result = Result::FAILED;
+		else
+			result = Result::OK;
 	}
-
-	string path(Format("../cases/%s", filename));
-	std::ifstream ifs(path);
-	Assert::IsTrue(ifs.is_open(), GetWC(Format("Failed to open file '%s'.", path.c_str())).c_str());
-	std::string content((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
-	ifs.close();
-
-	s_input.clear();
-	s_input.str(input);
-	s_output.clear();
-	s_output.str("");
-
-	Result result = ParseAndRunWithTimeout(module, content.c_str(), optimize);
-	string s = s_output.str();
-	cstring ss = s.c_str();
-	switch(result)
+	catch(const AssertException&)
 	{
-	case TIMEOUT:
-		{
-			cstring output = Format("Script execution/parsing timeout. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
-			Assert::Fail(GetWC(output).c_str());
-		}
-		break;
-	case ASSERT:
-		Assert::Fail(GetWC(event_output.c_str()).c_str());
-		break;
-	case FAILED:
-		{
-			cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
-			Assert::Fail(GetWC(output).c_str());
-		}
-		break;
+		result = Result::ASSERT;
 	}
-
-	if(!CI_MODE)
+	catch(...)
 	{
-		Logger::WriteMessage("\nScript output:\n");
-		Logger::WriteMessage(ss);
-		Logger::WriteMessage("\n");
+		ADD_FAILURE() << "Unexpected exception caught.";
+		result = Result::FAILED;
 	}
-
-	Assert::AreEqual(output, ss, "Invalid output.");
+	return result;
 }
 
-void RunTest(IModule* module, cstring code)
+void TestBase::RunTest(cstring code)
 {
-	event_output.clear();
-
-	s_input.clear();
-	s_input.str("");
-	s_output.clear();
-	s_output.str("");
+	env.ResetIO();
 
 	Result result = ParseAndRunWithTimeout(module, code, true);
-	string s = s_output.str();
-	cstring ss = s.c_str();
+
+	if(!env.CI_MODE)
+	{
+		string output = env.s_output.str();
+		env.Info(Format("Script output: [%s]", output.c_str()));
+	}
 
 	switch(result)
 	{
-	case TIMEOUT:
-		Assert::Fail(L"Test timeout.");
+	case Result::TIMEOUT:
+		ADD_FAILURE() << Format("Script execution/parsing timeout. Parse output: [%s]", env.event_output.c_str());
 		break;
-	case ASSERT:
-		Assert::Fail(GetWC(event_output.c_str()).c_str());
+	case Result::ASSERT:
+		ADD_FAILURE() << Format("Code assert: [%s]", env.event_output.c_str());
 		break;
-	case FAILED:
-		{
-			cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
-			Assert::Fail(GetWC(output).c_str());
-		}
+	case Result::FAILED:
+		ADD_FAILURE() << Format("Script parsing failed. Parse output: [%s]", env.event_output.c_str());
 		break;
 	}
-}
-
-void RunFailureTest(IModule* module, cstring code, cstring error)
-{
-	event_output.clear();
-	
-	s_input.clear();
-	s_input.str("");
-	s_output.clear();
-	s_output.str("");
-
-	Result result = ParseAndRunWithTimeout(module, code, true);
-	string s = s_output.str();
-	cstring ss = s.c_str();
-
-	switch(result)
-	{
-	case OK:
-		Assert::Fail(L"Failure without error.");
-		break;
-	case TIMEOUT:
-		Assert::Fail(L"Failure timeout.");
-		break;
-	case ASSERT:
-		Assert::Fail(GetWC(event_output.c_str()).c_str());
-		break;
-	case FAILED:
-		{
-			cstring r = strstr(event_output.c_str(), error);
-			if(!r)
-				Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
-		}
-		break;
-	}
-		
 }

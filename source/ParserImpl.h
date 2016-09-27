@@ -204,13 +204,36 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	vector<ParseNode*> childs;
 	RefType ref;
 
+	inline ParseNode* copy()
+	{
+		ParseNode* p = Get();
+		p->op = op;
+		p->value = value;
+		p->type = type;
+		p->ref = ref;
+		if(!childs.empty())
+		{
+			p->childs.reserve(childs.size());
+			for(ParseNode* c : childs)
+				p->childs.push_back(c->copy());
+		}
+		return p;
+	}
+
 	inline void OnFree() { SafeFree(childs); }
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void push(vector<ParseNode*>& ps)
 	{
+		childs.reserve(childs.size() + ps.size());
 		for(ParseNode* p : ps)
 			childs.push_back(p);
+	}
+	inline void push_copy(vector<ParseNode*>& ps)
+	{
+		childs.reserve(childs.size() + ps.size());
+		for(ParseNode* p : ps)
+			childs.push_back(p->copy());
 	}
 	inline void push(Op op)
 	{
@@ -237,6 +260,12 @@ struct Block : ObjectPoolProxy<Block>
 	vector<Block*> childs;
 	vector<ParseVar*> vars;
 	uint var_offset;
+
+	inline void OnFree()
+	{
+		Free(childs);
+		ParseVar::Free(vars);
+	}
 
 	uint GetMaxVars() const
 	{
@@ -382,3 +411,37 @@ struct BasicSymbolInfo
 	SYMBOL post_symbol;
 	SYMBOL op_symbol;
 };
+
+template<typename T>
+struct ObjectPoolRef
+{
+	inline ObjectPoolRef()
+	{
+		item = T::Get();
+	}
+
+	inline ~ObjectPoolRef()
+	{
+		if(item)
+			T::Free(item);
+	}
+
+	inline T* operator -> ()
+	{
+		return item;
+	}
+
+	inline T* Pin()
+	{
+		T* tmp = item;
+		item = nullptr;
+		return tmp;
+	}
+
+private:
+	T* item;
+};
+
+typedef ObjectPoolRef<Block> BlockRef;
+typedef ObjectPoolRef<ParseNode> NodeRef;
+typedef ObjectPoolRef<ParseVar> VarRef;

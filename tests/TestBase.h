@@ -1,5 +1,70 @@
 #pragma once
 
+#include "TestEnvironment.h"
+
+enum class Result
+{
+	OK,
+	TIMEOUT,
+	FAILED,
+	ASSERT
+};
+
+struct Retval
+{
+	void Set(IModule* _module)
+	{
+		module = _module;
+	}
+
+	void IsVoid()
+	{
+		ReturnValue ret = module->GetReturnValue();
+		ASSERT_EQ(ReturnValue::Void, ret.type);
+	}
+
+	void IsBool(bool expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		ASSERT_EQ(ReturnValue::Bool, ret.type);
+		ASSERT_EQ(expected, ret.bool_value);
+	}
+
+	void IsInt(int expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		ASSERT_EQ(ReturnValue::Int, ret.type);
+		ASSERT_EQ(expected, ret.int_value);
+	}
+
+	void IsFloat(float expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		ASSERT_EQ(ReturnValue::Float, ret.type);
+		ASSERT_EQ(expected, ret.float_value);
+	}
+
+private:
+	IModule* module;
+};
+
+class TestBase : public testing::Test
+{
+public:
+	TestBase();
+	void SetUp() override;
+	void TearDown() override;
+
+	Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = -1);
+	Result ParseAndRunChecked(IModule* module, cstring input, bool optimize);
+	void RunTest(cstring code);
+	
+	IModule* module;
+	TestEnvironment& env;
+	Retval ret;
+};
+
+/*
 using namespace cas;
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -50,49 +115,11 @@ void RunFailureTest(IModule* module, cstring code, cstring error);
 inline void RunFailureTest(cstring code, cstring error)
 {
 	RunFailureTest(def_module, code, error);
-}
+}*/
 
-struct Retval
-{
-	Retval(IModule* _module = nullptr)
-	{
-		if(!_module)
-			module = def_module;
-		else
-			module = _module;
-	}
-	
-	void IsVoid()
-	{
-		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Void, ret.type);
-	}
 
-	void IsBool(bool expected)
-	{
-		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Bool, ret.type);
-		Assert::AreEqual(expected, ret.bool_value);
-	}
 
-	void IsInt(int expected)
-	{
-		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Int, ret.type);
-		Assert::AreEqual(expected, ret.int_value);
-	}
-
-	void IsFloat(float expected)
-	{
-		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Float, ret.type);
-		Assert::AreEqual(expected, ret.float_value);
-	}
-
-private:
-	IModule* module;
-};
-
+/*
 struct ModuleRef
 {
 	ModuleRef()
@@ -123,3 +150,4 @@ struct ModuleRef
 private:
 	IModule* module;
 };
+*/
