@@ -34,4 +34,4 @@ namespace cas
 // helper
 cstring Format(cstring fmt, ...);
 
-#include "IModule.h"
+#include "cas/IModule.h"

@@ -15,6 +15,10 @@ static bool have_errors;
 
 void AssertEventHandler(cstring msg, cstring file, uint line)
 { 
+#ifdef _DEBUG
+	if(IsDebuggerPresent())
+		DebugBreak();
+#endif
 	handler(EventType::Assert, Format("Assert failed in '%s(%u)', expression '%s'.", file, line, msg));
 }
 

@@ -1,78 +1,78 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="Module.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/Cas.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Parser.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/CoreLib.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Decompile.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/Decompile.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Cas.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/Module.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="CoreLib.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/Parser.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Run.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/Pch.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="RunModule.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/Run.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Pch.cpp">
-      <Filter>Implementation</Filter>
+    <ClCompile Include="source/RunModule.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="IModule.h">
-      <Filter>Interface</Filter>
+    <ClInclude Include="include/cas/Cas.h">
+      <Filter>Include</Filter>
     </ClInclude>
-    <ClInclude Include="Module.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="include/cas/IModule.h">
+      <Filter>Include</Filter>
     </ClInclude>
-    <ClInclude Include="ReturnValue.h">
-      <Filter>Interface</Filter>
+    <ClInclude Include="include/cas/ReturnValue.h">
+      <Filter>Include</Filter>
     </ClInclude>
-    <ClInclude Include="Function.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/CasImpl.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="Cas.h">
-      <Filter>Interface</Filter>
+    <ClInclude Include="source/Function.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="CasImpl.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/Module.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="Parser.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/Op.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="ParserImpl.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/Parser.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="RunModule.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/ParserImpl.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="Op.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/Pch.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="Type.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/RunModule.h">
+      <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="Pch.h">
-      <Filter>Implementation</Filter>
+    <ClInclude Include="source/Type.h">
+      <Filter>Source</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Doc">
       <UniqueIdentifier>{f02a0e98-0fe8-432f-9708-ee3801106c44}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Interface">
-      <UniqueIdentifier>{e151f593-22e9-43a0-9610-10f2de1718d9}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Implementation">
+    <Filter Include="Include">
       <UniqueIdentifier>{9e908eac-4773-40a2-870a-c153f01624de}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{e151f593-22e9-43a0-9610-10f2de1718d9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

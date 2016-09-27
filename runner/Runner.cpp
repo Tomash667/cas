@@ -1,4 +1,5 @@
-#include <Cas.h>
+#include <cas/Cas.h>
+#include <vld.h>
 #include <string>
 #include <fstream>
 #include <conio.h>
@@ -8,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "is.txt";
+cstring def_filename = "is.txt;ref.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

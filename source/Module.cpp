@@ -21,6 +21,8 @@ Module::Module(int index, Module* parent_module) : inherited(false), parser(null
 
 Module::~Module()
 {
+	DeleteElements(types);
+	DeleteElements(functions);
 	delete parser;
 
 	if(!all_modules_shutdown)

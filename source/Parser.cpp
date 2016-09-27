@@ -197,7 +197,14 @@ void Parser::Cleanup()
 	Str::Free(strs);
 	DeleteElements(ufuncs);
 	delete run_module;
+	main_block->Free();
+	if(global_node)
+	{
+		global_node->Free();
+		global_node = nullptr;
+	}
 	run_module = nullptr;
+	main_block = nullptr;
 }
 
 void Parser::ParseCode()
@@ -210,9 +217,10 @@ void Parser::ParseCode()
 	current_block = main_block;
 	current_function = nullptr;
 	current_type = nullptr;
+	global_node = nullptr;
 	global_returns.clear();
 
-	ParseNode* node = ParseNode::Get();
+	NodeRef node;
 	node->pseudo_op = GROUP;
 	node->type = V_VOID;
 	node->ref = REF_NO;
@@ -225,7 +233,7 @@ void Parser::ParseCode()
 			node->push(child);
 	}
 
-	global_node = node;
+	global_node = node.Pin();
 }
 
 // can return null
@@ -1096,6 +1104,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 					ParseNode* op = ParseNode::Get();
 					op->pseudo_op = INTERNAL_GROUP;
 					op->type = node->type;
+					op->ref = REF_NO;
 
 					if(node->ref != REF_YES)
 					{
@@ -1157,7 +1166,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							push; a,a
 							deref; a,[a]
 							inc; a,[a]+1
-							set_arg; [a]+1  a->a+1
+							set_adr; [a]+1  a->a+1
 							*/
 							op->push(node);
 							op->push(PUSH);
@@ -1283,7 +1292,11 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 								t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
 							set->push(right);
 							if(left->op == PUSH_MEMBER)
+							{
 								set->push(left->childs);
+								left->childs.clear();
+							}
+							left->Free();
 						}
 						else
 						{
@@ -1307,7 +1320,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
 							set->push(op);
 							if(left->op == PUSH_MEMBER)
-								set->push(left->childs);
+								set->push_copy(left->childs);
 						}
 					}
 					else
@@ -1345,7 +1358,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 
 							if(!TryCast(op, VarType(set->type)))
 								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
-							set->push(real_left);
+							set->push(real_left->copy());
 							set->push(op);
 							set->op = SET_ADR;
 						}

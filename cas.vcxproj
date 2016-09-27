@@ -58,10 +58,11 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
-      <AdditionalIncludeDirectories>cacore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;cacore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <PreprocessToFile>false</PreprocessToFile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -73,7 +74,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
-      <AdditionalIncludeDirectories>cacore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;cacore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <PreprocessToFile>false</PreprocessToFile>
@@ -90,31 +91,31 @@
     <Text Include="unlicense.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Cas.h" />
-    <ClInclude Include="CasImpl.h" />
-    <ClInclude Include="Function.h" />
-    <ClInclude Include="IModule.h" />
-    <ClInclude Include="Module.h" />
-    <ClInclude Include="Op.h" />
-    <ClInclude Include="Parser.h" />
-    <ClInclude Include="ParserImpl.h" />
-    <ClInclude Include="Pch.h" />
-    <ClInclude Include="ReturnValue.h" />
-    <ClInclude Include="RunModule.h" />
-    <ClInclude Include="Type.h" />
+    <ClInclude Include="include/cas/Cas.h" />
+    <ClInclude Include="source/CasImpl.h" />
+    <ClInclude Include="source/Function.h" />
+    <ClInclude Include="include/cas/IModule.h" />
+    <ClInclude Include="source/Module.h" />
+    <ClInclude Include="source/Op.h" />
+    <ClInclude Include="source/Parser.h" />
+    <ClInclude Include="source/ParserImpl.h" />
+    <ClInclude Include="source/Pch.h" />
+    <ClInclude Include="include/cas/ReturnValue.h" />
+    <ClInclude Include="source/RunModule.h" />
+    <ClInclude Include="source/Type.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Cas.cpp" />
-    <ClCompile Include="CoreLib.cpp" />
-    <ClCompile Include="Decompile.cpp" />
-    <ClCompile Include="Module.cpp" />
-    <ClCompile Include="Parser.cpp" />
-    <ClCompile Include="Pch.cpp">
+    <ClCompile Include="source/Cas.cpp" />
+    <ClCompile Include="source/CoreLib.cpp" />
+    <ClCompile Include="source/Decompile.cpp" />
+    <ClCompile Include="source/Module.cpp" />
+    <ClCompile Include="source/Parser.cpp" />
+    <ClCompile Include="source/Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Run.cpp" />
-    <ClCompile Include="RunModule.cpp" />
+    <ClCompile Include="source/Run.cpp" />
+    <ClCompile Include="source/RunModule.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="readme.md" />
