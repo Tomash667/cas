@@ -36,7 +36,7 @@ struct CommonFunction
 	vector<ArgInfo> arg_infos;
 	uint required_args;
 	SpecialFunction special;
-	bool method;
+	bool method, thiscall;
 
 	bool Equal(CommonFunction& f) const;
 };

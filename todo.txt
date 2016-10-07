@@ -1,3 +1,13 @@
++ register member function as member func
+
+- CObj b1, b7(7); not allowed, why? (this syntax is not allowed, require b7 = CObj(7), need fix)
++ AssertException
++ non instanceable class
++ register global
++ thiscall ctor
+
++ AddFunction/Method optional parameter name
++ register virtual function or else (sizeof(ptr) != sizeof(void*))
 + string is value type
 + pass by reference
 + struct
@@ -11,6 +21,11 @@
 + remove not required interactions between Module/Parser and Decompile/Parser (for example ParserMethod/FindEqualFunction should be inside RegisterMethod)
 + safer reference returning (incrase ref counter for class if this is member, what with script registered?)
 + refactor register class/funcs in core lib to new unit tests
++ [VEC3 pos; float rot] GetPos()
+	{
+		return [pos = my_pos, rot = my_rot];
+	}
+	unnamed struct
 
 + array
 vector functions:

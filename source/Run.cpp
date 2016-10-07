@@ -126,7 +126,7 @@ void AddRef(RunModule& run_module, Var& v)
 	else
 	{
 		Type* type = run_module.GetType(v.type);
-		if(type->is_class)
+		if(type->IsClass())
 			v.clas->refs++;
 	}
 }
@@ -143,7 +143,7 @@ void ReleaseRef(RunModule& run_module, Var& v)
 	else
 	{
 		Type* type = run_module.GetType(v.type);
-		if(type->is_class)
+		if(type->IsClass())
 			v.clas->Release();
 	}
 }
@@ -210,13 +210,13 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 		packedArgs[packed++] = (int)(&str->s);
 		retptr = str;
 	}
-	else if(result_type->is_class)
+	else if(result_type->IsClass())
 	{
 		// class return value
 		Type* type = run_module.GetType(f.result.core);
 		Class* c = Class::Create(type);
 		retptr = c;
-		if(type->size > 8 || !type->pod)
+		if(type->size > 8 || !IS_SET(type->flags, Type::Pod))
 		{
 			packedArgs[packed++] = (int)c->data();
 			in_mem = true;
@@ -244,7 +244,7 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 				value = (int)&v.str->s;
 				break;
 			default:
-				assert(run_module.GetType(v.type)->is_class);
+				assert(run_module.GetType(v.type)->IsClass());
 				value = (int)v.clas->data();
 				break;
 			}
@@ -261,6 +261,26 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 		packedArgs[packed++] = value;
 	}
 
+	// set this
+	void* _this;
+	int* args;
+	uint packedSize;
+	uint espRestore;
+	if(!f.thiscall)
+	{
+		_this = nullptr;
+		args = &packedArgs[0];
+		packedSize = packed * 4;
+		espRestore = packedSize;
+	}
+	else
+	{
+		_this = (void*)packedArgs[0];
+		args = &packedArgs[1];
+		packedSize = packed * 4 - 4;
+		espRestore = 0;
+	}
+
 	// call
 	void* clbk = f.clbk;
 	union
@@ -272,9 +292,8 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 		};
 		__int64 qw;
 	} result;
-	float fresult;
-	uint packedSize = packed * 4;
-	int* args = &packedArgs[0];
+	float fresult;	
+	
 	__asm
 	{
 		push ecx;
@@ -291,12 +310,13 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 		sub ecx, 4;
 		jne copyloop;
 	endcopy:
+		mov ecx, _this;
 
 		// call
 		call clbk;
 
 		// get result
-		add esp, packedSize;
+		add esp, espRestore;
 		lea ecx, result;
 		mov [ecx], eax;
 		mov 4[ecx], edx;
@@ -333,7 +353,7 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 			break;
 		default:
 			{
-				assert(result_type->is_class);
+				assert(result_type->IsClass());
 				Class* c = (Class*)retptr;
 				if(!in_mem)
 					memcpy(c->data(), &result, c->type->size);
@@ -432,7 +452,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				assert(run_module.ufuncs[current_function].locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module.GetType(v.type)->is_class);
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module.GetType(v.type)->IsClass());
 				stack.push_back(Var(REF_LOCAL, index, nullptr));
 			}
 			break;
@@ -450,7 +470,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				uint global_index = *c++;
 				assert(global_index < global.size());
 				Var& v = global[global_index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module.GetType(v.type)->is_class);
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module.GetType(v.type)->IsClass());
 				stack.push_back(Var(REF_GLOBAL, global_index, nullptr));
 			}
 			break;
@@ -471,7 +491,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				assert(run_module.ufuncs[current_function].args.size() > arg_index);
 				uint index = args_offset + arg_index;
 				Var& v = local[index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module.GetType(v.type)->is_class);
+				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module.GetType(v.type)->IsClass());
 				stack.push_back(Var(REF_LOCAL, index, nullptr));
 			}
 			break;
@@ -479,7 +499,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(run_module.GetType(v.type)->is_class);
+				assert(run_module.GetType(v.type)->IsClass());
 				Type* type = run_module.GetType(v.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -509,7 +529,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				// don't release class ref because MEMBER_REF increase by 1
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(run_module.GetType(v.type)->is_class);
+				assert(run_module.GetType(v.type)->IsClass());
 				Type* type = run_module.GetType(v.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -526,7 +546,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				assert(current_function != -1);
 				assert((uint)current_function < run_module.ufuncs.size());
 				UserFunction& f = run_module.ufuncs[current_function];
-				assert(run_module.GetType(f.type)->is_class);
+				assert(run_module.GetType(f.type)->IsClass());
 				Type* type = run_module.GetType(f.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -559,7 +579,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				assert(current_function != -1);
 				assert((uint)current_function < run_module.ufuncs.size());
 				UserFunction& f = run_module.ufuncs[current_function];
-				assert(run_module.GetType(f.type)->is_class);
+				assert(run_module.GetType(f.type)->IsClass());
 				Type* type = run_module.GetType(f.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -634,7 +654,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				// get class
 				assert(stack.size() >= 2u);
 				Var& cv = stack.back();
-				assert(run_module.GetType(cv.type)->is_class);
+				assert(run_module.GetType(cv.type)->IsClass());
 				Type* type = run_module.GetType(cv.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -674,7 +694,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				assert(current_function != -1);
 				assert((uint)current_function < run_module.ufuncs.size());
 				UserFunction& f = run_module.ufuncs[current_function];
-				assert(run_module.GetType(f.type)->is_class);
+				assert(run_module.GetType(f.type)->IsClass());
 				Type* type = run_module.GetType(f.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -874,11 +894,11 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
 					assert(left.type == V_INT);
 				else if(op == IS)
-					assert(left.type == V_STRING || run_module.GetType(left.type)->is_class || left.type == V_REF);
+					assert(left.type == V_STRING || run_module.GetType(left.type)->IsClass() || left.type == V_REF);
 				else if(op == SET_ADR)
 				{
 					assert(left.type == V_REF);
-					assert(!run_module.GetType(right.type)->is_ref);
+					assert(!IS_SET(run_module.GetType(right.type)->flags, Type::Ref));
 				}
 				else
 					assert(left.type == V_INT || left.type == V_FLOAT);
@@ -1180,7 +1200,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				local.push_back(Var(V_SPECIAL, V_CTOR, current_function, pos));
 				// push this
 				args_offset = local.size();
-				assert(run_module.GetType(f.type)->is_class);
+				assert(run_module.GetType(f.type)->IsClass());
 				local.resize(local.size() + f.args.size());
 				local[args_offset] = Var(Class::Create(run_module.GetType(f.type)));
 				// handle args
@@ -1204,7 +1224,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 		case CTOR:
 			{
 				uint type_index = *c++;
-				assert(run_module.GetType(type_index)->is_class);
+				assert(run_module.GetType(type_index)->IsClass());
 				Type* type = run_module.GetType(type_index);
 				Class* c = Class::Create(type);
 				stack.push_back(Var(c));

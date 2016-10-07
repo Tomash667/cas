@@ -135,7 +135,7 @@ void Parser::AddChildModulesKeywords()
 			continue;
 		for(Type* type : m.second->types)
 		{
-			if(!type->hidden)
+			if(!IS_SET(type->flags, Type::Hidden))
 				AddType(type);
 		}
 	}
@@ -502,12 +502,8 @@ ParseNode* Parser::ParseLine()
 				CheckFindItem(id, false);
 				Type* type = new Type;
 				type->name = id;
-				type->have_ctor = false;
+				type->flags = Type::Pod | Type::Ref | Type::Class;
 				type->index = (0xFFFF0000 | run_module->types.size());
-				type->pod = true;
-				type->is_ref = true;
-				type->hidden = false;
-				type->is_class = true;
 				type->size = 0;
 				run_module->types.push_back(type);
 				AddType(type);
@@ -583,7 +579,7 @@ ParseNode* Parser::ParseLine()
 						f->node = ParseBlock(f);
 						current_function = nullptr;
 						if(f->special == SF_CTOR)
-							type->have_ctor = true;
+							type->flags |= Type::HaveCtor;
 						f->index = ufuncs.size();
 						ufuncs.push_back(f);
 						type->ufuncs.push_back(f);
@@ -960,7 +956,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 		default: // class
 			{
 				Type* rtype = GetType(type);
-				if(rtype->have_ctor)
+				if(IS_SET(rtype->flags, Type::HaveCtor))
 				{
 					vector<AnyFunction> funcs;
 					FindAllCtors(rtype, funcs);
@@ -1501,7 +1497,7 @@ ParseNode* Parser::ParseItem(int* type)
 
 		t.AssertSymbol('(');
 		Type* rtype = GetType(var_type.core);
-		if(!rtype->have_ctor)
+		if(!IS_SET(rtype->flags, Type::HaveCtor))
 			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 		ParseNode* node = ParseNode::Get();
 		node->ref = REF_NO;
@@ -1674,7 +1670,7 @@ VarType Parser::GetVarType()
 	if(t.IsSymbol('&'))
 	{
 		Type* ty = GetType(type);
-		if(ty->is_ref)
+		if(IS_SET(ty->flags, Type::Ref))
 			t.Throw("Can't create reference to reference type '%s'.", ty->name.c_str());
 		t.Next();
 		return VarType(type, SV_REF);
@@ -1691,7 +1687,7 @@ int Parser::GetVarTypeForMember()
 	else
 	{
 		Type* type = GetType(type_index);
-		if(type_index == V_STRING || type->is_class)
+		if(type_index == V_STRING || type->IsClass())
 			t.Throw("Class '%s' member not supported yet.", type->name.c_str());
 	}
 	t.Next();
@@ -1842,7 +1838,7 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 		return false;
 	Type* ltype = GetType(left);
 	Type* rtype = GetType(right);
-	if((ltype->is_class || rtype->is_class) && symbol != S_IS)
+	if((ltype->IsClass() || rtype->IsClass()) && symbol != S_IS)
 		return false;
 
 	int type;
@@ -1950,7 +1946,7 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 			result = V_BOOL;
 			return true;
 		}
-		else if(ltype->is_class && left == right)
+		else if(ltype->IsClass() && left == right)
 		{
 			cast = left;
 			result = V_BOOL;
@@ -2343,7 +2339,7 @@ int Parser::MayCast(ParseNode* node, VarType type)
 
 	bool cast = (node->type != type.core);
 	// can't cast class
-	if(cast && (GetType(node->type)->is_class || GetType(type.core)->is_class))
+	if(cast && (GetType(node->type)->IsClass() || GetType(type.core)->IsClass()))
 		return -1;
 
 	if(type.special == SV_NORMAL)

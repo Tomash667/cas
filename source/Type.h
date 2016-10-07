@@ -85,13 +85,24 @@ struct VarType
 // type
 struct Type
 {
+	enum Flags
+	{
+		Pod = 1 << 0,
+		DisallowCreate = 1 << 1,
+		HaveCtor = 1 << 2,
+		Ref = 1 << 3,
+		Hidden = 1 << 4,
+		Class = 1 << 5
+	};
+
 	string name;
 	vector<Function*> funcs;
 	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
-	int size, index;
-	bool pod, have_ctor, is_ref, hidden, is_class;
+	int size, index, flags;
 
 	~Type();
 	Member* FindMember(const string& name, int& index);
+
+	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 };

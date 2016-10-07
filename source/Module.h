@@ -13,9 +13,9 @@ public:
 	void RemoveRef(bool release);
 
 	// from IModule
-	bool AddFunction(cstring decl, void* ptr) override;
-	bool AddMethod(cstring type_name, cstring decl, void* ptr) override;
-	bool AddType(cstring type_name, int size, bool pod) override;
+	bool AddFunction(cstring decl, const FunctionInfo& func_info) override;
+	bool AddMethod(cstring type_name, cstring decl, const FunctionInfo& func_info) override;
+	bool AddType(cstring type_name, int size, int flags) override;
 	bool AddMember(cstring type_name, cstring decl, int offset) override;
 	ReturnValue GetReturnValue() override;
 	bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false) override;

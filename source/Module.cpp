@@ -49,9 +49,14 @@ void Module::RemoveRef(bool release)
 	}
 }
 
-bool Module::AddFunction(cstring decl, void* ptr)
+bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 {
-	assert(decl && ptr);
+	assert(decl);
+	if(func_info.thiscall)
+	{
+		Event(EventType::Error, Format("Can't use thiscall in function '%s'.", decl));
+		return false;
+	}
 	Function* f = parser->ParseFuncDecl(decl, nullptr);
 	if(!f)
 	{
@@ -64,16 +69,17 @@ bool Module::AddFunction(cstring decl, void* ptr)
 		delete f;
 		return false;
 	}
-	f->clbk = ptr;
+	f->clbk = func_info.ptr;
 	f->index = (index << 16) | functions.size();
 	f->type = V_VOID;
+	f->thiscall = false;
 	functions.push_back(f);
 	return true;
 }
 
-bool Module::AddMethod(cstring type_name, cstring decl, void* ptr)
+bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func_info)
 {
-	assert(type_name && decl && ptr);
+	assert(type_name && decl);
 	Type* type = FindType(type_name);
 	if(!type)
 	{
@@ -92,11 +98,12 @@ bool Module::AddMethod(cstring type_name, cstring decl, void* ptr)
 		delete f;
 		return false;
 	}
-	f->clbk = ptr;
+	f->clbk = func_info.ptr;
+	f->thiscall = func_info.thiscall;
 	f->index = (index << 16) | functions.size();
 	f->type = type->index;
 	if(f->special == SF_CTOR)
-		type->have_ctor = true;
+		type->flags |= Type::HaveCtor;
 	else
 	{
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(f->type), 0, false));
@@ -107,7 +114,7 @@ bool Module::AddMethod(cstring type_name, cstring decl, void* ptr)
 	return true;
 }
 
-bool Module::AddType(cstring type_name, int size, bool pod)
+bool Module::AddType(cstring type_name, int size, int flags)
 {
 	assert(type_name && size > 0);
 	assert(!inherited); // can't add types to inherited module (until fixed)
@@ -125,11 +132,7 @@ bool Module::AddType(cstring type_name, int size, bool pod)
 	type = new Type;
 	type->name = type_name;
 	type->size = size;
-	type->pod = pod;
-	type->have_ctor = false;
-	type->is_ref = true;
-	type->hidden = false;
-	type->is_class = true;
+	type->flags = flags | Type::Class | Type::Ref;
 	type->index = types.size() | (index << 16);
 	types.push_back(type);
 	parser->AddType(type);
@@ -202,11 +205,11 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 	type->size = size;
 	type->index = types.size();
 	assert(type->index == (int)var_type);
-	type->pod = true;
-	type->have_ctor = false;
-	type->is_ref = is_ref;
-	type->is_class = false;
-	type->hidden = hidden;
+	type->flags = Type::Pod;
+	if(is_ref)
+		type->flags |= Type::Ref;
+	if(hidden)
+		type->flags |= Type::Hidden;
 	types.push_back(type);
 	parser->AddType(type);
 }
