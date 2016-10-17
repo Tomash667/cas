@@ -59,7 +59,11 @@ enum CoreVarType
 enum SpecialVarType
 {
 	SV_NORMAL,
-	SV_REF
+	//SV_CONST,
+	SV_REF,
+	//SV_CONST_REF,
+	//SV_PTR,
+	//SV_CONST_PTR
 };
 
 struct VarType
@@ -85,14 +89,16 @@ struct VarType
 // type
 struct Type
 {
+	// must be compatibile with TypeFlags
 	enum Flags
 	{
-		Pod = 1 << 0,
-		DisallowCreate = 1 << 1,
-		HaveCtor = 1 << 2,
-		Ref = 1 << 3,
-		Hidden = 1 << 4,
-		Class = 1 << 5
+		Ref = 1 << 0,
+		Pod = 1 << 1,
+		DisallowCreate = 1 << 2,
+		NoRefCount = 1 << 3,
+		HaveCtor = 1 << 4,
+		Hidden = 1 << 5,
+		Class = 1 << 6
 	};
 
 	string name;
@@ -103,6 +109,8 @@ struct Type
 
 	~Type();
 	Member* FindMember(const string& name, int& index);
+	Function* FindSpecialFunction(int type);
 
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
+	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
 };

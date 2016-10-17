@@ -78,7 +78,7 @@ namespace tests
 		TEST_METHOD(VoidVariable)
 		{
 			RunFailureTest("void a;", "Can't declare void variable.");
-			RunFailureTest("class A{void a;}", "Class member can't be void type.");
+			RunFailureTest("class A{void a;}", "Class/struct member can't be void type.");
 		}
 
 		TEST_METHOD(ReferenceToReferenceType)
@@ -93,8 +93,8 @@ namespace tests
 
 		TEST_METHOD(UnsupportedClassMembers)
 		{
-			RunFailureTest("class A{} class B{A a;}", "Class 'A' member not supported yet.");
-			RunFailureTest("class A{string s;}", "Class 'string' member not supported yet.");
+			RunFailureTest("class A{} class B{A a;}", "Class/struct member of type 'class' not supported yet.");
+			RunFailureTest("class A{string s;}", "Class/struct member of type 'string' not supported yet.");
 		}
 
 		TEST_METHOD(InvalidBreak)

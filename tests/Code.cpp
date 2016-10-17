@@ -8,6 +8,70 @@ namespace tests
 	{
 	public:
 		//=========================================================================================
+		struct Vec
+		{
+			float x, y, z;
+		};
+
+		static Vec Get1()
+		{
+			Vec v;
+			v.x = 1;
+			v.y = 1;
+			v.z = 1;
+			return v;
+		}
+
+		static void Set123(Vec& v)
+		{
+			v.x = 1;
+			v.y = 2;
+			v.z = 3;
+		}
+
+		static float Sum(const Vec& v)
+		{
+			return v.x + v.y + v.z;
+		}
+
+		static float Sum2(Vec v)
+		{
+			v.x *= 2;
+			v.y *= 2;
+			v.z *= 2;
+			return Sum(v);
+		}
+
+		/*TEST_METHOD(CodeRegisterValueType)
+		{
+			ModuleRef module;
+			module->AddType<Vec>("Vec");
+			module->AddFunction("Vec Get1()", Get1);
+			module->AddFunction("void Set123(Vec& v)", Set123);
+			module->AddFunction("float Sum(const Vec& v)", Sum);
+			module->AddFunction("float Sum2()", Sum2);
+			module.RunTest("Vec v = Get1(); v.x = 0; v.y += 1; float sum = Sum(v); Set123(v); sum += Sum2(v); sum += v; return sum;");
+			module.ret().IsInt(21);
+		}*/
+
+		//=========================================================================================
+		struct A : RefCounter
+		{
+			int x;
+
+			A() : x(4) {}
+		};
+
+		/*TEST_METHOD(CodeRegisterType)
+		{
+			ModuleRef module;
+			module->AddRefType<A>("A");
+			module->AddMethod("A", "A()", AsCtor<A>());
+			module.RunTest("A a; return a.x += 2;");
+			module.ret().IsInt(6);
+		}*/
+
+		//=========================================================================================
 		TEST_METHOD(ReturnValueToCode)
 		{
 			Retval ret;
@@ -142,7 +206,9 @@ namespace tests
 		}
 
 		//=========================================================================================
-		class CObj
+		
+
+		class CObj : public RefCounter
 		{
 		public:
 			int x;
@@ -167,7 +233,7 @@ namespace tests
 			return FunctionInfo(AsCtorHelper::Create<T, Args...>);
 		}
 
-		TEST_METHOD(CodeCtorMemberFunction)
+		/*TEST_METHOD(CodeCtorMemberFunction)
 		{
 			ModuleRef module;
 			module->AddType<CObj>("CObj");
@@ -176,7 +242,7 @@ namespace tests
 			module->AddMethod("CObj", "int GetX()", &CObj::GetX);
 			module.RunTest("CObj c1; CObj c7 = CObj(7); return c1.GetX() + c7.GetX();");
 			module.ret().IsInt(8);
-		}
+		}*/
 
 
 		// CodeCtorMemberFunctionOverload

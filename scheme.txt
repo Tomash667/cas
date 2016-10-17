@@ -4,6 +4,7 @@ code:
 func_decl:
 	var_type <func_name> arg_decl EOF
 	<class_name> arg_decl EOF // ctor
+	operator addref/release () // special function
 
 func_def:
 	var_type <func_name> arg_decl block
@@ -20,7 +21,7 @@ block:
 	{ [ line_or_block ...] }
 	
 line:
-	class <class_name> { [class_item ...] }
+	class/struct <class_name> { [class_item ...] }
 	func_def // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;

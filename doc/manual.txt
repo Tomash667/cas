@@ -1,0 +1,26 @@
+Register global function:
+void f();
+module->AddFunction("void f()", f);
+================================================================================
+Register static function:
+struct A { static void f() {} };
+module->AddFunction("void f()", A::f);
+================================================================================
+Register type with reference counting (simple method):
+struct A : RefCounter {};
+module->AddRefType<A>("A");
+module->AddMethod("A", "A()", AsCtor<A>());
+================================================================================
+Register type with reference counting (advanced method):
+struct A
+{
+	int refs;
+	A() { refs = 1; }
+	void AddRef() { ++refs; }
+	void Release() { if(--refs == 0) delete this; }
+};
+module->AddType<A>("A");
+module->AddMethod("A", "A()", AsCtor<A>());
+module->AddMethod("A", "void operator addref()", &A::AddRef);
+module->AddMethod("A", "void operator release()", &A::Release);
+================================================================================

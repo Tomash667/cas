@@ -24,7 +24,9 @@ struct ArgInfo
 enum SpecialFunction
 {
 	SF_NO,
-	SF_CTOR
+	SF_CTOR,
+	//SF_ADDREF,
+	//SF_RELEASE
 };
 
 // common for parse & code function

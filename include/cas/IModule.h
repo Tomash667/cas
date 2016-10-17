@@ -27,7 +27,50 @@ namespace cas
 				std::is_function<typename std::remove_pointer<testType>::type>::value :
 				false;
 		};
+
+		template<typename T>
+		struct has_constructor
+		{
+			static const bool value = std::is_default_constructible<T>::value && !std::is_trivially_default_constructible<T>::value;
+		};
+
+		template<typename T>
+		struct has_destructor
+		{
+			static const bool value = std::is_destructible<T>::value && !std::is_trivially_destructible<T>::value;
+		};
+
+		template<typename T>
+		struct has_assignment_operator
+		{
+			static const bool value = std::is_copy_assignable<T>::value && !std::is_trivially_copy_assignable<T>::value;
+		};
+
+		template<typename T>
+		struct has_copy_constructor
+		{
+			static const bool value = std::is_copy_constructible<T>::value && !std::is_trivially_copy_constructible<T>::value;
+		};
+
+		template<typename T>
+		struct is_pod
+		{
+			static const bool value = !(has_constructor<T>::value
+				|| has_destructor<T>::value
+				|| has_assignment_operator<T>::value
+				|| has_copy_constructor<T>::value);
+		};
 	}
+
+	class RefCounter
+	{
+	public:
+		RefCounter() : refs(1) {}
+		inline void AddRef() { ++refs; }
+		inline void Release() { if(--refs == 0) delete this; }
+	private:
+		int refs;
+	};
 
 	struct FunctionInfo
 	{
@@ -51,8 +94,10 @@ namespace cas
 
 	enum TypeFlags
 	{
-		Pod = 1 << 0,
-		DisallowCreate = 1 << 1
+		Ref = 1 << 0, // not implemented
+		Pod = 1 << 1,
+		DisallowCreate = 1 << 2, // not implemented
+		NoRefCount = 1 << 3 // not implemented
 	};
 	
 	class IModule
@@ -64,21 +109,28 @@ namespace cas
 		virtual bool AddMember(cstring type_name, cstring decl, int offset) = 0;
 		virtual ReturnValue GetReturnValue() = 0;
 		virtual bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false) = 0;
+		virtual bool Verify() = 0;
 
 		template<typename T>
-		inline bool AddType(cstring type_name, bool disallow_create = false)
+		inline bool AddType(cstring type_name, int flags = 0)
 		{
-			bool hasConstructor = std::is_default_constructible<T>::value && !std::is_trivially_default_constructible<T>::value;
-			bool hasDestructor = std::is_destructible<T>::value && !std::is_trivially_destructible<T>::value;
-			bool hasAssignmentOperator = std::is_copy_assignable<T>::value && !std::is_trivially_copy_assignable<T>::value;
-			bool hasCopyConstructor = std::is_copy_constructible<T>::value && !std::is_trivially_copy_constructible<T>::value;
-			bool pod = !(hasConstructor || hasDestructor || hasAssignmentOperator || hasCopyConstructor);
-			int flags = 0;
-			if(pod)
+			if(internal::is_pod<T>::value)
 				flags |= Pod;
-			if(disallow_create)
-				flags |= DisallowCreate;
 			return AddType(type_name, sizeof(T), flags);
+		}
+
+		template<typename T>
+		inline bool AddRefType(cstring type_name, int flags = 0)
+		{
+			flags |= Ref;
+			static_assert(std::is_base_of<RefCounter, T>::value, "AddRefType can only be used for classes derived from RefCounter.");
+			bool ok = AddType<T>(type_name, flags);
+			if(ok)
+			{
+				AddMethod(type_name, "void operator addref()", &T::AddRef);
+				AddMethod(type_name, "void operator release()", &T::Release);
+			}
+			return ok;
 		}
 
 	protected:

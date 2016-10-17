@@ -1,0 +1,7 @@
+void f(void& a)
+{
+}
+
+void f2(void? a)
+{
+}

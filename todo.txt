@@ -1,4 +1,18 @@
+- invalid operations on return value [compound, inc dec]
+
+TODO:
+struct/class
+ref
+out
+nullable?
+return
+register class/struct
+verify
+norefcount
+noinstance
+
 + register member function as member func
++ return new class instance without constructor [class X{} X f() { return ???}] ??? = X
 
 - CObj b1, b7(7); not allowed, why? (this syntax is not allowed, require b7 = CObj(7), need fix)
 + AssertException
@@ -26,6 +40,7 @@
 		return [pos = my_pos, rot = my_rot];
 	}
 	unnamed struct
++ allow to set member value outside of constructor like in c# [class X {int a = 4;}]
 
 + array
 vector functions:

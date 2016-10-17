@@ -19,6 +19,7 @@ public:
 	bool AddMember(cstring type_name, cstring decl, int offset) override;
 	ReturnValue GetReturnValue() override;
 	bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false) override;
+	bool Verify() override;
 
 	template<typename T>
 	inline bool AddType(cstring type_name)

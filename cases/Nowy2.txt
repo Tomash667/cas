@@ -1,0 +1,19 @@
+/*class X{int a;}
+X x;
+X y = x;
+x.a += 1;
+X f(X z) { ++z.a; return z; }
+++f(x).a;*/
+
+/*class X{int a;}
+X f(X x) { return x; }
+X a;
+//++f(a).a;
+f(a).a += 1;
+pause();*/
+
+class X{int a;}
+X f() { X a; return a; }
+f().a += 1;
+pause();
+

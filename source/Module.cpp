@@ -94,7 +94,8 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 	}
 	if(parser->FindEqualFunction(type, *f))
 	{
-		Event(EventType::Error, Format("Method '%s' for type '%s' already exists.", parser->GetName(f), type->name.c_str()));
+		Event(EventType::Error, Format("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
+			parser->GetName(f), type->name.c_str()));
 		delete f;
 		return false;
 	}
@@ -118,6 +119,8 @@ bool Module::AddType(cstring type_name, int size, int flags)
 {
 	assert(type_name && size > 0);
 	assert(!inherited); // can't add types to inherited module (until fixed)
+	if(IS_SET(flags, DisallowCreate))
+		flags |= NoRefCount;
 	if(!parser->VerifyTypeName(type_name))
 	{
 		Event(EventType::Error, Format("Can't declare type '%s', name is keyword.", type_name));
@@ -255,4 +258,37 @@ void Module::AddParentModule(Module* parent_module)
 		m.second->refs++;
 		m.second->inherited = true;
 	}
+}
+
+bool Module::Verify()
+{
+	/*int errors = 0;
+	for(Type* t : types)
+	{
+		if(!IS_SET(t->flags, Type::NoRefCount))
+		{
+			if(!t->FindSpecialFunction(SF_ADDREF))
+			{
+				ERROR(Format("Type '%s' don't have addref operator.", t->name.c_str()));
+				++errors;
+			}
+
+			if(!t->FindSpecialFunction(SF_RELEASE))
+			{
+				ERROR(Format("Type '%s' don't have release operator.", t->name.c_str()));
+				++errors;
+			}
+		}
+
+		if(!IS_SET(t->flags, Type::DisallowCreate))
+		{
+			if(!t->FindSpecialFunction(SF_CTOR))
+			{
+				ERROR(Format("Type '%s' don't have constructor.", t->name.c_str()));
+				++errors;
+			}			
+		}
+	}
+	return errors == 0;*/
+	return true;
 }

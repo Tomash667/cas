@@ -64,7 +64,7 @@ private:
 
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);
-	VarType GetVarType();
+	VarType GetVarType(bool in_cpp = false);
 	int GetVarTypeForMember();
 	void PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL>& stack);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);

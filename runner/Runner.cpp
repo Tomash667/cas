@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "is.txt;ref.txt";
+cstring def_filename = "Nowy2.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

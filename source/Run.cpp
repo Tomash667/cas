@@ -898,7 +898,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				else if(op == SET_ADR)
 				{
 					assert(left.type == V_REF);
-					assert(!IS_SET(run_module.GetType(right.type)->flags, Type::Ref));
+					assert(!run_module.GetType(right.type)->IsRef());
 				}
 				else
 					assert(left.type == V_INT || left.type == V_FLOAT);

@@ -117,7 +117,9 @@ void Parser::AddKeywords()
 		{ "break", K_BREAK },
 		{ "return", K_RETURN },
 		{ "class", K_CLASS },
-		{ "is", K_IS }
+		{ "struct", K_STRUCT },
+		{ "is", K_IS }//,
+		//{ "operator", K_OPERATOR }
 	});
 
 	// const
@@ -492,9 +494,10 @@ ParseNode* Parser::ParseLine()
 				return ret;
 			}
 		case K_CLASS:
+		case K_STRUCT:
 			{
 				if(current_block != main_block)
-					t.Throw("Class can't be declared inside block.");
+					t.Throw("%s can't be declared inside block.", keyword == K_CLASS ? "Class" : "Struct");
 
 				// id
 				t.Next();
@@ -502,7 +505,9 @@ ParseNode* Parser::ParseLine()
 				CheckFindItem(id, false);
 				Type* type = new Type;
 				type->name = id;
-				type->flags = Type::Pod | Type::Ref | Type::Class;
+				type->flags = Type::Pod | Type::Class;
+				if(keyword == K_CLASS)
+					type->flags |= Type::Ref;
 				type->index = (0xFFFF0000 | run_module->types.size());
 				type->size = 0;
 				run_module->types.push_back(type);
@@ -683,6 +688,19 @@ Function* Parser::ParseFuncDecl(cstring decl, Type* type)
 
 		f->result = GetVarType();
 
+		/*if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+		{
+			t.Next();
+			f->name = t.MustGetItem();
+			if(f->name == "addref")
+				f->special = SF_ADDREF;
+			else if(f->name == "release")
+				f->special = SF_RELEASE;
+			else
+				t.Throw("Invalid operator name.");
+			t.Next();
+		}*/
+
 		if(type && type->index == f->result.core && t.IsSymbol('('))
 		{
 			// ctor
@@ -702,6 +720,22 @@ Function* Parser::ParseFuncDecl(cstring decl, Type* type)
 		ParseFunctionArgs(f, false);
 
 		t.AssertEof();
+
+		// verify args, return type
+		/*switch(f->special)
+		{
+		case SF_NO:
+		case SF_CTOR:
+			break;
+		case SF_ADDREF:
+		case SF_RELEASE:
+			if(f->result.core != V_VOID || !f->arg_infos.empty())
+				t.Throw("Special function '%s' require declaration of 'void %s()' instead of '%s'.", f->name.c_str(), f->name.c_str(), GetName(f));
+			break;
+		default:
+			assert(0);
+			break;
+		}*/
 	}
 	catch(Tokenizer::Exception& e)
 	{
@@ -1661,34 +1695,83 @@ ParseVar* Parser::GetVar(ParseNode* node)
 	}
 }
 
-VarType Parser::GetVarType()
+VarType Parser::GetVarType(bool in_cpp)
 {
+	/*bool is_const = false;
+	if(t.IsKeyword(K_CONST, G_KEYWORD))
+	{
+		is_const = true;
+		t.Next();
+	}*/
 	if(!t.IsKeywordGroup(G_VAR))
 		t.Unexpected("Expecting var type.");
 	int type = t.GetKeywordId(G_VAR);
+	//VarType type;
+	//type.special = SV_NORMAL;
+	//type.core = t.GetKeywordId(G_VAR);
 	t.Next();
 	if(t.IsSymbol('&'))
 	{
 		Type* ty = GetType(type);
-		if(IS_SET(ty->flags, Type::Ref))
+		if(ty->IsRef())
 			t.Throw("Can't create reference to reference type '%s'.", ty->name.c_str());
 		t.Next();
 		return VarType(type, SV_REF);
 	}
-	else
-		return VarType(type);
+	/*else if(t.IsSymbol('*'))
+	{
+
+	}
+	else if(t.IsSymbol('?'))
+	{
+
+	}
+
+	if(is_const)
+	{
+		switch(type.special)
+		{
+		case SV_NORMAL:
+			type.special = SV_CONST;
+			break;
+		case SV_REF:
+			type.special = SV_CONST_REF;
+			break;
+		case SV_PTR:
+			type.special = SV_CONST_PTR;
+			break;
+		default:
+			assert(0);
+			break;
+		}
+	}*/
+	
+	return VarType(type);
 }
 
 int Parser::GetVarTypeForMember()
 {
 	int type_index = t.MustGetKeywordId(G_VAR);
 	if(type_index == V_VOID)
-		t.Throw("Class member can't be void type.");
+		t.Throw("Class/struct member can't be void type.");
 	else
 	{
-		Type* type = GetType(type_index);
-		if(type_index == V_STRING || type->IsClass())
-			t.Throw("Class '%s' member not supported yet.", type->name.c_str());
+		cstring name = nullptr;
+		if(type_index == V_STRING)
+			name = "string";
+		else
+		{
+			Type* type = GetType(type_index);
+			if(type->IsClass())
+			{
+				if(type->IsRef())
+					name = "class";
+				else
+					name = "struct";
+			}
+		}
+		if(name)
+			t.Throw("Class/struct member of type '%s' not supported yet.", name);
 	}
 	t.Next();
 	return type_index;
@@ -3248,16 +3331,33 @@ AnyFunction Parser::FindEqualFunction(Type* type, Function& fc)
 {
 	assert(type);
 
-	for(Function* f : type->funcs)
+	if(fc.special <= SF_CTOR)
 	{
-		if(f->name == fc.name && f->Equal(fc))
-			return f;
-	}
+		for(Function* f : type->funcs)
+		{
+			if(f->name == fc.name && f->Equal(fc))
+				return f;
+		}
 
-	for(ParseFunction* pf : type->ufuncs)
+		for(ParseFunction* pf : type->ufuncs)
+		{
+			if(pf->name == fc.name && pf->Equal(fc))
+				return pf;
+		}
+	}
+	else
 	{
-		if(pf->name == fc.name && pf->Equal(fc))
-			return pf;
+		for(Function* f : type->funcs)
+		{
+			if(f->special == fc.special)
+				return f;
+		}
+
+		for(ParseFunction* pf : type->ufuncs)
+		{
+			if(pf->special == fc.special)
+				return pf;
+		}
 	}
 
 	return nullptr;

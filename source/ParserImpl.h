@@ -19,7 +19,10 @@ enum KEYWORD
 	K_BREAK,
 	K_RETURN,
 	K_CLASS,
-	K_IS
+	K_STRUCT,
+	K_IS,
+	//K_OPERATOR,
+	//K_CONST
 };
 
 enum CONST
