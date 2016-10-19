@@ -1,6 +1,3 @@
-- set member, set this member need remake [set member [class, value], not value;class]
-- invalid operations on return value [compound, inc dec]
-
 TODO:
 struct/class
 ref, remove old REF_MAY/YES
@@ -137,6 +134,8 @@ vector functions:
 + ref variable
 + ref arg default value
 + take reference operator
++ multiline string
++ line numbers in debug (for assert)
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html

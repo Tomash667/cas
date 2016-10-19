@@ -18,7 +18,7 @@ enum SPECIAL_VAR
 	V_CTOR
 };
 
-//#define CHECK_LEAKS
+#define CHECK_LEAKS
 
 #ifdef CHECK_LEAKS
 struct Class;
@@ -64,7 +64,12 @@ struct Class
 	inline void Release()
 	{
 		if(--refs == 0)
+		{
+#ifdef CHECK_LEAKS
+			assert(0); // there should be at last 1 reference
+#endif
 			delete this;
+		}
 	}
 };
 
@@ -124,6 +129,11 @@ void AddRef(RunModule& run_module, Var& v)
 	assert(v.type != V_VOID);
 	if(v.type == V_STRING)
 		v.str->refs++;
+	else if(v.type == V_REF)
+	{
+		if(v.ref_type == REF_MEMBER)
+			v.ref_class->refs++;
+	}
 	else
 	{
 		Type* type = run_module.GetType(v.type);
@@ -390,6 +400,9 @@ void Run(RunModule& run_module, ReturnValue& retval)
 	global.resize(run_module.globals);
 	local.clear();
 	current_function = -1;
+#ifdef CHECK_LEAKS
+	all_clases.clear();
+#endif
 
 	int* start = run_module.code.data();
 	int* end = start + run_module.code.size();
@@ -843,6 +856,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				else if(op == DEREF)
 				{
 					auto data = GetRef(v);
+					ReleaseRef(run_module, v);
 					v.type = data.type;
 					v.value = *data.data;
 					AddRef(run_module, v);
@@ -1042,22 +1056,29 @@ void Run(RunModule& run_module, ReturnValue& retval)
 					left.value = (left.value >> right.value);
 					break;
 				case IS:
-					if(left.type == V_STRING)
-						left.bvalue = (left.str == right.str);
-					else if(left.type == V_REF)
 					{
-						assert(left.ref_type == right.ref_type);
-						GetRefData refl = GetRef(left);
-						GetRefData refr = GetRef(right);
-						left.bvalue = (refl.data == refr.data);
+						bool result;
+						if(left.type == V_STRING)
+							result = (left.str == right.str);
+						else if(left.type == V_REF)
+						{
+							assert(left.ref_type == right.ref_type);
+							GetRefData refl = GetRef(left);
+							GetRefData refr = GetRef(right);
+							result = (refl.data == refr.data);
+						}
+						else
+							result = (left.clas == right.clas);
+						ReleaseRef(run_module, right);
+						ReleaseRef(run_module, left);
+						left.type = V_BOOL;
+						left.bvalue = result;
 					}
-					else
-						left.bvalue = (left.clas == right.clas);
-					left.type = V_BOOL;
 					break;
 				case SET_ADR:
 					{
 						GetRefData ref = GetRef(left);
+						ReleaseRef(run_module, left);
 						assert(ref.type == right.type);
 						memcpy(ref.data, &right.value, run_module.GetType(right.type)->size);
 						stack.pop_back();
@@ -1070,6 +1091,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 		case RET:
 			if(current_function == -1)
 			{
+				// set & validate return value
 				assert(local.empty());
 				if(run_module.result == V_VOID)
 				{
@@ -1085,9 +1107,16 @@ void Run(RunModule& run_module, ReturnValue& retval)
 					retval.int_value = v.value;
 					stack.pop_back();
 				}
+				// cleanup globals
+				for(Var& v : global)
+					ReleaseRef(run_module, v);
+				// check leaks
 #ifdef CHECK_LEAKS
 				for(Class* c : all_clases)
+				{
 					assert(c->refs == 1);
+					delete c;
+				}
 #endif
 				return;
 			}

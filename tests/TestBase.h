@@ -1,5 +1,10 @@
 #pragma once
 
+#define TEST_CATEGORY(category) \
+			BEGIN_TEST_CLASS_ATTRIBUTE() \
+				TEST_CLASS_ATTRIBUTE(L"TestCategory", L#category) \
+			END_TEST_CLASS_ATTRIBUTE()
+
 using namespace cas;
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -10,7 +15,7 @@ namespace Microsoft
 		namespace CppUnitTestFramework
 		{
 			template<>
-			static std::wstring ToString(const ReturnValue::Type& type)
+			static wstring ToString(const ReturnValue::Type& type)
 			{
 				switch(type)
 				{
@@ -51,6 +56,8 @@ inline void RunFailureTest(cstring code, cstring error)
 {
 	RunFailureTest(def_module, code, error);
 }
+
+void CleanupAsserts();
 
 struct Retval
 {

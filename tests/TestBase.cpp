@@ -5,10 +5,11 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 const int DEFAULT_TIMEOUT = (CI_MODE ? 60 : 1);
-std::istringstream s_input;
-std::ostringstream s_output;
+istringstream s_input;
+ostringstream s_output;
 string event_output;
 IModule* def_module;
+vector<string> asserts;
 
 enum Result
 {
@@ -60,6 +61,17 @@ void TestEventHandler(EventType event_type, cstring msg)
 		throw msg;
 }
 
+void Assert_AreEqual(int expected, int actual)
+{
+	if(expected != actual)
+		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+}
+
+void RegisterAsserts(IModule* module)
+{
+	module->AddFunction("void Assert_AreEqual(int expected, int actual)", Assert_AreEqual);
+}
+
 TEST_MODULE_INITIALIZE(ModuleInitialize)
 {
 	SetHandler(TestEventHandler);
@@ -72,6 +84,7 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 		Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 
 	def_module = CreateModule();
+	RegisterAsserts(def_module);
 
 	if(CI_MODE)
 		Logger::WriteMessage("+++ CI MODE +++\n\n");
@@ -92,7 +105,21 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 		if(!module->ParseAndRun(input, optimize))
 			result = FAILED;
 		else
-			result = OK;
+		{
+			if(!asserts.empty())
+			{
+				event_output.clear();
+				event_output = Format("Asserts failed (%u). ", asserts.size());
+				for(string& s : asserts)
+				{
+					event_output += s;
+					event_output += " ";
+				}
+				result = ASSERT;
+			}
+			else
+				result = OK;
+		}
 	}
 	catch(cstring)
 	{
@@ -143,9 +170,9 @@ void RunFileTest(IModule* module, cstring filename, cstring input, cstring outpu
 	}
 
 	string path(Format("../cases/%s", filename));
-	std::ifstream ifs(path);
+	ifstream ifs(path);
 	Assert::IsTrue(ifs.is_open(), GetWC(Format("Failed to open file '%s'.", path.c_str())).c_str());
-	std::string content((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
+	string content((istreambuf_iterator<char>(ifs)), (istreambuf_iterator<char>()));
 	ifs.close();
 
 	s_input.clear();
@@ -247,5 +274,9 @@ void RunFailureTest(IModule* module, cstring code, cstring error)
 		}
 		break;
 	}
-		
+}
+
+void CleanupAsserts()
+{
+	asserts.clear();
 }

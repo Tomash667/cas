@@ -8,7 +8,12 @@ namespace tests
 {
 	TEST_CLASS(Failures)
 	{
-	public:
+		TEST_CATEGORY(Failures);
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			CleanupAsserts();
+		}
+
 		TEST_METHOD(FunctionNoReturnValue)
 		{
 			RunFailureTest("int f(){}", "Function 'int f()' not always return value.");

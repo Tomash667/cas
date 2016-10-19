@@ -18,5 +18,6 @@
 #include <cas/Cas.h>
 #include <Windows.h>
 #include <process.h>
+#include <vector>
 
 using namespace std;

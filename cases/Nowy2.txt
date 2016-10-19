@@ -1,30 +1,14 @@
-/*class X{int a;}
+class X{int a;}
 X x;
 X y = x;
 x.a += 1;
 X f(X z) { ++z.a; return z; }
-++f(x).a;*/
-
-class X{int a; void f() {a++;}}
-X x;
-x.a++;
-x.f();
-pause();
-
-/*class X{int a;}
-X f(X x) { x.a = 4; return x; }
-X a;
-int t = f(a).a++;
-println(a.a); println(t);
-pause();*/
-
-// return reference compound operation
-/*class X{int a;}
-X g;
-g.a = 7;
-X f() { return g; }
-f().a += 3;
-println(f().a+1);
-int a; a+=f().a+=3;
-print(a);
-pause();*/
+++f(x).a;
+void f2(X u)
+{
+	X v = u;
+	v = u;
+	v = u;
+	u = v;
+}
+f2(x);

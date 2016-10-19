@@ -6,7 +6,12 @@ namespace tests
 {
 	TEST_CLASS(Code)
 	{
-	public:
+		TEST_CATEGORY(Code);
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			CleanupAsserts();
+		}
+
 		//=========================================================================================
 		struct Vec
 		{

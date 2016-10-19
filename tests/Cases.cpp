@@ -17,7 +17,12 @@ namespace tests
 {		
 	TEST_CLASS(Cases)
 	{
-	public:
+		TEST_CATEGORY(Cases);
+		TEST_METHOD_CLEANUP(Cleanup)
+		{
+			CleanupAsserts();
+		}
+
 		TestMethod(Simple)
 		{
 			RunFileTest("simple.txt", "4", "Podaj a: Odwrocone a: -4");
