@@ -22,7 +22,7 @@ enum SPECIAL_VAR
 
 #ifdef CHECK_LEAKS
 struct Class;
-vector<Class*> all_clases;
+static vector<Class*> all_clases;
 #endif
 
 struct Class
@@ -114,9 +114,10 @@ struct Var
 	inline Var(int type, int special_type, int value1, int value2) : type(type), special_type(special_type), value1(value1), value2(value2) {}
 };
 
-vector<Var> stack, global, local;
-vector<uint> expected_stack;
-int current_function, args_offset, locals_offset;
+static vector<Var> stack, global, local;
+static Var tmpv;
+static vector<uint> expected_stack;
+static int current_function, args_offset, locals_offset;
 
 void AddRef(RunModule& run_module, Var& v)
 {
@@ -594,6 +595,9 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				stack.push_back(Var(REF_MEMBER, member_index, c));
 			}
 			break;
+		case PUSH_TMP:
+			stack.push_back(tmpv);
+			break;
 		case POP:
 			{
 				assert(!stack.empty());
@@ -651,20 +655,20 @@ void Run(RunModule& run_module, ReturnValue& retval)
 			break;
 		case SET_MEMBER:
 			{
-				// get class
+				// get value
 				assert(stack.size() >= 2u);
+				Var v = stack.back();
+				stack.pop_back();
+
+				// get class
 				Var& cv = stack.back();
 				assert(run_module.GetType(cv.type)->IsClass());
 				Type* type = run_module.GetType(cv.type);
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
-				Class* c = cv.clas;
-				stack.pop_back();
-
-				// get value
-				Var& v = stack.back();
 				assert(v.type == m->type);
+				Class* c = cv.clas;				
 
 				switch(m->type)
 				{
@@ -683,6 +687,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				}
 
 				c->Release();
+				stack.back() = v;
 			}
 			break;
 		case SET_THIS_MEMBER:
@@ -719,6 +724,10 @@ void Run(RunModule& run_module, ReturnValue& retval)
 					break;
 				}
 			}
+			break;
+		case SET_TMP:
+			assert(!stack.empty());
+			tmpv = stack.back();
 			break;
 		case CAST:
 			// allowed casts bool/int/float -> anything

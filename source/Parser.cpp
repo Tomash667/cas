@@ -1075,6 +1075,19 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 					node->pseudo_op = OBJ_MEMBER;
 				exit.push_back(node);
 				left = BS_MAX;
+
+				// post
+				if(GetNextSymbol(left))
+				{
+					BasicSymbolInfo& bsi = basic_symbols[left];
+					if(bsi.post_symbol != S_INVALID)
+					{
+						PushSymbol(bsi.post_symbol, exit, stack);
+						t.Next();
+						left = BS_MAX;
+					}
+				}
+
 				goto next_symbol;
 			}
 		}
@@ -1160,7 +1173,27 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							t.Throw("Operation '%s' require variable.", si.name);
 						}
 
-						if(pre)
+						if(set_op == SET_MEMBER)
+						{
+							op->push(node->childs);
+							node->childs.clear();
+							op->push(PUSH);
+							op->push(node);
+							if(pre)
+							{
+								op->push(oper);
+								op->push(SET_MEMBER, node->value);
+							}
+							else
+							{
+								op->push(SET_TMP);
+								op->push(oper);
+								op->push(SET_MEMBER, node->value);
+								op->push(POP);
+								op->push(PUSH_TMP);
+							}
+						}
+						else if(pre)
 						{
 							/* ++a
 							push a; a
@@ -1320,37 +1353,58 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							// assign
 							if(!TryCast(right, VarType(left->type)))
 								t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
-							set->push(right);
 							if(left->op == PUSH_MEMBER)
 							{
 								set->push(left->childs);
 								left->childs.clear();
 							}
+							set->push(right);
 							left->Free();
 						}
 						else
 						{
-							// compound assign
+							// compound assign, left op= right
 							VarType cast;
 							int result;
 							if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
 								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-							Cast(left, cast);
-							Cast(right, cast);
-
 							ParseNode* op = ParseNode::Get();
 							op->op = (Op)symbols[si.op].op;
 							op->type = result;
 							op->ref = REF_NO;
-							op->push(left);
-							op->push(right);
 
-							if(!TryCast(op, VarType(set->type)))
-								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
-							set->push(op);
-							if(left->op == PUSH_MEMBER)
-								set->push_copy(left->childs);
+							if(left->op != PUSH_MEMBER)
+							{
+								Cast(left, cast);
+								Cast(right, cast);
+
+								op->push(left);
+								op->push(right);
+
+								if(!TryCast(op, VarType(set->type)))
+									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
+								set->push(op);
+							}
+							else
+							{
+								// left [class]
+								// push [class, class]
+								// push member [class, member]
+								// right [class, member, right]
+								// op [class, member op right]
+								// set member
+								set->push(left->childs);
+								set->push(PUSH);
+								left->childs.clear();
+								Cast(left, cast);
+								Cast(right, cast);
+								set->push(left);
+								set->push(right);
+								set->push(op);
+								if(!TryCast(op, VarType(set->type)))
+									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
+							}
 						}
 					}
 					else
@@ -2995,6 +3049,8 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		code.push_back(*(int*)&node->fvalue);
 		break;
 	case PUSH:
+	case PUSH_TMP:
+	case SET_TMP:
 	case POP:
 	case NEG:
 	case ADD:

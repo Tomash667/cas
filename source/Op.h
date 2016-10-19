@@ -18,12 +18,14 @@ enum Op
 	PUSH_MEMBER_REF,
 	PUSH_THIS_MEMBER,
 	PUSH_THIS_MEMBER_REF,
+	PUSH_TMP, // [] ... -> ..., tmp
 	POP, // [] ..., x -> ...
 	SET_LOCAL,
 	SET_GLOBAL,
 	SET_ARG,
-	SET_MEMBER,
+	SET_MEMBER, // [member_index] ..., class, value -> value, ... (class.member = value)
 	SET_THIS_MEMBER,
+	SET_TMP, // [] ..., x -> ..., x (tmp = x)
 	CAST,
 	NEG, // [] ..., x -> ..., -x (x=int/float)
 	ADD, // [] ..., x, y -> ..., x+y (x,y=int/float/string)

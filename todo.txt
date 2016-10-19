@@ -1,8 +1,9 @@
+- set member, set this member need remake [set member [class, value], not value;class]
 - invalid operations on return value [compound, inc dec]
 
 TODO:
 struct/class
-ref
+ref, remove old REF_MAY/YES
 out
 nullable?
 return
