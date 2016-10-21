@@ -113,4 +113,5 @@ struct Type
 
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
+	inline bool IsStruct() const { return IsClass() && !IsRef(); }
 };

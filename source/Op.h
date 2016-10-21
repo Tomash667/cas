@@ -61,5 +61,7 @@ enum Op
 	CALLU_CTOR,
 	RET,
 	CTOR,
+	COPY, // [] ..., x -> ..., x (x - single instance of struct)
+	COPY_ARG, // [arg_index] - create single instance of struct in arg
 	MAX_OP
 };

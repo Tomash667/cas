@@ -154,6 +154,7 @@ RunModule* Parser::Parse(ParseSettings& settings)
 		ParseCode();
 		Optimize();
 		CheckReturnValues();
+		CopyFunctionChangedStructs();
 		ConvertToBytecode();
 		FinishRunModule();
 	}
@@ -292,6 +293,7 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 		node->type = V_VOID;
 		node->ref = REF_NO;
 		node->childs = nodes;
+		node->source = nullptr;
 		return node;
 	}
 }
@@ -319,6 +321,7 @@ ParseNode* Parser::ParseLine()
 				if_op->pseudo_op = IF;
 				if_op->type = V_VOID;
 				if_op->ref = REF_NO;
+				if_op->source = nullptr;
 				if_op->push(if_expr);
 				if_op->push(ParseLineOrBlock());
 
@@ -349,6 +352,7 @@ ParseNode* Parser::ParseLine()
 				do_whil->type = V_VOID;
 				do_whil->value = DO_WHILE_NORMAL;
 				do_whil->ref = REF_NO;
+				do_whil->source = nullptr;
 				do_whil->push(block);
 				do_whil->push(cond);
 				return do_whil;
@@ -364,6 +368,7 @@ ParseNode* Parser::ParseLine()
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
 				whil->ref = REF_NO;
+				whil->source = nullptr;
 				whil->push(cond);
 				whil->push(block);
 				return whil;
@@ -407,6 +412,7 @@ ParseNode* Parser::ParseLine()
 				fo->pseudo_op = FOR;
 				fo->type = V_VOID;
 				fo->ref = REF_NO;
+				fo->source = nullptr;
 				fo->push(for1);
 				fo->push(for2);
 				fo->push(for3);
@@ -427,6 +433,7 @@ ParseNode* Parser::ParseLine()
 				br->pseudo_op = BREAK;
 				br->type = V_VOID;
 				br->ref = REF_NO;
+				br->source = nullptr;
 				return br;
 			}
 		case K_RETURN:
@@ -435,6 +442,7 @@ ParseNode* Parser::ParseLine()
 				ret->pseudo_op = RETURN;
 				ret->type = V_VOID;
 				ret->ref = REF_NO;
+				ret->source = nullptr;
 				t.Next();
 				if(!t.IsSymbol(';'))
 				{
@@ -836,6 +844,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool real_func)
 				arg->type = type;
 				arg->subtype = ParseVar::ARG;
 				arg->index = current_function->args.size();
+				arg->mod = false;
 				current_function->args.push_back(arg);
 			}
 			t.Next();
@@ -917,6 +926,7 @@ ParseNode* Parser::ParseVarTypeDecl(int* _type, string* _name)
 		node->pseudo_op = GROUP;
 		node->type = V_VOID;
 		node->ref = REF_NO;
+		node->source = nullptr;
 		node->childs = nodes;
 		return node;
 	}
@@ -946,6 +956,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 	var->type = VarType(type);
 	var->index = current_block->var_offset;
 	var->subtype = (current_function == nullptr ? ParseVar::GLOBAL : ParseVar::LOCAL);
+	var->mod = false;
 	current_block->vars.push_back(var);
 	current_block->var_offset++;
 	if(!_name)
@@ -957,6 +968,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 	{
 		expr = ParseNode::Get();
 		expr->ref = REF_NO;
+		expr->source = nullptr;
 		switch(type)
 		{
 		case V_BOOL:
@@ -1017,24 +1029,11 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 	}
 
 	ParseNode* node = ParseNode::Get();
-	switch(var->subtype)
-	{
-	case ParseVar::LOCAL:
-		node->op = SET_LOCAL;
-		break;
-	case ParseVar::GLOBAL:
-		node->op = SET_GLOBAL;
-		break;
-	case ParseVar::ARG:
-		node->op = SET_ARG;
-		break;
-	default:
-		assert(0);
-		break;
-	}
+	node->op = (var->subtype == ParseVar::GLOBAL ? SET_GLOBAL : SET_LOCAL);
 	node->type = var->type.core;
 	node->value = var->index;
 	node->ref = REF_NO;
+	node->source = nullptr;
 	node->push(expr);
 	return node;
 }
@@ -1066,6 +1065,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				node->type = V_VOID;
 				node->str = str;
 				node->ref = REF_NO;
+				node->source = nullptr;
 				if(t.IsSymbol('('))
 				{
 					ParseArgs(node->childs);
@@ -1129,6 +1129,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						op->type = result;
 						op->push(node);
 						op->ref = REF_NO;
+						op->source = nullptr;
 						node = op;
 					}
 					stack2.push_back(node);
@@ -1148,6 +1149,9 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 					op->pseudo_op = INTERNAL_GROUP;
 					op->type = node->type;
 					op->ref = REF_NO;
+					op->source = nullptr;
+					if(node->source)
+						node->source->mod = true;
 
 					if(node->ref != REF_YES)
 					{
@@ -1265,6 +1269,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 			}
 			else
 			{
+				// two argument operation
 				assert(si.args == 2);
 				ParseNode* right = stack2.back();
 				stack2.pop_back();
@@ -1273,6 +1278,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 
 				if(si.symbol == S_MEMBER_ACCESS)
 				{
+					// member access
 					if(left->type == V_VOID)
 						t.Throw("Invalid member access for type 'void'.");
 					Type* type = GetType(left->type);
@@ -1286,6 +1292,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 
 						ParseNode* node = ParseNode::Get();
 						node->ref = REF_NO;
+						node->source = left->source;
 						node->push(left);
 						for(ParseNode* n : right->childs)
 							node->push(n);
@@ -1309,6 +1316,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						node->type = m->type;
 						node->value = m_index;
 						node->ref = REF_MAY;
+						node->source = left->source;
 						node->push(left);
 						right->Free();
 						stack2.push_back(node);
@@ -1316,11 +1324,13 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				}
 				else if(si.type == ST_ASSIGN)
 				{
-					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
-						&& left->ref != REF_YES)
+					// assign to variable
+					if(!left->source)
 						t.Throw("Can't assign, left value must be variable.");
+					left->source->mod = true;
 
 					ParseNode* set = ParseNode::Get();
+					set->source = nullptr;
 					if(left->ref != REF_YES)
 					{
 						switch(left->op)
@@ -1373,6 +1383,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							op->op = (Op)symbols[si.op].op;
 							op->type = result;
 							op->ref = REF_NO;
+							op->source = nullptr;
 
 							if(left->op != PUSH_MEMBER)
 							{
@@ -1437,6 +1448,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							op->op = (Op)symbols[si.op].op;
 							op->type = result;
 							op->ref = REF_NO;
+							op->source = nullptr;
 							op->push(left);
 							op->push(right);
 
@@ -1452,6 +1464,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				}
 				else
 				{
+					// normal operation
 					VarType cast;
 					int result;
 					if(!CanOp(si.symbol, left->GetVarType(), right->GetVarType(), cast, result))
@@ -1463,6 +1476,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 					ParseNode* op = ParseNode::Get();
 					op->type = result;
 					op->ref = REF_NO;
+					op->source = nullptr;
 
 					if(!TryConstExpr(left, right, op, si.symbol))
 					{
@@ -1589,6 +1603,7 @@ ParseNode* Parser::ParseItem(int* type)
 			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 		ParseNode* node = ParseNode::Get();
 		node->ref = REF_NO;
+		node->source = nullptr;
 		ParseArgs(node->childs);
 		vector<AnyFunction> funcs;
 		FindAllCtors(rtype, funcs);
@@ -1609,6 +1624,7 @@ ParseNode* Parser::ParseItem(int* type)
 				node->type = var->type.core;
 				node->value = var->index;
 				node->ref = (var->type.special == SV_NORMAL ? REF_MAY : REF_YES);
+				node->source = var;
 				switch(var->subtype)
 				{
 				default:
@@ -1637,6 +1653,7 @@ ParseNode* Parser::ParseItem(int* type)
 
 				ParseNode* node = ParseNode::Get();
 				node->ref = REF_NO;
+				node->source = nullptr;
 
 				ParseArgs(node->childs);
 				ApplyFunctionCall(node, funcs, nullptr, false);
@@ -1650,6 +1667,7 @@ ParseNode* Parser::ParseItem(int* type)
 				node->type = found.member->type;
 				node->value = found.member_index;
 				node->ref = REF_MAY;
+				node->source = nullptr;
 				t.Next();
 				return node;
 			}
@@ -1674,6 +1692,7 @@ ParseNode* Parser::ParseConstItem()
 		node->type = V_INT;
 		node->value = val;
 		node->ref = REF_NO;
+		node->source = nullptr;
 		t.Next();
 		return node;
 	}
@@ -1686,6 +1705,7 @@ ParseNode* Parser::ParseConstItem()
 		node->type = V_FLOAT;
 		node->fvalue = val;
 		node->ref = REF_NO;
+		node->source = nullptr;
 		t.Next();
 		return node;
 	}
@@ -1702,6 +1722,7 @@ ParseNode* Parser::ParseConstItem()
 		node->value = index;
 		node->type = V_STRING;
 		node->ref = REF_NO;
+		node->source = nullptr;
 		t.Next();
 		return node;
 	}
@@ -1714,6 +1735,7 @@ ParseNode* Parser::ParseConstItem()
 		node->bvalue = (c == C_TRUE);
 		node->type = V_BOOL;
 		node->ref = REF_NO;
+		node->source = nullptr;
 		return node;
 	}
 	else
@@ -2357,6 +2379,7 @@ void Parser::Cast(ParseNode*& node, VarType type)
 		deref->op = DEREF;
 		deref->type = node->type;
 		deref->ref = REF_NO;
+		deref->source = nullptr;
 		deref->push(node);
 		node = deref;
 	}
@@ -2376,6 +2399,7 @@ void Parser::Cast(ParseNode*& node, VarType type)
 		cast->value = type.core;
 		cast->type = type.core;
 		cast->ref = REF_NO;
+		cast->source = nullptr;
 		cast->push(node);
 		node = cast;
 	}
@@ -2562,6 +2586,7 @@ ParseNode* Parser::OptimizeTree(ParseNode* node)
 				not->op = NOT;
 				not->type = V_BOOL;
 				not->ref = REF_NO;
+				not->source = nullptr;
 				not->push(cond);
 				node->childs[0] = not;
 				node->childs[1] = node->childs[2];
@@ -2729,6 +2754,7 @@ void Parser::CheckGlobalReturnValue()
 			cast->type = common;
 			cast->value = common;
 			cast->ref = REF_NO;
+			cast->source = nullptr;
 			ret->childs[0] = cast;
 		}
 	}
@@ -2774,6 +2800,29 @@ bool Parser::VerifyNodeReturnValue(ParseNode* node)
 		return true;
 	default:
 		return false;
+	}
+}
+
+void Parser::CopyFunctionChangedStructs()
+{
+	for(ParseFunction* f : ufuncs)
+	{
+		ParseNode* node = nullptr;
+		for(ParseVar* local : f->args)
+		{
+			if(local->mod && GetType(local->type.core)->IsStruct())
+			{
+				if(!node)
+				{
+					node = ParseNode::Get();
+					node->pseudo_op = INTERNAL_GROUP;
+					node->type = V_VOID;
+				}
+				node->push(COPY_ARG, local->index);
+			}
+		}
+		if(node)
+			f->node->childs.insert(f->node->childs.begin(), node);
 	}
 }
 
@@ -3041,6 +3090,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case SET_MEMBER:
 	case SET_THIS_MEMBER:
 	case CTOR:
+	case COPY_ARG:
 		code.push_back(node->op);
 		code.push_back(node->value);
 		break;
@@ -3078,6 +3128,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case BIT_RSHIFT:
 	case BIT_NOT:
 	case IS:
+	case COPY:
 		code.push_back(node->op);
 		break;
 	case PUSH_BOOL:
@@ -3518,6 +3569,7 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 			thi->type = cf.type;
 			thi->value = 0;
 			thi->ref = REF_NO;
+			thi->source = nullptr;
 			node->childs.insert(node->childs.begin(), thi);
 		}
 		else if(cf.special == SF_CTOR && f.is_parse)
@@ -3539,6 +3591,7 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 			ArgInfo& arg = cf.arg_infos[i];
 			ParseNode* n = ParseNode::Get();
 			n->type = arg.type.core;
+			n->source = nullptr;
 			assert(arg.type.special == SV_NORMAL);
 			switch(arg.type.core)
 			{
@@ -3570,5 +3623,13 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 		node->type = cf.result.core;
 		node->ref = (cf.result.special == SV_NORMAL ? REF_NO : REF_YES);
 		node->value = cf.index;
+
+		if(GetType(node->type)->IsStruct())
+		{
+			ReturnStructVar* rsv = new ReturnStructVar;
+			rsv->index = -1;
+			rsv->node = node;
+			// push
+		}
 	}
 }

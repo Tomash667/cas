@@ -20,7 +20,7 @@ struct OpInfo
 	int arg1;
 };
 
-OpInfo ops[MAX_OP] = {
+OpInfo ops[] = {
 	PUSH, "push", V_VOID,
 	PUSH_TRUE, "push_true", V_VOID,
 	PUSH_FALSE, "push_false", V_VOID,
@@ -79,8 +79,11 @@ OpInfo ops[MAX_OP] = {
 	CALLU, "callu", V_USER_FUNCTION,
 	CALLU_CTOR, "callu_ctor", V_USER_FUNCTION,
 	RET, "ret", V_VOID,
-	CTOR, "ctor", V_TYPE
+	CTOR, "ctor", V_TYPE,
+	COPY, "copy", V_VOID,
+	COPY_ARG, "copy_arg", V_INT
 };
+static_assert(sizeof(ops) / sizeof(OpInfo) == MAX_OP, "Missing decompile op codes.");
 
 void Decompile(RunModule& module)
 {

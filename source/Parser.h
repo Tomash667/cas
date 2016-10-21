@@ -86,6 +86,7 @@ private:
 	void VerifyFunctionReturnValue(ParseFunction* f);
 	bool VerifyNodeReturnValue(ParseNode* node);
 
+	void CopyFunctionChangedStructs();
 	void ConvertToBytecode();
 	void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos);
 

@@ -23,6 +23,9 @@ enum SPECIAL_VAR
 #ifdef CHECK_LEAKS
 struct Class;
 static vector<Class*> all_clases;
+static const int START_REF_COUNT = 2;
+#else
+static const int START_REF_COUNT = 1;
 #endif
 
 struct Class
@@ -52,10 +55,24 @@ struct Class
 		byte* data = new byte[type->size + 8];
 		memset(data + 8, 0, type->size);
 		Class* c = (Class*)data;
-		c->refs = 1;
+		c->refs = START_REF_COUNT;
 		c->type = type;
 #ifdef CHECK_LEAKS
-		++c->refs;
+		all_clases.push_back(c);
+#endif
+		return c;
+	}
+
+	inline static Class* Copy(Class* base)
+	{
+		assert(base);
+		Type* type = base->type;
+		byte* data = new byte[type->size + 8];
+		memcpy(data + 8, base, type->size);
+		Class* c = (Class*)data;
+		c->refs = START_REF_COUNT;
+		c->type = type;
+#ifdef CHECK_LEAKS
 		all_clases.push_back(c);
 #endif
 		return c;
@@ -391,6 +408,18 @@ bool CompareVar(Var& v, const VarType& type)
 		GetRefData data = GetRef(v);
 		return (data.type == type.core);
 	}
+}
+
+void MakeSingleInstance(RunModule& run_module, Var& v)
+{
+	Type* type = run_module.GetType(v.type);
+	assert(type->IsStruct());
+	assert(v.clas->refs >= START_REF_COUNT);
+	if(v.clas->refs <= START_REF_COUNT)
+		return;
+	Class* copy = Class::Copy(v.clas);
+	ReleaseRef(run_module, v);
+	v.clas = copy;
 }
 
 void Run(RunModule& run_module, ReturnValue& retval)
@@ -1266,6 +1295,22 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				Type* type = run_module.GetType(type_index);
 				Class* c = Class::Create(type);
 				stack.push_back(Var(c));
+			}
+			break;
+		case COPY:
+			{
+				assert(!stack.empty());
+				Var& v = stack.back();
+				MakeSingleInstance(run_module, v);
+			}
+			break;
+		case COPY_ARG:
+			{
+				uint arg_index = *c++;
+				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
+				assert(run_module.ufuncs[current_function].args.size() > arg_index);
+				Var& v = local[args_offset + arg_index];
+				MakeSingleInstance(run_module, v);
 			}
 			break;
 		default:

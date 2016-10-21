@@ -1,0 +1,26 @@
+struct A { int x; }
+
+// should create copy of a before modifing it
+A f(A a)
+{
+	a.x = 2;
+	return a;
+}
+
+A a;
+a.x = 1;
+A a2 = f(a);
+
+Assert_AreEqual(1, a.x);
+Assert_AreEqual(2, a2.x);
+
+// should create copy of return struct before modifing it
+A f2() { return a; }
+
+A a3 = f2();
+a3.x = 3;
+
+Assert_AreEqual(1, a.x);
+Assert_AreEqual(3, a3.x);
+
+pause();

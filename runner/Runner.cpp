@@ -9,9 +9,10 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "class_ref.txt";
+cstring def_filename = "struct.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
+vector<string> asserts;
 
 void HandleEvents(EventType event_type, cstring msg)
 {
@@ -32,6 +33,17 @@ void HandleEvents(EventType event_type, cstring msg)
 	cout << type;
 	cout << msg;
 	cout << '\n';
+}
+
+void Assert_AreEqual(int expected, int actual)
+{
+	if(expected != actual)
+		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+}
+
+void RegisterAsserts(IModule* module)
+{
+	module->AddFunction("void Assert_AreEqual(int expected, int actual)", Assert_AreEqual);
 }
 
 int main(int argc, char** argv)
@@ -110,6 +122,7 @@ int main(int argc, char** argv)
 	}
 
 	IModule* module = CreateModule();
+	RegisterAsserts(module);
 
 	bool first = true;
 	string content;
@@ -140,8 +153,19 @@ int main(int argc, char** argv)
 		{
 			cout << "\n\n(OK)";
 			_getch();
-			continue;
 		}
+		else if(!asserts.empty())
+		{
+			cout << Format("\n\nAsserts failed (%u). ", asserts.size());
+			for(string& s : asserts)
+			{
+				cout << s;
+				cout << " ";
+			}
+			cout << "\n\n(ok)";
+			_getch();
+		}
+		asserts.clear();
 	}
 
 	Shutdown();

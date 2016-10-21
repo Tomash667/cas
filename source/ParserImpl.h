@@ -173,7 +173,12 @@ enum BASIC_SYMBOL
 	BS_MAX
 };
 
-struct ParseVar : ObjectPoolProxy<ParseVar>
+struct VarSource
+{
+	int index;
+};
+
+struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 {
 	enum Type
 	{
@@ -184,9 +189,14 @@ struct ParseVar : ObjectPoolProxy<ParseVar>
 	};
 
 	string name;
-	int index;
 	VarType type;
 	Type subtype;
+	bool mod;
+};
+
+struct ReturnStructVar : VarSource
+{
+	ParseNode* node;
 };
 
 struct ParseNode : ObjectPoolProxy<ParseNode>
@@ -206,6 +216,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	int type;
 	vector<ParseNode*> childs;
 	RefType ref;
+	ParseVar* source;
 
 	inline ParseNode* copy()
 	{
@@ -214,6 +225,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		p->value = value;
 		p->type = type;
 		p->ref = ref;
+		p->source = source;
 		if(!childs.empty())
 		{
 			p->childs.reserve(childs.size());

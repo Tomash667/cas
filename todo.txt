@@ -1,5 +1,6 @@
 TODO:
 struct/class
+	copy return value from function if modified ???
 ref, remove old REF_MAY/YES
 out
 nullable?
@@ -8,6 +9,16 @@ register class/struct
 verify
 norefcount
 noinstance
+
++ for struct marking as need copy, push as reference to other function, need testing (and working reference system)
+	struct X{ int a; }
+	void f(X x)
+	{
+		f2(x); // should mark?
+		f3(x.a); // ^
+	}
+	void f2(X& x) {}
+	void f3(int& x) {}
 
 + register member function as member func
 + return new class instance without constructor [class X{} X f() { return ???}] ??? = X
