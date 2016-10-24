@@ -11,72 +11,73 @@
 static std::istream* s_input;
 static std::ostream* s_output;
 static bool s_use_getch;
+static vector<string> asserts;
 
-void f_print(string& str)
+static void f_print(string& str)
 {
 	(*s_output) << str;
 }
 
-void f_println0()
+static void f_println0()
 {
 	(*s_output) << '\n';
 }
 
-void f_println(string& str)
+static void f_println(string& str)
 {
 	(*s_output) << str;
 	(*s_output) << '\n';
 }
 
-int f_getint()
+static int f_getint()
 {
 	int val;
 	(*s_input) >> val;
 	return val;
 }
 
-float f_getfloat()
+static float f_getfloat()
 {
 	float val;
 	(*s_input) >> val;
 	return val;
 }
 
-string f_getstr()
+static string f_getstr()
 {
 	string s;
 	(*s_input) >> s;
 	return s;
 }
 
-void f_pause()
+static void f_pause()
 {
 	if(s_use_getch)
 		_getch();
 }
 
-int f_string_length(string& str)
+static int f_string_length(string& str)
 {
 	return str.length();
 }
 
-int f_int_abs(int a)
+static int f_int_abs(int a)
 {
 	return abs(a);
 }
 
-float f_float_abs(float a)
+static float f_float_abs(float a)
 {
 	return abs(a);
 }
 
-void InitCoreLib(Module& module, std::istream* input, std::ostream* output, bool use_getch)
+static void InitCoreLib(Module& module, Settings& settings)
 {
-	assert(input && output);
+	assert(settings.input && settings.output);
 
-	s_input = input;
-	s_output = output;
-	s_use_getch = use_getch;
+	s_input = (std::istream*)settings.input;
+	s_output = (std::ostream*)settings.output;
+	s_use_getch = settings.use_getch;
 
 	// types
 	module.AddCoreType("void", 0, V_VOID, false);
@@ -100,4 +101,52 @@ void InitCoreLib(Module& module, std::istream* input, std::ostream* output, bool
 	module.AddFunction("float getfloat()", f_getfloat);
 	module.AddFunction("string getstr()", f_getstr);
 	module.AddFunction("void pause()", f_pause);
+}
+
+static void Assert_AreEqual(int expected, int actual)
+{
+	if(expected != actual)
+		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+}
+
+static void Assert_AreNotEqual(int not_expected, int actual)
+{
+	if(not_expected == actual)
+		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+}
+
+static void Assert_IsTrue(bool value)
+{
+	if(!value)
+		asserts.push_back("True expected.");
+}
+
+static void Assert_IsFalse(bool value)
+{
+	if(value)
+		asserts.push_back("False expected.");
+}
+
+vector<string>& cas::GetAsserts()
+{
+	return asserts;
+}
+
+static void InitDebugLib(Module& module)
+{
+	module.AddFunction("void Assert_AreEqual(int expected, int actual)", Assert_AreEqual);
+	module.AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", Assert_AreNotEqual);
+	module.AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
+	module.AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
+}
+
+void InitLib(Module& module, Settings& settings)
+{
+	if(settings.use_corelib)
+	{
+		InitCoreLib(module, settings);
+
+		if(settings.use_debuglib)
+			InitDebugLib(module);
+	}
 }

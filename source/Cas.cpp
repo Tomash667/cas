@@ -36,23 +36,19 @@ bool cas::Initialize(Settings* settings)
 	if(initialized)
 		return false;
 
-	std::istream* input = &cin;
-	std::ostream* output = &cout;
-	bool use_getch = true;
+	Settings _settings;
+	_settings.input = &cin;
+	_settings.output = &cout;
 	if(settings)
-	{
-		input = (std::istream*)settings->input;
-		output = (std::ostream*)settings->output;
-		use_getch = settings->use_getch;
-		if(settings->use_assert_handler)
-			set_assert_handler(AssertEventHandler);
-	}
+		_settings = *settings;
+	if(_settings.use_assert_handler)
+		set_assert_handler(AssertEventHandler);
 
 	module_index = 1;
 	core_module = new Module(0, nullptr);
 
 	have_errors = false;
-	InitCoreLib(*core_module, input, output, use_getch);
+	InitLib(*core_module, _settings);
 	if(have_errors)
 	{
 		delete core_module;

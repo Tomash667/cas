@@ -4,23 +4,14 @@
 
 #undef RegisterClass
 
-namespace tests
+CA_TEST_CLASS(Tests);
+
+TEST_METHOD(RegisterClass)
 {
-	TEST_CLASS(Tests)
-	{
-		TEST_CATEGORY(Tests);
-		TEST_METHOD_CLEANUP(Cleanup)
-		{
-			CleanupAsserts();
-		}
-
-		TEST_METHOD(RegisterClass)
-		{
-		}
-
-		TEST_METHOD(RegisterStruct)
-		{
-
-		}
-	};
 }
+
+TEST_METHOD(RegisterStruct)
+{
+}
+
+CA_TEST_CLASS_END();

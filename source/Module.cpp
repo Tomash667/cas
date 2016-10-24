@@ -165,7 +165,7 @@ bool Module::AddMember(cstring type_name, cstring decl, int offset)
 		delete m;
 		return false;
 	}
-	assert(offset + types[m->type]->size <= type->size);
+	assert(offset + parser->GetType(m->type)->size <= type->size);
 	type->members.push_back(m);
 	return true;
 }

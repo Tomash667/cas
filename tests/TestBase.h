@@ -1,10 +1,5 @@
 #pragma once
 
-#define TEST_CATEGORY(category) \
-			BEGIN_TEST_CLASS_ATTRIBUTE() \
-				TEST_CLASS_ATTRIBUTE(L"TestCategory", L#category) \
-			END_TEST_CLASS_ATTRIBUTE()
-
 using namespace cas;
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -37,24 +32,24 @@ namespace Microsoft
 
 const bool CI_MODE = ((_CI_MODE - 1) == 0);
 
-extern IModule* def_module;
+extern IModule* current_module;
 
 void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize = true);
 inline void RunFileTest(cstring filename, cstring input, cstring output, bool optimize = true)
 {
-	RunFileTest(def_module, filename, input, output, optimize);
+	RunFileTest(current_module, filename, input, output, optimize);
 }
 
 void RunTest(IModule* module, cstring code);
 inline void RunTest(cstring code)
 {
-	RunTest(def_module, code);
+	RunTest(current_module, code);
 }
 
 void RunFailureTest(IModule* module, cstring code, cstring error);
 inline void RunFailureTest(cstring code, cstring error)
 {
-	RunFailureTest(def_module, code, error);
+	RunFailureTest(current_module, code, error);
 }
 
 void CleanupAsserts();
@@ -63,10 +58,7 @@ struct Retval
 {
 	Retval(IModule* _module = nullptr)
 	{
-		if(!_module)
-			module = def_module;
-		else
-			module = _module;
+		module = _module;
 	}
 	
 	void IsVoid()
@@ -100,33 +92,29 @@ private:
 	IModule* module;
 };
 
-struct ModuleRef
-{
-	ModuleRef()
-	{
-		module = CreateModule();
-	}
+#define CA_TEST_CLASS(Name) 					        	\
+namespace tests												\
+{															\
+TEST_CLASS(Name) 											\
+{ 															\
+	BEGIN_TEST_CLASS_ATTRIBUTE() 							\
+		TEST_CLASS_ATTRIBUTE(L"TestCategory", L#Name) 	    \
+	END_TEST_CLASS_ATTRIBUTE() 								\
+															\
+	TEST_METHOD_INITIALIZE(OnTestSetup) 					\
+	{ 														\
+		module = CreateModule();							\
+		current_module = module;                            \
+		retval = Retval(module);                            \
+	}														\
+	TEST_METHOD_CLEANUP(OnTestTeardown) 					\
+	{ 														\
+		CleanupAsserts(); 									\
+		DestroyModule(module);								\
+		current_module = nullptr;                           \
+	}														\
+															\
+	IModule* module;										\
+	Retval retval;                                          \
 
-	~ModuleRef()
-	{
-		DestroyModule(module);
-	}
-
-	IModule* operator -> ()
-	{
-		return module;
-	}
-
-	Retval ret()
-	{
-		return Retval(module);
-	}
-
-	void RunTest(cstring code)
-	{
-		::RunTest(module, code);
-	}
-	
-private:
-	IModule* module;
-};
+#define CA_TEST_CLASS_END() }; }

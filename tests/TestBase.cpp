@@ -8,8 +8,7 @@ const int DEFAULT_TIMEOUT = (CI_MODE ? 60 : 1);
 istringstream s_input;
 ostringstream s_output;
 string event_output;
-IModule* def_module;
-vector<string> asserts;
+IModule* current_module;
 
 enum Result
 {
@@ -61,38 +60,6 @@ void TestEventHandler(EventType event_type, cstring msg)
 		throw msg;
 }
 
-void Assert_AreEqual(int expected, int actual)
-{
-	if(expected != actual)
-		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
-}
-
-void Assert_AreNotEqual(int not_expected, int actual)
-{
-	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
-}
-
-void Assert_IsTrue(bool value)
-{
-	if(!value)
-		asserts.push_back("True expected.");
-}
-
-void Assert_IsFalse(bool value)
-{
-	if(value)
-		asserts.push_back("False expected.");
-}
-
-void RegisterAsserts(IModule* module)
-{
-	module->AddFunction("void Assert_AreEqual(int expected, int actual)", Assert_AreEqual);
-	module->AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", Assert_AreNotEqual);
-	module->AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
-	module->AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
-}
-
 TEST_MODULE_INITIALIZE(ModuleInitialize)
 {
 	SetHandler(TestEventHandler);
@@ -101,11 +68,9 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 	s.output = &s_output;
 	s.use_getch = false;
 	s.use_assert_handler = !IsDebuggerPresent();
+	s.use_debuglib = true;
 	if(!Initialize(&s))
 		Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
-
-	def_module = CreateModule();
-	RegisterAsserts(def_module);
 
 	if(CI_MODE)
 		Logger::WriteMessage("+++ CI MODE +++\n\n");
@@ -127,6 +92,7 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 			result = FAILED;
 		else
 		{
+			vector<string>& asserts = GetAsserts();
 			if(!asserts.empty())
 			{
 				event_output.clear();
@@ -299,5 +265,9 @@ void RunFailureTest(IModule* module, cstring code, cstring error)
 
 void CleanupAsserts()
 {
-	asserts.clear();
+	GetAsserts().clear();
 }
+
+// to shutup warning
+#undef CA_TEST_CLASS_END
+void CA_TEST_CLASS_END() {}

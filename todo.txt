@@ -1,6 +1,12 @@
+- complex class result crash with:
+	struct INT2
+	{
+		int x, y;
+		INT2(int xy) : x(xy), y(xy) {}
+		INT2(int x, int y) : x(x), y(y) {}
+	};
+
 TODO:
-struct/class
-	copy return value from function if modified ???
 ref, remove old REF_MAY/YES
 out
 nullable?

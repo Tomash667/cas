@@ -9,10 +9,9 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "struct.txt";
+cstring def_filename = "class_ref.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
-vector<string> asserts;
 
 void HandleEvents(EventType event_type, cstring msg)
 {
@@ -35,42 +34,12 @@ void HandleEvents(EventType event_type, cstring msg)
 	cout << '\n';
 }
 
-void Assert_AreEqual(int expected, int actual)
-{
-	if(expected != actual)
-		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
-}
-
-void Assert_AreNotEqual(int not_expected, int actual)
-{
-	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
-}
-
-void Assert_IsTrue(bool value)
-{
-	if(!value)
-		asserts.push_back("True expected.");
-}
-
-void Assert_IsFalse(bool value)
-{
-	if(value)
-		asserts.push_back("False expected.");
-}
-
-void RegisterAsserts(IModule* module)
-{
-	module->AddFunction("void Assert_AreEqual(int expected, int actual)", Assert_AreEqual);
-	module->AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", Assert_AreNotEqual);
-	module->AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
-	module->AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
-}
-
 int main(int argc, char** argv)
 {
 	SetHandler(HandleEvents);
-	if(!Initialize())
+	Settings settings;
+	settings.use_debuglib = true;
+	if(!Initialize(&settings))
 	{
 		cout << "Failed to initialize Cas.\n\n(OK)";
 		_getch();
@@ -143,7 +112,6 @@ int main(int argc, char** argv)
 	}
 
 	IModule* module = CreateModule();
-	RegisterAsserts(module);
 
 	bool first = true;
 	string content;
@@ -170,6 +138,7 @@ int main(int argc, char** argv)
 		}
 
 		bool result = module->ParseAndRun(content.c_str(), optimize, decompile);
+		vector<string>& asserts = GetAsserts();
 		if(!result)
 		{
 			cout << "\n\n(OK)";

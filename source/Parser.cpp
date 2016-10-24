@@ -1326,9 +1326,11 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				else if(si.type == ST_ASSIGN)
 				{
 					// assign to variable
-					if(!left->source)
+					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
+						&& left->ref != REF_YES)
 						t.Throw("Can't assign, left value must be variable.");
-					left->source->mod = true;
+					if(left->source)
+						left->source->mod = true;
 
 					ParseNode* set = ParseNode::Get();
 					set->source = nullptr;
@@ -3073,7 +3075,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case CALLU:
 		code.push_back(node->op);
 		code.push_back(node->value);
-		if(node->source && node->source->mod)
+		if(node->source && node->source->mod && node->source->index == -1)
 			code.push_back(COPY);
 		break;
 	case PUSH_INT:
