@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Cases">
+      <UniqueIdentifier>{dd5fbbfb-d31e-4177-af31-e8fb30ec9d68}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -47,5 +50,91 @@
     <ClCompile Include="Tests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\cases\assign.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\bit_op.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\block.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\bool.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\cast.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\class.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\class_ref.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\comp_operators.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\def_value.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\float.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\for.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\func_def_params.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\func_overload.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\if_else.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\inc_dec.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\is.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\math.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\nullable.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\parentheses.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\ref.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\script_class.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\script_class_func.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\simple.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\string.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\struct.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\type_func.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\user_func.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\while.txt">
+      <Filter>Cases</Filter>
+    </Text>
   </ItemGroup>
 </Project>

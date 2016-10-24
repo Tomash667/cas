@@ -176,6 +176,7 @@ enum BASIC_SYMBOL
 struct VarSource
 {
 	int index;
+	bool mod;
 };
 
 struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
@@ -191,7 +192,6 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 	string name;
 	VarType type;
 	Type subtype;
-	bool mod;
 };
 
 struct ReturnStructVar : VarSource
@@ -216,7 +216,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	int type;
 	vector<ParseNode*> childs;
 	RefType ref;
-	ParseVar* source;
+	VarSource* source;
 
 	inline ParseNode* copy()
 	{

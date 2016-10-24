@@ -422,6 +422,24 @@ void MakeSingleInstance(RunModule& run_module, Var& v)
 	v.clas = copy;
 }
 
+void SetFromStack(RunModule& run_module, Var& v)
+{
+	assert(!stack.empty());
+	Var& s = stack.back();
+	assert(v.type == V_VOID || v.type == s.type);
+	Type* type = run_module.GetType(v.type);
+	if(!type->IsStruct())
+	{
+		// free what was in variable previously
+		ReleaseRef(run_module, v);
+		// incrase reference for new var
+		AddRef(run_module, s);
+		v = s;
+	}
+	else
+		memcpy(v.clas->data(), s.clas->data(), type->size);
+}
+
 void Run(RunModule& run_module, ReturnValue& retval)
 {
 	stack.clear();
@@ -653,30 +671,16 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				uint local_index = *c++;
 				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
 				assert(run_module.ufuncs[current_function].locals > local_index);
-				assert(!stack.empty());
 				Var& v = local[locals_offset + local_index];
-				assert(v.type == V_VOID || v.type == stack.back().type);
-				// free what was in variable previously
-				ReleaseRef(run_module, v);
-				// incrase reference for new var
-				Var& s = stack.back();
-				AddRef(run_module, s);
-				v = s;
+				SetFromStack(run_module, v);
 			}
 			break;
 		case SET_GLOBAL:
 			{
 				uint global_index = *c++;
 				assert(global_index < global.size());
-				assert(!stack.empty());
 				Var& v = global[global_index];
-				assert(v.type == V_VOID || v.type == stack.back().type);
-				// free what was in variable previously
-				ReleaseRef(run_module, v);
-				Var& s = stack.back();
-				// incrase reference for new var
-				AddRef(run_module, s);
-				v = s;
+				SetFromStack(run_module, v);
 			}
 			break;
 		case SET_ARG:
@@ -684,15 +688,8 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				uint arg_index = *c++;
 				assert(current_function != -1 && (uint)current_function < run_module.ufuncs.size());
 				assert(run_module.ufuncs[current_function].args.size() > arg_index);
-				assert(!stack.empty());
 				Var& v = local[args_offset + arg_index];
-				assert(v.type == stack.back().type);
-				// free what was in variable previously
-				ReleaseRef(run_module, v);
-				Var& s = stack.back();
-				// incrase reference for new var
-				AddRef(run_module, s);
-				v = s;
+				SetFromStack(run_module, v);
 			}
 			break;
 		case SET_MEMBER:

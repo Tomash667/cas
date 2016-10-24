@@ -199,6 +199,7 @@ void Parser::Cleanup()
 
 	Str::Free(strs);
 	DeleteElements(ufuncs);
+	DeleteElements(rsvs);
 	delete run_module;
 	main_block->Free();
 	if(global_node)
@@ -3068,10 +3069,15 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	{
 	case INTERNAL_GROUP:
 		break;
-	case PUSH_INT:
-	case PUSH_STRING:
 	case CALL:
 	case CALLU:
+		code.push_back(node->op);
+		code.push_back(node->value);
+		if(node->source && node->source->mod)
+			code.push_back(COPY);
+		break;
+	case PUSH_INT:
+	case PUSH_STRING:
 	case CALLU_CTOR:
 	case CAST:
 	case PUSH_LOCAL:
@@ -3629,7 +3635,9 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 			ReturnStructVar* rsv = new ReturnStructVar;
 			rsv->index = -1;
 			rsv->node = node;
-			// push
+			rsv->mod = false;
+			rsvs.push_back(rsv);
+			node->source = rsv;
 		}
 	}
 }

@@ -8,6 +8,7 @@ struct ParseFunction;
 struct ParseNode;
 struct ParseVar;
 struct SymbolOrNode;
+struct ReturnStructVar;
 union Found;
 enum BASIC_SYMBOL;
 enum FOUND;
@@ -118,4 +119,5 @@ private:
 	int breakable_block, empty_string;
 	CoreVarType global_result;
 	bool optimize;
+	vector<ReturnStructVar*> rsvs;
 };

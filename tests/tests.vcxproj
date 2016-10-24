@@ -110,6 +110,36 @@
     <ClCompile Include="Cases.cpp" />
     <ClCompile Include="Tests.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\cases\assign.txt" />
+    <Text Include="..\cases\bit_op.txt" />
+    <Text Include="..\cases\block.txt" />
+    <Text Include="..\cases\bool.txt" />
+    <Text Include="..\cases\cast.txt" />
+    <Text Include="..\cases\class.txt" />
+    <Text Include="..\cases\class_ref.txt" />
+    <Text Include="..\cases\comp_operators.txt" />
+    <Text Include="..\cases\def_value.txt" />
+    <Text Include="..\cases\float.txt" />
+    <Text Include="..\cases\for.txt" />
+    <Text Include="..\cases\func_def_params.txt" />
+    <Text Include="..\cases\func_overload.txt" />
+    <Text Include="..\cases\if_else.txt" />
+    <Text Include="..\cases\inc_dec.txt" />
+    <Text Include="..\cases\is.txt" />
+    <Text Include="..\cases\math.txt" />
+    <Text Include="..\cases\nullable.txt" />
+    <Text Include="..\cases\parentheses.txt" />
+    <Text Include="..\cases\ref.txt" />
+    <Text Include="..\cases\script_class.txt" />
+    <Text Include="..\cases\script_class_func.txt" />
+    <Text Include="..\cases\simple.txt" />
+    <Text Include="..\cases\string.txt" />
+    <Text Include="..\cases\struct.txt" />
+    <Text Include="..\cases\type_func.txt" />
+    <Text Include="..\cases\user_func.txt" />
+    <Text Include="..\cases\while.txt" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

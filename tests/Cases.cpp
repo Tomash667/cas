@@ -122,12 +122,7 @@ namespace tests
 		{
 			RunFileTest("class.txt", "", "x:3 y:4\nx:7 y:11\nx:5 y:8\n7\n6\n55\nx:5 y:4\n");
 		}
-
-		TestMethod(ComplexClassResult)
-		{
-			RunFileTest("complex_class_result.txt", "", "x:1.6 y:2.3 z:4.1\nx:1.6 y:2.4 z:4.1\nx:0 y:0\nx:13 y:13\nx:7 y:3\nx:3.14 y:0.0015\n");
-		}
-
+		
 		TestMethod(FuncOverload)
 		{
 			RunFileTest("func_overload.txt", "", "4\n\nvoid\nint 1\nstring test\nfloat 3.14, int 3\n");
@@ -161,6 +156,11 @@ namespace tests
 		TestMethod(Cast)
 		{
 			RunFileTest("cast.txt", "", "3\n4.4\n5.7\n4\n5\n3\n1\n4\nok\n");
+		}
+
+		TestMethod(Struct)
+		{
+			RunFileTest("struct.txt", "", "");
 		}
 	};
 }

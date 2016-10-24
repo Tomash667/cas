@@ -41,9 +41,30 @@ void Assert_AreEqual(int expected, int actual)
 		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
 }
 
+void Assert_AreNotEqual(int not_expected, int actual)
+{
+	if(not_expected == actual)
+		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+}
+
+void Assert_IsTrue(bool value)
+{
+	if(!value)
+		asserts.push_back("True expected.");
+}
+
+void Assert_IsFalse(bool value)
+{
+	if(value)
+		asserts.push_back("False expected.");
+}
+
 void RegisterAsserts(IModule* module)
 {
 	module->AddFunction("void Assert_AreEqual(int expected, int actual)", Assert_AreEqual);
+	module->AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", Assert_AreNotEqual);
+	module->AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
+	module->AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
 }
 
 int main(int argc, char** argv)

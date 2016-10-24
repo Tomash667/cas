@@ -2,6 +2,8 @@
 #include "CppUnitTest.h"
 #include "TestBase.h"
 
+extern ostringstream s_output;
+
 namespace tests
 {
 	TEST_CLASS(Code)
@@ -10,6 +12,111 @@ namespace tests
 		TEST_METHOD_CLEANUP(Cleanup)
 		{
 			CleanupAsserts();
+		}
+
+		//=========================================================================================
+		struct INT2
+		{
+			int x, y;
+			INT2(int xy) : x(xy), y(xy) {}
+			INT2(int x, int y) : x(x), y(y) {}
+		};
+
+		static INT2 f_int2c_ctor0()
+		{
+			return INT2(0, 0);
+		}
+
+		static INT2 f_int2c_ctor1(int xy)
+		{
+			return INT2(xy);
+		}
+
+		static INT2 f_int2c_ctor2(int x, int y)
+		{
+			return INT2(x, y);
+		}
+
+		static void f_wypisz_int2c(INT2& i)
+		{
+			s_output << "x:" << i.x << " y:" << i.y << "\n";
+		}
+
+		struct Vec2
+		{
+			float x, y;
+		};
+
+		static Vec2 f_create_vec2(float x, float y)
+		{
+			Vec2 v;
+			v.x = x;
+			v.y = y;
+			return v;
+		}
+
+		static void f_wypisz_vec2(Vec2& v)
+		{
+			s_output << "x:" << v.x << " y:" << v.y << "\n";
+		}
+
+		struct Vec3
+		{
+			float x, y, z;
+		};
+
+		static Vec3 f_create_vec3(float x, float y, float z)
+		{
+			Vec3 v;
+			v.x = x;
+			v.y = y;
+			v.z = z;
+			return v;
+		}
+
+		static void f_wypisz_vec3(Vec3& v)
+		{
+			s_output << "x:" << v.x << " y:" << v.y << " z:" << v.z << "\n";
+		}
+
+		TEST_METHOD(ComplexClassResult)
+		{
+			ModuleRef module;
+			// Vec2
+			module->AddType<Vec2>("Vec2");
+			module->AddMember("Vec2", "float x", offsetof(Vec2, x));
+			module->AddMember("Vec2", "float y", offsetof(Vec2, y));
+			module->AddFunction("Vec2 create_vec2(float x, float y)", f_create_vec2);
+			module->AddFunction("void wypisz_vec2(Vec2 v)", f_wypisz_vec2);
+			// Vec3 (pod > 8 byte)
+			module->AddType<Vec3>("Vec3");
+			module->AddMember("Vec3", "float x", offsetof(Vec3, x));
+			module->AddMember("Vec3", "float y", offsetof(Vec3, y));
+			module->AddMember("Vec3", "float z", offsetof(Vec3, z));
+			module->AddFunction("Vec3 create_vec3(float x, float y, float z)", f_create_vec3);
+			module->AddFunction("void wypisz_vec3(Vec3 v)", f_wypisz_vec3);
+			// INT2c have ctor
+			module->AddType<INT2>("INT2c");
+			module->AddMember("INT2c", "int x", offsetof(INT2, x));
+			module->AddMember("INT2c", "int y", offsetof(INT2, y));
+			module->AddMethod("INT2c", "INT2c()", f_int2c_ctor0);
+			module->AddMethod("INT2c", "INT2c(int xy)", f_int2c_ctor1);
+			module->AddMethod("INT2c", "INT2c(int x, int y)", f_int2c_ctor2);
+			module->AddFunction("void wypisz_int2c(INT2c i)", f_wypisz_int2c);
+
+			module.RunTest(R"CODE("
+				Vec3 v = create_vec3(1.5,2.3,4.1);
+				v.x += 0.1;
+				wypisz_vec3(v);
+				Vec3 w = v;
+				w.y += 0.1;
+				wypisz_vec3(v);
+
+				wypisz_int2c(INT2c());
+				wypisz_int2c(INT2c(13));
+				wypisz_int2c(INT2c(7,3));
+				wypisz_vec2(create_vec2(3.14,0.0015));
+			)CODE");
 		}
 
 		//=========================================================================================

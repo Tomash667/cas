@@ -1,3 +1,24 @@
+class INT2
+{
+	int x, y;
+
+	int sum() { return x+y; }
+	int sum(int a) { return x+y+a; }
+}
+
+INT2 create_int2(int x, int y)
+{
+	INT2 i;
+	i.x = x;
+	i.y = y;
+	return i;
+}
+
+int sum_int2(INT2 i)
+{
+	return i.x + i.y;
+}
+
 void wypisz(INT2 i)
 {
 	println("x:"+i.x + " y:"+i.y);

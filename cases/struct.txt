@@ -1,26 +1,38 @@
 struct A { int x; }
+A global_a;
+global_a.x = 1;
+
+// should copy value not assign reference
+A b1, b2;
+Assert_IsFalse(b1 is b2);
+b1 = b2;
+Assert_IsFalse(b1 is b2);
 
 // should create copy of a before modifing it
 A f(A a)
 {
+	Assert_IsFalse(global_a is a);
 	a.x = 2;
 	return a;
 }
 
-A a;
-a.x = 1;
-A a2 = f(a);
+A a2 = f(global_a);
 
-Assert_AreEqual(1, a.x);
+Assert_AreEqual(1, global_a.x);
 Assert_AreEqual(2, a2.x);
 
+// should not create copy
+int f_nc(A a)
+{
+	Assert_IsTrue(global_a is a);
+	return a.x;
+}
+f_nc(global_a);
+
 // should create copy of return struct before modifing it
-A f2() { return a; }
-
-A a3 = f2();
-a3.x = 3;
-
-Assert_AreEqual(1, a.x);
-Assert_AreEqual(3, a3.x);
+A f2() { return global_a; }
+f2().x++; // modifing temporary object value
+Assert_AreEqual(1, global_a.x);
+f_nc(f2());
 
 pause();
