@@ -1,7 +1,6 @@
 #pragma once
 
 #include "cas/ReturnValue.h"
-
 namespace cas
 {
 	namespace internal
@@ -29,36 +28,9 @@ namespace cas
 		};
 
 		template<typename T>
-		struct has_constructor
+		struct is_complex
 		{
-			static const bool value = std::is_default_constructible<T>::value && !std::is_trivially_default_constructible<T>::value;
-		};
-
-		template<typename T>
-		struct has_destructor
-		{
-			static const bool value = std::is_destructible<T>::value && !std::is_trivially_destructible<T>::value;
-		};
-
-		template<typename T>
-		struct has_assignment_operator
-		{
-			static const bool value = std::is_copy_assignable<T>::value && !std::is_trivially_copy_assignable<T>::value;
-		};
-
-		template<typename T>
-		struct has_copy_constructor
-		{
-			static const bool value = std::is_copy_constructible<T>::value && !std::is_trivially_copy_constructible<T>::value;
-		};
-
-		template<typename T>
-		struct is_pod
-		{
-			static const bool value = !(has_constructor<T>::value
-				|| has_destructor<T>::value
-				|| has_assignment_operator<T>::value
-				|| has_copy_constructor<T>::value);
+			static const bool value = !(std::is_trivially_default_constructible<T>::value && std::is_trivially_destructible<T>::value);
 		};
 	}
 
@@ -95,7 +67,7 @@ namespace cas
 	enum TypeFlags
 	{
 		Ref = 1 << 0, // not implemented
-		Pod = 1 << 1,
+		Complex = 1 << 1, // complex types are returned in memory
 		DisallowCreate = 1 << 2, // not implemented
 		NoRefCount = 1 << 3 // not implemented
 	};
@@ -114,8 +86,8 @@ namespace cas
 		template<typename T>
 		inline bool AddType(cstring type_name, int flags = 0)
 		{
-			if(internal::is_pod<T>::value)
-				flags |= Pod;
+			if(internal::is_complex<T>::value)
+				flags |= Complex;
 			return AddType(type_name, sizeof(T), flags);
 		}
 

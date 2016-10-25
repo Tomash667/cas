@@ -244,7 +244,7 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 		Type* type = run_module.GetType(f.result.core);
 		Class* c = Class::Create(type);
 		retptr = c;
-		if(type->size > 8 || !IS_SET(type->flags, Type::Pod))
+		if(type->size > 8 || IS_SET(type->flags, Type::Complex))
 		{
 			packedArgs[packed++] = (int)c->data();
 			in_mem = true;

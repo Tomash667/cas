@@ -93,7 +93,7 @@ struct Type
 	enum Flags
 	{
 		Ref = 1 << 0,
-		Pod = 1 << 1,
+		Complex = 1 << 1, // complex types are returned in memory
 		DisallowCreate = 1 << 2,
 		NoRefCount = 1 << 3,
 		HaveCtor = 1 << 4,

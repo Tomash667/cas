@@ -85,6 +85,9 @@
     <Text Include="unlicense.txt">
       <Filter>Doc</Filter>
     </Text>
+    <Text Include="doc\calling.txt">
+      <Filter>Doc</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="readme.md">

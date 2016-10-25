@@ -208,7 +208,7 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 	type->size = size;
 	type->index = types.size();
 	assert(type->index == (int)var_type);
-	type->flags = Type::Pod;
+	type->flags = 0;
 	if(is_ref)
 		type->flags |= Type::Ref;
 	if(hidden)

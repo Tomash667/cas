@@ -1,0 +1,14 @@
+CALLING CONVENTIONS
+======================
+
+1) cdecl
+	+ return value
+		+ if float then it is in float register [fstp]
+		+ if size <= 8 and is pod [eax:edx]
+		+ else there is hidden pointer passed as first argument
+	+ esp is restored by caller
+
+2) thiscall
+Like cdecl except:
+	+ this pointer is passed in ecx
+	+ esp is restored by callee

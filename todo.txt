@@ -1,10 +1,4 @@
-- complex class result crash with:
-	struct INT2
-	{
-		int x, y;
-		INT2(int xy) : x(xy), y(xy) {}
-		INT2(int x, int y) : x(x), y(y) {}
-	};
+- wywala siê dla 2 takich samych funkcji: AddFunction - z powodu pobierania nazwy
 
 TODO:
 ref, remove old REF_MAY/YES

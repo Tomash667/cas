@@ -514,7 +514,7 @@ ParseNode* Parser::ParseLine()
 				CheckFindItem(id, false);
 				Type* type = new Type;
 				type->name = id;
-				type->flags = Type::Pod | Type::Class;
+				type->flags = Type::Class;
 				if(keyword == K_CLASS)
 					type->flags |= Type::Ref;
 				type->index = (0xFFFF0000 | run_module->types.size());

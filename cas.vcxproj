@@ -86,6 +86,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Text Include="doc\calling.txt" />
     <Text Include="scheme.txt" />
     <Text Include="todo.txt" />
     <Text Include="unlicense.txt" />
