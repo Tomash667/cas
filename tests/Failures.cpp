@@ -4,6 +4,15 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
+class A
+{
+public:
+	void f() {}
+	int x, y;
+};
+
+static void f() {}
+
 CA_TEST_CLASS(Failures);
 
 TEST_METHOD(FunctionNoReturnValue)
@@ -165,6 +174,97 @@ TEST_METHOD(InvalidGlobalReturnType)
 	RunFailureTest("return \"dada\";", "Invalid type 'string' for global return.");
 	RunFailureTest("class A{} A a; return a;", "Invalid type 'A' for global return.");
 	RunFailureTest("int& f(int& a){return a;} int a; return f(a);", "Invalid type 'int&' for global return.");
+}
+
+TEST_METHOD(RegisterFunctionWithThiscall)
+{
+	bool r = module->AddFunction("void f()", &A::f);
+	Assert::IsFalse(r);
+	AssertError("Can't use thiscall in function 'void f()'.");
+}
+
+TEST_METHOD(RegisterFunctionParseError)
+{
+	bool r = module->AddFunction("void f;", f);
+	Assert::IsFalse(r);
+	AssertError("Expecting symbol '(', found symbol ';'.");
+	AssertError("Failed to parse function declaration for AddFunction 'void f;'.");
+}
+
+TEST_METHOD(RegisterSameFunctionTwice)
+{
+	bool r = module->AddFunction("void f()", f);
+	Assert::IsTrue(r);
+
+	r = module->AddFunction("void f()", f);
+	Assert::IsFalse(r);
+	AssertError("Function 'void f()' already exists.");
+}
+
+TEST_METHOD(RegisterTypeIsKeyword)
+{
+	bool r = module->AddType<A>("if");
+	Assert::IsFalse(r);
+	AssertError("Can't declare type 'if', name is keyword.");
+}
+
+TEST_METHOD(RegisterSameTypeTwice)
+{
+	bool r = module->AddType<A>("A");
+	Assert::IsTrue(r);
+
+	r = module->AddType<A>("A");
+	Assert::IsFalse(r);
+	AssertError("Type 'A' already declared.");
+}
+
+TEST_METHOD(RegisterMethodMissingType)
+{
+	bool r = module->AddMethod("A", "void f()", &A::f);
+	Assert::IsFalse(r);
+	AssertError("Missing type 'A' for AddMethod 'void f()'.");
+}
+
+TEST_METHOD(RegisterMethodParseError)
+{
+	bool r = module->AddType<A>("A");
+	Assert::IsTrue(r);
+
+	r = module->AddMethod("A", "void f;", &A::f);
+	Assert::IsFalse(r);
+	AssertError("Expecting symbol '(', found symbol ';'.");
+	AssertError("Failed to parse function declaration for AddMethod 'void f;'.");
+}
+
+TEST_METHOD(RegisterSameMethodTwice)
+{
+	bool r = module->AddType<A>("A");
+	Assert::IsTrue(r);
+
+	r = module->AddMethod("A", "void f()", &A::f);
+	Assert::IsTrue(r);
+
+	r = module->AddMethod("A", "void f()", &A::f);
+	Assert::IsFalse(r);
+	AssertError("Method 'void f()' for type 'A' already exists.");
+}
+
+TEST_METHOD(RegisterMemberMissingType)
+{
+	bool r = module->AddMember("A", "int x", 0);
+	Assert::IsFalse(r);
+	AssertError("Missing type 'A' for AddMember 'int x'.");
+}
+
+TEST_METHOD(RegisterMemberParseError)
+{
+	bool r = module->AddType<A>("A");
+	Assert::IsTrue(r);
+
+	r = module->AddMember("A", "int;", offsetof(A, x));
+	Assert::IsFalse(r);
+	AssertError("Expecting item, found symbol ';'.");
+	AssertError("Failed to parse member declaration for type 'A' AddMember 'int;'.");
 }
 
 CA_TEST_CLASS_END();

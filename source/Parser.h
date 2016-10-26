@@ -31,13 +31,13 @@ class Parser
 public:
 	Parser(Module* module);
 
-	bool VerifyTypeName(cstring type_name);
+	bool VerifyTypeName(cstring type_name, int& type_index);
 	Function* ParseFuncDecl(cstring decl, Type* type);
 	Member* ParseMemberDecl(cstring decl);
 	void AddType(Type* type);
 	Function* GetFunction(int index);
 	Type* GetType(int index);
-	cstring GetName(CommonFunction* cf, bool write_result = true);
+	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true);
 	cstring GetParserFunctionName(uint index);
 	RunModule* Parse(ParseSettings& settigns);
 	void Cleanup();

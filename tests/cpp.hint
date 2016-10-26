@@ -1,1 +1,2 @@
-#define CA_TEST_CLASS_END()
+#define CA_TEST_CLASS(X) namespace tests { class X {
+#define CA_TEST_CLASS_END() }; }

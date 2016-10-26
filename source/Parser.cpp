@@ -92,11 +92,20 @@ Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer
 	AddChildModulesKeywords();
 }
 
-bool Parser::VerifyTypeName(cstring type_name)
+bool Parser::VerifyTypeName(cstring type_name, int& type_index)
 {
 	assert(type_name);
 	t.CheckItemOrKeyword(type_name);
-	return !t.IsKeyword();
+	if(t.IsKeyword())
+	{
+		if(t.IsKeywordGroup(G_VAR))
+			type_index = t.GetKeywordId(G_VAR);
+		else
+			type_index = -1;
+		return false;
+	}
+	else
+		return true;
 }
 
 void Parser::AddType(Type* type)
@@ -3199,7 +3208,7 @@ cstring Parser::GetName(ParseVar* var)
 	return Format("%s %s", GetType(var->type.core)->name.c_str(), var->name.c_str());
 }
 
-cstring Parser::GetName(CommonFunction* cf, bool write_result)
+cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type)
 {
 	assert(cf);
 	LocalString s = "";
@@ -3211,8 +3220,11 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result)
 	uint var_offset = 0;
 	if(cf->type != V_VOID)
 	{
-		s += GetType(cf->type)->name;
-		s += '.';
+		if(write_type)
+		{
+			s += GetType(cf->type)->name;
+			s += '.';
+		}
 		++var_offset;
 	}
 	s += cf->name;

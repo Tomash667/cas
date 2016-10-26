@@ -52,7 +52,9 @@ inline void RunFailureTest(cstring code, cstring error)
 	RunFailureTest(current_module, code, error);
 }
 
+void CleanupErrors();
 void CleanupAsserts();
+void AssertError(cstring error);
 
 struct Retval
 {
@@ -103,6 +105,7 @@ TEST_CLASS(Name) 											\
 															\
 	TEST_METHOD_INITIALIZE(OnTestSetup) 					\
 	{ 														\
+		CleanupErrors();									\
 		module = CreateModule();							\
 		current_module = module;                            \
 		retval = Retval(module);                            \

@@ -1,5 +1,3 @@
-- wywala siê dla 2 takich samych funkcji: AddFunction - z powodu pobierania nazwy
-
 TODO:
 ref, remove old REF_MAY/YES
 out
@@ -161,3 +159,9 @@ return value
 	
 array, ctor, dtor, assign, > 2 (>4 x64) - return in memory
 else return in reg
+
++ runner OO
++ less markoed test framework
++ different syntax
+	var type = module->AddType();
+	type->AddMember();

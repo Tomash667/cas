@@ -254,13 +254,14 @@ void RunFailureTest(IModule* module, cstring code, cstring error)
 		Assert::Fail(GetWC(event_output.c_str()).c_str());
 		break;
 	case FAILED:
-		{
-			cstring r = strstr(event_output.c_str(), error);
-			if(!r)
-				Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
-		}
+		AssertError(error);
 		break;
 	}
+}
+
+void CleanupErrors()
+{
+	event_output.clear();
 }
 
 void CleanupAsserts()
@@ -268,6 +269,9 @@ void CleanupAsserts()
 	GetAsserts().clear();
 }
 
-// to shutup warning
-#undef CA_TEST_CLASS_END
-void CA_TEST_CLASS_END() {}
+void AssertError(cstring error)
+{
+	cstring r = strstr(event_output.c_str(), error);
+	if(!r)
+		Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
+}

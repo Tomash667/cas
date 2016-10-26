@@ -63,6 +63,7 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 		Event(EventType::Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
 		return false;
 	}
+	f->type = V_VOID;
 	if(FindEqualFunction(*f))
 	{
 		Event(EventType::Error, Format("Function '%s' already exists.", parser->GetName(f)));
@@ -71,7 +72,6 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 	}
 	f->clbk = func_info.ptr;
 	f->index = (index << 16) | functions.size();
-	f->type = V_VOID;
 	f->thiscall = false;
 	functions.push_back(f);
 	return true;
@@ -83,7 +83,7 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 	Type* type = FindType(type_name);
 	if(!type)
 	{
-		Event(EventType::Error, Format("Missing type for AddMethod '%s'.", type_name));
+		Event(EventType::Error, Format("Missing type '%s' for AddMethod '%s'.", type_name, decl));
 		return false;
 	}
 	Function* f = parser->ParseFuncDecl(decl, type);
@@ -92,16 +92,6 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 		Event(EventType::Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
 		return false;
 	}
-	if(parser->FindEqualFunction(type, *f))
-	{
-		Event(EventType::Error, Format("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
-			parser->GetName(f), type->name.c_str()));
-		delete f;
-		return false;
-	}
-	f->clbk = func_info.ptr;
-	f->thiscall = func_info.thiscall;
-	f->index = (index << 16) | functions.size();
 	f->type = type->index;
 	if(f->special == SF_CTOR)
 		type->flags |= Type::HaveCtor;
@@ -110,6 +100,16 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(f->type), 0, false));
 		f->required_args++;
 	}
+	if(parser->FindEqualFunction(type, *f))
+	{
+		Event(EventType::Error, Format("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
+			parser->GetName(f, true, false), type->name.c_str()));
+		delete f;
+		return false;
+	}
+	f->clbk = func_info.ptr;
+	f->thiscall = func_info.thiscall;
+	f->index = (index << 16) | functions.size();
 	type->funcs.push_back(f);
 	functions.push_back(f);
 	return true;
@@ -121,18 +121,16 @@ bool Module::AddType(cstring type_name, int size, int flags)
 	assert(!inherited); // can't add types to inherited module (until fixed)
 	if(IS_SET(flags, DisallowCreate))
 		flags |= NoRefCount;
-	if(!parser->VerifyTypeName(type_name))
+	int type_index;
+	if(!parser->VerifyTypeName(type_name, type_index))
 	{
-		Event(EventType::Error, Format("Can't declare type '%s', name is keyword.", type_name));
+		if(type_index == -1)
+			Event(EventType::Error, Format("Can't declare type '%s', name is keyword.", type_name));
+		else
+			Event(EventType::Error, Format("Type '%s' already declared.", type_name));
 		return false;
 	}
-	Type* type = FindType(type_name);
-	if(type)
-	{
-		Event(EventType::Error, Format("Type '%s' already declared.", type_name));
-		return false;
-	}
-	type = new Type;
+	Type* type = new Type;
 	type->name = type_name;
 	type->size = size;
 	type->flags = flags | Type::Class | Type::Ref;
@@ -148,13 +146,13 @@ bool Module::AddMember(cstring type_name, cstring decl, int offset)
 	Type* type = FindType(type_name);
 	if(!type)
 	{
-		Event(EventType::Error, Format("Missing type for AddMember '%s'.", type_name));
+		Event(EventType::Error, Format("Missing type '%s' for AddMember '%s'.", type_name, decl));
 		return false;
 	}
 	Member* m = parser->ParseMemberDecl(decl);
 	if(!m)
 	{
-		Event(EventType::Error, Format("Failed to parse member declaration for AddMemeber '%s'.", decl));
+		Event(EventType::Error, Format("Failed to parse member declaration for type '%s' AddMember '%s'.", type_name, decl));
 		return false;
 	}
 	m->offset = offset;
