@@ -1,4 +1,5 @@
-#include <cas/Cas.h>
+/*#include <cas/Cas.h>
+#include <Core/Core.h>
 #include <vld.h>
 #include <string>
 #include <fstream>
@@ -9,10 +10,11 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "char.txt";
-//"../codegolf/nest_a_string.txt";
+cstring def_filename = "class_ref.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
+
+bool decompile, optimize, standard_entry_point;
 
 void HandleEvents(EventType event_type, cstring msg)
 {
@@ -35,6 +37,48 @@ void HandleEvents(EventType event_type, cstring msg)
 	cout << '\n';
 }
 
+class CommandLineParser
+{
+public:
+	enum Cmd
+	{
+		C_NONE = -1,
+		C_INVALID = -2
+	};
+
+	bool Parse();
+	void AddSwitch(int id, cstring text);
+	void AddSwitch(int id, std::initializer_list<cstring> const& texts);
+	int GetCurrentCommandId();
+	const string& GetCurrentCommandText();
+	Tokenizer& GetTokenizer();
+};
+
+enum Cmd
+{
+	C_HELP,
+	C_DEBUG,
+	C_DECOMP,
+	C_NODECOMP,
+	C_OP,
+	C_NOOP,
+	C_STR,
+	C_ENTRY
+};*/
+
+/*
+"-h/help/? - show help\n"
+"-debug - use builtin test case\n"
+"-decomp - decompile bytecode\n"
+"-nodecomp - don't decompile bytecode\n"
+"-op - optimize bytecode\n"
+"-noop - don't optimize bytecode\n"
+"-str STR - use code from string in next parameter\n"
+"-e/entry STR - set function entry point\n"
+*/
+
+/*void Run
+
 int main(int argc, char** argv)
 {
 	SetHandler(HandleEvents);
@@ -51,13 +95,26 @@ int main(int argc, char** argv)
 	bool decompile = def_decompile;
 	std::vector<std::pair<string, bool>> input;
 
-	for(int i = 1; i < argc; ++i)
+	CommandLineParser parser;
+	parser.AddSwitch(C_HELP, { "h", "help", "?" });
+	parser.AddSwitch(C_DEBUG, "debug");
+	parser.AddSwitch(C_DECOMP, "decomp");
+	parser.AddSwitch(C_NODECOMP, "nodecomp");
+	parser.AddSwitch(C_OP, "op");
+	parser.AddSwitch(C_NOOP, "noop");
+	parser.AddSwitch(C_STR, "str");
+	parser.AddSwitch(C_ENTRY, { "e", "entry" });
+
+	while(parser.Parse())
 	{
-		cstring arg = argv[i];
-		if(arg[0] != '-')
-			input.push_back(std::pair<string, bool>(arg, false));
-		else if(strcmp(arg, "-h") == 0 || strcmp(arg, "-help") == 0 || strcmp(arg, "-?") == 0)
+		switch(parser.GetCommandId())
 		{
+		case CommandLineParser::C_INVALID:
+			cout << "ERROR: Unknown switch '" << parser.GetCurrentCommandText() << "'.\n";
+			break;
+		case CommandLineParser::C_NONE:
+			break;
+		case C_HELP:
 			cout << "CaScript runner, command:\n"
 				"-h/help/? - show help\n"
 				"-debug - use builtin test case\n"
@@ -65,8 +122,40 @@ int main(int argc, char** argv)
 				"-nodecomp - don't decompile bytecode\n"
 				"-op - optimize bytecode\n"
 				"-noop - don't optimize bytecode\n"
-				"-str - use code from string in next parameter\n"
+				"-str STR - use code from string in next parameter\n"
+				"-e/entry STR - set function entry point (STR can be function name or declaration)\n"
+				"-defentry - use default entry point (main or global)\n"
 				"Other paramters are used as filename to run.\n";
+			break;
+		case C_DEBUG:
+		case C_DECOMP:
+			decompile = true;
+			break;
+		case C_NODECOMP:
+			decompile = false;
+			break;
+		case C_OP:
+			optimize = true;
+			break;
+		case C_NOOP:
+			optimize = false;
+			break;
+		case C_STR:
+		case C_ENTRY:
+			break;
+		}
+	}
+
+
+
+	for(int i = 1; i < argc; ++i)
+	{
+		cstring arg = argv[i];
+		if(arg[0] != '-')
+			input.push_back(std::pair<string, bool>(arg, false));
+		else if(strcmp(arg, "-h") == 0 || strcmp(arg, "-help") == 0 || strcmp(arg, "-?") == 0)
+		{
+
 		}
 		else if(strcmp(arg, "-debug") == 0)
 		{
@@ -103,6 +192,12 @@ int main(int argc, char** argv)
 			else
 				cout << "ERROR: Missing string input.\n";
 		}
+		else if(strcmp(arg, "-e") == 0 || strcmp(arg, "-entry") == 0)
+		{
+
+		}
+		else
+			cout << "ERROR: Unknown switch '" << arg << "'.\n";
 	}
 
 	if(input.empty())
@@ -162,3 +257,4 @@ int main(int argc, char** argv)
 	Shutdown();
 	return 0;
 }
+*/

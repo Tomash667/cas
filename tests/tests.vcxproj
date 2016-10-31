@@ -116,6 +116,7 @@
     <Text Include="..\cases\block.txt" />
     <Text Include="..\cases\bool.txt" />
     <Text Include="..\cases\cast.txt" />
+    <Text Include="..\cases\char.txt" />
     <Text Include="..\cases\class.txt" />
     <Text Include="..\cases\class_ref.txt" />
     <Text Include="..\cases\comp_operators.txt" />

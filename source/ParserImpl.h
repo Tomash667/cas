@@ -112,6 +112,7 @@ enum SYMBOL
 	S_POST_INC,
 	S_POST_DEC,
 	S_IS,
+	//S_SUBSCRIPT,
 	S_INVALID,
 	S_MAX
 };
@@ -209,6 +210,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	union
 	{
 		bool bvalue;
+		char cvalue;
 		int value;
 		float fvalue;
 		string* str;

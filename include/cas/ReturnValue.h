@@ -8,6 +8,7 @@ namespace cas
 		{
 			Void,
 			Bool,
+			Char,
 			Int,
 			Float
 		};
@@ -16,6 +17,7 @@ namespace cas
 		union
 		{
 			bool bool_value;
+			char char_value;
 			int int_value;
 			float float_value;
 		};

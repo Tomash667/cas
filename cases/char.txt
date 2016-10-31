@@ -1,0 +1,11 @@
+string a = "test";
+char c = getchar();
+char c2 = getchar();
+if(c == c2)
+	a += c;
+else
+	a += '!';
+if(c == '?')
+	print('_');
+print(a);
+pause();

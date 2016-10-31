@@ -45,6 +45,7 @@ SymbolInfo symbols[S_MAX] = {
 	S_POST_INC, "post increment", 2, true, 1, INC, ST_INC_DEC,
 	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC,
 	S_IS, "reference equal", 9, true, 2, IS, ST_NONE,
+	//S_SUBSCRIPT, "subscript", 2, true, 1, ST_NONE,
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE
 };
 
@@ -86,7 +87,7 @@ BasicSymbolInfo basic_symbols[BS_MAX] = {
 	BS_IS, "is", S_INVALID, S_INVALID, S_INVALID, S_IS
 };
 
-Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE), run_module(nullptr)
+Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR), run_module(nullptr)
 {
 	AddKeywords();
 	AddChildModulesKeywords();
@@ -870,6 +871,9 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool real_func)
 				case PUSH_BOOL:
 					f->arg_infos.push_back(ArgInfo(item->bvalue));
 					break;
+				case PUSH_CHAR:
+					f->arg_infos.push_back(ArgInfo(item->cvalue));
+					break;
 				case PUSH_INT:
 					f->arg_infos.push_back(ArgInfo(item->value));
 					break;
@@ -985,6 +989,11 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 			expr->type = V_BOOL;
 			expr->pseudo_op = PUSH_BOOL;
 			expr->bvalue = false;
+			break;
+		case V_CHAR:
+			expr->type = V_CHAR;
+			expr->op = PUSH_CHAR;
+			expr->cvalue = 0;
 			break;
 		case V_INT:
 			expr->type = V_INT;
@@ -1721,6 +1730,19 @@ ParseNode* Parser::ParseConstItem()
 		t.Next();
 		return node;
 	}
+	else if(t.IsChar())
+	{
+		// char
+		char c = t.GetChar();
+		ParseNode* node = ParseNode::Get();
+		node->op = PUSH_CHAR;
+		node->type = V_CHAR;
+		node->cvalue = c;
+		node->ref = REF_NO;
+		node->source = nullptr;
+		t.Next();
+		return node;
+	}
 	else if(t.IsString())
 	{
 		// string
@@ -2020,7 +2042,7 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 			type = V_STRING;
 		else if(left == V_FLOAT || right == V_FLOAT)
 			type = V_FLOAT;
-		else // int or bool
+		else // int or char or bool
 			type = V_INT;
 		cast = type;
 		result = type;
@@ -2033,7 +2055,7 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 			return false; // can't do with string
 		if(left == V_FLOAT || right == V_FLOAT)
 			type = V_FLOAT;
-		else // int or bool
+		else // int or char or bool
 			type = V_INT;
 		cast = type;
 		result = type;
@@ -2046,7 +2068,7 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 			result = left;
 			return true;
 		}
-		else if(left == V_BOOL)
+		else if(left == V_BOOL || left == V_CHAR)
 		{
 			cast = V_INT;
 			result = V_INT;
@@ -2071,9 +2093,17 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 		else if(left == V_INT || right == V_INT)
 			type = V_INT;
 		else if(symbol == S_EQUAL || symbol == S_NOT_EQUAL)
-			type = V_INT;
+		{
+			if(left == V_CHAR || right == V_CHAR)
+				type = V_CHAR;
+			else
+			{
+				assert(left == V_BOOL && right == V_BOOL);
+				type = V_BOOL;
+			}
+		}
 		else
-			type = V_BOOL;
+			type = V_INT;
 		cast = type;
 		result = V_BOOL;
 		return true;
@@ -2143,178 +2173,207 @@ bool Parser::TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMB
 	if(left->op != right->op)
 		return false;
 
-	if(left->op == PUSH_BOOL)
+	switch(left->op)
 	{
-		bool result;
-		switch(symbol)
+	case PUSH_BOOL:
 		{
-		case S_EQUAL:
-			result = (left->bvalue == right->bvalue);
-			break;
-		case S_NOT_EQUAL:
-			result = (left->bvalue != right->bvalue);
-			break;
-		case S_AND:
-			result = (left->bvalue && right->bvalue);
-			break;
-		case S_OR:
-			result = (left->bvalue || right->bvalue);
-			break;
-		default:
-			assert(0);
-			result = false;
-			break;
+			bool result;
+			switch(symbol)
+			{
+			case S_EQUAL:
+				result = (left->bvalue == right->bvalue);
+				break;
+			case S_NOT_EQUAL:
+				result = (left->bvalue != right->bvalue);
+				break;
+			case S_AND:
+				result = (left->bvalue && right->bvalue);
+				break;
+			case S_OR:
+				result = (left->bvalue || right->bvalue);
+				break;
+			default:
+				assert(0);
+				result = false;
+				break;
+			}
+			op->bvalue = result;
+			op->pseudo_op = PUSH_BOOL;
 		}
-		op->bvalue = result;
-		op->type = V_BOOL;
-		op->pseudo_op = PUSH_BOOL;
-	}
-	else if(left->op == PUSH_INT)
-	{
-		// optimize const int expr
-		switch(symbol)
+		break;
+	case PUSH_CHAR:
 		{
-		case S_ADD:
-			op->value = left->value + right->value;
-			op->op = PUSH_INT;
-			break;
-		case S_SUB:
-			op->value = left->value - right->value;
-			op->op = PUSH_INT;
-			break;
-		case S_MUL:
-			op->value = left->value * right->value;
-			op->op = PUSH_INT;
-			break;
-		case S_DIV:
-			if(right->value == 0)
+			// optimize const char expr
+			switch(symbol)
+			{
+			case S_EQUAL:
+				op->bvalue = (left->cvalue == right->cvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_NOT_EQUAL:
+				op->bvalue = (left->cvalue != right->cvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			default:
+				assert(0);
+				op->cvalue = 0;
+				op->op = PUSH_CHAR;
+				op->type = V_CHAR;
+				break;
+			}
+		}
+		break;
+	case PUSH_INT:
+		{
+			// optimize const int expr
+			switch(symbol)
+			{
+			case S_ADD:
+				op->value = left->value + right->value;
+				op->op = PUSH_INT;
+				break;
+			case S_SUB:
+				op->value = left->value - right->value;
+				op->op = PUSH_INT;
+				break;
+			case S_MUL:
+				op->value = left->value * right->value;
+				op->op = PUSH_INT;
+				break;
+			case S_DIV:
+				if(right->value == 0)
+					op->value = 0;
+				else
+					op->value = left->value / right->value;
+				op->op = PUSH_INT;
+				break;
+			case S_MOD:
+				if(right->value == 0)
+					op->value = 0;
+				else
+					op->value = left->value % right->value;
+				op->op = PUSH_INT;
+				break;
+			case S_EQUAL:
+				op->bvalue = (left->value == right->value);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_NOT_EQUAL:
+				op->bvalue = (left->value != right->value);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_GREATER:
+				op->bvalue = (left->value > right->value);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_GREATER_EQUAL:
+				op->bvalue = (left->value >= right->value);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_LESS:
+				op->bvalue = (left->value < right->value);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_LESS_EQUAL:
+				op->bvalue = (left->value <= right->value);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_BIT_AND:
+				op->value = (left->value & right->value);
+				op->op = PUSH_INT;
+				break;
+			case S_BIT_OR:
+				op->value = (left->value | right->value);
+				op->op = PUSH_INT;
+				break;
+			case S_BIT_XOR:
+				op->value = (left->value ^ right->value);
+				op->op = PUSH_INT;
+				break;
+			case S_BIT_LSHIFT:
+				op->value = (left->value << right->value);
+				op->op = PUSH_INT;
+				break;
+			case S_BIT_RSHIFT:
+				op->value = (left->value >> right->value);
+				op->op = PUSH_INT;
+				break;
+			default:
+				assert(0);
 				op->value = 0;
-			else
-				op->value = left->value / right->value;
-			op->op = PUSH_INT;
-			break;
-		case S_MOD:
-			if(right->value == 0)
-				op->value = 0;
-			else
-				op->value = left->value % right->value;
-			op->op = PUSH_INT;
-			break;
-		case S_EQUAL:
-			op->bvalue = (left->value == right->value);
-			op->pseudo_op = PUSH_BOOL;
-			break;
-		case S_NOT_EQUAL:
-			op->bvalue = (left->value != right->value);
-			op->pseudo_op = PUSH_BOOL;
-			break;
-		case S_GREATER:
-			op->bvalue = (left->value > right->value);
-			op->pseudo_op = PUSH_BOOL;
-			break;
-		case S_GREATER_EQUAL:
-			op->bvalue = (left->value >= right->value);
-			op->pseudo_op = PUSH_BOOL;
-			break;
-		case S_LESS:
-			op->bvalue = (left->value < right->value);
-			op->pseudo_op = PUSH_BOOL;
-			break;
-		case S_LESS_EQUAL:
-			op->bvalue = (left->value <= right->value);
-			op->pseudo_op = PUSH_BOOL;
-			break;
-		case S_BIT_AND:
-			op->value = (left->value & right->value);
-			op->op = PUSH_INT;
-			break;
-		case S_BIT_OR:
-			op->value = (left->value | right->value);
-			op->op = PUSH_INT;
-			break;
-		case S_BIT_XOR:
-			op->value = (left->value ^ right->value);
-			op->op = PUSH_INT;
-			break;
-		case S_BIT_LSHIFT:
-			op->value = (left->value << right->value);
-			op->op = PUSH_INT;
-			break;
-		case S_BIT_RSHIFT:
-			op->value = (left->value >> right->value);
-			op->op = PUSH_INT;
-			break;
-		default:
-			assert(0);
-			op->value = 0;
-			op->op = PUSH_INT;
-			break;
+				op->op = PUSH_INT;
+				op->type = V_INT;
+				break;
+			}
 		}
-	}
-	else if(left->op == PUSH_FLOAT)
-	{
-		// optimize const float expr
-		switch(symbol)
+		break;
+	case PUSH_FLOAT:
 		{
-		case S_ADD:
-			op->fvalue = left->fvalue + right->fvalue;
-			op->op = PUSH_FLOAT;
-			break;
-		case S_SUB:
-			op->fvalue = left->fvalue - right->fvalue;
-			op->op = PUSH_FLOAT;
-			break;
-		case S_MUL:
-			op->fvalue = left->fvalue * right->fvalue;
-			op->op = PUSH_FLOAT;
-			break;
-		case S_DIV:
-			if(right->fvalue == 0.f)
-				op->fvalue = 0.f;
-			else
-				op->fvalue = left->fvalue / right->fvalue;
-			op->op = PUSH_FLOAT;
-			break;
-		case S_MOD:
-			if(right->fvalue == 0.f)
-				op->fvalue = 0.f;
-			else
-				op->fvalue = fmod(left->fvalue, right->fvalue);
-			op->op = PUSH_FLOAT;
-			break;
-		case S_EQUAL:
-			op->bvalue = (left->fvalue == right->fvalue);
-			op->op = PUSH_FLOAT;
-			break;
-		case S_NOT_EQUAL:
-			op->bvalue = (left->fvalue != right->fvalue);
-			op->op = PUSH_FLOAT;
-			break;
-		case S_LESS:
-			op->bvalue = (left->fvalue < right->fvalue);
-			op->op = PUSH_FLOAT;
-			break;
-		case S_LESS_EQUAL:
-			op->bvalue = (left->fvalue <= right->fvalue);
-			op->op = PUSH_FLOAT;
-			break;
-		case S_GREATER:
-			op->bvalue = (left->fvalue > right->fvalue);
-			op->op = PUSH_FLOAT;
-			break;
-		case S_GREATER_EQUAL:
-			op->bvalue = (left->fvalue >= right->fvalue);
-			op->op = PUSH_FLOAT;
-			break;
-		default:
-			assert(0);
-			op->fvalue = 0;
-			op->op = PUSH_FLOAT;
-			break;
+			// optimize const float expr
+			switch(symbol)
+			{
+			case S_ADD:
+				op->fvalue = left->fvalue + right->fvalue;
+				op->op = PUSH_FLOAT;
+				break;
+			case S_SUB:
+				op->fvalue = left->fvalue - right->fvalue;
+				op->op = PUSH_FLOAT;
+				break;
+			case S_MUL:
+				op->fvalue = left->fvalue * right->fvalue;
+				op->op = PUSH_FLOAT;
+				break;
+			case S_DIV:
+				if(right->fvalue == 0.f)
+					op->fvalue = 0.f;
+				else
+					op->fvalue = left->fvalue / right->fvalue;
+				op->op = PUSH_FLOAT;
+				break;
+			case S_MOD:
+				if(right->fvalue == 0.f)
+					op->fvalue = 0.f;
+				else
+					op->fvalue = fmod(left->fvalue, right->fvalue);
+				op->op = PUSH_FLOAT;
+				break;
+			case S_EQUAL:
+				op->bvalue = (left->fvalue == right->fvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_NOT_EQUAL:
+				op->bvalue = (left->fvalue != right->fvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_LESS:
+				op->bvalue = (left->fvalue < right->fvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_LESS_EQUAL:
+				op->bvalue = (left->fvalue <= right->fvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_GREATER:
+				op->bvalue = (left->fvalue > right->fvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			case S_GREATER_EQUAL:
+				op->bvalue = (left->fvalue >= right->fvalue);
+				op->pseudo_op = PUSH_BOOL;
+				break;
+			default:
+				assert(0);
+				op->fvalue = 0;
+				op->op = PUSH_FLOAT;
+				op->type = V_FLOAT;
+				break;
+			}
 		}
-	}
-	else
+		break;
+	default:
 		return false;
+	}
 
 	left->Free();
 	right->Free();
@@ -2435,68 +2494,75 @@ bool Parser::TryConstCast(ParseNode* node, int type)
 	if(type == V_STRING)
 		return false;
 
-	if(node->op == PUSH_BOOL)
+#define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
+
+	switch(node->op)
 	{
-		if(type == V_INT)
-		{
-			// bool -> int
-			node->value = (node->bvalue ? 1 : 0);
-			node->op = PUSH_INT;
-			node->type = V_INT;
-		}
-		else if(type == V_FLOAT)
-		{
-			// bool -> float
-			node->fvalue = (node->bvalue ? 1.f : 0.f);
-			node->op = PUSH_FLOAT;
-			node->type = V_FLOAT;
-		}
-		else
-			assert(0);
+	case COMBINE(PUSH_BOOL,V_CHAR):
+		node->cvalue = (node->bvalue ? 't' : 'f');
+		node->op = PUSH_CHAR;
+		node->type = V_CHAR;
 		return true;
-	}
-	else if(node->op == PUSH_INT)
-	{
-		if(type == V_BOOL)
-		{
-			// int -> bool
-			node->bvalue = (node->value != 0);
-			node->pseudo_op = PUSH_BOOL;
-			node->type = V_BOOL;
-		}
-		else if(type == V_FLOAT)
-		{
-			// int -> float
-			node->fvalue = (float)node->value;
-			node->op = PUSH_FLOAT;
-			node->type = V_FLOAT;
-		}
-		else
-			assert(0);
+	case COMBINE(PUSH_BOOL,V_INT):
+		node->value = (node->bvalue ? 1 : 0);
+		node->op = PUSH_INT;
+		node->type = V_INT;
 		return true;
-	}
-	else if(node->op == PUSH_FLOAT)
-	{
-		if(type == V_BOOL)
-		{
-			// float -> bool
-			node->bvalue = (node->fvalue != 0.f);
-			node->pseudo_op = PUSH_BOOL;
-			node->type = V_BOOL;
-		}
-		else if(type == V_INT)
-		{
-			// float -> int
-			node->value = (int)node->fvalue;
-			node->op = PUSH_INT;
-			node->type = V_INT;
-		}
-		else
-			assert(0);
+	case COMBINE(PUSH_BOOL,V_FLOAT):
+		node->fvalue = (node->bvalue ? 1.f : 0.f);
+		node->op = PUSH_FLOAT;
+		node->type = V_FLOAT;
 		return true;
-	}
-	else
+	case COMBINE(PUSH_CHAR,V_BOOL):
+		node->bvalue = (node->cvalue != 0);
+		node->pseudo_op = PUSH_BOOL;
+		node->type = V_BOOL;
+		return true;
+	case COMBINE(PUSH_CHAR,V_INT):
+		node->value = (int)node->cvalue;
+		node->op = PUSH_INT;
+		node->type = V_INT;
+		return true;
+	case COMBINE(PUSH_CHAR,V_FLOAT):
+		node->fvalue = (float)node->cvalue;
+		node->op = PUSH_FLOAT;
+		node->type = V_FLOAT;
+		return true;
+	case COMBINE(PUSH_INT,V_BOOL):
+		node->bvalue = (node->value != 0);
+		node->pseudo_op = PUSH_BOOL;
+		node->type = V_BOOL;
+		return true;
+	case COMBINE(PUSH_INT,V_CHAR):
+		node->cvalue = (char)node->value;
+		node->op = PUSH_CHAR;
+		node->type = V_CHAR;
+		return true;
+	case COMBINE(PUSH_INT,V_FLOAT):
+		node->fvalue = (float)node->value;
+		node->op = PUSH_FLOAT;
+		node->type = V_FLOAT;
+		return true;
+	case COMBINE(PUSH_FLOAT,V_BOOL):
+		node->bvalue = (node->fvalue != 0.f);
+		node->pseudo_op = PUSH_BOOL;
+		node->type = V_BOOL;
+		return true;
+	case COMBINE(PUSH_FLOAT,V_CHAR):
+		node->cvalue = (char)node->fvalue;
+		node->op = PUSH_CHAR;
+		node->type = V_CHAR;
+		return true;
+	case COMBINE(PUSH_FLOAT,V_INT):
+		node->value = (int)node->fvalue;
+		node->op = PUSH_INT;
+		node->type = V_INT;
+		return true;
+	default:
 		return false;
+	}
+
+#undef COMBINE
 }
 
 // -1 - can't cast, 0 - no cast required, 1 - can cast
@@ -2506,8 +2572,8 @@ int Parser::MayCast(ParseNode* node, VarType type)
 	if(node->type == V_VOID)
 		return -1;
 
-	// no implicit cast from string to bool/int/float
-	if(node->type == V_STRING && (type.core == V_BOOL || type.core == V_INT || type.core == V_FLOAT))
+	// no implicit cast from string to bool/char/int/float
+	if(node->type == V_STRING && (type.core == V_BOOL || type.core == V_CHAR || type.core == V_INT || type.core == V_FLOAT))
 		return -1;
 
 	bool cast = (node->type != type.core);
@@ -3111,9 +3177,13 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		code.push_back(node->op);
 		code.push_back(node->value);
 		break;
+	case PUSH_CHAR:
+		code.push_back(node->op);
+		code.push_back(union_cast<int>(node->cvalue));
+		break;
 	case PUSH_FLOAT:
 		code.push_back(node->op);
-		code.push_back(*(int*)&node->fvalue);
+		code.push_back(union_cast<int>(node->fvalue));
 		break;
 	case PUSH:
 	case PUSH_TMP:
@@ -3269,6 +3339,8 @@ int Parser::CommonType(int a, int b)
 		return V_FLOAT;
 	else if(a == V_INT || b == V_INT)
 		return V_INT;
+	else if(a == V_CHAR || b == V_CHAR)
+		return V_CHAR;
 	else
 	{
 		assert(0);
@@ -3618,6 +3690,10 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 			case V_BOOL:
 				n->pseudo_op = PUSH_BOOL;
 				n->bvalue = arg.bvalue;
+				break;
+			case V_CHAR:
+				n->op = PUSH_CHAR;
+				n->cvalue = arg.cvalue;
 				break;
 			case V_INT:
 				n->op = PUSH_INT;

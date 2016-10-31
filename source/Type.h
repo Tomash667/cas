@@ -49,6 +49,7 @@ enum CoreVarType
 {
 	V_VOID,
 	V_BOOL,
+	V_CHAR,
 	V_INT,
 	V_FLOAT,
 	V_STRING,

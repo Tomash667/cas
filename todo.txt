@@ -85,7 +85,7 @@ vector functions:
 + default string for code function
 + allow reuse variable name
 + object/string deconstruction
-+ cast operator (type)x or x as type ?
++ cast operator (type)x or x as type ?, remove implicit cast on some types
 + warn about implict cast (setting)
 + custom cast operators
 + no memleaks, reuse ParseNode (currently there will be old childs)
@@ -165,3 +165,6 @@ else return in reg
 + different syntax
 	var type = module->AddType();
 	type->AddMember();
++ decompile redirect
++ allow same name class X { ErrorCode ErrorCode; } ?
++ deassembly labels

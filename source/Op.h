@@ -5,6 +5,7 @@ enum Op
 	PUSH, // [] ..., x -> ..., x, x
 	PUSH_TRUE, // [] ... -> ..., true
 	PUSH_FALSE, // [] ... -> ..., false
+	PUSH_CHAR, // [char] ... -> ..., char
 	PUSH_INT, // [int] ... -> ..., int
 	PUSH_FLOAT, // [float] ... -> ..., float
 	PUSH_STRING, // [str_index] ... -> ..., string
@@ -38,8 +39,8 @@ enum Op
 	BIT_XOR, // [] ..., x, y -> ..., x^y (x,y=int)
 	BIT_LSHIFT, // [] ..., x, y -> ..., x<<y (x,y=int)
 	BIT_RSHIFT, // [] ..., x, y -> ..., x>>y (x,y=int)
-	INC, // [] ..., x -> ..., x+1 (x,y=int/float)
-	DEC, // [] ..., x -> ..., x-1 (x,y=int/float)
+	INC, // [] ..., x -> ..., x+1 (x,y=char/int/float)
+	DEC, // [] ..., x -> ..., x-1 (x,y=char/int/float)
 	DEREF, // [] ..., x -> ..., [x] (x=address)
 	SET_ADR, // [] ..., x, y -> ..., y (x=address, y=value, op= [x]=y)
 	IS, // [] ..., x, y -> ..., x is y (x,y=string,class,ref)

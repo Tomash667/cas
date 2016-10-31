@@ -96,6 +96,7 @@ struct Var
 	union
 	{
 		bool bvalue;
+		char cvalue;
 		int value;
 		float fvalue;
 		Str* str;
@@ -128,6 +129,7 @@ struct Var
 
 	inline explicit Var() : type(V_VOID) {}
 	inline explicit Var(bool bvalue) : type(V_BOOL), bvalue(bvalue) {}
+	inline explicit Var(char cvalue) : type(V_CHAR), cvalue(cvalue) {}
 	inline explicit Var(int value) : type(V_INT), value(value) {}
 	inline explicit Var(float fvalue) : type(V_FLOAT), fvalue(fvalue) {}
 	inline explicit Var(Str* str) : type(V_STRING), str(str) {}
@@ -140,6 +142,21 @@ static vector<Var> stack, global, local;
 static Var tmpv;
 static vector<uint> expected_stack;
 static int current_function, args_offset, locals_offset;
+
+Str* CreateStr()
+{
+	Str* str = Str::Get();
+	str->refs = 1;
+	return str;
+}
+
+Str* CreateStr(cstring s)
+{
+	Str* str = Str::Get();
+	str->s = s;
+	str->refs = 1;
+	return str;
+}
 
 void AddRef(RunModule& run_module, Var& v)
 {
@@ -233,8 +250,7 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 	if(f.result.core == V_STRING)
 	{
 		// string return value
-		Str* str = Str::Get();
-		str->refs = 1;
+		Str* str = CreateStr();
 		packedArgs[packed++] = (int)(&str->s);
 		retptr = str;
 	}
@@ -264,6 +280,7 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 			switch(v.type)
 			{
 			case V_BOOL:
+			case V_CHAR:
 			case V_INT:
 			case V_FLOAT:
 				value = v.value;
@@ -370,6 +387,9 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 		case V_BOOL:
 			stack.push_back(Var(result.low != 0));
 			break;
+		case V_CHAR:
+			stack.push_back(Var((char)result.low));
+			break;
 		case V_INT:
 			stack.push_back(Var(result.low));
 			break;
@@ -392,7 +412,7 @@ void ExecuteFunction(RunModule& run_module, Function& f)
 	}
 	else
 	{
-		assert(f.result.core == V_BOOL || f.result.core == V_INT || f.result.core == V_FLOAT);
+		assert(f.result.core == V_BOOL || f.result.core == V_CHAR || f.result.core == V_INT || f.result.core == V_FLOAT);
 		stack.push_back(Var(V_REF, REF_CODE, result.low, f.result.core));
 	}
 }
@@ -440,6 +460,88 @@ void SetFromStack(RunModule& run_module, Var& v)
 		memcpy(v.clas->data(), s.clas->data(), type->size);
 }
 
+void Cast(Var& v, int type)
+{
+	assert(v.type == V_BOOL || v.type == V_CHAR || v.type == V_INT || v.type == V_FLOAT || v.type == V_STRING);
+	assert(type == V_BOOL || type == V_CHAR || type == V_INT || type == V_FLOAT || type == V_STRING);
+	assert(v.type != type);
+
+#define COMBINE(x,y) ((x & 0xFF) | ((y & 0xFF) << 8))
+
+	switch(COMBINE(v.type, type))
+	{
+	case COMBINE(V_BOOL,V_CHAR):
+		v.cvalue = (v.bvalue ? 't' : 'f');
+		v.type = V_CHAR;
+		break;
+	case COMBINE(V_BOOL,V_INT):
+		v.value = (v.bvalue ? 1 : 0);
+		v.type = V_INT;
+		break;
+	case COMBINE(V_BOOL,V_FLOAT):
+		v.fvalue = (v.bvalue ? 1.f : 0.f);
+		v.type = V_FLOAT;
+		break;
+	case COMBINE(V_BOOL,V_STRING):
+		v.str = CreateStr(v.bvalue ? "true" : "false");
+		v.type = V_STRING;
+		break;
+	case COMBINE(V_CHAR,V_BOOL):
+		v.bvalue = (v.cvalue != 0);
+		v.type = V_BOOL;
+		break;
+	case COMBINE(V_CHAR,V_INT):
+		v.value = (int)v.cvalue;
+		v.type = V_INT;
+		break;
+	case COMBINE(V_CHAR,V_FLOAT):
+		v.fvalue = (float)v.cvalue;
+		v.type = V_FLOAT;
+		break;
+	case COMBINE(V_CHAR,V_STRING):
+		v.str = CreateStr(Format("%c", v.cvalue));
+		v.type = V_STRING;
+		break;
+	case COMBINE(V_INT,V_BOOL):
+		v.bvalue = (v.value != 0);
+		v.type = V_BOOL;
+		break;
+	case COMBINE(V_INT,V_CHAR):
+		v.cvalue = (char)v.value;
+		v.type = V_CHAR;
+		break;
+	case COMBINE(V_INT,V_FLOAT):
+		v.fvalue = (float)v.value;
+		v.type = V_FLOAT;
+		break;
+	case COMBINE(V_INT,V_STRING):
+		v.str = CreateStr(Format("%d", v.value));
+		v.type = V_STRING;
+		break;
+	case COMBINE(V_FLOAT,V_BOOL):
+		v.bvalue = (v.fvalue != 0.f);
+		v.type = V_BOOL;
+		break;
+	case COMBINE(V_FLOAT,V_CHAR):
+		v.cvalue = (char)v.fvalue;
+		v.type = V_CHAR;
+		break;
+	case COMBINE(V_FLOAT,V_INT):
+		v.value = (int)v.fvalue;
+		v.type = V_INT;
+		break;
+	case COMBINE(V_FLOAT,V_STRING):
+		v.str = CreateStr(Format("%g", v.fvalue));
+		v.type = V_STRING;
+		break;
+	default:
+		assert(0);
+		break;
+	}
+
+#undef COMBINE
+}
+
 void Run(RunModule& run_module, ReturnValue& retval)
 {
 	stack.clear();
@@ -473,6 +575,13 @@ void Run(RunModule& run_module, ReturnValue& retval)
 			break;
 		case PUSH_FALSE:
 			stack.push_back(Var(false));
+			break;
+		case PUSH_CHAR:
+			{
+				char val = *(char*)c;
+				++c;
+				stack.push_back(Var(val));
+			}
 			break;
 		case PUSH_INT:
 			{
@@ -572,6 +681,9 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				case V_BOOL:
 					stack.push_back(Var(c->at<bool>(m->offset)));
 					break;
+				case V_CHAR:
+					stack.push_back(Var(c->at<char>(m->offset)));
+					break;
 				case V_INT:
 					stack.push_back(Var(c->at<int>(m->offset)));
 					break;
@@ -595,7 +707,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
-				assert(m->type == V_BOOL || m->type == V_INT || m->type == V_FLOAT);
+				assert(m->type == V_BOOL || m->type == V_CHAR || m->type == V_INT || m->type == V_FLOAT);
 				Class* c = v.clas;
 				stack.pop_back();
 				stack.push_back(Var(REF_MEMBER, member_index, c));
@@ -621,6 +733,9 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				{
 				case V_BOOL:
 					stack.push_back(Var(c->at<bool>(m->offset)));
+					break;
+				case V_CHAR:
+					stack.push_back(Var(c->at<char>(m->offset)));
 					break;
 				case V_INT:
 					stack.push_back(Var(c->at<int>(m->offset)));
@@ -651,7 +766,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				Member* m = type->members[member_index];
 
 				// push reference
-				assert(m->type == V_BOOL || m->type == V_INT || m->type == V_FLOAT);
+				assert(m->type == V_BOOL || m->type == V_CHAR || m->type == V_INT || m->type == V_FLOAT);
 				stack.push_back(Var(REF_MEMBER, member_index, c));
 			}
 			break;
@@ -714,6 +829,9 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				case V_BOOL:
 					c->at<bool>(m->offset) = v.bvalue;
 					break;
+				case V_CHAR:
+					c->at<char>(m->offset) = v.cvalue;
+					break;
 				case V_INT:
 					c->at<int>(m->offset) = v.value;
 					break;
@@ -752,6 +870,9 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				case V_BOOL:
 					c->at<bool>(m->offset) = v.bvalue;
 					break;
+				case V_CHAR:
+					c->at<char>(m->offset) = v.cvalue;
+					break;
 				case V_INT:
 					c->at<int>(m->offset) = v.value;
 					break;
@@ -769,87 +890,11 @@ void Run(RunModule& run_module, ReturnValue& retval)
 			tmpv = stack.back();
 			break;
 		case CAST:
-			// allowed casts bool/int/float -> anything
 			{
 				int type = *c++;
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(v.type == V_BOOL || v.type == V_INT || v.type == V_FLOAT);
-				if(v.type == V_BOOL)
-				{
-					assert(type == V_INT || type == V_FLOAT || type == V_STRING);
-					if(type == V_INT)
-					{
-						// bool -> int
-						v.value = (v.bvalue ? 1 : 0);
-						v.type = V_INT;
-					}
-					else if(type == V_FLOAT)
-					{
-						// bool -> float
-						v.fvalue = (v.bvalue ? 1.f : 0.f);
-						v.type = V_FLOAT;
-					}
-					else
-					{
-						// bool -> string
-						Str* str = Str::Get();
-						str->s = (v.bvalue ? "true" : "false");
-						str->refs = 1;
-						v.str = str;
-						v.type = V_STRING;
-					}
-				}
-				else if(v.type == V_INT)
-				{
-					assert(type == V_BOOL || type == V_FLOAT || type == V_STRING);
-					if(type == V_BOOL)
-					{
-						// int -> bool
-						v.bvalue = (v.value != 0);
-						v.type = V_BOOL;
-					}
-					else if(type == V_FLOAT)
-					{
-						// int -> float
-						v.fvalue = (float)v.value;
-						v.type = V_FLOAT;
-					}
-					else
-					{
-						// int -> string
-						Str* str = Str::Get();
-						str->s = Format("%d", v.value);
-						str->refs = 1;
-						v.str = str;
-						v.type = V_STRING;
-					}
-				}
-				else
-				{
-					assert(type == V_BOOL || type == V_INT || type == V_STRING);
-					if(type == V_BOOL)
-					{
-						// float -> bool
-						v.bvalue = (v.fvalue != 0.f);
-						v.type = V_BOOL;
-					}
-					else if(type == V_INT)
-					{
-						// float -> int
-						v.value = (int)v.fvalue;
-						v.type = V_INT;
-					}
-					else
-					{
-						// float -> string
-						Str* str = Str::Get();
-						str->s = Format("%g", v.fvalue);
-						str->refs = 1;
-						v.str = str;
-						v.type = V_STRING;
-					}
-				}
+				Cast(v, type);
 			}
 			break;
 		case NEG:
@@ -889,20 +934,36 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				}
 				else
 				{
-					assert(v.type == V_INT || v.type == V_FLOAT);
+					assert(v.type == V_CHAR || v.type == V_INT || v.type == V_FLOAT);
 					if(op == INC)
 					{
-						if(v.type == V_INT)
+						switch(v.type)
+						{
+						case V_CHAR:
+							v.cvalue++;
+							break;
+						case V_INT:
 							v.value++;
-						else
+							break;
+						case V_FLOAT:
 							v.fvalue++;
+							break;
+						}
 					}
 					else
 					{
-						if(v.type == V_INT)
+						switch(v.type)
+						{
+						case V_CHAR:
+							v.cvalue--;
+							break;
+						case V_INT:
 							v.value--;
-						else
+							break;
+						case V_FLOAT:
 							v.fvalue--;
+							break;
+						}
 					}
 				}
 			}
@@ -937,7 +998,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 				if(op == ADD)
 					assert(left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
-					assert(left.type == V_BOOL || left.type == V_INT || left.type == V_FLOAT);
+					assert(left.type == V_BOOL || left.type == V_CHAR || left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
 				else if(op == AND || op == OR)
 					assert(left.type == V_BOOL);
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
@@ -964,10 +1025,7 @@ void Run(RunModule& run_module, ReturnValue& retval)
 						string result = left.str->s + right.str->s;
 						left.str->Release();
 						right.str->Release();
-						Str* s = Str::Get();
-						s->refs = 1;
-						s->s = result;
-						left.str = s;
+						left.str = CreateStr(result.c_str());
 					}
 					break;
 				case SUB:
@@ -1015,21 +1073,45 @@ void Run(RunModule& run_module, ReturnValue& retval)
 					}
 					break;
 				case EQ:
-					if(left.type == V_BOOL)
+					switch(left.type)
+					{
+					case V_BOOL:
 						left.bvalue = (left.bvalue == right.bvalue);
-					else if(left.type == V_INT)
+						break;
+					case V_CHAR:
+						left.bvalue = (left.cvalue == right.cvalue);
+						break;
+					case V_INT:
 						left.bvalue = (left.value == right.value);
-					else
+						break;
+					case V_FLOAT:
 						left.bvalue = (left.fvalue == right.fvalue);
+						break;
+					case V_STRING:
+						left.bvalue = (left.str->s == right.str->s);
+						break;
+					}
 					left.type = V_BOOL;
 					break;
 				case NOT_EQ:
-					if(left.type == V_BOOL)
+					switch(left.type)
+					{
+					case V_BOOL:
 						left.bvalue = (left.bvalue != right.bvalue);
-					else if(left.type == V_INT)
+						break;
+					case V_CHAR:
+						left.bvalue = (left.cvalue != right.cvalue);
+						break;
+					case V_INT:
 						left.bvalue = (left.value != right.value);
-					else
+						break;
+					case V_FLOAT:
 						left.bvalue = (left.fvalue != right.fvalue);
+						break;
+					case V_STRING:
+						left.bvalue = (left.str->s != right.str->s);
+						break;
+					}
 					left.type = V_BOOL;
 					break;
 				case GR:

@@ -24,6 +24,7 @@ OpInfo ops[] = {
 	PUSH, "push", V_VOID,
 	PUSH_TRUE, "push_true", V_VOID,
 	PUSH_FALSE, "push_false", V_VOID,
+	PUSH_CHAR, "push_char", V_CHAR,
 	PUSH_INT, "push_int", V_INT,
 	PUSH_FLOAT, "push_float", V_FLOAT,
 	PUSH_STRING, "push_string", V_STRING,
@@ -137,6 +138,13 @@ void Decompile(RunModule& module)
 			case V_VOID:
 				cout << Format("\t[%d] %s\n", (int)op, opi.name);
 				break;
+			case V_CHAR:
+				{
+					int val = *c++;
+					char value = union_cast<char>(val);
+					cout << Format("\t[%d %d] %s '%s'\n", (int)op, (int)value, opi.name, EscapeChar(value));
+				}
+				break;
 			case V_INT:
 				{
 					int value = *c++;
@@ -153,7 +161,7 @@ void Decompile(RunModule& module)
 			case V_STRING:
 				{
 					int str_idx = *c++;
-					cout << Format("\t[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, module.strs[str_idx]->s.c_str());
+					cout << Format("\t[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, Escape(module.strs[str_idx]->s.c_str(), '"'));
 				}
 				break;
 			case V_FUNCTION:

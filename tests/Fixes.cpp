@@ -60,4 +60,16 @@ TEST_METHOD(ReturnReferenceIncrement)
 	)code");
 }
 
+TEST_METHOD(StringEqualOperator)
+{
+	RunTest(R"code(
+		string a = "dada";
+		string b = "dada";
+		if(a == b)
+			return 1;
+		return 0;
+	)code");
+	retval.IsInt(1);
+}
+
 CA_TEST_CLASS_END();

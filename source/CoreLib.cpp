@@ -71,6 +71,13 @@ static float f_float_abs(float a)
 	return abs(a);
 }
 
+static char f_getchar()
+{
+	char val;
+	(*s_input) >> val;
+	return val;
+}
+
 static void InitCoreLib(Module& module, Settings& settings)
 {
 	assert(settings.input && settings.output);
@@ -82,6 +89,7 @@ static void InitCoreLib(Module& module, Settings& settings)
 	// types
 	module.AddCoreType("void", 0, V_VOID, false);
 	module.AddCoreType("bool", sizeof(bool), V_BOOL, false);
+	module.AddCoreType("char", sizeof(char), V_CHAR, false);
 	module.AddCoreType("int", sizeof(int), V_INT, false);
 	module.AddCoreType("float", sizeof(float), V_FLOAT, false);
 	module.AddCoreType("string", sizeof(string), V_STRING, true);
@@ -101,6 +109,7 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddFunction("float getfloat()", f_getfloat);
 	module.AddFunction("string getstr()", f_getstr);
 	module.AddFunction("void pause()", f_pause);
+	module.AddFunction("char getchar()", f_getchar);
 }
 
 static void Assert_AreEqual(int expected, int actual)

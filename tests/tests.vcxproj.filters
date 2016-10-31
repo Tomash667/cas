@@ -136,6 +136,9 @@
     <Text Include="..\cases\while.txt">
       <Filter>Cases</Filter>
     </Text>
+    <Text Include="..\cases\char.txt">
+      <Filter>Cases</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint">

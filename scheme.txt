@@ -54,6 +54,7 @@ var_type:
 
 simple_var_type:
 	bool
+	char
 	int
 	float
 
@@ -75,6 +76,7 @@ item:
 const_item:
 	<int>
 	<float>
+	<char>
 	<string>
 	const
 
@@ -122,6 +124,9 @@ unary_op:
 inc_dec_op:
 	++
 	--
+
+index_op:
+	[ expr ]
 
 const:
 	true

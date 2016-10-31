@@ -155,4 +155,11 @@ TestMethod(Struct)
 	RunFileTest("struct.txt", "", "");
 }
 
+TestMethod(Char)
+{
+	RunFileTest("char.txt", "a\nb\n", "test!");
+	RunFileTest("char.txt", "a\na\n", "testa");
+	RunFileTest("char.txt", "?\nb\n", "_test!");
+}
+
 CA_TEST_CLASS_END();
