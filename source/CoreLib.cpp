@@ -112,6 +112,30 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddFunction("char getchar()", f_getchar);
 }
 
+static void Assert_AreEqual(bool expected, bool actual)
+{
+	if(expected != actual)
+		asserts.push_back(Format("Expected <%s>, actual <%s>.", (expected ? "true" : "false"), (actual ? "true" : "false")));
+}
+
+static void Assert_AreNotEqual(bool not_expected, bool actual)
+{
+	if(not_expected == actual)
+		asserts.push_back(Format("Not expected <%s>, actual <%s>.", (not_expected ? "true" : "false"), (actual ? "true" : "false")));
+}
+
+static void Assert_AreEqual(char expected, char actual)
+{
+	if(expected != actual)
+		asserts.push_back(Format("Expected <%s>, actual <%s>.", EscapeChar(expected), actual));
+}
+
+static void Assert_AreNotEqual(char not_expected, char actual)
+{
+	if(not_expected == actual)
+		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+}
+
 static void Assert_AreEqual(int expected, int actual)
 {
 	if(expected != actual)
@@ -119,6 +143,30 @@ static void Assert_AreEqual(int expected, int actual)
 }
 
 static void Assert_AreNotEqual(int not_expected, int actual)
+{
+	if(not_expected == actual)
+		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+}
+
+static void Assert_AreEqual(float expected, float actual)
+{
+	if(expected != actual)
+		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+}
+
+static void Assert_AreNotEqual(float not_expected, float actual)
+{
+	if(not_expected == actual)
+		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+}
+
+static void Assert_AreEqual(string& expected, string& actual)
+{
+	if(expected != actual)
+		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+}
+
+static void Assert_AreNotEqual(string& not_expected, string& actual)
 {
 	if(not_expected == actual)
 		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
@@ -143,8 +191,16 @@ vector<string>& cas::GetAsserts()
 
 static void InitDebugLib(Module& module)
 {
-	module.AddFunction("void Assert_AreEqual(int expected, int actual)", Assert_AreEqual);
-	module.AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", Assert_AreNotEqual);
+	module.AddFunction("void Assert_AreEqual(bool expected, bool actual)", AsFunction(Assert_AreEqual, void, (bool, bool)));
+	module.AddFunction("void Assert_AreNotEqual(bool not_expected, bool actual)", AsFunction(Assert_AreNotEqual, void, (bool, bool)));
+	module.AddFunction("void Assert_AreEqual(char expected, char actual)", AsFunction(Assert_AreEqual, void, (char, char)));
+	module.AddFunction("void Assert_AreNotEqual(char not_expected, char actual)", AsFunction(Assert_AreNotEqual, void, (char, char)));
+	module.AddFunction("void Assert_AreEqual(int expected, int actual)", AsFunction(Assert_AreEqual, void, (int, int)));
+	module.AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", AsFunction(Assert_AreNotEqual, void, (int, int)));
+	module.AddFunction("void Assert_AreEqual(float expected, float actual)", AsFunction(Assert_AreEqual, void, (float, float)));
+	module.AddFunction("void Assert_AreNotEqual(float not_expected, float actual)", AsFunction(Assert_AreNotEqual, void, (float, float)));
+	module.AddFunction("void Assert_AreEqual(string expected, string actual)", AsFunction(Assert_AreEqual, void, (string&, string&)));
+	module.AddFunction("void Assert_AreNotEqual(string not_expected, string actual)", AsFunction(Assert_AreNotEqual, void, (string&, string&)));
 	module.AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
 	module.AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
 }

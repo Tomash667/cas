@@ -773,6 +773,19 @@ void Run(RunModule& run_module, ReturnValue& retval)
 		case PUSH_TMP:
 			stack.push_back(tmpv);
 			break;
+		case PUSH_INDEX:
+			{
+				uint index = *c++;
+				assert(!stack.empty());
+				Var& v = stack.back();
+				assert(v.type == V_STRING);
+				assert(index < v.str->s.length());
+				char c = v.str->s[index];
+				ReleaseRef(run_module, v);
+				v.type = V_CHAR;
+				v.cvalue = c;
+			}
+			break;
 		case POP:
 			{
 				assert(!stack.empty());
@@ -888,6 +901,20 @@ void Run(RunModule& run_module, ReturnValue& retval)
 		case SET_TMP:
 			assert(!stack.empty());
 			tmpv = stack.back();
+			break;
+		case SET_INDEX:
+			{
+				uint index = *c++;
+				assert(stack.size() >= 2u);
+				Var v = stack.back();
+				stack.pop_back();
+				Var& arr = stack.back();
+				assert(arr.type == V_STRING && v.type == V_CHAR);
+				assert(index <= arr.str->s.length());
+				arr.str->s[index] = v.cvalue;
+				ReleaseRef(run_module, arr);
+				arr = v;
+			}
 			break;
 		case CAST:
 			{

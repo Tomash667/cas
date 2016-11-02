@@ -137,6 +137,7 @@
     <Text Include="..\cases\simple.txt" />
     <Text Include="..\cases\string.txt" />
     <Text Include="..\cases\struct.txt" />
+    <Text Include="..\cases\subscript.txt" />
     <Text Include="..\cases\type_func.txt" />
     <Text Include="..\cases\user_func.txt" />
     <Text Include="..\cases\while.txt" />

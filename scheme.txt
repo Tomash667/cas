@@ -65,7 +65,7 @@ expr<END>:
 	expr_part [op expr_part ...] <END>
 
 expr_part:
-	[unary_op ...] [inc_dec_op ...] item / ( expr ) [inc_dec_op]
+	[unary_op ...] [inc_dec_op ...] item / ( expr ) [index_op] [inc_dec_op]
 
 item:
 	const_item

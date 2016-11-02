@@ -20,13 +20,15 @@ enum Op
 	PUSH_THIS_MEMBER,
 	PUSH_THIS_MEMBER_REF,
 	PUSH_TMP, // [] ... -> ..., tmp
+	PUSH_INDEX, // [index] ..., arr -> ..., arr[index]
 	POP, // [] ..., x -> ...
 	SET_LOCAL,
 	SET_GLOBAL,
 	SET_ARG,
-	SET_MEMBER, // [member_index] ..., class, value -> value, ... (class.member = value)
+	SET_MEMBER, // [member_index] ..., class, value -> ..., value (class.member = value)
 	SET_THIS_MEMBER,
 	SET_TMP, // [] ..., x -> ..., x (tmp = x)
+	SET_INDEX, // [index] ..., arr, x -> ..., a (arr[index] = a)
 	CAST,
 	NEG, // [] ..., x -> ..., -x (x=int/float)
 	ADD, // [] ..., x, y -> ..., x+y (x,y=int/float/string)

@@ -1,3 +1,52 @@
+? check Escape, EscapeChar
+
+NEST A STRING:
++ subscript operator
+	operacje na elementach[]
+
+int a = ar[0]; // get
+ar[0] = a; // set
+ar[0] += a;   ar[0]++; // compound
+
+atm brak referencji
+
+
+
+1)
+push_local ar
+push_index 0
+set_local a
+pop
+
+push_index X   ..., ar -> ..., ar[X]
+
+
+2)
+push_local ar
+push_local a
+set_index 0
+pop
+
+set_index X    ..., ar, a -> ..., a (ar[X] = a)
+
+
+3) pre
+push_local ar ; ar
+push          ; ar,ar
+push_index 0  ; ar,ar[0]
+inc           ; ar,ar[0]+1
+set_index 0   ; ar[0]+1
+pop
+
+tu osobne przypadki dla pre i post
+
+3) post
+
++ raise error
++ entry point
++ improvments
++ array
+
 TODO:
 ref, remove old REF_MAY/YES
 out
@@ -168,3 +217,4 @@ else return in reg
 + decompile redirect
 + allow same name class X { ErrorCode ErrorCode; } ?
 + deassembly labels
++ exceptions
