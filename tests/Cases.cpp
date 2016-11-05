@@ -107,7 +107,7 @@ TestMethod(DefValue)
 
 TestMethod(BitOp)
 {
-	RunFileTest("bit_op.txt", "", "17029\n65534\n38208\n792166400\n7776\n33280\n41701\n28212\n-1194328064\n-9330688\n");
+	RunFileTest("bit_op.txt", "", "17029\n65534\n38208\n792166400\n7776\n33280\n41701\n28212\n-1194328064\n-9330688\n9330687\n");
 }
 
 TestMethod(Class)

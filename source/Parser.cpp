@@ -70,7 +70,7 @@ BasicSymbolInfo basic_symbols[] = {
 	BS_AND, "&&", S_INVALID, S_INVALID, S_AND,
 	BS_OR, "||", S_INVALID, S_INVALID, S_OR,
 	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID,
-	BS_BIT_NOT, "~", S_INVALID, S_INVALID, S_BIT_NOT,
+	BS_BIT_NOT, "~", S_BIT_NOT, S_INVALID, S_INVALID,
 	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_ASSIGN,
 	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_ASSIGN_ADD,
 	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_ASSIGN_SUB,
@@ -1734,14 +1734,14 @@ ParseNode* Parser::ParseItem(int* type)
 				FindAllFunctionOverloads(id, funcs);
 				t.Next();
 
-				ParseNode* node = ParseNode::Get();
+				NodeRef node;
 				node->ref = REF_NO;
 				node->source = nullptr;
 
 				ParseArgs(node->childs);
 				ApplyFunctionCall(node, funcs, nullptr, false);
 
-				return node;
+				return node.Pin();
 			}
 		case F_MEMBER:
 			{
@@ -2078,6 +2078,8 @@ BASIC_SYMBOL Parser::GetSymbol()
 		return BS_DOT;
 	case '[':
 		return BS_SUBSCRIPT;
+	case '~':
+		return BS_BIT_NOT;
 	default:
 		return BS_MAX;
 	}

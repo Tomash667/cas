@@ -1,19 +1,15 @@
-? bitnot is not marked as unary
-
+- c++ function returning string cause 1 byte memory leak (string.txt)
+- many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct, 
 + Can't cast return value from -> single func
 
 + failure for invalid subscript type
 	invalid type: int a; a[0] = 0;
 
 NEST A STRING:
-+	remove leaks in single test
 + raise error
 + */ -> Not opened multiline comment found instead of unexpected *.
-+	remove leaks in single test
 + entry point
-+	remove leaks in single test
 + improvments
-+	remove leaks in single test
 + array
 
 TODO:

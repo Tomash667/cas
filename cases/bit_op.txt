@@ -9,4 +9,5 @@ println(a |= 8421);
 println(a ^= 52433);
 println(a <<= 44818);
 println(a >>= 24039);
+println(~a);
 pause();

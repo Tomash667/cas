@@ -442,6 +442,11 @@ struct ObjectPoolRef
 			T::Free(item);
 	}
 
+	inline operator T* ()
+	{
+		return item;
+	}
+
 	inline T* operator -> ()
 	{
 		return item;
