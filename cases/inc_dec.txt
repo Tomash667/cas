@@ -5,4 +5,14 @@ println(--a);
 println(a++);
 println(a--);
 println(a);
+
+a = 7;
+int b = ++a;
+Assert_AreEqual(8, b);
+Assert_AreEqual(8, a);
+
+b = a++;
+Assert_AreEqual(8, b);
+Assert_AreEqual(9, a);
+
 pause();

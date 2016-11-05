@@ -46,6 +46,7 @@ enum PseudoOp
 	NOP,
 	OBJ_MEMBER,
 	OBJ_FUNC,
+	SUBSCRIPT,
 	BREAK,
 	RETURN,
 	INTERNAL_GROUP,
@@ -112,7 +113,7 @@ enum SYMBOL
 	S_POST_INC,
 	S_POST_DEC,
 	S_IS,
-	//S_SUBSCRIPT,
+	S_SUBSCRIPT,
 	S_INVALID,
 	S_MAX
 };
@@ -121,7 +122,8 @@ enum SYMBOL_TYPE
 {
 	ST_NONE,
 	ST_ASSIGN,
-	ST_INC_DEC
+	ST_INC_DEC,
+	ST_SUBSCRIPT
 };
 
 enum LEFT
@@ -171,6 +173,7 @@ enum BASIC_SYMBOL
 	BS_INC, // ++
 	BS_DEC, // --
 	BS_IS, // is
+	BS_SUBSCRIPT, // [
 	BS_MAX
 };
 
@@ -406,24 +409,20 @@ struct SymbolInfo
 	SYMBOL_TYPE type;
 };
 
-struct SymbolOrNode
+struct SymbolNode
 {
-	union
-	{
-		ParseNode* node;
-		SYMBOL symbol;
-	};
+	ParseNode* node;
+	SYMBOL symbol;
 	bool is_symbol;
 
-	inline SymbolOrNode(ParseNode* node) : node(node), is_symbol(false) {}
-	inline SymbolOrNode(SYMBOL symbol) : symbol(symbol), is_symbol(true) {}
+	inline SymbolNode(ParseNode* node) : node(node), is_symbol(false) {}
+	inline SymbolNode(SYMBOL symbol, ParseNode* node = nullptr) : symbol(symbol), node(node), is_symbol(true) {}
 };
 
 struct BasicSymbolInfo
 {
 	BASIC_SYMBOL symbol;
 	cstring text;
-	SYMBOL unary_symbol;
 	SYMBOL pre_symbol;
 	SYMBOL post_symbol;
 	SYMBOL op_symbol;

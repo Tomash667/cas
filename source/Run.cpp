@@ -775,8 +775,11 @@ void Run(RunModule& run_module, ReturnValue& retval)
 			break;
 		case PUSH_INDEX:
 			{
-				uint index = *c++;
-				assert(!stack.empty());
+				assert(stack.size() >= 2u);
+				Var vindex = stack.back();
+				assert(vindex.type == V_INT);
+				uint index = vindex.value;
+				stack.pop_back();
 				Var& v = stack.back();
 				assert(v.type == V_STRING);
 				assert(index < v.str->s.length());
@@ -904,16 +907,29 @@ void Run(RunModule& run_module, ReturnValue& retval)
 			break;
 		case SET_INDEX:
 			{
-				uint index = *c++;
-				assert(stack.size() >= 2u);
-				Var v = stack.back();
+				assert(stack.size() >= 3u);
+				Var x = stack.back();
 				stack.pop_back();
+				assert(x.type == V_CHAR);
+				Var vindex = stack.back();
+				stack.pop_back();
+				assert(vindex.type == V_INT);
+				uint index = vindex.value;
 				Var& arr = stack.back();
-				assert(arr.type == V_STRING && v.type == V_CHAR);
+				assert(arr.type == V_STRING);
 				assert(index <= arr.str->s.length());
-				arr.str->s[index] = v.cvalue;
+				arr.str->s[index] = x.cvalue;
 				ReleaseRef(run_module, arr);
-				arr = v;
+				arr = x;
+			}
+			break;
+		case SWAP:
+			{
+				uint index = *c++;
+				assert(index + 1 < stack.size());
+				auto a = stack.rbegin() + index;
+				auto b = a + 1;
+				std::iter_swap(a, b);
 			}
 			break;
 		case CAST:

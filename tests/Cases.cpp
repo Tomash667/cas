@@ -162,4 +162,9 @@ TestMethod(Char)
 	RunFileTest("char.txt", "?\nb\n", "_test!");
 }
 
+TestMethod(Subscript)
+{
+	RunFileTest("subscript.txt", "", "");
+}
+
 CA_TEST_CLASS_END();

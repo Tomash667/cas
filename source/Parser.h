@@ -7,7 +7,7 @@ struct Block;
 struct ParseFunction;
 struct ParseNode;
 struct ParseVar;
-struct SymbolOrNode;
+struct SymbolNode;
 struct ReturnStructVar;
 union Found;
 enum BASIC_SYMBOL;
@@ -58,7 +58,7 @@ private:
 	ParseNode* ParseCond();
 	ParseNode* ParseVarDecl(int type, string* _name);
 	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
-	BASIC_SYMBOL ParseExprPart(vector<SymbolOrNode>& exit, vector<SYMBOL>& stack, int* type);
+	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	void ParseArgs(vector<ParseNode*>& nodes);
 	ParseNode* ParseItem(int* type = nullptr);
 	ParseNode* ParseConstItem();
@@ -67,7 +67,7 @@ private:
 	ParseVar* GetVar(ParseNode* node);
 	VarType GetVarType(bool in_cpp = false);
 	int GetVarTypeForMember();
-	void PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL>& stack);
+	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
 	BASIC_SYMBOL GetSymbol();
 	bool CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& cast, int& result);

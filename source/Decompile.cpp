@@ -39,7 +39,7 @@ OpInfo ops[] = {
 	PUSH_THIS_MEMBER, "push_this_member", V_INT,
 	PUSH_THIS_MEMBER_REF, "push_this_member_ref", V_INT,
 	PUSH_TMP, "push_tmp", V_VOID,
-	PUSH_INDEX, "push_index", V_INT,
+	PUSH_INDEX, "push_index", V_VOID,
 	POP, "pop", V_VOID,
 	SET_LOCAL, "set_local", V_INT,
 	SET_GLOBAL, "set_global", V_INT,
@@ -47,7 +47,8 @@ OpInfo ops[] = {
 	SET_MEMBER, "set_member", V_INT,
 	SET_THIS_MEMBER, "set_this_member", V_INT,
 	SET_TMP, "set_tmp", V_VOID,
-	SET_INDEX, "set_index", V_INT,
+	SET_INDEX, "set_index", V_VOID,
+	SWAP, "swap", V_INT,
 	CAST, "cast", V_TYPE,
 	NEG, "neg", V_VOID,
 	ADD, "add", V_VOID,
@@ -163,7 +164,7 @@ void Decompile(RunModule& module)
 			case V_STRING:
 				{
 					int str_idx = *c++;
-					cout << Format("\t[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, Escape(module.strs[str_idx]->s.c_str(), '"'));
+					cout << Format("\t[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, Escape(module.strs[str_idx]->s.c_str()));
 				}
 				break;
 			case V_FUNCTION:

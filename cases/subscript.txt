@@ -10,44 +10,45 @@ a[2] = 'x';
 Assert_AreEqual("text", a);
 
 // get + op
-int index = getint();
-Assert_AreEqual('u', a[index]+1);
+int index = 10 - 3 * 4 + 2;
+char c2 = a[index]+1;
+Assert_AreEqual('u', c2);
 
 // compound
 c = a[3] += 2;
-Assert_AreEqual('w', c);
-Assert_AreEqual("texw", a);
+Assert_AreEqual('v', c);
+Assert_AreEqual("texv", a);
 
 // pre op
 c = --a[0];
 Assert_AreEqual('s', c);
-Assert_AreEqual("sexw", a);
+Assert_AreEqual("sexv", a);
 
 // post op
 c = a[3]++;
-Assert_AreEqual('w', c);
-Assert_AreEqual("sexx", a);
+Assert_AreEqual('v', c);
+Assert_AreEqual("sexw", a);
 
 // get from function
 c = f()[0];
-Assert_AreEqual('s', a);
+Assert_AreEqual('s', c);
 
 // set from function
-c = f()[1] = 'k';
+c = f()[2] = 'k';
 Assert_AreEqual('k', c);
-Assert_AreEqual("sekx", a);
+Assert_AreEqual("sekw", a);
 
 // compound from function
 c = f()[2] -= 3;
 Assert_AreEqual('h', c);
-Assert_AreEqual("sehx", a);
+Assert_AreEqual("sehw", a);
 
 // pre op from function
 c = --f()[0];
 Assert_AreEqual('r', c);
-Assert_AreEqual("rehx", a);
+Assert_AreEqual("rehw", a);
 
 // post op from function
 c = f()[0]--;
 Assert_AreEqual('r', c);
-Assert_AreEqual("qehx", a);
+Assert_AreEqual("qehw", a);

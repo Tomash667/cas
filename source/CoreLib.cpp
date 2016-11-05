@@ -127,13 +127,13 @@ static void Assert_AreNotEqual(bool not_expected, bool actual)
 static void Assert_AreEqual(char expected, char actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%s>, actual <%s>.", EscapeChar(expected), actual));
+		asserts.push_back(Format("Expected <%s>, actual <%s>.", EscapeChar(expected), EscapeChar(actual)));
 }
 
 static void Assert_AreNotEqual(char not_expected, char actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+		asserts.push_back(Format("Not expected <%s>, actual <%s>.", EscapeChar(not_expected), EscapeChar(actual)));
 }
 
 static void Assert_AreEqual(int expected, int actual)
@@ -151,25 +151,25 @@ static void Assert_AreNotEqual(int not_expected, int actual)
 static void Assert_AreEqual(float expected, float actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+		asserts.push_back(Format("Expected <%.2g>, actual <%.2g>.", expected, actual));
 }
 
 static void Assert_AreNotEqual(float not_expected, float actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+		asserts.push_back(Format("Not expected <%.2g>, actual <%.2g>.", not_expected, actual));
 }
 
 static void Assert_AreEqual(string& expected, string& actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+		asserts.push_back(Format("Expected <%s>, actual <%s>.", Escape(expected), Escape(actual)));
 }
 
 static void Assert_AreNotEqual(string& not_expected, string& actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+		asserts.push_back(Format("Not expected <%s>, actual <%s>.", Escape(not_expected), Escape(actual)));
 }
 
 static void Assert_IsTrue(bool value)
@@ -182,6 +182,11 @@ static void Assert_IsFalse(bool value)
 {
 	if(value)
 		asserts.push_back("False expected.");
+}
+
+static void Assert_Break()
+{
+	DebugBreak();
 }
 
 vector<string>& cas::GetAsserts()
@@ -203,6 +208,7 @@ static void InitDebugLib(Module& module)
 	module.AddFunction("void Assert_AreNotEqual(string not_expected, string actual)", AsFunction(Assert_AreNotEqual, void, (string&, string&)));
 	module.AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
 	module.AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
+	module.AddFunction("void Assert_Break()", Assert_Break);
 }
 
 void InitLib(Module& module, Settings& settings)

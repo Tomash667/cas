@@ -65,7 +65,7 @@ expr<END>:
 	expr_part [op expr_part ...] <END>
 
 expr_part:
-	[unary_op ...] [inc_dec_op ...] item / ( expr ) [index_op] [inc_dec_op]
+	[pre_op ...] item / ( expr ) [post_op]
 
 item:
 	const_item
@@ -82,6 +82,14 @@ const_item:
 
 args:
 	( expr [, expr ...] )
+
+pre_op:
+	unary_op
+	inc_dec_op
+
+post_op:
+	index_op
+	inc_dec_op
 
 op:
 	base_op

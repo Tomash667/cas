@@ -5,7 +5,7 @@
 #include "Module.h"
 
 // http://en.cppreference.com/w/cpp/language/operator_precedence
-SymbolInfo symbols[S_MAX] = {
+SymbolInfo symbols[] = {
 	S_ADD, "add", 6, true, 2, ADD, ST_NONE,
 	S_SUB, "subtract", 6, true, 2, SUB, ST_NONE,
 	S_MUL, "multiply", 5, true, 2, MUL, ST_NONE,
@@ -45,47 +45,50 @@ SymbolInfo symbols[S_MAX] = {
 	S_POST_INC, "post increment", 2, true, 1, INC, ST_INC_DEC,
 	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC,
 	S_IS, "reference equal", 9, true, 2, IS, ST_NONE,
-	//S_SUBSCRIPT, "subscript", 2, true, 1, ST_NONE,
+	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT,
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE
 };
+static_assert(sizeof(symbols) / sizeof(SymbolInfo) == S_MAX, "Missing symbols.");
 
-BasicSymbolInfo basic_symbols[BS_MAX] = {
-	BS_INC, "+", S_PLUS, S_INVALID, S_INVALID, S_ADD,
-	BS_DEC, "-", S_MINUS, S_INVALID, S_INVALID, S_SUB,
-	BS_MUL, "*", S_INVALID, S_INVALID, S_INVALID, S_MUL,
-	BS_DIV, "/", S_INVALID, S_INVALID, S_INVALID, S_DIV,
-	BS_MOD, "%", S_INVALID, S_INVALID, S_INVALID, S_MOD,
-	BS_BIT_AND, "&", S_INVALID, S_INVALID, S_INVALID, S_BIT_AND,
-	BS_BIT_OR, "|", S_INVALID, S_INVALID, S_INVALID, S_BIT_OR,
-	BS_BIT_XOR, "^", S_INVALID, S_INVALID, S_INVALID, S_BIT_XOR,
-	BS_BIT_LSHIFT, "<<", S_INVALID, S_INVALID, S_INVALID, S_BIT_LSHIFT,
-	BS_BIT_RSHIFT, ">>", S_INVALID, S_INVALID, S_INVALID, S_BIT_RSHIFT,
-	BS_EQUAL, "==", S_INVALID, S_INVALID, S_INVALID, S_EQUAL,
-	BS_NOT_EQUAL, "!=", S_INVALID, S_INVALID, S_INVALID, S_NOT_EQUAL,
-	BS_GREATER, ">", S_INVALID, S_INVALID, S_INVALID, S_GREATER,
-	BS_GREATER_EQUAL, ">=", S_INVALID, S_INVALID, S_INVALID, S_GREATER_EQUAL,
-	BS_LESS, "<", S_INVALID, S_INVALID, S_INVALID, S_LESS,
-	BS_LESS_EQUAL, "<=", S_INVALID, S_INVALID, S_INVALID, S_LESS_EQUAL,
-	BS_AND, "&&", S_INVALID, S_INVALID, S_INVALID, S_AND,
-	BS_OR, "||", S_INVALID, S_INVALID, S_INVALID, S_OR,
-	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID, S_INVALID,
-	BS_BIT_NOT, "~", S_INVALID, S_INVALID, S_INVALID, S_BIT_NOT,
-	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN,
-	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_ADD,
-	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_SUB,
-	BS_ASSIGN_MUL, "*=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_MUL,
-	BS_ASSIGN_DIV, "/=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_DIV,
-	BS_ASSIGN_MOD, "%=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_MOD,
-	BS_ASSIGN_BIT_AND, "&=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_AND,
-	BS_ASSIGN_BIT_OR, "|=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_OR,
-	BS_ASSIGN_BIT_XOR, "^=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_XOR,
-	BS_ASSIGN_BIT_LSHIFT, "<<=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_LSHIFT,
-	BS_ASSIGN_BIT_RSHIFT, ">>=", S_INVALID, S_INVALID, S_INVALID, S_ASSIGN_BIT_RSHIFT,
-	BS_DOT, ".", S_INVALID, S_INVALID, S_INVALID, S_MEMBER_ACCESS,
-	BS_INC, "++", S_INVALID, S_PRE_INC, S_POST_INC, S_INVALID,
-	BS_DEC, "--", S_INVALID, S_PRE_DEC, S_POST_DEC, S_INVALID,
-	BS_IS, "is", S_INVALID, S_INVALID, S_INVALID, S_IS
+BasicSymbolInfo basic_symbols[] = {
+	BS_INC, "+", S_PLUS, S_INVALID, S_ADD,
+	BS_DEC, "-", S_MINUS, S_INVALID, S_SUB,
+	BS_MUL, "*", S_INVALID, S_INVALID, S_MUL,
+	BS_DIV, "/", S_INVALID, S_INVALID, S_DIV,
+	BS_MOD, "%", S_INVALID, S_INVALID, S_MOD,
+	BS_BIT_AND, "&", S_INVALID, S_INVALID, S_BIT_AND,
+	BS_BIT_OR, "|", S_INVALID, S_INVALID, S_BIT_OR,
+	BS_BIT_XOR, "^", S_INVALID, S_INVALID, S_BIT_XOR,
+	BS_BIT_LSHIFT, "<<", S_INVALID, S_INVALID, S_BIT_LSHIFT,
+	BS_BIT_RSHIFT, ">>", S_INVALID, S_INVALID, S_BIT_RSHIFT,
+	BS_EQUAL, "==", S_INVALID, S_INVALID, S_EQUAL,
+	BS_NOT_EQUAL, "!=", S_INVALID, S_INVALID, S_NOT_EQUAL,
+	BS_GREATER, ">", S_INVALID, S_INVALID, S_GREATER,
+	BS_GREATER_EQUAL, ">=", S_INVALID, S_INVALID, S_GREATER_EQUAL,
+	BS_LESS, "<", S_INVALID, S_INVALID, S_LESS,
+	BS_LESS_EQUAL, "<=", S_INVALID, S_INVALID, S_LESS_EQUAL,
+	BS_AND, "&&", S_INVALID, S_INVALID, S_AND,
+	BS_OR, "||", S_INVALID, S_INVALID, S_OR,
+	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID,
+	BS_BIT_NOT, "~", S_INVALID, S_INVALID, S_BIT_NOT,
+	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_ASSIGN,
+	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_ASSIGN_ADD,
+	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_ASSIGN_SUB,
+	BS_ASSIGN_MUL, "*=", S_INVALID, S_INVALID, S_ASSIGN_MUL,
+	BS_ASSIGN_DIV, "/=", S_INVALID, S_INVALID, S_ASSIGN_DIV,
+	BS_ASSIGN_MOD, "%=", S_INVALID, S_INVALID, S_ASSIGN_MOD,
+	BS_ASSIGN_BIT_AND, "&=", S_INVALID, S_INVALID, S_ASSIGN_BIT_AND,
+	BS_ASSIGN_BIT_OR, "|=", S_INVALID, S_INVALID, S_ASSIGN_BIT_OR,
+	BS_ASSIGN_BIT_XOR, "^=", S_INVALID, S_INVALID, S_ASSIGN_BIT_XOR,
+	BS_ASSIGN_BIT_LSHIFT, "<<=", S_INVALID, S_INVALID, S_ASSIGN_BIT_LSHIFT,
+	BS_ASSIGN_BIT_RSHIFT, ">>=", S_INVALID, S_INVALID, S_ASSIGN_BIT_RSHIFT,
+	BS_DOT, ".", S_INVALID, S_INVALID, S_MEMBER_ACCESS,
+	BS_INC, "++", S_PRE_INC, S_POST_INC, S_INVALID,
+	BS_DEC, "--", S_PRE_DEC, S_POST_DEC, S_INVALID,
+	BS_IS, "is", S_INVALID, S_INVALID, S_IS,
+	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID
 };
+static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
 Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR), run_module(nullptr)
 {
@@ -1059,8 +1062,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 
 ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 {
-	vector<SymbolOrNode> exit;
-	vector<SYMBOL> stack;
+	vector<SymbolNode> stack, exit;
 
 	while(true)
 	{
@@ -1121,7 +1123,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 	}
 
 	vector<ParseNode*> stack2;
-	for(SymbolOrNode& sn : exit)
+	for(SymbolNode& sn : exit)
 	{
 		if(sn.is_symbol)
 		{
@@ -1153,11 +1155,27 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 					}
 					stack2.push_back(node);
 				}
+				else if(si.type == ST_SUBSCRIPT)
+				{
+					// subscript operator
+					if(node->type != V_STRING)
+						t.Throw("Type '%s' don't have subscript operator.", GetTypeName(node));
+					ParseNode* op = ParseNode::Get();
+					op->op = PUSH_INDEX;
+					op->type = V_CHAR;
+					op->ref = REF_NO;
+					op->source = nullptr;
+					op->push(node);
+					op->push(sn.node->childs[0]);
+					stack2.push_back(op);
+					sn.node->childs.clear();
+					sn.node->Free();
+				}
 				else
 				{
 					// inc dec
 					assert(si.type == ST_INC_DEC);
-					if(node->type != V_INT && node->type != V_FLOAT)
+					if(node->type != V_INT && node->type != V_FLOAT && node->type != V_CHAR)
 						t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
 
 					bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
@@ -1192,6 +1210,9 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						case PUSH_THIS_MEMBER:
 							set_op = SET_THIS_MEMBER;
 							break;
+						case PUSH_INDEX:
+							set_op = SET_INDEX;
+							break;
 						default:
 							t.Throw("Operation '%s' require variable.", si.name);
 						}
@@ -1212,6 +1233,27 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 								op->push(SET_TMP);
 								op->push(oper);
 								op->push(SET_MEMBER, node->value);
+								op->push(POP);
+								op->push(PUSH_TMP);
+							}
+						}
+						else if(set_op == SET_INDEX)
+						{
+							assert(node->childs.size() == 2u); // push ar, push index
+							op->push(node->childs[0]);
+							op->push(PUSH);
+							op->push(node->childs[1]);
+							node->childs.clear();
+							node->Free();
+							op->push(PUSH);
+							op->push(SWAP, 1);
+							op->push(PUSH_INDEX);
+							if(!pre)
+								op->push(SET_TMP);
+							op->push(oper);
+							op->push(SET_INDEX);
+							if(!pre)
+							{
 								op->push(POP);
 								op->push(PUSH_TMP);
 							}
@@ -1345,7 +1387,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				{
 					// assign to variable
 					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
-						&& left->ref != REF_YES)
+						&& left->op != PUSH_INDEX && left->ref != REF_YES)
 						t.Throw("Can't assign, left value must be variable.");
 					if(left->source)
 						left->source->mod = true;
@@ -1371,6 +1413,9 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 						case PUSH_THIS_MEMBER:
 							set->op = SET_THIS_MEMBER;
 							break;
+						case PUSH_INDEX:
+							set->op = SET_INDEX;
+							break;
 						default:
 							assert(0);
 							break;
@@ -1384,7 +1429,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							// assign
 							if(!TryCast(right, VarType(left->type)))
 								t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
-							if(left->op == PUSH_MEMBER)
+							if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
 							{
 								set->push(left->childs);
 								left->childs.clear();
@@ -1406,19 +1451,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 							op->ref = REF_NO;
 							op->source = nullptr;
 
-							if(left->op != PUSH_MEMBER)
-							{
-								Cast(left, cast);
-								Cast(right, cast);
-
-								op->push(left);
-								op->push(right);
-
-								if(!TryCast(op, VarType(set->type)))
-									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
-								set->push(op);
-							}
-							else
+							if(left->op == PUSH_MEMBER)
 							{
 								// left [class]
 								// push [class, class]
@@ -1436,6 +1469,34 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 								set->push(op);
 								if(!TryCast(op, VarType(set->type)))
 									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
+							}
+							else if(left->op == PUSH_INDEX)
+							{
+								assert(left->childs.size() == 2u); // push arr, push index
+								ParseNode* push = ParseNode::Get();
+								push->op = PUSH;
+								left->childs.insert(left->childs.begin() + 1, push);
+								left->push(PUSH);
+								left->push(SWAP, 1);
+								Cast(left, cast);
+								Cast(right, cast);
+								op->push(left);
+								op->push(right);
+								if(!TryCast(op, VarType(set->type)))
+									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
+								set->push(op);
+							}
+							else
+							{
+								Cast(left, cast);
+								Cast(right, cast);
+
+								op->push(left);
+								op->push(right);
+
+								if(!TryCast(op, VarType(set->type)))
+									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
+								set->push(op);
 							}
 						}
 					}
@@ -1520,27 +1581,13 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 	return stack2.back();
 }
 
-BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolOrNode>& exit, vector<SYMBOL>& stack, int* type)
+BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type)
 {
 	BASIC_SYMBOL symbol = BS_MAX;
 
 	if(!type)
 	{
-		// [unary symbols]
-		while(GetNextSymbol(symbol))
-		{
-			BasicSymbolInfo& bsi = basic_symbols[symbol];
-			if(bsi.unary_symbol != S_INVALID)
-			{
-				PushSymbol(bsi.unary_symbol, exit, stack);
-				t.Next();
-				symbol = BS_MAX;
-			}
-			else
-				break;
-		}
-
-		// [pre symbols]
+		// [pre_op ...]
 		while(GetNextSymbol(symbol))
 		{
 			BasicSymbolInfo& bsi = basic_symbols[symbol];
@@ -1569,16 +1616,31 @@ BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolOrNode>& exit, vector<SYMBOL>& s
 	else
 		exit.push_back(ParseItem(type));
 
-	// [post symbol]
-	if(GetNextSymbol(symbol))
+	// [post_op ...]
+	while(GetNextSymbol(symbol))
 	{
 		BasicSymbolInfo& bsi = basic_symbols[symbol];
 		if(bsi.post_symbol != S_INVALID)
 		{
-			PushSymbol(bsi.post_symbol, exit, stack);
+			if(bsi.post_symbol == S_SUBSCRIPT)
+			{
+				t.Next();
+				ParseNode* expr = ParseExpr(']');
+				if(!TryCast(expr, VarType(V_INT)))
+					t.Throw("Subscript operator require type 'int', found '%s'.", GetTypeName(expr));
+				ParseNode* sub = ParseNode::Get();
+				sub->pseudo_op = SUBSCRIPT;
+				sub->childs.push_back(expr);
+				sub->source = nullptr;
+				PushSymbol(bsi.post_symbol, exit, stack, sub);
+			}
+			else
+				PushSymbol(bsi.post_symbol, exit, stack);
 			t.Next();
 			symbol = BS_MAX;
 		}
+		else
+			break;
 	}
 
 	return symbol;
@@ -1887,13 +1949,13 @@ int Parser::GetVarTypeForMember()
 	return type_index;
 }
 
-void Parser::PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL>& stack)
+void Parser::PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node)
 {
 	while(!stack.empty())
 	{
-		SYMBOL symbol2 = stack.back();
+		SymbolNode symbol2 = stack.back();
 		SymbolInfo& s1 = symbols[symbol];
-		SymbolInfo& s2 = symbols[symbol2];
+		SymbolInfo& s2 = symbols[symbol2.symbol];
 
 		bool ok = false;
 		if(s1.left_associativity)
@@ -1910,7 +1972,7 @@ void Parser::PushSymbol(SYMBOL symbol, vector<SymbolOrNode>& exit, vector<SYMBOL
 			break;
 	}
 
-	stack.push_back(symbol);
+	stack.push_back(SymbolNode(symbol, node));
 }
 
 bool Parser::GetNextSymbol(BASIC_SYMBOL& symbol)
@@ -2014,6 +2076,8 @@ BASIC_SYMBOL Parser::GetSymbol()
 			return BS_BIT_XOR;
 	case '.':
 		return BS_DOT;
+	case '[':
+		return BS_SUBSCRIPT;
 	default:
 		return BS_MAX;
 	}
@@ -3174,6 +3238,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case SET_THIS_MEMBER:
 	case CTOR:
 	case COPY_ARG:
+	case SWAP:
 		code.push_back(node->op);
 		code.push_back(node->value);
 		break;
@@ -3216,6 +3281,8 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case BIT_NOT:
 	case IS:
 	case COPY:
+	case PUSH_INDEX:
+	case SET_INDEX:
 		code.push_back(node->op);
 		break;
 	case PUSH_BOOL:
