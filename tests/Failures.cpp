@@ -267,4 +267,14 @@ TEST_METHOD(RegisterMemberParseError)
 	AssertError("Failed to parse member declaration for type 'A' AddMember 'int;'.");
 }
 
+TEST_METHOD(InvalidSubscriptIndexType)
+{
+	RunFailureTest("string a; a[a] = 'b';", "Subscript operator require type 'int', found 'string'.");
+}
+
+TEST_METHOD(InvalidSubscriptType)
+{
+	RunFailureTest("int a; a[0] = 1;", "Type 'int' don't have subscript operator.");
+}
+
 CA_TEST_CLASS_END();

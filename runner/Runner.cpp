@@ -9,8 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "subscript.txt";
-//"../codegolf/nest_a_string.txt";
+cstring def_filename = "../codegolf/nest_a_string.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

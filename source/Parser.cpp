@@ -285,30 +285,28 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 	current_block = new_block;
 
 	t.Next();
-	vector<ParseNode*> nodes;
+	NodeRef group;
 	while(true)
 	{
 		if(t.IsSymbol('}'))
 			break;
 		ParseNode* node = ParseLineOrBlock();
 		if(node)
-			nodes.push_back(node);
+			group->push(node);
 	}
 	t.Next();
 
 	current_block = old_block;
 
-	if(nodes.empty())
+	if(group->childs.empty())
 		return nullptr;
 	else
 	{
-		ParseNode* node = ParseNode::Get();
-		node->pseudo_op = GROUP;
-		node->type = V_VOID;
-		node->ref = REF_NO;
-		node->childs = nodes;
-		node->source = nullptr;
-		return node;
+		group->pseudo_op = GROUP;
+		group->type = V_VOID;
+		group->ref = REF_NO;
+		group->source = nullptr;
+		return group.Pin();
 	}
 }
 
@@ -331,7 +329,7 @@ ParseNode* Parser::ParseLine()
 				t.Next();
 				ParseNode* if_expr = ParseCond();
 
-				ParseNode* if_op = ParseNode::Get();
+				NodeRef if_op;
 				if_op->pseudo_op = IF;
 				if_op->type = V_VOID;
 				if_op->ref = REF_NO;
@@ -348,17 +346,17 @@ ParseNode* Parser::ParseLine()
 				else
 					if_op->push(nullptr);
 
-				return if_op;
+				return if_op.Pin();
 			}
 		case K_DO:
 			{
 				t.Next();
 				++breakable_block;
-				ParseNode* block = ParseLineOrBlock();
+				NodeRef block = ParseLineOrBlock();
 				--breakable_block;
 				t.AssertKeyword(K_WHILE, G_KEYWORD);
 				t.Next();
-				ParseNode* cond = ParseCond();
+				NodeRef cond = ParseCond();
 				t.AssertSymbol(';');
 				t.Next();
 				ParseNode* do_whil = ParseNode::Get();
@@ -367,24 +365,24 @@ ParseNode* Parser::ParseLine()
 				do_whil->value = DO_WHILE_NORMAL;
 				do_whil->ref = REF_NO;
 				do_whil->source = nullptr;
-				do_whil->push(block);
-				do_whil->push(cond);
+				do_whil->push(block.Pin());
+				do_whil->push(cond.Pin());
 				return do_whil;
 			}
 		case K_WHILE:
 			{
 				t.Next();
-				ParseNode* cond = ParseCond();
+				NodeRef cond = ParseCond();
 				++breakable_block;
-				ParseNode* block = ParseLineOrBlock();
+				NodeRef block = ParseLineOrBlock();
 				--breakable_block;
 				ParseNode* whil = ParseNode::Get();
 				whil->pseudo_op = WHILE;
 				whil->type = V_VOID;
 				whil->ref = REF_NO;
 				whil->source = nullptr;
-				whil->push(cond);
-				whil->push(block);
+				whil->push(cond.Pin());
+				whil->push(block.Pin());
 				return whil;
 			}
 		case K_FOR:
@@ -393,7 +391,7 @@ ParseNode* Parser::ParseLine()
 				t.AssertSymbol('(');
 				t.Next();
 
-				ParseNode* for1, *for2, *for3;
+				NodeRef for1(nullptr), for2(nullptr), for3(nullptr);
 				Block* new_block = Block::Get();
 				Block* old_block = current_block;
 				new_block->parent = old_block;
@@ -419,22 +417,22 @@ ParseNode* Parser::ParseLine()
 					for3 = ParseExpr(')');
 				t.Next();
 
-				if(for2 && !TryCast(for2, VarType(V_BOOL)))
+				if(for2 && !TryCast(for2.Get(), VarType(V_BOOL)))
 					t.Throw("Condition expression with '%s' type.", GetTypeName(for2));
 
-				ParseNode* fo = ParseNode::Get();
+				NodeRef fo = ParseNode::Get();
 				fo->pseudo_op = FOR;
 				fo->type = V_VOID;
 				fo->ref = REF_NO;
 				fo->source = nullptr;
-				fo->push(for1);
-				fo->push(for2);
-				fo->push(for3);
+				fo->push(for1.Pin());
+				fo->push(for2.Pin());
+				fo->push(for3.Pin());
 				++breakable_block;
 				fo->push(ParseLineOrBlock());
 				--breakable_block;
 				current_block = old_block;
-				return fo;
+				return fo.Pin();
 			}
 		case K_BREAK:
 			{
@@ -452,7 +450,7 @@ ParseNode* Parser::ParseLine()
 			}
 		case K_RETURN:
 			{
-				ParseNode* ret = ParseNode::Get();
+				NodeRef ret = ParseNode::Get();
 				ret->pseudo_op = RETURN;
 				ret->type = V_VOID;
 				ret->ref = REF_NO;
@@ -513,7 +511,7 @@ ParseNode* Parser::ParseLine()
 					global_returns.push_back(info);
 				}
 				t.Next();
-				return ret;
+				return ret.Pin();
 			}
 		case K_CLASS:
 		case K_STRUCT:
@@ -628,15 +626,15 @@ ParseNode* Parser::ParseLine()
 		// is this function or var declaration or ctor
 		VarType type((CoreVarType)t.GetKeywordId(G_VAR));
 		t.Next();
+
 		if(t.IsSymbol('('))
 		{
 			// ctor
 			int var_type = type.core;
-			ParseNode* node = ParseExpr(';', 0, &var_type);
+			NodeRef node = ParseExpr(';', 0, &var_type);
 			t.AssertSymbol(';');
 			t.Next();
-
-			return node;
+			return node.Pin();
 		}
 		else if(t.IsSymbol('&'))
 		{
@@ -687,13 +685,13 @@ ParseNode* Parser::ParseLine()
 		}
 	}
 
-	ParseNode* node = ParseExpr(';');
+	NodeRef node = ParseExpr(';');
 
 	// ;
 	t.AssertSymbol(';');
 	t.Next();
 
-	return node;
+	return node.Pin();
 }
 
 // func_decl
@@ -953,12 +951,12 @@ ParseNode* Parser::ParseCond()
 {
 	t.AssertSymbol('(');
 	t.Next();
-	ParseNode* cond = ParseExpr(')');
+	NodeRef cond = ParseExpr(')');
 	t.AssertSymbol(')');
-	if(!TryCast(cond, VarType(V_BOOL)))
+	if(!TryCast(cond.Get(), VarType(V_BOOL)))
 		t.Throw("Condition expression with '%s' type.", GetTypeName(cond));
 	t.Next();
-	return cond;
+	return cond.Pin();
 }
 
 ParseNode* Parser::ParseVarDecl(int type, string* _name)
@@ -980,7 +978,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 		t.Next();
 
 	// [=]
-	ParseNode* expr;
+	NodeRef expr(nullptr);
 	if(!t.IsSymbol('='))
 	{
 		expr = ParseNode::Get();
@@ -1046,7 +1044,7 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 
 		// expr<,;>
 		expr = ParseExpr(',', ';');
-		if(!TryCast(expr, VarType(type)))
+		if(!TryCast(expr.Get(), VarType(type)))
 			t.Throw("Can't assign type '%s' to variable '%s'.", GetTypeName(expr), GetName(var));
 	}
 
@@ -1056,14 +1054,54 @@ ParseNode* Parser::ParseVarDecl(int type, string* _name)
 	node->value = var->index;
 	node->ref = REF_NO;
 	node->source = nullptr;
-	node->push(expr);
+	node->push(expr.Pin());
 	return node;
 }
 
 ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 {
 	vector<SymbolNode> stack, exit;
+	vector<ParseNode*> stack2;
 
+	try
+	{
+		ParseExprConvertToRPN(exit, stack, type);
+
+		for(SymbolNode& sn : exit)
+		{
+			if(sn.is_symbol)
+				ParseExprApplySymbol(stack2, sn);
+			else
+				stack2.push_back(sn.node);
+		}
+
+		if(stack2.size() != 1u)
+			t.Throw("Invalid operations.");
+
+		return stack2.back();
+	}
+	catch(...)
+	{
+		for(SymbolNode& sn : stack)
+		{
+			if(sn.node)
+				sn.node->Free();
+		}
+
+		for(SymbolNode& sn : exit)
+		{
+			if(sn.node)
+				sn.node->Free();
+		}
+
+		ParseNode::Free(stack2);
+
+		throw;
+	}
+}
+
+void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type)
+{
 	while(true)
 	{
 		BASIC_SYMBOL left = ParseExprPart(exit, stack, type);
@@ -1082,7 +1120,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				string* str = StringPool.Get();
 				*str = t.MustGetItem();
 				t.Next();
-				ParseNode* node = ParseNode::Get();
+				NodeRef node = ParseNode::Get();
 				node->type = V_VOID;
 				node->str = str;
 				node->ref = REF_NO;
@@ -1094,7 +1132,7 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 				}
 				else
 					node->pseudo_op = OBJ_MEMBER;
-				exit.push_back(node);
+				exit.push_back(node.Pin());
 				left = BS_MAX;
 
 				// post
@@ -1121,464 +1159,6 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 		exit.push_back(stack.back());
 		stack.pop_back();
 	}
-
-	vector<ParseNode*> stack2;
-	for(SymbolNode& sn : exit)
-	{
-		if(sn.is_symbol)
-		{
-			SymbolInfo& si = symbols[sn.symbol];
-			if(si.args > (int)stack2.size())
-				t.Throw("Missing arguments on stack for operator '%s'.", si.name);
-
-			if(si.args == 1)
-			{
-				ParseNode* node = stack2.back();
-				stack2.pop_back();
-				if(si.type == ST_NONE)
-				{
-					// unrary operator
-					VarType cast;
-					int result;
-					if(!CanOp(sn.symbol, node->GetVarType(), VarType(V_VOID), cast, result))
-						t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
-					Cast(node, cast);
-					if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
-					{
-						ParseNode* op = ParseNode::Get();
-						op->op = (Op)si.op;
-						op->type = result;
-						op->push(node);
-						op->ref = REF_NO;
-						op->source = nullptr;
-						node = op;
-					}
-					stack2.push_back(node);
-				}
-				else if(si.type == ST_SUBSCRIPT)
-				{
-					// subscript operator
-					if(node->type != V_STRING)
-						t.Throw("Type '%s' don't have subscript operator.", GetTypeName(node));
-					ParseNode* op = ParseNode::Get();
-					op->op = PUSH_INDEX;
-					op->type = V_CHAR;
-					op->ref = REF_NO;
-					op->source = nullptr;
-					op->push(node);
-					op->push(sn.node->childs[0]);
-					stack2.push_back(op);
-					sn.node->childs.clear();
-					sn.node->Free();
-				}
-				else
-				{
-					// inc dec
-					assert(si.type == ST_INC_DEC);
-					if(node->type != V_INT && node->type != V_FLOAT && node->type != V_CHAR)
-						t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
-
-					bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
-					bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
-					Op oper = (inc ? INC : DEC);
-
-					ParseNode* op = ParseNode::Get();
-					op->pseudo_op = INTERNAL_GROUP;
-					op->type = node->type;
-					op->ref = REF_NO;
-					op->source = nullptr;
-					if(node->source)
-						node->source->mod = true;
-
-					if(node->ref != REF_YES)
-					{
-						Op set_op;
-						switch(node->op)
-						{
-						case PUSH_LOCAL:
-							set_op = SET_LOCAL;
-							break;
-						case PUSH_GLOBAL:
-							set_op = SET_GLOBAL;
-							break;
-						case PUSH_ARG:
-							set_op = SET_ARG;
-							break;
-						case PUSH_MEMBER:
-							set_op = SET_MEMBER;
-							break;
-						case PUSH_THIS_MEMBER:
-							set_op = SET_THIS_MEMBER;
-							break;
-						case PUSH_INDEX:
-							set_op = SET_INDEX;
-							break;
-						default:
-							t.Throw("Operation '%s' require variable.", si.name);
-						}
-
-						if(set_op == SET_MEMBER)
-						{
-							op->push(node->childs);
-							node->childs.clear();
-							op->push(PUSH);
-							op->push(node);
-							if(pre)
-							{
-								op->push(oper);
-								op->push(SET_MEMBER, node->value);
-							}
-							else
-							{
-								op->push(SET_TMP);
-								op->push(oper);
-								op->push(SET_MEMBER, node->value);
-								op->push(POP);
-								op->push(PUSH_TMP);
-							}
-						}
-						else if(set_op == SET_INDEX)
-						{
-							assert(node->childs.size() == 2u); // push ar, push index
-							op->push(node->childs[0]);
-							op->push(PUSH);
-							op->push(node->childs[1]);
-							node->childs.clear();
-							node->Free();
-							op->push(PUSH);
-							op->push(SWAP, 1);
-							op->push(PUSH_INDEX);
-							if(!pre)
-								op->push(SET_TMP);
-							op->push(oper);
-							op->push(SET_INDEX);
-							if(!pre)
-							{
-								op->push(POP);
-								op->push(PUSH_TMP);
-							}
-						}
-						else if(pre)
-						{
-							/* ++a
-							push a; a
-							inc; a+1
-							set; a+1  a->a+1
-							*/
-							op->push(node);
-							op->push(oper);
-							op->push(set_op, node->value);
-						}
-						else
-						{
-							/* a++
-							push a; a
-							push; a,a
-							inc; a,a+1
-							set; a,a+1  a->a+1
-							pop; a
-							*/
-							op->push(node);
-							op->push(PUSH);
-							op->push(oper);
-							op->push(set_op, node->value);
-							op->push(POP);
-						}
-					}
-					else
-					{
-						if(pre)
-						{
-							/* ++a (a is reference)
-							push a; a
-							push; a,a
-							deref; a,[a]
-							inc; a,[a]+1
-							set_adr; [a]+1  a->a+1
-							*/
-							op->push(node);
-							op->push(PUSH);
-							op->push(DEREF);
-							op->push(INC);
-							op->push(SET_ADR);
-						}
-						else
-						{
-							/* a++ (a is reference)
-							push a; a
-							deref; [a]
-							push a; [a],a
-							push; [a],a,a
-							deref; [a],a,[a]
-							inc; [a],a,[a]+1
-							set_adr; [a],[a]+1  a->a+1
-							pop; [a]
-							*/
-							op->push(node);
-							op->push(DEREF);
-							op->push(node);
-							op->push(PUSH);
-							op->push(DEREF);
-							op->push(INC);
-							op->push(SET_ADR);
-							op->push(POP);
-						}
-					}
-
-					stack2.push_back(op);
-				}
-			}
-			else
-			{
-				// two argument operation
-				assert(si.args == 2);
-				ParseNode* right = stack2.back();
-				stack2.pop_back();
-				ParseNode* left = stack2.back();
-				stack2.pop_back();
-
-				if(si.symbol == S_MEMBER_ACCESS)
-				{
-					// member access
-					if(left->type == V_VOID)
-						t.Throw("Invalid member access for type 'void'.");
-					Type* type = GetType(left->type);
-					if(right->pseudo_op == OBJ_FUNC)
-					{
-						vector<AnyFunction> funcs;
-						FindAllFunctionOverloads(type, *right->str, funcs);
-						if(funcs.empty())
-							t.Throw("Missing method '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
-						StringPool.Free(right->str);
-
-						ParseNode* node = ParseNode::Get();
-						node->ref = REF_NO;
-						node->source = left->source;
-						node->push(left);
-						for(ParseNode* n : right->childs)
-							node->push(n);
-
-						ApplyFunctionCall(node, funcs, type, false);
-
-						right->childs.clear();
-						right->Free();
-						stack2.push_back(node);
-					}
-					else
-					{
-						assert(right->pseudo_op == OBJ_MEMBER);
-						int m_index;
-						Member* m = type->FindMember(*right->str, m_index);
-						if(!m)
-							t.Throw("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
-						StringPool.Free(right->str);
-						ParseNode* node = ParseNode::Get();
-						node->op = PUSH_MEMBER;
-						node->type = m->type;
-						node->value = m_index;
-						node->ref = REF_MAY;
-						node->source = left->source;
-						node->push(left);
-						right->Free();
-						stack2.push_back(node);
-					}
-				}
-				else if(si.type == ST_ASSIGN)
-				{
-					// assign to variable
-					if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
-						&& left->op != PUSH_INDEX && left->ref != REF_YES)
-						t.Throw("Can't assign, left value must be variable.");
-					if(left->source)
-						left->source->mod = true;
-
-					ParseNode* set = ParseNode::Get();
-					set->source = nullptr;
-					if(left->ref != REF_YES)
-					{
-						switch(left->op)
-						{
-						case PUSH_LOCAL:
-							set->op = SET_LOCAL;
-							break;
-						case PUSH_GLOBAL:
-							set->op = SET_GLOBAL;
-							break;
-						case PUSH_ARG:
-							set->op = SET_ARG;
-							break;
-						case PUSH_MEMBER:
-							set->op = SET_MEMBER;
-							break;
-						case PUSH_THIS_MEMBER:
-							set->op = SET_THIS_MEMBER;
-							break;
-						case PUSH_INDEX:
-							set->op = SET_INDEX;
-							break;
-						default:
-							assert(0);
-							break;
-						}
-						set->value = left->value;
-						set->type = left->type;
-						set->ref = REF_NO;
-
-						if(si.op == NOP)
-						{
-							// assign
-							if(!TryCast(right, VarType(left->type)))
-								t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
-							if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
-							{
-								set->push(left->childs);
-								left->childs.clear();
-							}
-							set->push(right);
-							left->Free();
-						}
-						else
-						{
-							// compound assign, left op= right
-							VarType cast;
-							int result;
-							if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
-								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
-
-							ParseNode* op = ParseNode::Get();
-							op->op = (Op)symbols[si.op].op;
-							op->type = result;
-							op->ref = REF_NO;
-							op->source = nullptr;
-
-							if(left->op == PUSH_MEMBER)
-							{
-								// left [class]
-								// push [class, class]
-								// push member [class, member]
-								// right [class, member, right]
-								// op [class, member op right]
-								// set member
-								set->push(left->childs);
-								set->push(PUSH);
-								left->childs.clear();
-								Cast(left, cast);
-								Cast(right, cast);
-								set->push(left);
-								set->push(right);
-								set->push(op);
-								if(!TryCast(op, VarType(set->type)))
-									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
-							}
-							else if(left->op == PUSH_INDEX)
-							{
-								assert(left->childs.size() == 2u); // push arr, push index
-								ParseNode* push = ParseNode::Get();
-								push->op = PUSH;
-								left->childs.insert(left->childs.begin() + 1, push);
-								left->push(PUSH);
-								left->push(SWAP, 1);
-								Cast(left, cast);
-								Cast(right, cast);
-								op->push(left);
-								op->push(right);
-								if(!TryCast(op, VarType(set->type)))
-									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
-								set->push(op);
-							}
-							else
-							{
-								Cast(left, cast);
-								Cast(right, cast);
-
-								op->push(left);
-								op->push(right);
-
-								if(!TryCast(op, VarType(set->type)))
-									t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
-								set->push(op);
-							}
-						}
-					}
-					else
-					{
-						set->type = left->type;
-						set->ref = REF_NO;
-
-						if(si.op == NOP)
-						{
-							// assign
-							if(!TryCast(right, VarType(left->type)))
-								t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(left));
-							set->op = SET_ADR;
-							set->push(left);
-							set->push(right);
-						}
-						else
-						{
-							// compound assign
-							VarType cast;
-							int result;
-							if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
-								t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
-
-							ParseNode* real_left = left;
-							Cast(left, cast);
-							Cast(right, cast);
-
-							ParseNode* op = ParseNode::Get();
-							op->op = (Op)symbols[si.op].op;
-							op->type = result;
-							op->ref = REF_NO;
-							op->source = nullptr;
-							op->push(left);
-							op->push(right);
-
-							if(!TryCast(op, VarType(set->type)))
-								t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(op), GetTypeName(set), si.name);
-							set->push(real_left->copy());
-							set->push(op);
-							set->op = SET_ADR;
-						}
-					}
-
-					stack2.push_back(set);
-				}
-				else
-				{
-					// normal operation
-					VarType cast;
-					int result;
-					if(!CanOp(si.symbol, left->GetVarType(), right->GetVarType(), cast, result))
-						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
-
-					Cast(left, cast);
-					Cast(right, cast);
-
-					ParseNode* op = ParseNode::Get();
-					op->type = result;
-					op->ref = REF_NO;
-					op->source = nullptr;
-
-					if(!TryConstExpr(left, right, op, si.symbol))
-					{
-						op->op = (Op)si.op;
-						op->push(left);
-						op->push(right);
-					}
-
-					stack2.push_back(op);
-				}
-			}
-		}
-		else
-			stack2.push_back(sn.node);
-	}
-
-	if(stack2.size() != 1u)
-		t.Throw("Invalid operations.");
-
-	return stack2.back();
 }
 
 BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type)
@@ -1625,12 +1205,12 @@ BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>&
 			if(bsi.post_symbol == S_SUBSCRIPT)
 			{
 				t.Next();
-				ParseNode* expr = ParseExpr(']');
-				if(!TryCast(expr, VarType(V_INT)))
+				NodeRef expr = ParseExpr(']');
+				if(!TryCast(expr.Get(), VarType(V_INT)))
 					t.Throw("Subscript operator require type 'int', found '%s'.", GetTypeName(expr));
 				ParseNode* sub = ParseNode::Get();
 				sub->pseudo_op = SUBSCRIPT;
-				sub->childs.push_back(expr);
+				sub->childs.push_back(expr.Pin());
 				sub->source = nullptr;
 				PushSymbol(bsi.post_symbol, exit, stack, sub);
 			}
@@ -1644,6 +1224,419 @@ BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>&
 	}
 
 	return symbol;
+}
+
+void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
+{
+	SymbolInfo& si = symbols[sn.symbol];
+	if(si.args > (int)stack.size())
+		t.Throw("Missing arguments on stack for operator '%s'.", si.name);
+
+	if(si.args == 1)
+	{
+		NodeRef node = stack.back();
+		stack.pop_back();
+		if(si.type == ST_NONE)
+		{
+			// unrary operator
+			VarType cast;
+			int result;
+			if(!CanOp(sn.symbol, node->GetVarType(), VarType(V_VOID), cast, result))
+				t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
+			Cast(node.Get(), cast);
+			if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
+			{
+				ParseNode* op = ParseNode::Get();
+				op->op = (Op)si.op;
+				op->type = result;
+				op->push(node.Pin());
+				op->ref = REF_NO;
+				op->source = nullptr;
+				node = op;
+			}
+			stack.push_back(node.Pin());
+		}
+		else if(si.type == ST_SUBSCRIPT)
+		{
+			// subscript operator
+			if(node->type != V_STRING)
+				t.Throw("Type '%s' don't have subscript operator.", GetTypeName(node));
+			ParseNode* op = ParseNode::Get();
+			op->op = PUSH_INDEX;
+			op->type = V_CHAR;
+			op->ref = REF_NO;
+			op->source = nullptr;
+			op->push(node.Pin());
+			op->push(sn.node->childs[0]);
+			stack.push_back(op);
+			sn.node->childs.clear();
+			sn.node->Free();
+		}
+		else
+		{
+			// inc dec
+			assert(si.type == ST_INC_DEC);
+			if(node->type != V_INT && node->type != V_FLOAT && node->type != V_CHAR)
+				t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
+
+			bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
+			bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
+			Op oper = (inc ? INC : DEC);
+
+			NodeRef op;
+			op->pseudo_op = INTERNAL_GROUP;
+			op->type = node->type;
+			op->ref = REF_NO;
+			op->source = nullptr;
+			if(node->source)
+				node->source->mod = true;
+
+			if(node->ref != REF_YES)
+			{
+				Op set_op;
+				switch(node->op)
+				{
+				case PUSH_LOCAL:
+					set_op = SET_LOCAL;
+					break;
+				case PUSH_GLOBAL:
+					set_op = SET_GLOBAL;
+					break;
+				case PUSH_ARG:
+					set_op = SET_ARG;
+					break;
+				case PUSH_MEMBER:
+					set_op = SET_MEMBER;
+					break;
+				case PUSH_THIS_MEMBER:
+					set_op = SET_THIS_MEMBER;
+					break;
+				case PUSH_INDEX:
+					set_op = SET_INDEX;
+					break;
+				default:
+					t.Throw("Operation '%s' require variable.", si.name);
+				}
+
+				ParseNode* pnode = node.Pin();
+
+				if(set_op == SET_MEMBER)
+				{
+					// inc dec member var
+					op->push(pnode->childs);
+					pnode->childs.clear();
+					op->push(PUSH);
+					op->push(pnode);
+					if(pre)
+					{
+						op->push(oper);
+						op->push(SET_MEMBER, pnode->value);
+					}
+					else
+					{
+						op->push(SET_TMP);
+						op->push(oper);
+						op->push(SET_MEMBER, pnode->value);
+						op->push(POP);
+						op->push(PUSH_TMP);
+					}
+				}
+				else if(set_op == SET_INDEX)
+				{
+					// inc dec subscript
+					assert(pnode->childs.size() == 2u); // push ar, push index
+					op->push(pnode->childs[0]);
+					op->push(PUSH);
+					op->push(pnode->childs[1]);
+					pnode->childs.clear();
+					pnode->Free();
+					op->push(PUSH);
+					op->push(SWAP, 1);
+					op->push(PUSH_INDEX);
+					if(!pre)
+						op->push(SET_TMP);
+					op->push(oper);
+					op->push(SET_INDEX);
+					if(!pre)
+					{
+						op->push(POP);
+						op->push(PUSH_TMP);
+					}
+				}
+				else if(pre)
+				{
+					op->push(pnode);
+					op->push(oper);
+					op->push(set_op, pnode->value);
+				}
+				else
+				{
+					op->push(pnode);
+					op->push(PUSH);
+					op->push(oper);
+					op->push(set_op, pnode->value);
+					op->push(POP);
+				}
+			}
+			else
+			{
+				ParseNode* pnode = node.Pin();
+				if(pre)
+				{
+					op->push(pnode);
+					op->push(PUSH);
+					op->push(DEREF);
+					op->push(INC);
+					op->push(SET_ADR);
+				}
+				else
+				{
+					op->push(pnode);
+					op->push(DEREF);
+					op->push(pnode);
+					op->push(PUSH);
+					op->push(DEREF);
+					op->push(INC);
+					op->push(SET_ADR);
+					op->push(POP);
+				}
+			}
+
+			stack.push_back(op.Pin());
+		}
+	}
+	else
+	{
+		// two argument operation
+		assert(si.args == 2);
+		NodeRef right = stack.back();
+		stack.pop_back();
+		NodeRef left = stack.back();
+		stack.pop_back();
+
+		if(si.symbol == S_MEMBER_ACCESS)
+		{
+			// member access
+			if(left->type == V_VOID)
+				t.Throw("Invalid member access for type 'void'.");
+			Type* type = GetType(left->type);
+			if(right->pseudo_op == OBJ_FUNC)
+			{
+				vector<AnyFunction> funcs;
+				FindAllFunctionOverloads(type, *right->str, funcs);
+				if(funcs.empty())
+					t.Throw("Missing method '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+				StringPool.Free(right->str);
+
+				NodeRef node = ParseNode::Get();
+				node->ref = REF_NO;
+				node->source = left->source;
+				node->push(left.Pin());
+				for(ParseNode* n : right->childs)
+					node->push(n);
+
+				ApplyFunctionCall(node, funcs, type, false);
+
+				right->childs.clear();
+				right.Pin()->Free();
+				stack.push_back(node.Pin());
+			}
+			else
+			{
+				assert(right->pseudo_op == OBJ_MEMBER);
+				int m_index;
+				Member* m = type->FindMember(*right->str, m_index);
+				if(!m)
+					t.Throw("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+				StringPool.Free(right->str);
+				ParseNode* node = ParseNode::Get();
+				node->op = PUSH_MEMBER;
+				node->type = m->type;
+				node->value = m_index;
+				node->ref = REF_MAY;
+				node->source = left->source;
+				node->push(left.Pin());
+				right.Pin()->Free();
+				stack.push_back(node);
+			}
+		}
+		else if(si.type == ST_ASSIGN)
+		{
+			// assign to variable
+			if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
+				&& left->op != PUSH_INDEX && left->ref != REF_YES)
+				t.Throw("Can't assign, left value must be variable.");
+			if(left->source)
+				left->source->mod = true;
+
+			NodeRef set;
+			set->source = nullptr;
+			if(left->ref != REF_YES)
+			{
+				switch(left->op)
+				{
+				case PUSH_LOCAL:
+					set->op = SET_LOCAL;
+					break;
+				case PUSH_GLOBAL:
+					set->op = SET_GLOBAL;
+					break;
+				case PUSH_ARG:
+					set->op = SET_ARG;
+					break;
+				case PUSH_MEMBER:
+					set->op = SET_MEMBER;
+					break;
+				case PUSH_THIS_MEMBER:
+					set->op = SET_THIS_MEMBER;
+					break;
+				case PUSH_INDEX:
+					set->op = SET_INDEX;
+					break;
+				default:
+					assert(0);
+					break;
+				}
+				set->value = left->value;
+				set->type = left->type;
+				set->ref = REF_NO;
+
+				if(si.op == NOP)
+				{
+					// assign
+					if(!TryCast(right.Get(), VarType(left->type)))
+						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
+					if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
+					{
+						set->push(left->childs);
+						left->childs.clear();
+					}
+					set->push(right.Pin());
+					left.Pin()->Free();
+				}
+				else
+				{
+					// compound assign, left op= right
+					VarType cast;
+					int result;
+					if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
+						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
+
+					NodeRef op;
+					op->op = (Op)symbols[si.op].op;
+					op->type = result;
+					op->ref = REF_NO;
+					op->source = nullptr;
+
+					if(left->op == PUSH_MEMBER)
+					{
+						set->push(left->childs);
+						set->push(PUSH);
+						left->childs.clear();
+						Cast(left.Get(), cast);
+						Cast(right.Get(), cast);
+						set->push(left.Pin());
+						set->push(right.Pin());
+						ForceCast(op.Get(), set, si.name);
+						set->push(op.Pin());
+					}
+					else if(left->op == PUSH_INDEX)
+					{
+						assert(left->childs.size() == 2u); // push arr, push index
+						ParseNode* push = ParseNode::Get();
+						push->op = PUSH;
+						left->childs.insert(left->childs.begin() + 1, push);
+						left->push(PUSH);
+						left->push(SWAP, 1);
+						Cast(left.Get(), cast);
+						Cast(right.Get(), cast);
+						op->push(left.Pin());
+						op->push(right.Pin());
+						ForceCast(op.Get(), set, si.name);
+						set->push(op.Pin());
+					}
+					else
+					{
+						Cast(left.Get(), cast);
+						Cast(right.Get(), cast);
+
+						op->push(left.Pin());
+						op->push(right.Pin());
+
+						ForceCast(op.Get(), set, si.name);
+						set->push(op.Pin());
+					}
+				}
+			}
+			else
+			{
+				set->type = left->type;
+				set->ref = REF_NO;
+
+				if(si.op == NOP)
+				{
+					// assign
+					if(!TryCast(right.Get(), VarType(left->type)))
+						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(left));
+					set->op = SET_ADR;
+					set->push(left.Pin());
+					set->push(right.Pin());
+				}
+				else
+				{
+					// compound assign
+					VarType cast;
+					int result;
+					if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
+						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
+
+					NodeRef real_left = left.Get()->copy();
+					Cast(left.Get(), cast);
+					Cast(right.Get(), cast);
+
+					NodeRef op;
+					op->op = (Op)symbols[si.op].op;
+					op->type = result;
+					op->ref = REF_NO;
+					op->source = nullptr;
+					op->push(left.Pin());
+					op->push(right.Pin());
+
+					ForceCast(op.Get(), set, si.name);
+					set->push(real_left.Pin());
+					set->push(op.Pin());
+					set->op = SET_ADR;
+				}
+			}
+
+			stack.push_back(set.Pin());
+		}
+		else
+		{
+			// normal operation
+			VarType cast;
+			int result;
+			if(!CanOp(si.symbol, left->GetVarType(), right->GetVarType(), cast, result))
+				t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
+
+			Cast(left.Get(), cast);
+			Cast(right.Get(), cast);
+
+			ParseNode* op = ParseNode::Get();
+			op->type = result;
+			op->ref = REF_NO;
+			op->source = nullptr;
+
+			if(!TryConstExpr(left, right, op, si.symbol))
+			{
+				op->op = (Op)si.op;
+				op->push(left.Pin());
+				op->push(right.Pin());
+			}
+
+			stack.push_back(op);
+		}
+	}
 }
 
 void Parser::ParseArgs(vector<ParseNode*>& nodes)
@@ -1684,14 +1677,14 @@ ParseNode* Parser::ParseItem(int* type)
 		Type* rtype = GetType(var_type.core);
 		if(!IS_SET(rtype->flags, Type::HaveCtor))
 			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
-		ParseNode* node = ParseNode::Get();
+		NodeRef node;
 		node->ref = REF_NO;
 		node->source = nullptr;
 		ParseArgs(node->childs);
 		vector<AnyFunction> funcs;
 		FindAllCtors(rtype, funcs);
 		ApplyFunctionCall(node, funcs, rtype, true);
-		return node;
+		return node.Pin();
 	}
 	else if(t.IsItem())
 	{
@@ -2665,6 +2658,12 @@ int Parser::MayCast(ParseNode* node, VarType type)
 		else
 			return -1; // can't take address
 	}
+}
+
+void Parser::ForceCast(ParseNode*& node, ParseNode* type, cstring op)
+{
+	if(!TryCast(node, VarType(type->type)))
+		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetTypeName(type), op);
 }
 
 void Parser::Optimize()

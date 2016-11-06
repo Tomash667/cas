@@ -1,9 +1,8 @@
 - c++ function returning string cause 1 byte memory leak (string.txt)
-- many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct, 
-+ Can't cast return value from -> single func
-
-+ failure for invalid subscript type
-	invalid type: int a; a[0] = 0;
+- many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct, subscript
+- ParseExpr end/end2 is unused
+- postinc/dec on ref use same node twice
+- ParseNode::str cleanup
 
 NEST A STRING:
 + raise error

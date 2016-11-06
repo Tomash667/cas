@@ -1,50 +1,21 @@
-// call with runner -e f nest_a_string.txt
-void f(string c)
-{
-	string o;
-	o += c[0];
-	for(int i=1; i<c.length(); ++i)
-	{
-		o += '(';
-		o += c[i];
-	}
-	for(int i=1; i<c.length(); ++i)
-		o += ')';
-	println(o);
-}
+string f(string s){string o=s[0],r;for(int i=1;i<s.length();++i){o+="("+s[i];r+=')';}return o+r;}
+//string f(string s){string o=s[0],r;for(char c:s[1..]){o+="("+c;r+=')';}return o+r;}
 
-f("test");
+
+Assert_AreEqual(f("test"), "t(e(s(t)))");
+Assert_AreEqual(f("Hello world"), "H(e(l(l(o( (w(o(r(l(d))))))))))");
 pause();
 
-
-ctor string
-set_global 0
-pop
-push_local 0
-push_arg 0
-str_get_char 0
-str_add_char
-pop
-
-init:
-push_int 1
-set_local 1
-pop
-
-if:
-push_local 1
-push_arg 0
-callu string.length
-jnl end
-
-// kod
-
-
-// inc
-push_local 1
-inc
-set_local 1
-pop
-jmp if
-
-end:
+/*
+string f(string c)
+{
+	string o = c[0], r;
+	for(int i=1; i<c.length(); ++i)
+	{
+		o += "("+c[i];
+		r += ')';
+	}
+	for(char c:s[1..]){o+="("+c;r+=')';}
+	return o+r;
+}
+*/

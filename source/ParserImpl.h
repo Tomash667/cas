@@ -347,6 +347,15 @@ struct ParseFunction : CommonFunction
 	Block* block;
 	vector<ParseVar*> args;
 
+	~ParseFunction()
+	{
+		if(node)
+			node->Free();
+		if(block)
+			block->Free();
+		ParseVar::Free(args);
+	}
+
 	ParseVar* FindArg(const string& name)
 	{
 		for(ParseVar* arg : args)
@@ -431,15 +440,32 @@ struct BasicSymbolInfo
 template<typename T>
 struct ObjectPoolRef
 {
+	inline ObjectPoolRef(nullptr_t)
+	{
+		item = nullptr;
+	}
+
 	inline ObjectPoolRef()
 	{
 		item = T::Get();
+	}
+
+	inline ObjectPoolRef(T* item) : item(item)
+	{
+
 	}
 
 	inline ~ObjectPoolRef()
 	{
 		if(item)
 			T::Free(item);
+	}
+
+	inline void operator = (T* new_item)
+	{
+		if(item)
+			T::Free(item);
+		item = new_item;
 	}
 
 	inline operator T* ()
@@ -457,6 +483,11 @@ struct ObjectPoolRef
 		T* tmp = item;
 		item = nullptr;
 		return tmp;
+	}
+
+	inline T*& Get()
+	{
+		return item;
 	}
 
 private:

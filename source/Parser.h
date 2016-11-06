@@ -58,7 +58,9 @@ private:
 	ParseNode* ParseCond();
 	ParseNode* ParseVarDecl(int type, string* _name);
 	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
+	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
+	void ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn);
 	void ParseArgs(vector<ParseNode*>& nodes);
 	ParseNode* ParseItem(int* type = nullptr);
 	ParseNode* ParseConstItem();
@@ -78,6 +80,7 @@ private:
 	bool TryCast(ParseNode*& node, VarType type);
 	bool TryConstCast(ParseNode* node, int type);
 	int MayCast(ParseNode* node, VarType type);
+	void ForceCast(ParseNode*& node, ParseNode* type, cstring op);
 
 	void Optimize();
 	ParseNode* OptimizeTree(ParseNode* node);
