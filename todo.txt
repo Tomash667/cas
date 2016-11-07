@@ -9,7 +9,11 @@ NEST A STRING:
 + */ -> Not opened multiline comment found instead of unexpected *.
 + entry point
 + improvments
-+ array
++ array, current limits:
+	+ no class/struct/ref
+	+ don't allow ref
+	+ don't allow in c++
+	+ don't allow inside class
 
 TODO:
 ref, remove old REF_MAY/YES

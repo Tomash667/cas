@@ -78,6 +78,31 @@ static char f_getchar()
 	return val;
 }
 
+static int f_array_count(BaseArray* ar)
+{
+	return ar->Count();
+}
+
+static void f_array_add(BaseArray* ar, int item)
+{
+	ar->Add(item);
+}
+
+static void f_array_insert(BaseArray* ar, int index, int item)
+{
+	ar->Insert(index, item);
+}
+
+static void f_array_remove(BaseArray* ar, int index)
+{
+	ar->Remove(index);
+}
+
+static void f_array_clear(BaseArray* ar)
+{
+	ar->Clear();
+}
+
 static void InitCoreLib(Module& module, Settings& settings)
 {
 	assert(settings.input && settings.output);
@@ -93,6 +118,7 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddCoreType("int", sizeof(int), V_INT, false);
 	module.AddCoreType("float", sizeof(float), V_FLOAT, false);
 	module.AddCoreType("string", sizeof(string), V_STRING, true);
+	module.AddCoreType("array", 0, V_ARRAY, true, true);
 	module.AddCoreType("ref", 0, V_REF, true, true);
 	module.AddCoreType("special", 0, V_SPECIAL, false, true);
 
@@ -100,6 +126,11 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod("string", "int length()", f_string_length);
 	module.AddMethod("int", "int abs()", f_int_abs);
 	module.AddMethod("float", "float abs()", f_float_abs);
+	module.AddMethod("array", "int count()", f_array_count);
+	module.AddMethod("array", "void add(? item)", f_array_add);
+	module.AddMethod("array", "void insert(int index, ? item)", f_array_insert);
+	module.AddMethod("array", "void remove(int index)", f_array_remove);
+	module.AddMethod("array", "void clear()", f_array_clear);
 
 	// functions
 	module.AddFunction("void print(string str)", f_print);

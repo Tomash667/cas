@@ -53,6 +53,7 @@ enum CoreVarType
 	V_INT,
 	V_FLOAT,
 	V_STRING,
+	V_ARRAY,
 	V_REF,
 	V_SPECIAL
 };
@@ -115,4 +116,28 @@ struct Type
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
 	inline bool IsStruct() const { return IsClass() && !IsRef(); }
+};
+
+struct Var;
+
+struct BaseArray
+{
+	int refs;
+	Type* type;
+
+	virtual ~BaseArray() {}
+
+	virtual void Add(int item) = 0;
+	virtual void Clear() = 0;
+	virtual uint Count() = 0;
+	virtual Var Get(uint index) = 0;
+	virtual void Insert(uint index, int item) = 0;
+	virtual void Remove(uint index) = 0;
+	virtual void Set(uint index, Var& v) = 0;
+
+	inline void Release()
+	{
+		if(--refs == 0)
+			delete this;
+	}
 };
