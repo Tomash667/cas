@@ -2,13 +2,15 @@ code:
 	[ line_or_block ... ] EOF
 
 func_decl:
-	var_type <func_name> arg_decl EOF
-	<class_name> arg_decl EOF // ctor
-	operator addref/release () // special function
+	func_info EOF
 
 func_def:
-	var_type <func_name> arg_decl block
-	<class_name> arg_decl block // ctor
+	func_info block
+
+func_info:
+	var_type <func_name> arg_decl
+	<class_name> arg_decl // ctor
+	var_type operator override_op arg_decl
 
 member_decl:
 	simple_var_type <member_name> EOF
@@ -94,12 +96,7 @@ post_op:
 op:
 	base_op
 	is
-	==
-	!=
-	>
-	>=
-	<
-	<=
+	compare_op
 	&&
 	||
 	!
@@ -108,8 +105,15 @@ op:
 	. <obj_member>
 	[base_op]=
 	=
-	++
-	--
+	inc_dec_op
+
+compare_op:
+	==
+	!=
+	>
+	>=
+	<
+	<=
 
 base_op:
 	+
@@ -135,6 +139,13 @@ inc_dec_op:
 
 index_op:
 	[ expr ]
+
+override_op:
+	compare_op
+	base_op
+	unary_op
+	base_op=
+	[]
 
 const:
 	true

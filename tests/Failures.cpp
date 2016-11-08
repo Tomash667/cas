@@ -84,7 +84,7 @@ TEST_METHOD(InvalidConditionType)
 TEST_METHOD(VoidVariable)
 {
 	RunFailureTest("void a;", "Can't declare void variable.");
-	RunFailureTest("class A{void a;}", "Class/struct member can't be void type.");
+	RunFailureTest("class A{void a;}", "Member of 'void' type not allowed.");
 }
 
 TEST_METHOD(ReferenceToReferenceType)
@@ -99,8 +99,8 @@ TEST_METHOD(InvalidDefaultValue)
 
 TEST_METHOD(UnsupportedClassMembers)
 {
-	RunFailureTest("class A{} class B{A a;}", "Class/struct member of type 'class' not supported yet.");
-	RunFailureTest("class A{string s;}", "Class/struct member of type 'string' not supported yet.");
+	RunFailureTest("class A{} class B{A a;}", "Member of 'class' type not allowed yet.");
+	RunFailureTest("class A{string s;}", "Member of 'string' type not allowed yet.");
 }
 
 TEST_METHOD(InvalidBreak)

@@ -21,8 +21,7 @@ enum KEYWORD
 	K_CLASS,
 	K_STRUCT,
 	K_IS,
-	//K_OPERATOR,
-	//K_CONST
+	K_OPERATOR
 };
 
 enum CONST
@@ -416,6 +415,7 @@ struct SymbolInfo
 	bool left_associativity;
 	int args, op;
 	SYMBOL_TYPE type;
+	cstring op_code;
 };
 
 struct SymbolNode
@@ -435,6 +435,20 @@ struct BasicSymbolInfo
 	SYMBOL pre_symbol;
 	SYMBOL post_symbol;
 	SYMBOL op_symbol;
+
+	inline SYMBOL operator [](int index)
+	{
+		switch(index)
+		{
+		default:
+		case 0:
+			return pre_symbol;
+		case 1:
+			return post_symbol;
+		case 2:
+			return op_symbol;
+		}
+	}
 };
 
 template<typename T>

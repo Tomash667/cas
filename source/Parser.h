@@ -37,7 +37,7 @@ public:
 	void AddType(Type* type);
 	Function* GetFunction(int index);
 	Type* GetType(int index);
-	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true);
+	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
 	cstring GetParserFunctionName(uint index);
 	RunModule* Parse(ParseSettings& settigns);
 	void Cleanup();
@@ -53,10 +53,11 @@ private:
 	ParseNode* ParseBlock(ParseFunction* f = nullptr);
 	ParseNode* ParseLine();
 	void ParseMemberDeclClass(Type* type, uint& pad);
-	void ParseFunctionArgs(CommonFunction* f, bool real_func);
-	ParseNode* ParseVarTypeDecl(int* _type = nullptr, string* _name = nullptr);
+	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
+	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
+	ParseNode* ParseVarTypeDecl(VarType* _type = nullptr, string* _name = nullptr);
 	ParseNode* ParseCond();
-	ParseNode* ParseVarDecl(int type, string* _name);
+	ParseNode* ParseVarDecl(VarType type, string* _name);
 	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
 	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
@@ -108,6 +109,8 @@ private:
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
 	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse);
 	void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
+	bool CanOverload(BASIC_SYMBOL symbol);
+	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
 
 	Tokenizer t;
 	Module* module;
