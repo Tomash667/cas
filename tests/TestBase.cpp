@@ -9,6 +9,7 @@ istringstream s_input;
 ostringstream s_output;
 string event_output;
 IModule* current_module;
+int reg_errors;
 
 enum Result
 {
@@ -48,9 +49,11 @@ void TestEventHandler(EventType event_type, cstring msg)
 	case EventType::Error:
 	default:
 		type = "ERROR";
+		++reg_errors;
 		break;
 	case EventType::Assert:
 		type = "ASSERT";
+		++reg_errors;
 		break;
 	}
 	cstring m = Format("%s: %s\n", type, msg);
@@ -147,6 +150,8 @@ Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, i
 
 void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize)
 {
+	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
+
 	event_output.clear();
 
 	if(!CI_MODE && input[0] != 0)
@@ -197,10 +202,14 @@ void RunFileTest(IModule* module, cstring filename, cstring input, cstring outpu
 	}
 
 	Assert::AreEqual(output, ss, "Invalid output.");
+
+	reg_errors = 0;
 }
 
 void RunTest(IModule* module, cstring code)
 {
+	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
+
 	event_output.clear();
 
 	s_input.clear();
@@ -227,10 +236,14 @@ void RunTest(IModule* module, cstring code)
 		}
 		break;
 	}
+
+	reg_errors = 0;
 }
 
 void RunFailureTest(IModule* module, cstring code, cstring error)
 {
+	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
+
 	event_output.clear();
 	
 	s_input.clear();
@@ -257,11 +270,14 @@ void RunFailureTest(IModule* module, cstring code, cstring error)
 		AssertError(error);
 		break;
 	}
+
+	reg_errors = 0;
 }
 
 void CleanupErrors()
 {
 	event_output.clear();
+	reg_errors = 0;
 }
 
 void CleanupAsserts()

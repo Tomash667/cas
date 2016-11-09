@@ -95,11 +95,6 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 	f->type = type->index;
 	if(f->special == SF_CTOR)
 		type->flags |= Type::HaveCtor;
-	else
-	{
-		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(f->type), 0, false));
-		f->required_args++;
-	}
 	if(parser->FindEqualFunction(type, *f))
 	{
 		Event(EventType::Error, Format("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",

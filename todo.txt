@@ -1,8 +1,14 @@
++ subscript
++ subscript with multiple items
++ check all operators
+
+? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
+
 - c++ function returning string cause 1 byte memory leak (string.txt)
 - many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct, subscript
 - ParseExpr end/end2 is unused
-- postinc/dec on ref use same node twice
 - ParseNode::str cleanup
+- class A { void int; } cause Member of 'void' type not allowed.
 
 NEST A STRING:
 + raise error
@@ -33,6 +39,8 @@ noinstance
 
 + register member function as member func
 + return new class instance without constructor [class X{} X f() { return ???}] ??? = X
++ allow overload operator for builtin types, currently it only works for class (this will need mixing with existing operator, and checking for builtin)
++ string operator (+ string,char +=)
 
 - CObj b1, b7(7); not allowed, why? (this syntax is not allowed, require b7 = CObj(7), need fix)
 + AssertException

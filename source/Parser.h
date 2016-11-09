@@ -55,9 +55,9 @@ private:
 	void ParseMemberDeclClass(Type* type, uint& pad);
 	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
-	ParseNode* ParseVarTypeDecl(VarType* _type = nullptr, string* _name = nullptr);
+	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
-	ParseNode* ParseVarDecl(VarType type, string* _name);
+	ParseNode* ParseVarDecl(VarType type);
 	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
 	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
@@ -73,7 +73,7 @@ private:
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
 	BASIC_SYMBOL GetSymbol();
-	bool CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& cast, int& result);
+	bool CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& cast, int& result, ParseNode*& over_result, SYMBOL real_symbol);
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
@@ -111,6 +111,7 @@ private:
 	void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
+	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-invalid
 
 	Tokenizer t;
 	Module* module;

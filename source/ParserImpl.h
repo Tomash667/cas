@@ -416,6 +416,7 @@ struct SymbolInfo
 	int args, op;
 	SYMBOL_TYPE type;
 	cstring op_code;
+	cstring oper;
 };
 
 struct SymbolNode

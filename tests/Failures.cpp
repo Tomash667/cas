@@ -132,7 +132,7 @@ TEST_METHOD(FunctionRedeclaration)
 
 TEST_METHOD(ReferenceVariableUnavailable)
 {
-	RunFailureTest("int& a;", "Reference variable unavailable yet.");
+	RunFailureTest("int& a;", "Can't declare reference variable yet.");
 }
 
 TEST_METHOD(InvalidOperationTypes)
@@ -275,6 +275,34 @@ TEST_METHOD(InvalidSubscriptIndexType)
 TEST_METHOD(InvalidSubscriptType)
 {
 	RunFailureTest("int a; a[0] = 1;", "Type 'int' don't have subscript operator.");
+}
+
+TEST_METHOD(OperatorFunctionOutsideClass)
+{
+	RunFailureTest("void operator += (int a) {}", "Operator function can be used only inside class.");
+}
+
+TEST_METHOD(CantOverloadOperator)
+{
+	RunFailureTest("class A{void operator . (){}}", "Can't overload operator '.'.");
+}
+
+TEST_METHOD(InvalidOperatorOverloadDefinition)
+{
+	RunFailureTest("class A{void operator + (int a, int b){}}", "Invalid overload operator definition 'void A.operator + (int,int)'.");
+}
+
+TEST_METHOD(AmbiguousCallToOverloadedOperator)
+{
+	RunFailureTest(R"code(
+	class A{
+		void operator += (int a) {}
+		void operator += (string s) {}
+	}
+	A a;
+	a += 1.13;
+	)code",
+		"Ambiguous call to overloaded method 'A.operator += ' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
 }
 
 CA_TEST_CLASS_END();

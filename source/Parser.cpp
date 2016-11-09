@@ -6,53 +6,53 @@
 
 // http://en.cppreference.com/w/cpp/language/operator_precedence
 SymbolInfo symbols[] = {
-	S_ADD, "add", 6, true, 2, ADD, ST_NONE, "$opAdd",
-	S_SUB, "subtract", 6, true, 2, SUB, ST_NONE, "$opSub",
-	S_MUL, "multiply", 5, true, 2, MUL, ST_NONE, "$opMul",
-	S_DIV, "divide", 5, true, 2, DIV, ST_NONE, "$opDiv",
-	S_MOD, "modulo", 5, true, 2, MOD, ST_NONE, "$opMod",
-	S_BIT_AND, "bit and", 10, true, 2, BIT_AND, ST_NONE, "$opBitAnd",
-	S_BIT_OR, "bit or", 12, true, 2, BIT_OR, ST_NONE, "$opBitOr",
-	S_BIT_XOR, "bit xor", 11, true, 2, BIT_XOR, ST_NONE, "$opBitXor",
-	S_BIT_LSHIFT, "bit left shift", 7, true, 2, BIT_LSHIFT, ST_NONE, "$opBitLshift",
-	S_BIT_RSHIFT, "bit right shift", 7, true, 2, BIT_RSHIFT, ST_NONE, "$opBitRshift",
-	S_PLUS, "unary plus", 3, false, 1, NOP, ST_NONE, "$opPlus",
-	S_MINUS, "unary minus", 3, false, 1, NEG, ST_NONE, "$opMinus",
-	S_EQUAL, "equal", 9, true, 2, EQ, ST_NONE, "$opEqual",
-	S_NOT_EQUAL, "not equal", 9, true, 2, NOT_EQ, ST_NONE, "$opNotEqual",
-	S_GREATER, "greater", 8, true, 2, GR, ST_NONE, "$opGreater",
-	S_GREATER_EQUAL, "greater equal", 8, true, 2, GR_EQ, ST_NONE, "$opGreaterEqual",
-	S_LESS, "less", 8, true, 2, LE, ST_NONE, "$opLess",
-	S_LESS_EQUAL, "less equal", 8, true, 2, LE_EQ, ST_NONE, "$opLessEqual",
-	S_AND, "and", 13, true, 2, AND, ST_NONE, nullptr,
-	S_OR, "or", 14, true, 2, OR, ST_NONE, nullptr,
-	S_NOT, "not", 3, false, 1, NOT, ST_NONE,  "$opNot",
-	S_BIT_NOT, "bit not", 3, false, 1, BIT_NOT, ST_NONE, "$opBitNot",
-	S_MEMBER_ACCESS, "member access", 2, true, 2, NOP, ST_NONE, nullptr,
-	S_ASSIGN, "assign", 15, false, 2, NOP, ST_ASSIGN, nullptr,
-	S_ASSIGN_ADD, "assign add", 15, false, 2, S_ADD, ST_ASSIGN, "$opAssignAdd",
-	S_ASSIGN_SUB, "assign subtract", 15, false, 2, S_SUB, ST_ASSIGN, "$opAssignSub",
-	S_ASSIGN_MUL, "assign multiply", 15, false, 2, S_MUL, ST_ASSIGN, "$opAssignMul",
-	S_ASSIGN_DIV, "assign divide", 15, false, 2, S_DIV, ST_ASSIGN, "$opAssignDiv",
-	S_ASSIGN_MOD, "assign modulo", 15, false, 2, S_MOD, ST_ASSIGN, "$opAssignMod",
-	S_ASSIGN_BIT_AND, "assign bit and", 15, false, 2, S_BIT_AND, ST_ASSIGN, "$opAssignBitAnd",
-	S_ASSIGN_BIT_OR, "assign bit or", 15, false, 2, S_BIT_OR, ST_ASSIGN, "$opAssignBitOr",
-	S_ASSIGN_BIT_XOR, "assign bit xor", 15, false, 2, S_BIT_XOR, ST_ASSIGN, "$opAssignBitXor",
-	S_ASSIGN_BIT_LSHIFT, "assign bit left shift", 15, false, 2, S_BIT_LSHIFT, ST_ASSIGN, "$opAssignBitLshift",
-	S_ASSIGN_BIT_RSHIFT, "assign bit right shift", 15, false, 2, S_BIT_RSHIFT, ST_ASSIGN, "$opAssignBitRshift",
-	S_PRE_INC, "pre increment", 3, false, 1, INC, ST_INC_DEC, "$opPreInc",
-	S_PRE_DEC, "pre decrement", 3, false, 1, DEC, ST_INC_DEC, "$opPreDec",
-	S_POST_INC, "post increment", 2, true, 1, INC, ST_INC_DEC, "$opPostInc",
-	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC, "$opPostDec",
-	S_IS, "reference equal", 9, true, 2, IS, ST_NONE, nullptr,
-	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT, "$opIndex",
-	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE, nullptr
+	S_ADD, "add", 6, true, 2, ADD, ST_NONE, "$opAdd", "+",
+	S_SUB, "subtract", 6, true, 2, SUB, ST_NONE, "$opSub", "-",
+	S_MUL, "multiply", 5, true, 2, MUL, ST_NONE, "$opMul", "*",
+	S_DIV, "divide", 5, true, 2, DIV, ST_NONE, "$opDiv", "/",
+	S_MOD, "modulo", 5, true, 2, MOD, ST_NONE, "$opMod", "%",
+	S_BIT_AND, "bit and", 10, true, 2, BIT_AND, ST_NONE, "$opBitAnd", "&",
+	S_BIT_OR, "bit or", 12, true, 2, BIT_OR, ST_NONE, "$opBitOr", "|",
+	S_BIT_XOR, "bit xor", 11, true, 2, BIT_XOR, ST_NONE, "$opBitXor", "^",
+	S_BIT_LSHIFT, "bit left shift", 7, true, 2, BIT_LSHIFT, ST_NONE, "$opBitLshift", "<<",
+	S_BIT_RSHIFT, "bit right shift", 7, true, 2, BIT_RSHIFT, ST_NONE, "$opBitRshift", ">>",
+	S_PLUS, "unary plus", 3, false, 1, NOP, ST_NONE, "$opPlus", "+",
+	S_MINUS, "unary minus", 3, false, 1, NEG, ST_NONE, "$opMinus", "-",
+	S_EQUAL, "equal", 9, true, 2, EQ, ST_NONE, "$opEqual", "==",
+	S_NOT_EQUAL, "not equal", 9, true, 2, NOT_EQ, ST_NONE, "$opNotEqual", "!=",
+	S_GREATER, "greater", 8, true, 2, GR, ST_NONE, "$opGreater", ">",
+	S_GREATER_EQUAL, "greater equal", 8, true, 2, GR_EQ, ST_NONE, "$opGreaterEqual", ">=",
+	S_LESS, "less", 8, true, 2, LE, ST_NONE, "$opLess", "<",
+	S_LESS_EQUAL, "less equal", 8, true, 2, LE_EQ, ST_NONE, "$opLessEqual", "<=",
+	S_AND, "and", 13, true, 2, AND, ST_NONE, nullptr, "&&",
+	S_OR, "or", 14, true, 2, OR, ST_NONE, nullptr, "||",
+	S_NOT, "not", 3, false, 1, NOT, ST_NONE,  "$opNot", "!",
+	S_BIT_NOT, "bit not", 3, false, 1, BIT_NOT, ST_NONE, "$opBitNot", "~",
+	S_MEMBER_ACCESS, "member access", 2, true, 2, NOP, ST_NONE, nullptr, ".",
+	S_ASSIGN, "assign", 15, false, 2, NOP, ST_ASSIGN, nullptr, "=",
+	S_ASSIGN_ADD, "assign add", 15, false, 2, S_ADD, ST_ASSIGN, "$opAssignAdd", "+=",
+	S_ASSIGN_SUB, "assign subtract", 15, false, 2, S_SUB, ST_ASSIGN, "$opAssignSub", "-=",
+	S_ASSIGN_MUL, "assign multiply", 15, false, 2, S_MUL, ST_ASSIGN, "$opAssignMul", "*=",
+	S_ASSIGN_DIV, "assign divide", 15, false, 2, S_DIV, ST_ASSIGN, "$opAssignDiv", "/=",
+	S_ASSIGN_MOD, "assign modulo", 15, false, 2, S_MOD, ST_ASSIGN, "$opAssignMod", "%=",
+	S_ASSIGN_BIT_AND, "assign bit and", 15, false, 2, S_BIT_AND, ST_ASSIGN, "$opAssignBitAnd", "&=",
+	S_ASSIGN_BIT_OR, "assign bit or", 15, false, 2, S_BIT_OR, ST_ASSIGN, "$opAssignBitOr", "|=",
+	S_ASSIGN_BIT_XOR, "assign bit xor", 15, false, 2, S_BIT_XOR, ST_ASSIGN, "$opAssignBitXor", "^=",
+	S_ASSIGN_BIT_LSHIFT, "assign bit left shift", 15, false, 2, S_BIT_LSHIFT, ST_ASSIGN, "$opAssignBitLshift", "<<=",
+	S_ASSIGN_BIT_RSHIFT, "assign bit right shift", 15, false, 2, S_BIT_RSHIFT, ST_ASSIGN, "$opAssignBitRshift", ">>=",
+	S_PRE_INC, "pre increment", 3, false, 1, INC, ST_INC_DEC, "$opPreInc", "++",
+	S_PRE_DEC, "pre decrement", 3, false, 1, DEC, ST_INC_DEC, "$opPreDec", "--",
+	S_POST_INC, "post increment", 2, true, 1, INC, ST_INC_DEC, "$opPostInc", "++",
+	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC, "$opPostDec", "--",
+	S_IS, "reference equal", 9, true, 2, IS, ST_NONE, nullptr, "is",
+	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT, "$opIndex", "[]",
+	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE, nullptr, ""
 };
 static_assert(sizeof(symbols) / sizeof(SymbolInfo) == S_MAX, "Missing symbols.");
 
 BasicSymbolInfo basic_symbols[] = {
 	BS_INC, "+", S_PLUS, S_INVALID, S_ADD,
-	BS_DEC, "-", S_MINUS, S_INVALID, S_SUB,
+	BS_DEC, "-", S_MINUS, S_INVALID, S_SUB, 
 	BS_MUL, "*", S_INVALID, S_INVALID, S_MUL,
 	BS_DIV, "/", S_INVALID, S_INVALID, S_DIV,
 	BS_MOD, "%", S_INVALID, S_INVALID, S_MOD,
@@ -545,57 +545,12 @@ ParseNode* Parser::ParseLine()
 				while(!t.IsSymbol('}'))
 				{
 					// member, method or ctor
-					int var_type = t.MustGetKeywordId(G_VAR);
-					bool is_func;
-					t.SeekStart();
-					if(t.SeekSymbol('&'))
-						t.SeekNext();
-					if(t.SeekSymbol('('))
-						is_func = true; // ctor
-					else if(t.SeekItem())
-					{
-						t.SeekNext();
-						if(t.SeekSymbol('('))
-							is_func = true; // method
-						else
-							is_func = false; // member
-					}
-					else
-						is_func = false; // invalid, will fail at parsing below
-
-					if(is_func)
+					if(GetNextType() != 0)
 					{
 						ParseFunction* f = new ParseFunction;
-						f->result = VarType(var_type);
-						t.Next();
-						if(t.IsSymbol('&'))
-						{
-							f->result.special = SV_REF;
-							t.Next();
-						}
+						current_function = f;
 
-						if(VarType(type->index) == f->result && t.IsSymbol('('))
-						{
-							// ctor
-							if(f->result.special == SV_REF)
-								t.Unexpected();
-							f->special = SF_CTOR;
-							f->name = type->name;
-						}
-						else
-						{
-							f->special = SF_NO;
-							f->name = t.MustGetItem();
-							t.Next();
-						}
-
-						t.AssertSymbol('(');
-						t.Next();
-
-						f->type = type->index;
-						ParseFunctionArgs(f, false);
-						f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
-						f->required_args++;
+						ParseFuncInfo(f, type, false);
 
 						if(FindEqualFunction(f))
 							t.Throw("Function '%s' already exists.", GetName(f));
@@ -624,38 +579,32 @@ ParseNode* Parser::ParseLine()
 	else if(t.IsKeywordGroup(G_VAR))
 	{
 		// is this function or var declaration or ctor
-		VarType type = GetVarType(false);
-
-		if(t.IsSymbol('('))
+		int next_type = GetNextType();
+		if(next_type == 3)
+			t.Throw("Operator function can be used only inside class.");
+		if(next_type == 1)
 		{
 			// ctor
+			VarType type = GetVarType();
+			t.AssertSymbol('(');
+			t.Next();
 			int var_type = type.core;
 			NodeRef node = ParseExpr(';', 0, &var_type);
 			t.AssertSymbol(';');
 			t.Next();
 			return node.Pin();
 		}
-
-		LocalString str = t.MustGetItem();
-		CheckFindItem(str.get_ref(), true);
-		t.Next();
-		if(t.IsSymbol('('))
+		else if(next_type == 2 || next_type == 4)
 		{
 			// function
 			if(current_block != main_block)
 				t.Throw("Function can't be declared inside block.");
-			t.Next();
 			ParseFunction* f = new ParseFunction;
-			f->name = str;
+			current_function = f;
+			ParseFuncInfo(f, nullptr, false);
 			f->index = ufuncs.size();
-			f->result = type;
-			f->type = V_VOID;
-			f->special = SF_NO;
 			f->node = nullptr;
 			f->block = nullptr;
-
-			// args
-			ParseFunctionArgs(f, false);
 			if(FindEqualFunction(f))
 			{
 				cstring name = GetName(f);
@@ -672,9 +621,7 @@ ParseNode* Parser::ParseLine()
 		else
 		{
 			// var
-			if(type.special == SV_REF)
-				t.Throw("Reference variable unavailable yet.");
-			ParseNode* node = ParseVarTypeDecl(&type, str.get_ptr());
+			ParseNode* node = ParseVarTypeDecl();
 			t.Next();
 			return node;
 		}
@@ -701,63 +648,9 @@ Function* Parser::ParseFuncDecl(cstring decl, Type* type)
 		t.FromString(decl);
 		t.Next();
 
-		f->result = GetVarType(true);
-
-		/*if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
-		{
-			t.Next();
-			f->name = t.MustGetItem();
-			if(f->name == "addref")
-				f->special = SF_ADDREF;
-			else if(f->name == "release")
-				f->special = SF_RELEASE;
-			else
-				t.Throw("Invalid operator name.");
-			t.Next();
-		}*/
-
-		if(type && type->index == f->result.core && t.IsSymbol('('))
-		{
-			// ctor
-			f->special = SF_CTOR;
-			f->name = type->name;
-		}
-		else
-		{
-			if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
-			{
-				t.Next();
-			}
-			else
-			{
-				f->special = SF_NO;
-				f->name = t.MustGetItem();
-				t.Next();
-			}
-		}
-
-		t.AssertSymbol('(');
-		t.Next();
-
-		ParseFunctionArgs(f, true);
+		ParseFuncInfo(f, type, true);
 
 		t.AssertEof();
-
-		// verify args, return type
-		/*switch(f->special)
-		{
-		case SF_NO:
-		case SF_CTOR:
-			break;
-		case SF_ADDREF:
-		case SF_RELEASE:
-			if(f->result.core != V_VOID || !f->arg_infos.empty())
-				t.Throw("Special function '%s' require declaration of 'void %s()' instead of '%s'.", f->name.c_str(), f->name.c_str(), GetName(f));
-			break;
-		default:
-			assert(0);
-			break;
-		}*/
 	}
 	catch(Tokenizer::Exception& e)
 	{
@@ -839,6 +732,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 {
 	BASIC_SYMBOL symbol = BS_MAX;
 	f->result = GetVarType(in_cpp);
+	f->type = (type ? type->index : V_VOID);
 	
 	if(type && type->index == f->result.core && t.IsSymbol('('))
 	{
@@ -848,6 +742,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	}
 	else
 	{
+		f->special = SF_NO;
 		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 		{
 			t.Next();
@@ -858,7 +753,6 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		}
 		else
 		{
-			f->special = SF_NO;
 			f->name = t.MustGetItem();
 			t.Next();
 		}
@@ -867,7 +761,13 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	t.AssertSymbol('(');
 	t.Next();
 
-	ParseFunctionArgs(f, true);
+	ParseFunctionArgs(f, in_cpp);
+
+	if(type && (f->special != SF_CTOR || !in_cpp)) 
+	{
+		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
+		f->required_args++;
+	}
 
 	if(symbol != BS_MAX)
 	{
@@ -880,8 +780,6 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 {
 	assert(f);
 	f->required_args = 0;
-	if(!in_cpp)
-		current_function = (ParseFunction*)f;
 
 	// args
 	bool prev_arg_def = false;
@@ -948,14 +846,10 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 	t.Next();
 }
 
-ParseNode* Parser::ParseVarTypeDecl(VarType* _type, string* _name)
+ParseNode* Parser::ParseVarTypeDecl()
 {
 	// var_type
-	VarType type;
-	if(_type)
-		type = *_type;
-	else
-		type = GetVarType(false);
+	VarType type = GetVarType(false);
 	if(type.core == V_VOID)
 		t.Throw("Can't declare void variable.");
 	if(type.special == SV_REF)
@@ -965,8 +859,7 @@ ParseNode* Parser::ParseVarTypeDecl(VarType* _type, string* _name)
 	vector<ParseNode*> nodes;
 	do
 	{
-		ParseNode* decl = ParseVarDecl(type, _name);
-		_name = nullptr;
+		ParseNode* decl = ParseVarDecl(type);
 		if(decl)
 			nodes.push_back(decl);
 		if(t.IsSymbol(';'))
@@ -1002,12 +895,11 @@ ParseNode* Parser::ParseCond()
 	return cond.Pin();
 }
 
-ParseNode* Parser::ParseVarDecl(VarType type, string* _name)
+ParseNode* Parser::ParseVarDecl(VarType type)
 {
 	// var_name
-	const string& name = (_name ? *_name : t.MustGetItem());
-	if(!_name)
-		CheckFindItem(name, false);
+	const string& name = t.MustGetItem();
+	CheckFindItem(name, false);
 
 	ParseVar* var = ParseVar::Get();
 	var->name = name;
@@ -1017,8 +909,7 @@ ParseNode* Parser::ParseVarDecl(VarType type, string* _name)
 	var->mod = false;
 	current_block->vars.push_back(var);
 	current_block->var_offset++;
-	if(!_name)
-		t.Next();
+	t.Next();
 
 	// [=]
 	NodeRef expr(nullptr);
@@ -1287,20 +1178,29 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			// unrary operator
 			VarType cast;
 			int result;
-			if(!CanOp(sn.symbol, node->GetVarType(), VarType(V_VOID), cast, result))
+			ParseNode* over_result;
+			if(!CanOp(sn.symbol, node, nullptr, cast, result, over_result, sn.symbol))
 				t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
-			Cast(node.Get(), cast);
-			if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
+			if(over_result)
 			{
-				ParseNode* op = ParseNode::Get();
-				op->op = (Op)si.op;
-				op->type = result;
-				op->push(node.Pin());
-				op->ref = REF_NO;
-				op->source = nullptr;
-				node = op;
+				node.Pin();
+				stack.push_back(over_result);
 			}
-			stack.push_back(node.Pin());
+			else
+			{
+				Cast(node.Get(), cast);
+				if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
+				{
+					ParseNode* op = ParseNode::Get();
+					op->op = (Op)si.op;
+					op->type = result;
+					op->push(node.Pin());
+					op->ref = REF_NO;
+					op->source = nullptr;
+					node = op;
+				}
+				stack.push_back(node.Pin());
+			}
 		}
 		else if(si.type == ST_SUBSCRIPT)
 		{
@@ -1322,134 +1222,145 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		else
 		{
 			// inc dec
-			assert(si.type == ST_INC_DEC);
-			if(node->type != V_INT && node->type != V_FLOAT && node->type != V_CHAR)
-				t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
-
-			bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
-			bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
-			Op oper = (inc ? INC : DEC);
-
-			NodeRef op;
-			op->pseudo_op = INTERNAL_GROUP;
-			op->type = node->type;
-			op->ref = REF_NO;
-			op->source = nullptr;
-			if(node->source)
-				node->source->mod = true;
-
-			if(node->ref != REF_YES)
+			VarType cast;
+			int result;
+			ParseNode* over_result;
+			if(CanOp(si.symbol, node, nullptr, cast, result, over_result, si.symbol))
 			{
-				Op set_op;
-				switch(node->op)
-				{
-				case PUSH_LOCAL:
-					set_op = SET_LOCAL;
-					break;
-				case PUSH_GLOBAL:
-					set_op = SET_GLOBAL;
-					break;
-				case PUSH_ARG:
-					set_op = SET_ARG;
-					break;
-				case PUSH_MEMBER:
-					set_op = SET_MEMBER;
-					break;
-				case PUSH_THIS_MEMBER:
-					set_op = SET_THIS_MEMBER;
-					break;
-				case PUSH_INDEX:
-					set_op = SET_INDEX;
-					break;
-				default:
-					t.Throw("Operation '%s' require variable.", si.name);
-				}
-
-				ParseNode* pnode = node.Pin();
-
-				if(set_op == SET_MEMBER)
-				{
-					// inc dec member var
-					op->push(pnode->childs);
-					pnode->childs.clear();
-					op->push(PUSH);
-					op->push(pnode);
-					if(pre)
-					{
-						op->push(oper);
-						op->push(SET_MEMBER, pnode->value);
-					}
-					else
-					{
-						op->push(SET_TMP);
-						op->push(oper);
-						op->push(SET_MEMBER, pnode->value);
-						op->push(POP);
-						op->push(PUSH_TMP);
-					}
-				}
-				else if(set_op == SET_INDEX)
-				{
-					// inc dec subscript
-					assert(pnode->childs.size() == 2u); // push ar, push index
-					op->push(pnode->childs[0]);
-					op->push(PUSH);
-					op->push(pnode->childs[1]);
-					pnode->childs.clear();
-					pnode->Free();
-					op->push(PUSH);
-					op->push(SWAP, 1);
-					op->push(PUSH_INDEX);
-					if(!pre)
-						op->push(SET_TMP);
-					op->push(oper);
-					op->push(SET_INDEX);
-					if(!pre)
-					{
-						op->push(POP);
-						op->push(PUSH_TMP);
-					}
-				}
-				else if(pre)
-				{
-					op->push(pnode);
-					op->push(oper);
-					op->push(set_op, pnode->value);
-				}
-				else
-				{
-					op->push(pnode);
-					op->push(PUSH);
-					op->push(oper);
-					op->push(set_op, pnode->value);
-					op->push(POP);
-				}
+				node.Pin();
+				stack.push_back(over_result);
 			}
 			else
 			{
-				ParseNode* pnode = node.Pin();
-				if(pre)
+				assert(si.type == ST_INC_DEC);
+				if(node->type != V_INT && node->type != V_FLOAT && node->type != V_CHAR)
+					t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
+
+				bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
+				bool inc = (si.symbol == S_PRE_INC || si.symbol == S_POST_INC);
+				Op oper = (inc ? INC : DEC);
+
+				NodeRef op;
+				op->pseudo_op = INTERNAL_GROUP;
+				op->type = node->type;
+				op->ref = REF_NO;
+				op->source = nullptr;
+				if(node->source)
+					node->source->mod = true;
+
+				if(node->ref != REF_YES)
 				{
-					op->push(pnode);
-					op->push(PUSH);
-					op->push(DEREF);
-					op->push(INC);
-					op->push(SET_ADR);
+					Op set_op;
+					switch(node->op)
+					{
+					case PUSH_LOCAL:
+						set_op = SET_LOCAL;
+						break;
+					case PUSH_GLOBAL:
+						set_op = SET_GLOBAL;
+						break;
+					case PUSH_ARG:
+						set_op = SET_ARG;
+						break;
+					case PUSH_MEMBER:
+						set_op = SET_MEMBER;
+						break;
+					case PUSH_THIS_MEMBER:
+						set_op = SET_THIS_MEMBER;
+						break;
+					case PUSH_INDEX:
+						set_op = SET_INDEX;
+						break;
+					default:
+						t.Throw("Operation '%s' require variable.", si.name);
+					}
+
+					ParseNode* pnode = node.Pin();
+
+					if(set_op == SET_MEMBER)
+					{
+						// inc dec member var
+						op->push(pnode->childs);
+						pnode->childs.clear();
+						op->push(PUSH);
+						op->push(pnode);
+						if(pre)
+						{
+							op->push(oper);
+							op->push(SET_MEMBER, pnode->value);
+						}
+						else
+						{
+							op->push(SET_TMP);
+							op->push(oper);
+							op->push(SET_MEMBER, pnode->value);
+							op->push(POP);
+							op->push(PUSH_TMP);
+						}
+					}
+					else if(set_op == SET_INDEX)
+					{
+						// inc dec subscript
+						assert(pnode->childs.size() == 2u); // push ar, push index
+						op->push(pnode->childs[0]);
+						op->push(PUSH);
+						op->push(pnode->childs[1]);
+						pnode->childs.clear();
+						pnode->Free();
+						op->push(PUSH);
+						op->push(SWAP, 1);
+						op->push(PUSH_INDEX);
+						if(!pre)
+							op->push(SET_TMP);
+						op->push(oper);
+						op->push(SET_INDEX);
+						if(!pre)
+						{
+							op->push(POP);
+							op->push(PUSH_TMP);
+						}
+					}
+					else if(pre)
+					{
+						op->push(pnode);
+						op->push(oper);
+						op->push(set_op, pnode->value);
+					}
+					else
+					{
+						op->push(pnode);
+						op->push(PUSH);
+						op->push(oper);
+						op->push(set_op, pnode->value);
+						op->push(POP);
+					}
 				}
 				else
 				{
-					op->push(pnode);
-					op->push(DEREF);
-					op->push(pnode->copy());
-					op->push(PUSH);
-					op->push(DEREF);
-					op->push(INC);
-					op->push(SET_ADR);
-					op->push(POP);
+					ParseNode* pnode = node.Pin();
+					if(pre)
+					{
+						op->push(pnode);
+						op->push(PUSH);
+						op->push(DEREF);
+						op->push(INC);
+						op->push(SET_ADR);
+					}
+					else
+					{
+						op->push(pnode);
+						op->push(DEREF);
+						op->push(pnode->copy());
+						op->push(PUSH);
+						op->push(DEREF);
+						op->push(INC);
+						op->push(SET_ADR);
+						op->push(POP);
+					}
 				}
-			}
 
-			stack.push_back(op.Pin());
+				stack.push_back(op.Pin());
+			}
 		}
 	}
 	else
@@ -1566,52 +1477,62 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 					// compound assign, left op= right
 					VarType cast;
 					int result;
-					if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
+					ParseNode* over_result;
+					if(!CanOp((SYMBOL)si.op, left, right, cast, result, over_result, si.symbol))
 						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-					NodeRef op;
-					op->op = (Op)symbols[si.op].op;
-					op->type = result;
-					op->ref = REF_NO;
-					op->source = nullptr;
-
-					if(left->op == PUSH_MEMBER)
+					if(over_result)
 					{
-						set->push(left->childs);
-						set->push(PUSH);
-						left->childs.clear();
-						Cast(left.Get(), cast);
-						Cast(right.Get(), cast);
-						set->push(left.Pin());
-						set->push(right.Pin());
-						ForceCast(op.Get(), set, si.name);
-						set->push(op.Pin());
-					}
-					else if(left->op == PUSH_INDEX)
-					{
-						assert(left->childs.size() == 2u); // push arr, push index
-						ParseNode* push = ParseNode::Get();
-						push->op = PUSH;
-						left->childs.insert(left->childs.begin() + 1, push);
-						left->push(PUSH);
-						left->push(SWAP, 1);
-						Cast(left.Get(), cast);
-						Cast(right.Get(), cast);
-						op->push(left.Pin());
-						op->push(right.Pin());
-						ForceCast(op.Get(), set, si.name);
-						set->push(op.Pin());
+						left.Pin();
+						right.Pin();
+						set = over_result;
 					}
 					else
 					{
-						Cast(left.Get(), cast);
-						Cast(right.Get(), cast);
+						NodeRef op;
+						op->op = (Op)symbols[si.op].op;
+						op->type = result;
+						op->ref = REF_NO;
+						op->source = nullptr;
 
-						op->push(left.Pin());
-						op->push(right.Pin());
+						if(left->op == PUSH_MEMBER)
+						{
+							set->push(left->childs);
+							set->push(PUSH);
+							left->childs.clear();
+							Cast(left.Get(), cast);
+							Cast(right.Get(), cast);
+							set->push(left.Pin());
+							set->push(right.Pin());
+							ForceCast(op.Get(), set, si.name);
+							set->push(op.Pin());
+						}
+						else if(left->op == PUSH_INDEX)
+						{
+							assert(left->childs.size() == 2u); // push arr, push index
+							ParseNode* push = ParseNode::Get();
+							push->op = PUSH;
+							left->childs.insert(left->childs.begin() + 1, push);
+							left->push(PUSH);
+							left->push(SWAP, 1);
+							Cast(left.Get(), cast);
+							Cast(right.Get(), cast);
+							op->push(left.Pin());
+							op->push(right.Pin());
+							ForceCast(op.Get(), set, si.name);
+							set->push(op.Pin());
+						}
+						else
+						{
+							Cast(left.Get(), cast);
+							Cast(right.Get(), cast);
 
-						ForceCast(op.Get(), set, si.name);
-						set->push(op.Pin());
+							op->push(left.Pin());
+							op->push(right.Pin());
+
+							ForceCast(op.Get(), set, si.name);
+							set->push(op.Pin());
+						}
 					}
 				}
 			}
@@ -1634,8 +1555,11 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 					// compound assign
 					VarType cast;
 					int result;
-					if(!CanOp((SYMBOL)si.op, left->GetVarType(), right->GetVarType(), cast, result))
+					ParseNode* over_result;
+					if(!CanOp((SYMBOL)si.op, left, right, cast, result, over_result, si.symbol))
 						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
+
+					assert(over_result == nullptr); // compound assign on reference ???
 
 					NodeRef real_left = left.Get()->copy();
 					Cast(left.Get(), cast);
@@ -1663,28 +1587,38 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			// normal operation
 			VarType cast;
 			int result;
-			if(!CanOp(si.symbol, left->GetVarType(), right->GetVarType(), cast, result))
+			ParseNode* over_result;
+			if(!CanOp(si.symbol, left, right, cast, result, over_result, si.symbol))
 				t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-			ParseNode* pleft = left.Pin();
-			ParseNode* pright = right.Pin();
-
-			Cast(pleft, cast);
-			Cast(pright, cast);
-
-			ParseNode* op = ParseNode::Get();
-			op->type = result;
-			op->ref = REF_NO;
-			op->source = nullptr;
-
-			if(!TryConstExpr(pleft, pright, op, si.symbol))
+			if(over_result)
 			{
-				op->op = (Op)si.op;
-				op->push(pleft);
-				op->push(pright);
+				left.Pin();
+				right.Pin();
+				stack.push_back(over_result);
 			}
+			else
+			{
+				ParseNode* pleft = left.Pin();
+				ParseNode* pright = right.Pin();
 
-			stack.push_back(op);
+				Cast(pleft, cast);
+				Cast(pright, cast);
+
+				ParseNode* op = ParseNode::Get();
+				op->type = result;
+				op->ref = REF_NO;
+				op->source = nullptr;
+
+				if(!TryConstExpr(pleft, pright, op, si.symbol))
+				{
+					op->op = (Op)si.op;
+					op->push(pleft);
+					op->push(pright);
+				}
+
+				stack.push_back(op);
+			}
 		}
 	}
 }
@@ -2131,8 +2065,11 @@ BASIC_SYMBOL Parser::GetSymbol()
 	}
 }
 
-bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& castvar, int& result)
+bool Parser::CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& castvar, int& result, ParseNode*& over_result, SYMBOL real_symbol)
 {
+	over_result = nullptr;
+	VarType leftvar = lnode->GetVarType();
+	VarType rightvar = (rnode ? rnode->GetVarType() : VarType(V_VOID));
 	int& cast = castvar.core;
 	castvar.special = SV_NORMAL;
 	int left = leftvar.core;
@@ -2144,7 +2081,33 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 	Type* ltype = GetType(left);
 	Type* rtype = GetType(right);
 	if((ltype->IsClass() || rtype->IsClass()) && symbol != S_IS)
-		return false;
+	{
+		if(!ltype->IsClass())
+			return false;
+		SymbolInfo& si = symbols[real_symbol];
+		if(!si.op_code)
+			return false;
+		vector<AnyFunction> funcs;
+		FindAllFunctionOverloads(ltype, si.op_code, funcs);
+		if(funcs.empty())
+			return false;
+		NodeRef node;
+		node->push(lnode);
+		node->source = nullptr;
+		if(right)
+			node->push(rnode);
+		try
+		{
+			ApplyFunctionCall(node, funcs, ltype, false);
+		}
+		catch(...)
+		{
+			node->childs.clear();
+			throw;
+		}
+		over_result = node.Pin();
+		return true;
+	}
 
 	int type;
 	switch(symbol)
@@ -2274,6 +2237,11 @@ bool Parser::CanOp(SYMBOL symbol, VarType leftvar, VarType rightvar, VarType& ca
 		}
 		else
 			return false;
+	case S_PRE_INC:
+	case S_PRE_DEC:
+	case S_POST_INC:
+	case S_POST_DEC:
+		return false; // hardcoded handling in ParseExprApplySymbol (called CanOp for overload checking)
 	default:
 		assert(0);
 		return false;
@@ -3419,7 +3387,24 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 		++var_offset;
 	}
 	if(!symbol)
-		s += cf->name;
+	{
+		if(cf->name[0] == '$')
+		{
+			for(int i = 0; i < S_MAX; ++i)
+			{
+				SymbolInfo& si = symbols[i];
+				if(si.op_code && strcmp(si.op_code, cf->name.c_str()) == 0)
+				{
+					s += "operator ";
+					s += si.oper;
+					s += ' ';
+					break;
+				}
+			}
+		}
+		else
+			s += cf->name;
+	}
 	else
 	{
 		s += "operator ";
@@ -3745,7 +3730,23 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 			s += Format("method '%s.", type->name.c_str());
 		else
 			s += "function '";
-		s += match.front().f->name;
+		cstring first = match.front().f->name.c_str();
+		if(first[0] == '$')
+		{
+			for(int i = 0; i < S_MAX; ++i)
+			{
+				SymbolInfo& si = symbols[i];
+				if(si.op_code && strcmp(si.op_code, first) == 0)
+				{
+					s += "operator ";
+					s += si.oper;
+					s += ' ';
+					break;
+				}
+			}
+		}
+		else
+			s += first;
 		s += '\'';
 		uint var_offset = ((type && !ctor) ? 1 : 0);
 		if(node->childs.size() > var_offset)
@@ -3886,7 +3887,7 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 			SymbolInfo& si = symbols[s];
 			if(!si.op_code)
 				continue;
-			if(si.args - 1 == f.arg_infos.size() || s == S_SUBSCRIPT)
+			if(si.args == f.arg_infos.size() || s == S_SUBSCRIPT)
 			{
 				f.name = si.op_code;
 				return true;
@@ -3894,4 +3895,29 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 		}
 	}
 	return false;
+}
+
+// 0-var, 1-ctor, 2-func, 3-operator, 4-invalid
+int Parser::GetNextType()
+{
+	// member, method or ctor
+	int type;
+	tokenizer::Pos pos = t.GetPos();
+	GetVarType();
+	if(t.IsSymbol('('))
+		type = 1; // ctor
+	else if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+		type = 3; // operator
+	else if(t.IsItem())
+	{
+		t.Next();
+		if(t.IsSymbol('('))
+			type = 2; // func
+		else
+			type = 0; // var
+	}
+	else
+		type = 4; // invalid
+	t.MoveTo(pos);
+	return type;
 }

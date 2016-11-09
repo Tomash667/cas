@@ -353,6 +353,32 @@ inline FunctionInfo AsCtor()
 
 // CodeCtorMemberFunctionOverload
 
+//=========================================================================================
+class D
+{
+public:
+	int x;
+
+	inline void operator += (int a)
+	{
+		x += a;
+	}
+};
+
+static void D_sub(D& d, int a)
+{
+	d.x -= a;
+}
+
+TEST_METHOD(OverloadClassOperator)
+{
+	module->AddType<D>("D");
+	module->AddMember("D", "int x", offsetof(D, x));
+	module->AddMethod("D", "void operator += (int a)", &D::operator+=);
+	module->AddMethod("D", "void operator -= (int a)", D_sub);
+	RunTest("D d; d.x = 10; d -= 4; Assert_AreEqual(6,d.x); d += 11; Assert_AreEqual(17,d.x);");
+}
+
 CA_TEST_CLASS_END();
 
 int tests::Code::global_a;
