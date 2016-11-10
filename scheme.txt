@@ -139,6 +139,7 @@ inc_dec_op:
 
 index_op:
 	[ expr ]
+	args // functor
 
 override_op:
 	compare_op
@@ -146,6 +147,7 @@ override_op:
 	unary_op
 	base_op=
 	[]
+	()
 
 const:
 	true

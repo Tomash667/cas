@@ -305,4 +305,15 @@ TEST_METHOD(AmbiguousCallToOverloadedOperator)
 		"Ambiguous call to overloaded method 'A.operator += ' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
 }
 
+TEST_METHOD(InvalidFunctorArgs)
+{
+	RunFailureTest("class A{ void operator () (int a) {}} A a; a(3, 14);",
+		"No matching call to method 'A.operator () ' with arguments (int,int), could be 'void A.operator () (int)'.");
+}
+
+TEST_METHOD(InvalidFunctorType)
+{
+	RunFailureTest("int a = 4; a();", "Type 'int' don't have call operator.");
+}
+
 CA_TEST_CLASS_END();

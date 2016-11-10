@@ -61,8 +61,9 @@ private:
 	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
 	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
+	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);
 	void ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn);
-	void ParseArgs(vector<ParseNode*>& nodes);
+	void ParseArgs(vector<ParseNode*>& nodes, char open = '(', char close = ')');
 	ParseNode* ParseItem(int* type = nullptr);
 	ParseNode* ParseConstItem();
 
@@ -72,7 +73,7 @@ private:
 	int GetVarTypeForMember();
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
-	BASIC_SYMBOL GetSymbol();
+	BASIC_SYMBOL GetSymbol(bool full_over = false);
 	bool CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& cast, int& result, ParseNode*& over_result, SYMBOL real_symbol);
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);

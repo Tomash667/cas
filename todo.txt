@@ -1,6 +1,14 @@
++ string oper
+
+CHAIN OF TODO:
++ reference
++ subscript require reference
++ array require subscript
+
 + subscript
 + subscript with multiple items
 + check all operators
++ overload pre/post ++ --
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 
@@ -114,7 +122,7 @@ vector functions:
 + opt: print(4) -> converted to string
 + warn: use of unassigned variable
 + ? : operator
-+ string functions, [], substr, first(), last(), trim
++ string functions, substr, first(), last(), trim
 + classes
 + function constexpr (abs,cin,cos)
 + namespace

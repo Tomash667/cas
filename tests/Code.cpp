@@ -379,6 +379,24 @@ TEST_METHOD(OverloadClassOperator)
 	RunTest("D d; d.x = 10; d -= 4; Assert_AreEqual(6,d.x); d += 11; Assert_AreEqual(17,d.x);");
 }
 
+//=========================================================================================
+struct E
+{
+	int x;
+
+	int f() { return x; }
+	int f(int a) { return x*a; }
+};
+
+TEST_METHOD(Functor)
+{
+	module->AddType<E>("E");
+	module->AddMember("E", "int x", offsetof(E, x));
+	module->AddMethod("E", "int operator () ()", AsMethod(E, f, int, ()));
+	module->AddMethod("E", "int operator () (int a)", AsMethod(E, f, int, (int)));
+	RunTest("E e; e.x = 4; Assert_AreEqual(4,e()); Assert_AreEqual(12,e(3));");
+}
+
 CA_TEST_CLASS_END();
 
 int tests::Code::global_a;

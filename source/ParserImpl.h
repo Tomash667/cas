@@ -46,6 +46,7 @@ enum PseudoOp
 	OBJ_MEMBER,
 	OBJ_FUNC,
 	SUBSCRIPT,
+	CALL_FUNCTOR,
 	BREAK,
 	RETURN,
 	INTERNAL_GROUP,
@@ -113,6 +114,7 @@ enum SYMBOL
 	S_POST_DEC,
 	S_IS,
 	S_SUBSCRIPT,
+	S_CALL,
 	S_INVALID,
 	S_MAX
 };
@@ -122,7 +124,8 @@ enum SYMBOL_TYPE
 	ST_NONE,
 	ST_ASSIGN,
 	ST_INC_DEC,
-	ST_SUBSCRIPT
+	ST_SUBSCRIPT,
+	ST_CALL
 };
 
 enum LEFT
@@ -173,6 +176,7 @@ enum BASIC_SYMBOL
 	BS_DEC, // --
 	BS_IS, // is
 	BS_SUBSCRIPT, // [
+	BS_CALL, // (
 	BS_MAX
 };
 
@@ -436,6 +440,7 @@ struct BasicSymbolInfo
 	SYMBOL pre_symbol;
 	SYMBOL post_symbol;
 	SYMBOL op_symbol;
+	cstring full_over_text;
 
 	inline SYMBOL operator [](int index)
 	{
@@ -449,6 +454,11 @@ struct BasicSymbolInfo
 		case 2:
 			return op_symbol;
 		}
+	}
+
+	inline cstring GetOverloadText()
+	{
+		return full_over_text ? full_over_text : text;
 	}
 };
 

@@ -46,47 +46,49 @@ SymbolInfo symbols[] = {
 	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC, "$opPostDec", "--",
 	S_IS, "reference equal", 9, true, 2, IS, ST_NONE, nullptr, "is",
 	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT, "$opIndex", "[]",
+	S_CALL, "function call", 2, true, 1, NOP, ST_CALL, "$opCall", "()",
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE, nullptr, ""
 };
 static_assert(sizeof(symbols) / sizeof(SymbolInfo) == S_MAX, "Missing symbols.");
 
 BasicSymbolInfo basic_symbols[] = {
-	BS_INC, "+", S_PLUS, S_INVALID, S_ADD,
-	BS_DEC, "-", S_MINUS, S_INVALID, S_SUB, 
-	BS_MUL, "*", S_INVALID, S_INVALID, S_MUL,
-	BS_DIV, "/", S_INVALID, S_INVALID, S_DIV,
-	BS_MOD, "%", S_INVALID, S_INVALID, S_MOD,
-	BS_BIT_AND, "&", S_INVALID, S_INVALID, S_BIT_AND,
-	BS_BIT_OR, "|", S_INVALID, S_INVALID, S_BIT_OR,
-	BS_BIT_XOR, "^", S_INVALID, S_INVALID, S_BIT_XOR,
-	BS_BIT_LSHIFT, "<<", S_INVALID, S_INVALID, S_BIT_LSHIFT,
-	BS_BIT_RSHIFT, ">>", S_INVALID, S_INVALID, S_BIT_RSHIFT,
-	BS_EQUAL, "==", S_INVALID, S_INVALID, S_EQUAL,
-	BS_NOT_EQUAL, "!=", S_INVALID, S_INVALID, S_NOT_EQUAL,
-	BS_GREATER, ">", S_INVALID, S_INVALID, S_GREATER,
-	BS_GREATER_EQUAL, ">=", S_INVALID, S_INVALID, S_GREATER_EQUAL,
-	BS_LESS, "<", S_INVALID, S_INVALID, S_LESS,
-	BS_LESS_EQUAL, "<=", S_INVALID, S_INVALID, S_LESS_EQUAL,
-	BS_AND, "&&", S_INVALID, S_INVALID, S_AND,
-	BS_OR, "||", S_INVALID, S_INVALID, S_OR,
-	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID,
-	BS_BIT_NOT, "~", S_BIT_NOT, S_INVALID, S_INVALID,
-	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_ASSIGN,
-	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_ASSIGN_ADD,
-	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_ASSIGN_SUB,
-	BS_ASSIGN_MUL, "*=", S_INVALID, S_INVALID, S_ASSIGN_MUL,
-	BS_ASSIGN_DIV, "/=", S_INVALID, S_INVALID, S_ASSIGN_DIV,
-	BS_ASSIGN_MOD, "%=", S_INVALID, S_INVALID, S_ASSIGN_MOD,
-	BS_ASSIGN_BIT_AND, "&=", S_INVALID, S_INVALID, S_ASSIGN_BIT_AND,
-	BS_ASSIGN_BIT_OR, "|=", S_INVALID, S_INVALID, S_ASSIGN_BIT_OR,
-	BS_ASSIGN_BIT_XOR, "^=", S_INVALID, S_INVALID, S_ASSIGN_BIT_XOR,
-	BS_ASSIGN_BIT_LSHIFT, "<<=", S_INVALID, S_INVALID, S_ASSIGN_BIT_LSHIFT,
-	BS_ASSIGN_BIT_RSHIFT, ">>=", S_INVALID, S_INVALID, S_ASSIGN_BIT_RSHIFT,
-	BS_DOT, ".", S_INVALID, S_INVALID, S_MEMBER_ACCESS,
-	BS_INC, "++", S_PRE_INC, S_POST_INC, S_INVALID,
-	BS_DEC, "--", S_PRE_DEC, S_POST_DEC, S_INVALID,
-	BS_IS, "is", S_INVALID, S_INVALID, S_IS,
-	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID
+	BS_INC, "+", S_PLUS, S_INVALID, S_ADD, nullptr,
+	BS_DEC, "-", S_MINUS, S_INVALID, S_SUB,  nullptr,
+	BS_MUL, "*", S_INVALID, S_INVALID, S_MUL, nullptr,
+	BS_DIV, "/", S_INVALID, S_INVALID, S_DIV, nullptr,
+	BS_MOD, "%", S_INVALID, S_INVALID, S_MOD, nullptr,
+	BS_BIT_AND, "&", S_INVALID, S_INVALID, S_BIT_AND, nullptr,
+	BS_BIT_OR, "|", S_INVALID, S_INVALID, S_BIT_OR, nullptr,
+	BS_BIT_XOR, "^", S_INVALID, S_INVALID, S_BIT_XOR, nullptr,
+	BS_BIT_LSHIFT, "<<", S_INVALID, S_INVALID, S_BIT_LSHIFT, nullptr,
+	BS_BIT_RSHIFT, ">>", S_INVALID, S_INVALID, S_BIT_RSHIFT, nullptr,
+	BS_EQUAL, "==", S_INVALID, S_INVALID, S_EQUAL, nullptr,
+	BS_NOT_EQUAL, "!=", S_INVALID, S_INVALID, S_NOT_EQUAL, nullptr,
+	BS_GREATER, ">", S_INVALID, S_INVALID, S_GREATER, nullptr,
+	BS_GREATER_EQUAL, ">=", S_INVALID, S_INVALID, S_GREATER_EQUAL, nullptr,
+	BS_LESS, "<", S_INVALID, S_INVALID, S_LESS, nullptr,
+	BS_LESS_EQUAL, "<=", S_INVALID, S_INVALID, S_LESS_EQUAL, nullptr,
+	BS_AND, "&&", S_INVALID, S_INVALID, S_AND, nullptr,
+	BS_OR, "||", S_INVALID, S_INVALID, S_OR, nullptr,
+	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID, nullptr,
+	BS_BIT_NOT, "~", S_BIT_NOT, S_INVALID, S_INVALID, nullptr,
+	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_ASSIGN, nullptr,
+	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_ASSIGN_ADD, nullptr,
+	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_ASSIGN_SUB, nullptr,
+	BS_ASSIGN_MUL, "*=", S_INVALID, S_INVALID, S_ASSIGN_MUL, nullptr,
+	BS_ASSIGN_DIV, "/=", S_INVALID, S_INVALID, S_ASSIGN_DIV, nullptr,
+	BS_ASSIGN_MOD, "%=", S_INVALID, S_INVALID, S_ASSIGN_MOD, nullptr,
+	BS_ASSIGN_BIT_AND, "&=", S_INVALID, S_INVALID, S_ASSIGN_BIT_AND, nullptr,
+	BS_ASSIGN_BIT_OR, "|=", S_INVALID, S_INVALID, S_ASSIGN_BIT_OR, nullptr,
+	BS_ASSIGN_BIT_XOR, "^=", S_INVALID, S_INVALID, S_ASSIGN_BIT_XOR, nullptr,
+	BS_ASSIGN_BIT_LSHIFT, "<<=", S_INVALID, S_INVALID, S_ASSIGN_BIT_LSHIFT, nullptr,
+	BS_ASSIGN_BIT_RSHIFT, ">>=", S_INVALID, S_INVALID, S_ASSIGN_BIT_RSHIFT, nullptr,
+	BS_DOT, ".", S_INVALID, S_INVALID, S_MEMBER_ACCESS, nullptr,
+	BS_INC, "++", S_PRE_INC, S_POST_INC, S_INVALID, nullptr,
+	BS_DEC, "--", S_PRE_DEC, S_POST_DEC, S_INVALID, nullptr,
+	BS_IS, "is", S_INVALID, S_INVALID, S_IS, nullptr,
+	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID, "[]",
+	BS_CALL, "(", S_INVALID, S_CALL, S_INVALID, "()"
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
@@ -746,9 +748,11 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 		{
 			t.Next();
-			symbol = GetSymbol();
+			symbol = GetSymbol(true);
+			if(symbol == BS_MAX)
+				t.Unexpected();
 			if(!CanOverload(symbol))
-				t.Throw("Can't overload operator '%s'.", basic_symbols[symbol].text);
+				t.Throw("Can't overload operator '%s'.", basic_symbols[symbol].GetOverloadText());
 			t.Next();
 		}
 		else
@@ -1072,17 +1076,7 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 				exit.push_back(node.Pin());
 				left = BS_MAX;
 
-				// post
-				if(GetNextSymbol(left))
-				{
-					BasicSymbolInfo& bsi = basic_symbols[left];
-					if(bsi.post_symbol != S_INVALID)
-					{
-						PushSymbol(bsi.post_symbol, exit, stack);
-						t.Next();
-						left = BS_MAX;
-					}
-				}
+				ParseExprPartPost(left, exit, stack);
 
 				goto next_symbol;
 			}
@@ -1120,7 +1114,12 @@ BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>&
 
 		// item
 		if(GetNextSymbol(symbol))
-			t.Unexpected();
+		{
+			if(symbol == BS_CALL)
+				symbol = BS_MAX;
+			else
+				t.Unexpected();
+		}
 		if(t.IsSymbol('('))
 		{
 			t.Next();
@@ -1133,34 +1132,53 @@ BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>&
 	else
 		exit.push_back(ParseItem(type));
 
-	// [post_op ...]
+	ParseExprPartPost(symbol, exit, stack);
+
+	return symbol;
+}
+
+void Parser::ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack)
+{
 	while(GetNextSymbol(symbol))
 	{
 		BasicSymbolInfo& bsi = basic_symbols[symbol];
-		if(bsi.post_symbol != S_INVALID)
+		if(bsi.post_symbol == S_INVALID)
+			return;
+
+		if(bsi.post_symbol == S_SUBSCRIPT)
 		{
-			if(bsi.post_symbol == S_SUBSCRIPT)
-			{
-				t.Next();
-				NodeRef expr = ParseExpr(']');
-				if(!TryCast(expr.Get(), VarType(V_INT)))
-					t.Throw("Subscript operator require type 'int', found '%s'.", GetTypeName(expr));
-				ParseNode* sub = ParseNode::Get();
-				sub->pseudo_op = SUBSCRIPT;
-				sub->childs.push_back(expr.Pin());
-				sub->source = nullptr;
-				PushSymbol(bsi.post_symbol, exit, stack, sub);
-			}
-			else
-				PushSymbol(bsi.post_symbol, exit, stack);
 			t.Next();
-			symbol = BS_MAX;
+			NodeRef expr = ParseExpr(']');
+			if(!TryCast(expr.Get(), VarType(V_INT)))
+				t.Throw("Subscript operator require type 'int', found '%s'.", GetTypeName(expr));
+			ParseNode* sub = ParseNode::Get();
+			sub->pseudo_op = SUBSCRIPT;
+			sub->childs.push_back(expr.Pin());
+			sub->source = nullptr;
+			PushSymbol(bsi.post_symbol, exit, stack, sub);
+			t.Next();
+			/*NodeRef sub;
+			ParseArgs(sub->childs, '[', ']');
+			sub->pseudo_op = SUBSCRIPT;
+			sub->source = nullptr;
+			PushSymbol(bsi.post_symbol, exit, stack, sub);*/
+		}
+		else if(bsi.post_symbol == S_CALL)
+		{
+			NodeRef sub;
+			ParseArgs(sub->childs);
+			sub->pseudo_op = CALL_FUNCTOR;
+			sub->source = nullptr;
+			PushSymbol(bsi.post_symbol, exit, stack, sub.Pin());
 		}
 		else
-			break;
-	}
+		{
+			PushSymbol(bsi.post_symbol, exit, stack);
+			t.Next();
+		}
 
-	return symbol;
+		symbol = BS_MAX;
+	}
 }
 
 void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
@@ -1218,6 +1236,28 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			sn.node->childs.clear();
 			sn.node->Free();
 			sn.node = nullptr;
+		}
+		else if(si.type == ST_CALL)
+		{
+			// call operator
+			Type* type = GetType(node->type);
+			vector<AnyFunction> funcs;
+			FindAllFunctionOverloads(type, si.op_code, funcs);
+			if(funcs.empty())
+				t.Throw("Type '%s' don't have call operator.", GetTypeName(node));
+
+			NodeRef f;
+			f->ref = REF_NO;
+			f->source = node->source;
+			f->push(node.Pin());
+			f->push(sn.node->childs);
+			sn.node->childs.clear();
+			sn.node->Free();
+			sn.node = nullptr;
+
+			ApplyFunctionCall(f, funcs, type, false);
+
+			stack.push_back(f.Pin());
 		}
 		else
 		{
@@ -1623,19 +1663,19 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 	}
 }
 
-void Parser::ParseArgs(vector<ParseNode*>& nodes)
+void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 {
 	// (
-	t.AssertSymbol('(');
+	t.AssertSymbol(open);
 	t.Next();
 
 	// arguments
-	if(!t.IsSymbol(')'))
+	if(!t.IsSymbol(close))
 	{
 		while(true)
 		{
-			nodes.push_back(ParseExpr(',', ')'));
-			if(t.IsSymbol(')'))
+			nodes.push_back(ParseExpr(',', close));
+			if(t.IsSymbol(close))
 				break;
 			t.AssertSymbol(',');
 			t.Next();
@@ -1963,7 +2003,7 @@ bool Parser::GetNextSymbol(BASIC_SYMBOL& symbol)
 	return (symbol != BS_MAX);
 }
 
-BASIC_SYMBOL Parser::GetSymbol()
+BASIC_SYMBOL Parser::GetSymbol(bool full_over)
 {
 	if(t.IsKeyword(K_IS, G_KEYWORD))
 		return BS_IS;
@@ -2057,9 +2097,17 @@ BASIC_SYMBOL Parser::GetSymbol()
 	case '.':
 		return BS_DOT;
 	case '[':
-		return BS_SUBSCRIPT;
+		if(!full_over || t.PeekSymbol(']'))
+			return BS_SUBSCRIPT;
+		else
+			return BS_MAX;
 	case '~':
 		return BS_BIT_NOT;
+	case '(':
+		if(!full_over || t.PeekSymbol(')'))
+			return BS_CALL;
+		else
+			return BS_MAX;
 	default:
 		return BS_MAX;
 	}
@@ -3408,7 +3456,7 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 	else
 	{
 		s += "operator ";
-		s += basic_symbols[*symbol].text;
+		s += basic_symbols[*symbol].GetOverloadText();
 		s += ' ';
 	}
 	s += '(';
@@ -3887,7 +3935,7 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 			SymbolInfo& si = symbols[s];
 			if(!si.op_code)
 				continue;
-			if(si.args == f.arg_infos.size() || s == S_SUBSCRIPT)
+			if(si.args == f.arg_infos.size() || s == S_SUBSCRIPT || s == S_CALL)
 			{
 				f.name = si.op_code;
 				return true;
