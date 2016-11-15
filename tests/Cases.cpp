@@ -167,4 +167,10 @@ TestMethod(Subscript)
 	RunFileTest("subscript.txt", "", "");
 }
 
+TestMethod(Ternary)
+{
+	RunFileTest("ternary.txt", "", "");
+	RunFileTest("ternary.txt", "", "", false);
+}
+
 CA_TEST_CLASS_END();

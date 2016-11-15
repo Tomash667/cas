@@ -121,7 +121,6 @@ vector functions:
 + warn about div by 0 in const
 + opt: print(4) -> converted to string
 + warn: use of unassigned variable
-+ ? : operator
 + string functions, substr, first(), last(), trim
 + classes
 + function constexpr (abs,cin,cos)

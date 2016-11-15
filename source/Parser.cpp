@@ -47,6 +47,7 @@ SymbolInfo symbols[] = {
 	S_IS, "reference equal", 9, true, 2, IS, ST_NONE, nullptr, "is",
 	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT, "$opIndex", "[]",
 	S_CALL, "function call", 2, true, 1, NOP, ST_CALL, "$opCall", "()",
+	S_TERNARY, "ternary", 15, false, 2, NOP, ST_NONE, nullptr, "?:",
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE, nullptr, ""
 };
 static_assert(sizeof(symbols) / sizeof(SymbolInfo) == S_MAX, "Missing symbols.");
@@ -88,7 +89,8 @@ BasicSymbolInfo basic_symbols[] = {
 	BS_DEC, "--", S_PRE_DEC, S_POST_DEC, S_INVALID, nullptr,
 	BS_IS, "is", S_INVALID, S_INVALID, S_IS, nullptr,
 	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID, "[]",
-	BS_CALL, "(", S_INVALID, S_CALL, S_INVALID, "()"
+	BS_CALL, "(", S_INVALID, S_CALL, S_INVALID, "()",
+	BS_TERNARY, "?", S_INVALID, S_INVALID, S_INVALID, nullptr
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
@@ -1050,6 +1052,33 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 	next_symbol:
 		if(GetNextSymbol(left))
 		{
+			if(left == BS_TERNARY)
+			{
+				PushSymbol(S_TERNARY, exit, stack);
+				t.Next();
+
+				NodeRef ter;
+				ter->push(ParseExpr(':'));
+				t.AssertSymbol(':');
+				t.Next();
+				ter->push(ParseExpr(';'));
+				ParseNode*& leftn = ter->childs[0];
+				ParseNode*& rightn = ter->childs[1];
+				int common = CommonType(leftn->type, rightn->type);
+				if(common == -1)
+					t.Throw("Invalid common type for ternary operator with types '%s' and '%s'.", GetTypeName(leftn), GetTypeName(rightn));
+				Cast(leftn, VarType(common));
+				Cast(rightn, VarType(common));
+				ter->pseudo_op = TERNARY_PART;
+				ter->type = common;
+				ter->ref = REF_NO;
+				ter->source = nullptr;
+				exit.push_back(ter.Pin());
+
+				left = BS_MAX;
+				goto next_symbol;
+			}
+
 			BasicSymbolInfo& bsi = basic_symbols[left];
 			if(bsi.op_symbol == S_INVALID)
 				t.Unexpected();
@@ -1457,6 +1486,22 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				right.Pin()->Free();
 				stack.push_back(node);
 			}
+		}
+		else if(si.symbol == S_TERNARY)
+		{
+			assert(right->pseudo_op == TERNARY_PART);
+			if(!TryCast(left.Get(), VarType(V_BOOL)))
+				t.Throw("Ternary condition expression with '%s' type.", GetTypeName(left));
+			NodeRef ter;
+			ter->push(left.Pin());
+			ter->push(right->childs[0]);
+			ter->push(right->childs[1]);
+			right->childs.clear();
+			ter->pseudo_op = TERNARY;
+			ter->type = ter->childs[1]->type;
+			ter->source = nullptr;
+			ter->ref = REF_NO;
+			stack.push_back(ter.Pin());
 		}
 		else if(si.type == ST_ASSIGN)
 		{
@@ -2108,6 +2153,8 @@ BASIC_SYMBOL Parser::GetSymbol(bool full_over)
 			return BS_CALL;
 		else
 			return BS_MAX;
+	case '?':
+		return BS_TERNARY;
 	default:
 		return BS_MAX;
 	}
@@ -2753,7 +2800,7 @@ ParseNode* Parser::OptimizeTree(ParseNode* node)
 {
 	assert(node);
 
-	if(node->pseudo_op == IF)
+	if(node->pseudo_op == IF || node->pseudo_op == TERNARY)
 	{
 		ParseNode*& cond = node->childs[0];
 		OptimizeTree(cond);
@@ -3064,6 +3111,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		switch(node->pseudo_op)
 		{
 		case IF:
+		case TERNARY:
 			{
 				// if condition
 				assert(node->childs.size() == 2u || node->childs.size() == 3u);
@@ -3084,7 +3132,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 					if(node->childs[1])
 					{
 						ToCode(code, node->childs[1], break_pos);
-						if(node->childs[1]->type != V_VOID)
+						if(node->childs[1]->type != V_VOID && node->pseudo_op != TERNARY)
 							code.push_back(POP);
 					}
 					code.push_back(JMP);
@@ -3094,7 +3142,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 					if(node->childs[2])
 					{
 						ToCode(code, node->childs[2], break_pos);
-						if(node->childs[2]->type != V_VOID)
+						if(node->childs[2]->type != V_VOID && node->pseudo_op != TERNARY)
 							code.push_back(POP);
 					}
 					uint end_start = code.size();
@@ -3112,7 +3160,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 					if(node->childs[1])
 					{
 						ToCode(code, node->childs[1], break_pos);
-						if(node->childs[1]->type != V_VOID)
+						if(node->childs[1]->type != V_VOID && node->pseudo_op != TERNARY)
 							code.push_back(POP);
 					}
 					uint end_start = code.size();

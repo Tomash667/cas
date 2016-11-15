@@ -316,4 +316,14 @@ TEST_METHOD(InvalidFunctorType)
 	RunFailureTest("int a = 4; a();", "Type 'int' don't have call operator.");
 }
 
+TEST_METHOD(InvalidTernaryCommonType)
+{
+	RunFailureTest("void f(){} 1?f():1;", "Invalid common type for ternary operator with types 'void' and 'int'.");
+}
+
+TEST_METHOD(InvalidTernaryCondition)
+{
+	RunFailureTest("void f(){} f()?0:1;", "Ternary condition expression with 'void' type.");
+}
+
 CA_TEST_CLASS_END();

@@ -55,7 +55,9 @@ enum PseudoOp
 	DO_WHILE,
 	WHILE,
 	FOR,
-	GROUP
+	GROUP,
+	TERNARY_PART,
+	TERNARY
 };
 
 enum PseudoOpValue
@@ -115,6 +117,7 @@ enum SYMBOL
 	S_IS,
 	S_SUBSCRIPT,
 	S_CALL,
+	S_TERNARY,
 	S_INVALID,
 	S_MAX
 };
@@ -177,6 +180,7 @@ enum BASIC_SYMBOL
 	BS_IS, // is
 	BS_SUBSCRIPT, // [
 	BS_CALL, // (
+	BS_TERNARY, // ?
 	BS_MAX
 };
 

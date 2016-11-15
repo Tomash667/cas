@@ -1,0 +1,26 @@
+int f(int a, int b, int c, int d)
+{
+	return a>b?a-b*c:a*d+b;
+}
+
+int a = f(1,2,3,4);
+Assert_AreEqual(6,a);
+
+a = f(3,1,4,2);
+Assert_AreEqual(-1,a);
+
+a = 0?1:2;
+Assert_AreEqual(2,a);
+
+a = 1?1:2;
+Assert_AreEqual(1,a);
+
+int b;
+void f() { b = 1; }
+void f2() { b = 2; }
+
+true?f():f2();
+Assert_AreEqual(1, b);
+
+false?f():f2();
+Assert_AreEqual(2, b);
