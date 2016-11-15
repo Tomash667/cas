@@ -158,7 +158,7 @@ vector functions:
 	+ don't initialize members that won't be used until overwritten
 	+ TryConstExpr for IS
 	+ exclude functions without side effects or empty and don't call them
-+ && short circuiting
++ && || short circuiting
 + char type
 + remove duplicates in string table
 + shorter class initialization: A b(3,4) ?
@@ -190,7 +190,7 @@ array, ctor, dtor, assign, > 2 (>4 x64) - return in memory
 else return in reg
 
 + runner OO
-+ less markoed test framework
++ less makroed test framework
 + different syntax
 	var type = module->AddType();
 	type->AddMember();
