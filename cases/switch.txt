@@ -1,0 +1,61 @@
+int f(int a)
+{
+	switch(a)
+	{
+	case 1:
+		{
+			int g = 3;
+			g += 3;
+			g *= 2;
+			return g;
+		}
+	case 2:
+	case 3:
+		return 14;
+	default:
+		return 37;
+	}
+}
+
+Assert_AreEqual(12, f(1));
+Assert_AreEqual(14, f(2));
+Assert_AreEqual(14, f(3));
+Assert_AreEqual(37, f(5));
+
+int f2(string a)
+{
+	switch(a+"1")
+	{
+	case "a1":
+		return 3;
+	case "b1":
+		return 6;
+	}
+	return -1;
+}
+
+Assert_AreEqual(3, f2("a"));
+Assert_AreEqual(6, f2("b"));
+Assert_AreEqual(-1, f2("c"));
+
+int f3(char c)
+{
+	int w = 0;
+	switch(c)
+	{
+	case 'a':
+		w += 1;
+	case 13:
+		w += 2;
+	default:
+		w += 4;
+		break;
+	case 'z':
+	}
+	return w;
+}
+
+Assert_AreEqual(7, f3('a'));
+Assert_AreEqual(6, f3(13));
+Assert_AreEqual(4, f3('b'));
+Assert_AreEqual(0, f3('z'));

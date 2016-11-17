@@ -29,11 +29,16 @@ line:
 	do line_or_block while cond ;
 	while cond line_or_block
 	for ( [ var_type_decl / expr ] ; [ expr ] ; [ expr ] ) line_or_block
+	switch ( expr ) { [switch_case ...] }
 	var_type_decl ;
-	break ;  // must be inside loop block
+	break ;  // must be inside loop/switch block
 	return [expr] ;
 	expr ;
 	;
+
+switch_case:
+	case const_item : [switch_case] [line_or_block ...]
+	default : [switch_case] [line_or_block ...]
 
 class_item:
 	simple_var_type <member_name> [, <member_name> ...] ;

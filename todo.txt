@@ -1,5 +1,3 @@
-+ string oper
-
 CHAIN OF TODO:
 + reference
 + subscript require reference
@@ -9,6 +7,8 @@ CHAIN OF TODO:
 + subscript with multiple items
 + check all operators
 + overload pre/post ++ --
++ set_tmp reference (string?), check string references
++ string oper
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 
@@ -127,7 +127,15 @@ vector functions:
 + namespace
 + continue parsing after error
 + in - if(x in {3,5})
-+ switch case
++ switch ext
+	+ multivar, range (case 0..30,42:)
+	+ class
+	+ complex - dynamic var - no jmp table!
+	+ optimization - jmp table
+	+ VerifyNodeReturnValue on complete types (bool, enum), no default required
+	+ invalid case type failure test
++ $opCmp (-1 smaller, 0 equal, 1 greater) - can be used instead of overriding == != > >= < <=
++ use == / != and negate if other is defined
 + optimize multiple conditions (- -a), if(!(a != b))
 + http://www.tutorialspoint.com/cplusplus/cpp_while_loop.htm
 + allow to turn off optimize const expr
@@ -198,3 +206,9 @@ else return in reg
 + deassembly labels
 + exceptions
 + complex subscript: map[1,2]
++ checking for return value in {for/do/while} currently this will return error
+	int f()
+	{
+		while(true)
+			return 1;
+	}

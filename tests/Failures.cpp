@@ -326,4 +326,30 @@ TEST_METHOD(InvalidTernaryCondition)
 	RunFailureTest("void f(){} f()?0:1;", "Ternary condition expression with 'void' type.");
 }
 
+TEST_METHOD(InvalidSwitchType)
+{
+	RunFailureTest("class X{} X x; switch(x){}", "Invalid switch type 'X'.");
+}
+
+TEST_METHOD(CantCastCaseType)
+{
+	RunFailureTest("int a; switch(a){case \"a\":}", "Can't cast case value from 'string' to 'int'.");
+}
+
+TEST_METHOD(CaseAlreadyDefined)
+{
+	RunFailureTest("int a; switch(a){case 0:case 0:}", "Case with value '0' is already defined.");
+}
+
+TEST_METHOD(DefaultCaseAlreadyDefined)
+{
+	RunFailureTest("int a; switch(a){default:default:}", "Default case already defined.");
+}
+
+TEST_METHOD(BrokenSwitch)
+{
+	RunFailureTest("int a; switch(a){do}", "Expecting keyword 'case'(12) from group 'keywords'(0), keyword 'default'(13) from group 'keywords'(0), "
+		"found keyword 'do'(2) from group 'keywords'(0).");
+}
+
 CA_TEST_CLASS_END();

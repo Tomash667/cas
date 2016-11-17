@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "ternary.txt";
+cstring def_filename = "switch.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

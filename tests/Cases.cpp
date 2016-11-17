@@ -173,4 +173,9 @@ TestMethod(Ternary)
 	RunFileTest("ternary.txt", "", "", false);
 }
 
+TestMethod(Switch)
+{
+	RunFileTest("switch.txt", "", "");
+}
+
 CA_TEST_CLASS_END();

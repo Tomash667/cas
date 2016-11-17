@@ -136,14 +136,19 @@ void Parser::AddKeywords()
 		{ "class", K_CLASS },
 		{ "struct", K_STRUCT },
 		{ "is", K_IS },
-		{ "operator", K_OPERATOR }
-	});
+		{ "operator", K_OPERATOR },
+		{ "switch", K_SWITCH },
+		{ "case", K_CASE },
+		{ "default", K_DEFAULT }
+	}, "keywords");
 
 	// const
 	t.AddKeywords(G_CONST, {
 		{ "true", C_TRUE },
 		{ "false", C_FALSE }
-	});
+	}, "const");
+
+	t.AddKeywordGroup("var", G_VAR);
 }
 
 void Parser::AddChildModulesKeywords()
@@ -576,6 +581,8 @@ ParseNode* Parser::ParseLine()
 				current_type = nullptr;
 				return nullptr;
 			}
+		case K_SWITCH:
+			return ParseSwitch();
 		default:
 			t.Unexpected();
 		}
@@ -638,6 +645,165 @@ ParseNode* Parser::ParseLine()
 	t.Next();
 
 	return node.Pin();
+}
+
+ParseNode* Parser::ParseSwitch()
+{
+	NodeRef swi;
+
+	// ( expr )
+	t.Next();
+	t.AssertSymbol('(');
+	t.Next();
+	swi->push(ParseExpr(')'));
+	int type = swi->childs[0]->type;
+	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING)
+		t.Throw("Invalid switch type '%s'.", GetName(VarType(type)));
+	t.AssertSymbol(')');
+	t.Next();
+
+	// {
+	t.AssertSymbol('{');
+	t.Next();
+
+	// cases
+	bool have_def = false;
+	while(!t.IsSymbol('}'))
+	{
+		do
+		{
+			ParseNode* cas = ParseCase(swi);
+			swi->push(cas);
+		} while(t.IsKeyword(K_CASE, G_KEYWORD) || t.IsKeyword(K_DEFAULT, G_KEYWORD));
+
+		if(t.IsSymbol('}'))
+			break;
+
+		NodeRef group;
+		++breakable_block;
+		do
+		{
+			group->push(ParseLineOrBlock());
+		} while(!t.IsKeyword(K_CASE, G_KEYWORD) && !t.IsKeyword(K_DEFAULT, G_KEYWORD) && !t.IsSymbol('}'));
+		--breakable_block;
+
+		for(auto it = swi->childs.rbegin(), end = swi->childs.rend(); it != end; ++it)
+		{
+			ParseNode* node = *it;
+			if(node->linked)
+				break;
+			node->linked = group.Get();
+		}
+
+		group->pseudo_op = CASE_BLOCK;
+		swi->push(group.Pin());
+	}
+
+	// }
+	t.Next();
+
+	swi->pseudo_op = SWITCH;
+	swi->type = V_VOID;
+	return swi.Pin();
+}
+
+ParseNode* Parser::ParseCase(ParseNode* swi)
+{
+	NodeRef cas;
+
+	if(t.IsKeyword(K_CASE, G_KEYWORD))
+	{
+		t.Next();
+		NodeRef val = ParseConstItem();
+		if(val->type != V_BOOL && val->type != V_CHAR && val->type != V_INT && val->type != V_FLOAT && val->type != V_STRING)
+			t.Throw("Invalid case type '%s'.", GetName(VarType(val->type)));
+		if(!TryCast(val.Get(), swi->childs[0]->GetVarType()))
+			t.Throw("Can't cast case value from '%s' to '%s'.", GetTypeName(val), GetTypeName(swi->childs[0]));
+		assert(val->op != CAST);
+		for(uint i = 1, count = swi->childs.size(); i < count; ++i)
+		{
+			ParseNode* chi = swi->childs[i];
+			if(chi->pseudo_op == DEFAULT_CASE || chi->pseudo_op == CASE_BLOCK)
+				continue;
+			assert(chi->type == val->type);
+			cstring dup = nullptr;
+			switch(val->type)
+			{
+			case V_BOOL:
+				if(val->bvalue == chi->bvalue)
+					dup = (val->bvalue ? "true" : "false");
+				break;
+			case V_CHAR:
+				if(val->cvalue == chi->cvalue)
+					dup = EscapeChar(val->cvalue);
+				break;
+			case V_INT:
+				if(val->value == chi->value)
+					dup = Format("%d", val->value);
+				break;
+			case V_FLOAT:
+				if(val->fvalue == chi->fvalue)
+					dup = Format("%g", val->fvalue);
+				break;
+			case V_STRING:
+				if(strs[val->value]->s == strs[chi->value]->s)
+					dup = strs[val->value]->s.c_str();
+				break;
+			default:
+				assert(0);
+				break;
+			}
+			if(dup)
+				t.Throw("Case with value '%s' is already defined.", dup);
+		}
+		switch(val->type)
+		{
+		case V_BOOL:
+			cas->bvalue = val->bvalue;
+			break;
+		case V_CHAR:
+			cas->cvalue = val->cvalue;
+			break;
+		case V_INT:
+			cas->value = val->value;
+			break;
+		case V_FLOAT:
+			cas->fvalue = val->fvalue;
+			break;
+		case V_STRING:
+			cas->value = val->value;
+			break;
+		default:
+			assert(0);
+			break;
+		}
+		cas->pseudo_op = CASE;
+		cas->type = val->type;
+	}
+	else if(t.IsKeyword(K_DEFAULT, G_KEYWORD))
+	{
+		for(uint i = 1, count = swi->childs.size(); i < count; ++i)
+		{
+			ParseNode* chi = swi->childs[i];
+			if(chi->pseudo_op == DEFAULT_CASE)
+				t.Throw("Default case already defined.");
+		}
+		t.Next();
+		cas->pseudo_op = DEFAULT_CASE;
+	}
+	else
+	{
+		int k1 = K_CASE,
+			k2 = K_DEFAULT,
+			gr = G_KEYWORD;
+		t.StartUnexpected().Add(tokenizer::T_KEYWORD, &k1, &gr).Add(tokenizer::T_KEYWORD, &k2, &gr).Throw();
+	}
+
+	t.AssertSymbol(':');
+	t.Next();
+
+	cas->linked = nullptr;
+	return cas.Pin();
 }
 
 // func_decl
@@ -2671,7 +2837,7 @@ bool Parser::TryConstCast(ParseNode* node, int type)
 
 #define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
 
-	switch(node->op)
+	switch(COMBINE(node->op,type))
 	{
 	case COMBINE(PUSH_BOOL,V_CHAR):
 		node->cvalue = (node->bvalue ? 't' : 'f');
@@ -3033,7 +3199,7 @@ void Parser::VerifyFunctionReturnValue(ParseFunction* f)
 
 		for(vector<ParseNode*>::reverse_iterator it = f->node->childs.rbegin(), end = f->node->childs.rend(); it != end; ++it)
 		{
-			if(VerifyNodeReturnValue(*it))
+			if(VerifyNodeReturnValue(*it, false) == RI_YES)
 				return;
 		}
 	}
@@ -3041,24 +3207,64 @@ void Parser::VerifyFunctionReturnValue(ParseFunction* f)
 	t.Throw("%s '%s' not always return value.", f->type == V_VOID ? "Function" : "Method", GetName(f));
 }
 
-bool Parser::VerifyNodeReturnValue(ParseNode* node)
+RETURN_INFO Parser::VerifyNodeReturnValue(ParseNode* node, bool in_switch)
 {
 	switch(node->pseudo_op)
 	{
 	case GROUP:
-		for(vector<ParseNode*>::reverse_iterator it = node->childs.rbegin(), end = node->childs.rend(); it != end; ++it)
+	case CASE_BLOCK:
+		for(auto it = node->childs.begin(), end = node->childs.end(); it != end; ++it)
 		{
-			if(VerifyNodeReturnValue(*it))
-				return true;
+			RETURN_INFO ri = VerifyNodeReturnValue(*it, in_switch);
+			if(ri == RI_YES || (in_switch && ri == RI_BREAK))
+				return ri;
 		}
-		return false;
+		return RI_NO;
 	case IF:
-		return (node->childs.size() == 3u && node->childs[1] && node->childs[2]
-			&& VerifyNodeReturnValue(node->childs[1]) && VerifyNodeReturnValue(node->childs[2]));
+		if(node->childs.size() == 3u && node->childs[1] && node->childs[2])
+		{
+			RETURN_INFO ri1 = VerifyNodeReturnValue(node->childs[1], in_switch),
+				ri2 = VerifyNodeReturnValue(node->childs[2], in_switch);
+			if(ri1 == ri2 && (ri1 == RI_YES || (ri1 == RI_BREAK && in_switch)))
+				return ri1;
+		}
+		return RI_NO;
 	case RETURN:
-		return true;
+		return RI_YES;
+	case BREAK:
+		return (in_switch ? RI_BREAK : RI_NO);
+	case SWITCH:
+		{
+			bool have_def = false;
+			int blocks = 0;
+			for(auto it = node->childs.begin() + 1, end = node->childs.end(); it != end; ++it)
+			{
+				ParseNode* cas = *it;
+				if(cas->pseudo_op == DEFAULT_CASE)
+				{
+					++blocks;
+					have_def = true;
+					continue;
+				}
+				else if(cas->pseudo_op == CASE)
+				{
+					++blocks;
+					continue;
+				}
+				assert(cas->pseudo_op == CASE_BLOCK);
+				RETURN_INFO ri = VerifyNodeReturnValue(cas, true);
+				if(ri == RI_YES)
+				{
+					blocks = 0;
+					continue;
+				}
+				else if(ri == RI_BREAK)
+					return RI_NO;
+			}
+			return ((blocks == 0 && have_def) ? RI_YES : RI_NO);
+		}
 	default:
-		return false;
+		return RI_NO;
 	}
 }
 
@@ -3305,6 +3511,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 			}
 			break;
 		case GROUP:
+		case CASE_BLOCK:
 			{
 				for(ParseNode* n : node->childs)
 				{
@@ -3312,6 +3519,100 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 					if(n->type != V_VOID)
 						code.push_back(POP);
 				}
+			}
+			break;
+		case SWITCH:
+			{
+				// push switch value
+				ToCode(code, node->childs[0], break_pos);
+				code.push_back(SET_TMP);
+				code.push_back(POP);
+
+				vector<uint> wh_break_pos;
+				struct Jmp
+				{
+					uint pos;
+					ParseNode* link;
+				};
+				vector<Jmp> jmps;
+
+				// jmp blocks
+				ParseNode* def_link = nullptr;
+				for(auto it = node->childs.begin() + 1, end = node->childs.end(); it != end; ++it)
+				{
+					ParseNode* cas = *it;
+					if(cas->pseudo_op == CASE_BLOCK)
+						continue;
+					if(cas->pseudo_op == DEFAULT_CASE)
+					{
+						def_link = cas;
+						continue;
+					}
+					code.push_back(PUSH_TMP);
+					switch(cas->type)
+					{
+					case V_BOOL:
+						code.push_back(cas->bvalue ? PUSH_TRUE : PUSH_FALSE);
+						break;
+					case V_CHAR:
+						code.push_back(PUSH_CHAR);
+						code.push_back(union_cast<int>(cas->cvalue));
+						break;
+					case V_INT:
+						code.push_back(PUSH_INT);
+						code.push_back(cas->value);
+						break;
+					case V_FLOAT:
+						code.push_back(PUSH_FLOAT);
+						code.push_back(union_cast<int>(cas->fvalue));
+						break;
+					case V_STRING:
+						code.push_back(PUSH_STRING);
+						code.push_back(cas->value);
+						break;
+					default:
+						assert(0);
+						break;
+					}
+					code.push_back(EQ);
+					code.push_back(TJMP);
+					Jmp j = { code.size(), cas->linked };
+					jmps.push_back(j);
+					code.push_back(0);
+				}
+
+				// end jmp
+				code.push_back(JMP);
+				if(def_link)
+				{
+					Jmp j = { code.size(), def_link->linked };
+					jmps.push_back(j);
+				}
+				else
+					wh_break_pos.push_back(code.size());
+				code.push_back(0);
+
+				// blocks
+				for(auto it = node->childs.begin() + 1, end = node->childs.end(); it != end; ++it)
+				{
+					ParseNode* blk = *it;
+					if(blk->pseudo_op != CASE_BLOCK)
+						continue;
+					blk->value = code.size();
+					ToCode(code, blk, &wh_break_pos);
+				}
+
+				// patch jmps
+				uint end_pos = code.size();
+				for(Jmp& j : jmps)
+				{
+					if(j.link)
+						code[j.pos] = j.link->value;
+					else
+						code[j.pos] = end_pos;
+				}
+				for(uint p : wh_break_pos)
+					code[p] = end_pos;
 			}
 			break;
 		default:

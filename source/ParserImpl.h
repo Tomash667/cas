@@ -21,7 +21,10 @@ enum KEYWORD
 	K_CLASS,
 	K_STRUCT,
 	K_IS,
-	K_OPERATOR
+	K_OPERATOR,
+	K_SWITCH,
+	K_CASE,
+	K_DEFAULT
 };
 
 enum CONST
@@ -57,7 +60,11 @@ enum PseudoOp
 	FOR,
 	GROUP,
 	TERNARY_PART,
-	TERNARY
+	TERNARY,
+	SWITCH,
+	CASE,
+	DEFAULT_CASE,
+	CASE_BLOCK
 };
 
 enum PseudoOpValue
@@ -226,6 +233,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		string* str;
 	};
 	int type;
+	ParseNode* linked;
 	vector<ParseNode*> childs;
 	RefType ref;
 	VarSource* source;
@@ -526,3 +534,10 @@ private:
 typedef ObjectPoolRef<Block> BlockRef;
 typedef ObjectPoolRef<ParseNode> NodeRef;
 typedef ObjectPoolRef<ParseVar> VarRef;
+
+enum RETURN_INFO
+{
+	RI_NO,
+	RI_YES,
+	RI_BREAK
+};

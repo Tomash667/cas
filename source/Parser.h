@@ -12,6 +12,7 @@ struct ReturnStructVar;
 union Found;
 enum BASIC_SYMBOL;
 enum FOUND;
+enum RETURN_INFO;
 enum SYMBOL;
 
 struct ParseSettings
@@ -52,6 +53,8 @@ private:
 	ParseNode* ParseLineOrBlock();
 	ParseNode* ParseBlock(ParseFunction* f = nullptr);
 	ParseNode* ParseLine();
+	ParseNode* ParseSwitch();
+	ParseNode* ParseCase(ParseNode* swi);
 	void ParseMemberDeclClass(Type* type, uint& pad);
 	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
@@ -90,7 +93,7 @@ private:
 	void CheckReturnValues();
 	void CheckGlobalReturnValue();
 	void VerifyFunctionReturnValue(ParseFunction* f);
-	bool VerifyNodeReturnValue(ParseNode* node);
+	RETURN_INFO VerifyNodeReturnValue(ParseNode* node, bool in_switch);
 
 	void CopyFunctionChangedStructs();
 	void ConvertToBytecode();
