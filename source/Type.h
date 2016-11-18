@@ -54,7 +54,9 @@ enum CoreVarType
 	V_FLOAT,
 	V_STRING,
 	V_REF,
-	V_SPECIAL
+	V_SPECIAL,
+	V_ENUM,
+	V_MAX
 };
 
 enum SpecialVarType

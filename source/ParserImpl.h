@@ -24,7 +24,8 @@ enum KEYWORD
 	K_OPERATOR,
 	K_SWITCH,
 	K_CASE,
-	K_DEFAULT
+	K_DEFAULT,
+	K_ENUM
 };
 
 enum CONST
@@ -39,12 +40,14 @@ enum FOUND
 	F_VAR,
 	F_FUNC,
 	F_USER_FUNC,
-	F_MEMBER
+	F_MEMBER,
+	F_ENUM
 };
 
 enum PseudoOp
 {
 	PUSH_BOOL = MAX_OP,
+	PUSH_ENUM,
 	NOP,
 	OBJ_MEMBER,
 	OBJ_FUNC,
@@ -233,7 +236,11 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		string* str;
 	};
 	int type;
-	ParseNode* linked;
+	union
+	{
+		ParseNode* linked;
+		Enum* enu;
+	};
 	vector<ParseNode*> childs;
 	RefType ref;
 	VarSource* source;
@@ -382,6 +389,22 @@ struct ParseFunction : CommonFunction
 	}
 };
 
+struct Enum
+{
+	string name;
+	vector<std::pair<string, int>> values;
+
+	std::pair<string, int>* Find(const string& id)
+	{
+		for(auto& val : values)
+		{
+			if(val.first == id)
+				return &val;
+		}
+		return nullptr;
+	}
+};
+
 union Found
 {
 	ParseVar* var;
@@ -392,6 +415,7 @@ union Found
 		Member* member;
 		int member_index;
 	};
+	Enum* enu;
 
 	inline cstring ToString(FOUND type)
 	{
@@ -416,6 +440,8 @@ union Found
 			return "script function";
 		case F_MEMBER:
 			return "member";
+		case F_ENUM:
+			return "enum";
 		default:
 			assert(0);
 			return "undefined";
@@ -540,4 +566,61 @@ enum RETURN_INFO
 	RI_NO,
 	RI_YES,
 	RI_BREAK
+};
+
+template<typename T>
+struct RPtr
+{
+	inline RPtr(nullptr_t)
+	{
+		item = nullptr;
+	}
+
+	inline RPtr()
+	{
+		item = new T;
+	}
+
+	inline RPtr(T* item) : item(item)
+	{
+
+	}
+
+	inline ~RPtr()
+	{
+		if(item)
+			delete item;
+	}
+
+	inline void operator = (T* new_item)
+	{
+		if(item)
+			delete item;
+		item = new_item;
+	}
+
+	inline operator T* ()
+	{
+		return item;
+	}
+
+	inline T* operator -> ()
+	{
+		return item;
+	}
+
+	inline T* Pin()
+	{
+		T* tmp = item;
+		item = nullptr;
+		return tmp;
+	}
+
+	inline T*& Get()
+	{
+		return item;
+	}
+
+private:
+	T* item;
 };

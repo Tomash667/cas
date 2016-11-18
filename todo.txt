@@ -1,3 +1,12 @@
+ENUM TODO:
++ ParseConstExpr
++ TryConstCast
++ enum ops
++ add enum type
++ register enum
+
++ ParseConstExpr in switch
+
 CHAIN OF TODO:
 + reference
 + subscript require reference
@@ -148,8 +157,6 @@ vector functions:
 + typeid
 + static type functions
 + register c++ global
-+ enum
-+ register enum
 + multiple files/modules (sharing classes, globals - current globals-> 0 level locals)
 + types
 	+ dictionary/map
@@ -166,7 +173,6 @@ vector functions:
 	+ TryConstExpr for IS
 	+ exclude functions without side effects or empty and don't call them
 + && || short circuiting
-+ char type
 + remove duplicates in string table
 + shorter class initialization: A b(3,4) ?
 + await/async for spawning units
@@ -212,3 +218,14 @@ else return in reg
 		while(true)
 			return 1;
 	}
++ local functions
+	void f()
+	{
+		int a;
+		void f2()
+		{
+			a = 3;
+		}
+		f2();
+	}
++ local class/struct/enum, inside function/class

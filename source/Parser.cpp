@@ -139,7 +139,8 @@ void Parser::AddKeywords()
 		{ "operator", K_OPERATOR },
 		{ "switch", K_SWITCH },
 		{ "case", K_CASE },
-		{ "default", K_DEFAULT }
+		{ "default", K_DEFAULT },
+		{ "enum", K_ENUM }
 	}, "keywords");
 
 	// const
@@ -524,65 +525,13 @@ ParseNode* Parser::ParseLine()
 			}
 		case K_CLASS:
 		case K_STRUCT:
-			{
-				if(current_block != main_block)
-					t.Throw("%s can't be declared inside block.", keyword == K_CLASS ? "Class" : "Struct");
-
-				// id
-				t.Next();
-				const string& id = t.MustGetItem();
-				CheckFindItem(id, false);
-				Type* type = new Type;
-				type->name = id;
-				type->flags = Type::Class;
-				if(keyword == K_CLASS)
-					type->flags |= Type::Ref;
-				type->index = (0xFFFF0000 | run_module->types.size());
-				type->size = 0;
-				run_module->types.push_back(type);
-				AddType(type);
-				t.Next();
-
-				// {
-				t.AssertSymbol('{');
-				t.Next();
-
-				uint pad = 0;
-				current_type = type;
-
-				// [class_item ...] }
-				while(!t.IsSymbol('}'))
-				{
-					// member, method or ctor
-					if(GetNextType() != 0)
-					{
-						ParseFunction* f = new ParseFunction;
-						current_function = f;
-
-						ParseFuncInfo(f, type, false);
-
-						if(FindEqualFunction(f))
-							t.Throw("Function '%s' already exists.", GetName(f));
-
-						// block
-						f->node = ParseBlock(f);
-						current_function = nullptr;
-						if(f->special == SF_CTOR)
-							type->flags |= Type::HaveCtor;
-						f->index = ufuncs.size();
-						ufuncs.push_back(f);
-						type->ufuncs.push_back(f);
-					}
-					else
-						ParseMemberDeclClass(type, pad);
-				}
-				t.Next();
-
-				current_type = nullptr;
-				return nullptr;
-			}
+			ParseClass(keyword == K_STRUCT);
+			return nullptr;
 		case K_SWITCH:
 			return ParseSwitch();
+		case K_ENUM:
+			ParseEnum();
+			return nullptr;
 		default:
 			t.Unexpected();
 		}
@@ -645,6 +594,64 @@ ParseNode* Parser::ParseLine()
 	t.Next();
 
 	return node.Pin();
+}
+
+void Parser::ParseClass(bool is_struct)
+{
+	if(current_block != main_block)
+		t.Throw("%s can't be declared inside block.", is_struct ? "Struct" : "Class");
+
+	// id
+	t.Next();
+	const string& id = t.MustGetItem();
+	CheckFindItem(id, false);
+	Type* type = new Type;
+	type->name = id;
+	type->flags = Type::Class;
+	if(!is_struct)
+		type->flags |= Type::Ref;
+	type->index = (0xFFFF0000 | run_module->types.size());
+	type->size = 0;
+	run_module->types.push_back(type);
+	AddType(type);
+	t.Next();
+
+	// {
+	t.AssertSymbol('{');
+	t.Next();
+
+	uint pad = 0;
+	current_type = type;
+
+	// [class_item ...] }
+	while(!t.IsSymbol('}'))
+	{
+		// member, method or ctor
+		if(GetNextType() != 0)
+		{
+			ParseFunction* f = new ParseFunction;
+			current_function = f;
+
+			ParseFuncInfo(f, type, false);
+
+			if(FindEqualFunction(f))
+				t.Throw("Function '%s' already exists.", GetName(f));
+
+			// block
+			f->node = ParseBlock(f);
+			current_function = nullptr;
+			if(f->special == SF_CTOR)
+				type->flags |= Type::HaveCtor;
+			f->index = ufuncs.size();
+			ufuncs.push_back(f);
+			type->ufuncs.push_back(f);
+		}
+		else
+			ParseMemberDeclClass(type, pad);
+	}
+	t.Next();
+
+	current_type = nullptr;
 }
 
 ParseNode* Parser::ParseSwitch()
@@ -804,6 +811,58 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 
 	cas->linked = nullptr;
 	return cas.Pin();
+}
+
+void Parser::ParseEnum()
+{
+	t.Next();
+
+	// name
+	const string& name = t.MustGetItem();
+	CheckFindItem(name, false);
+	Enum* enu = new Enum;
+	enu->name = name;
+	enums.push_back(active_enum);
+	active_enum = enu;
+	t.Next();
+
+	// {
+	t.AssertSymbol('{');
+	t.Next();
+
+	// enum values
+	if(t.IsSymbol('}'))
+	{
+		while(true)
+		{
+			// name
+			const string& enum_value = t.MustGetItem();
+			if(enu->Find(enum_value))
+				t.Throw("Enumerator '%s.%s' already defined.", enu->name.c_str(), enum_value.c_str());
+			enu->values.push_back(std::pair<string, int>(enum_value, 0));
+			t.Next();
+
+			// [= value]
+			if(t.IsSymbol('='))
+			{
+				t.Next();
+				NodeRef expr = ParseConstExpr();
+				if(!TryConstCast(expr.Get(), VarType(V_INT)))
+					t.Throw("Enumerator require 'int' value, have '%s'.", GetTypeName(expr));
+				enu->values.back().second = expr->value;
+			}
+
+			// , or }
+			if(t.IsSymbol('}'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		}
+	}
+
+	// }
+	t.Next();
+	active_enum = nullptr;
 }
 
 // func_decl
@@ -1982,9 +2041,43 @@ ParseNode* Parser::ParseItem(int* type)
 				t.Next();
 				return node;
 			}
+		case F_ENUM:
+			{
+				NodeRef enu;
+				enu->pseudo_op = PUSH_ENUM;
+				enu->type = V_ENUM;
+				enu->enu = found.enu;
+				enu->ref = REF_NO;
+				enu->source = nullptr;
+				t.Next();
+				t.AssertSymbol('.');
+				t.Next();
+				const string& name = t.MustGetString();
+				auto e = enu->enu->Find(name);
+				if(!e)
+					t.Throw("Invalid enumerator '%s.%s'.", enu->enu->name.c_str(), name.c_str());
+				enu->value = e->second;
+				t.Next();
+				return enu.Pin();
+			}
 		default:
 			assert(0);
 		case F_NONE:
+			if(active_enum)
+			{
+				const string& name = t.MustGetItem();
+				auto e = active_enum->Find(name);
+				if(e)
+				{
+					ParseNode* enu = ParseNode::Get();
+					enu->pseudo_op = PUSH_ENUM;
+					enu->value = e->second;
+					enu->enu = active_enum;
+					enu->source = nullptr;
+					enu->ref = REF_NO;
+					return enu;
+				}
+			}
 			t.Unexpected();
 		}
 	}
@@ -3921,6 +4014,15 @@ FOUND Parser::FindItem(const string& id, Found& found)
 		{
 			found.var = var;
 			return F_VAR;
+		}
+	}
+
+	for(Enum* enu : enums)
+	{
+		if(enu->name == id)
+		{
+			found.enu = enu;
+			return F_ENUM;
 		}
 	}
 

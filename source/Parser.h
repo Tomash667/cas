@@ -4,6 +4,7 @@
 #include "RunModule.h"
 
 struct Block;
+struct Enum;
 struct ParseFunction;
 struct ParseNode;
 struct ParseVar;
@@ -53,8 +54,10 @@ private:
 	ParseNode* ParseLineOrBlock();
 	ParseNode* ParseBlock(ParseFunction* f = nullptr);
 	ParseNode* ParseLine();
+	void ParseClass(bool is_struct);
 	ParseNode* ParseSwitch();
 	ParseNode* ParseCase(ParseNode* swi);
+	void ParseEnum();
 	void ParseMemberDeclClass(Type* type, uint& pad);
 	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
@@ -62,6 +65,7 @@ private:
 	ParseNode* ParseCond();
 	ParseNode* ParseVarDecl(VarType type);
 	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
+	ParseNode* ParseConstExpr();
 	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);
@@ -86,6 +90,7 @@ private:
 	bool TryConstCast(ParseNode* node, int type);
 	int MayCast(ParseNode* node, VarType type);
 	void ForceCast(ParseNode*& node, ParseNode* type, cstring op);
+	bool TryConstCast(ParseNode*& node, VarType type);
 
 	void Optimize();
 	ParseNode* OptimizeTree(ParseNode* node);
@@ -131,4 +136,6 @@ private:
 	CoreVarType global_result;
 	bool optimize;
 	vector<ReturnStructVar*> rsvs;
+	vector<Enum*> enums;
+	Enum* active_enum;
 };
