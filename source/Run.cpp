@@ -179,7 +179,7 @@ void ExecuteFunction(Function& f)
 	int* args;
 	uint packedSize;
 	uint espRestore;
-	if(!f.thiscall)
+	if(!IS_SET(f.flags, CommonFunction::F_THISCALL))
 	{
 		_this = nullptr;
 		args = &packedArgs[0];

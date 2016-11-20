@@ -8,9 +8,8 @@
 
 enum EXT_VAR_TYPE
 {
-	V_FUNCTION = V_SPECIAL + 1,
-	V_USER_FUNCTION,
-	V_TYPE
+	V_FUNCTION = V_MAX,
+	V_USER_FUNCTION
 };
 
 struct OpInfo

@@ -71,8 +71,9 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 		return false;
 	}
 	f->clbk = func_info.ptr;
+	if(func_info.builtin)
+		f->flags |= CommonFunction::F_BUILTIN;
 	f->index = (index << 16) | functions.size();
-	f->thiscall = false;
 	functions.push_back(f);
 	return true;
 }
@@ -95,7 +96,7 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 	f->type = type->index;
 	if(f->special == SF_CTOR)
 		type->flags |= Type::HaveCtor;
-	if(parser->FindEqualFunction(type, *f))
+	if(parser->FindEqualFunction(type, AnyFunction(f)))
 	{
 		Event(EventType::Error, Format("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
 			parser->GetName(f, true, false), type->name.c_str()));
@@ -103,7 +104,10 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 		return false;
 	}
 	f->clbk = func_info.ptr;
-	f->thiscall = func_info.thiscall;
+	if(func_info.thiscall)
+		f->flags |= CommonFunction::F_THISCALL;
+	if(func_info.builtin)
+		f->flags |= CommonFunction::F_BUILTIN;
 	f->index = (index << 16) | functions.size();
 	type->funcs.push_back(f);
 	functions.push_back(f);

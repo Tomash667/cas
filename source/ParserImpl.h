@@ -21,10 +21,12 @@ enum KEYWORD
 	K_CLASS,
 	K_STRUCT,
 	K_IS,
+	K_AS,
 	K_OPERATOR,
 	K_SWITCH,
 	K_CASE,
-	K_DEFAULT
+	K_DEFAULT,
+	K_IMPLICIT
 };
 
 enum CONST
@@ -45,6 +47,7 @@ enum FOUND
 enum PseudoOp
 {
 	PUSH_BOOL = MAX_OP,
+	PUSH_TYPE,
 	NOP,
 	OBJ_MEMBER,
 	OBJ_FUNC,
@@ -122,6 +125,7 @@ enum SYMBOL
 	S_POST_INC,
 	S_POST_DEC,
 	S_IS,
+	S_AS,
 	S_SUBSCRIPT,
 	S_CALL,
 	S_TERNARY,
@@ -185,6 +189,7 @@ enum BASIC_SYMBOL
 	BS_INC, // ++
 	BS_DEC, // --
 	BS_IS, // is
+	BS_AS, // as
 	BS_SUBSCRIPT, // [
 	BS_CALL, // (
 	BS_TERNARY, // ?
@@ -362,6 +367,11 @@ struct ParseFunction : CommonFunction
 	Block* block;
 	vector<ParseVar*> args;
 
+	ParseFunction() : node(nullptr), block(nullptr)
+	{
+
+	}
+
 	~ParseFunction()
 	{
 		if(node)
@@ -474,62 +484,6 @@ struct BasicSymbolInfo
 	}
 };
 
-template<typename T>
-struct ObjectPoolRef
-{
-	inline ObjectPoolRef(nullptr_t)
-	{
-		item = nullptr;
-	}
-
-	inline ObjectPoolRef()
-	{
-		item = T::Get();
-	}
-
-	inline ObjectPoolRef(T* item) : item(item)
-	{
-
-	}
-
-	inline ~ObjectPoolRef()
-	{
-		if(item)
-			T::Free(item);
-	}
-
-	inline void operator = (T* new_item)
-	{
-		if(item)
-			T::Free(item);
-		item = new_item;
-	}
-
-	inline operator T* ()
-	{
-		return item;
-	}
-
-	inline T* operator -> ()
-	{
-		return item;
-	}
-
-	inline T* Pin()
-	{
-		T* tmp = item;
-		item = nullptr;
-		return tmp;
-	}
-
-	inline T*& Get()
-	{
-		return item;
-	}
-
-private:
-	T* item;
-};
 
 typedef ObjectPoolRef<Block> BlockRef;
 typedef ObjectPoolRef<ParseNode> NodeRef;
@@ -540,4 +494,44 @@ enum RETURN_INFO
 	RI_NO,
 	RI_YES,
 	RI_BREAK
+};
+
+struct CastResult
+{
+	enum TYPE
+	{
+		CANT = 0,
+		NOT_REQUIRED = 1,
+		IMPLICIT_CAST = 2,
+		EXPLICIT_CAST = 4,
+		BUILTIN_CAST = 8,
+		IMPLICIT_CTOR = 16
+	};
+
+	enum REF_TYPE
+	{
+		NO,
+		DEREF,
+		TAKE_REF
+	};
+
+	int type;
+	REF_TYPE ref_type;
+	AnyFunction cast_func;
+	AnyFunction ctor_func;
+
+	inline CastResult() : type(CANT), ref_type(NO), cast_func(nullptr), ctor_func(nullptr)
+	{
+
+	}
+
+	inline bool CantCast()
+	{
+		return type == CANT;
+	}
+
+	inline bool NeedCast()
+	{
+		return type != NOT_REQUIRED || ref_type != NO;
+	}
 };

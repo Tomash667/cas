@@ -4,6 +4,7 @@
 #include "RunModule.h"
 
 struct Block;
+struct CastResult;
 struct ParseFunction;
 struct ParseNode;
 struct ParseVar;
@@ -42,7 +43,7 @@ public:
 	cstring GetParserFunctionName(uint index);
 	RunModule* Parse(ParseSettings& settigns);
 	void Cleanup();
-	AnyFunction FindEqualFunction(Type* type, Function& fc);
+	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
 
 private:
 	void FinishRunModule();
@@ -81,10 +82,10 @@ private:
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
-	void Cast(ParseNode*& node, VarType type);
-	bool TryCast(ParseNode*& node, VarType type);
+	void Cast(ParseNode*& node, VarType type, CastResult* cast_result = nullptr, bool implici = true);
+	bool TryCast(ParseNode*& node, VarType type, bool implici = true);
 	bool TryConstCast(ParseNode* node, int type);
-	int MayCast(ParseNode* node, VarType type);
+	CastResult MayCast(ParseNode* node, VarType type);
 	void ForceCast(ParseNode*& node, ParseNode* type, cstring op);
 
 	void Optimize();
@@ -111,11 +112,12 @@ private:
 	void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs);
 	AnyFunction FindEqualFunction(ParseFunction* pf);
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
+	AnyFunction FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
 	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse);
 	void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
-	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-invalid
+	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type
 
 	Tokenizer t;
 	Module* module;

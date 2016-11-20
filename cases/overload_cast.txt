@@ -1,0 +1,47 @@
+class A
+{
+	int x, y;
+	
+	implicit A(int a)
+	{
+		x = y = a;
+	}
+	
+	A(float a)
+	{
+		x = y = a;
+	}
+	
+	A(int _x, int _y)
+	{
+		x = _x;
+		y = _y;
+	}
+	
+	implicit int operator cast()
+	{
+		return x + y;
+	}
+	
+	float operator cast()
+	{
+		return x - y;
+	}
+}
+
+// implicit cast
+A a = A(3,14);
+int b = a;
+Assert_AreEqual(17, b);
+
+// explicit cast
+float c = a as float;
+Assert_AreEqual(-11.0, c);
+
+// implicit ctor
+a = 7;
+Assert_AreEqual(7, a.x);
+
+// explicit cast
+a = A(3.14);
+Assert_AreEqual(3, a.x);

@@ -118,16 +118,6 @@ Member* Type::FindMember(const string& name, int& index)
 	return nullptr;
 }
 
-Function* Type::FindSpecialFunction(int type)
-{
-	for(Function* f : funcs)
-	{
-		if(f->special == type)
-			return f;
-	}
-	return nullptr;
-}
-
 bool CommonFunction::Equal(CommonFunction& f) const
 {
 	if(f.arg_infos.size() != arg_infos.size())

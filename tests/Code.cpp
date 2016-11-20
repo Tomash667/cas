@@ -324,21 +324,6 @@ public:
 	inline int GetX() { return x; }
 };
 
-struct AsCtorHelper
-{
-	template<typename T, typename... Args>
-	static T* Create(Args&&... args)
-	{
-		return new T(args...);
-	}
-};
-
-template<typename T, typename... Args>
-inline FunctionInfo AsCtor()
-{
-	return FunctionInfo(AsCtorHelper::Create<T, Args...>);
-}
-
 /*TEST_METHOD(CodeCtorMemberFunction)
 {
 	ModuleRef module;
@@ -395,6 +380,66 @@ TEST_METHOD(Functor)
 	module->AddMethod("E", "int operator () ()", AsMethod(E, f, int, ()));
 	module->AddMethod("E", "int operator () (int a)", AsMethod(E, f, int, (int)));
 	RunTest("E e; e.x = 4; Assert_AreEqual(4,e()); Assert_AreEqual(12,e(3));");
+}
+
+//=========================================================================================
+struct F
+{
+	int x, y;
+
+	F(int a)
+	{
+		x = y = a;
+	}
+
+	F(float a)
+	{
+		x = y = (int)a;
+	}
+
+	F(int x, int y) : x(x), y(y)
+	{
+	}
+
+	int to_int()
+	{
+		return x + y;
+	}
+
+	float to_float()
+	{
+		return (float)(x - y);
+	}
+};
+
+TEST_METHOD(CodeOverloadCast)
+{
+	module->AddType<F>("F");
+	module->AddMember("F", "int x", offsetof(F, x));
+	module->AddMember("F", "int y", offsetof(F, y));
+	module->AddMethod("F", "implicit F(int a)", AsCtor<F, int>());
+	module->AddMethod("F", "F(float a)", AsCtor<F, float>());
+	module->AddMethod("F", "F(int x, int y)", AsCtor<F, int, int>());
+	module->AddMethod("F", "implicit int operator cast()", &F::to_int);
+	module->AddMethod("F", "float operator cast()", &F::to_float);
+	RunTest(R"code(
+		// implicit cast
+		F a = F(3,14);
+		int b = a;
+		Assert_AreEqual(17, b);
+
+		// explicit cast
+		float c = a as float;
+		Assert_AreEqual(-11.0, c);
+
+		// implicit ctor
+		a = 7;
+		Assert_AreEqual(7, a.x);
+
+		// explicit cast
+		a = F(3.14);
+		Assert_AreEqual(3, a.x);
+	)code");
 }
 
 CA_TEST_CLASS_END();

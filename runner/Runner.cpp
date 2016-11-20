@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "switch.txt";
+cstring def_filename = "overload_cast.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 
@@ -30,6 +30,7 @@ void HandleEvents(EventType event_type, cstring msg)
 		break;
 	}
 	cout << type;
+	cout << "|";
 	cout << msg;
 	cout << '\n';
 }

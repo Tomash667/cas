@@ -32,6 +32,15 @@ namespace cas
 		{
 			static const bool value = !(std::is_trivially_default_constructible<T>::value && std::is_trivially_destructible<T>::value);
 		};
+
+		struct AsCtorHelper
+		{
+			template<typename T, typename... Args>
+			static T Create(Args... args)
+			{
+				return T(args...);
+			}
+		};
 	}
 
 	class RefCounter
@@ -47,10 +56,10 @@ namespace cas
 	struct FunctionInfo
 	{
 		void* ptr;
-		bool thiscall;
+		bool thiscall, builtin;
 
 		template<typename T>
-		FunctionInfo(T f)
+		inline FunctionInfo(T f)
 		{
 			static_assert(internal::is_function_pointer<T>::value
 				|| std::is_member_function_pointer<T>::value,
@@ -58,11 +67,24 @@ namespace cas
 			static_assert(sizeof(T) == sizeof(void*), "Invalid function pointer size, virtual functions unsupported yet.");
 			ptr = internal::union_cast<void*>(f);
 			thiscall = std::is_member_function_pointer<T>::value;
+			builtin = false;
+		}
+
+		template<>
+		inline FunctionInfo(nullptr_t)
+		{
+			builtin = true;
 		}
 	};
 
 #define AsFunction(name, result, args) FunctionInfo(static_cast<result (*) args>(name))
 #define AsMethod(type, name, result, args) FunctionInfo(static_cast<result (type::*) args>(&type::name))
+
+	template<typename T, typename... Args>
+	inline FunctionInfo AsCtor()
+	{
+		return FunctionInfo(internal::AsCtorHelper::Create<T, Args...>);
+	}
 
 	enum TypeFlags
 	{

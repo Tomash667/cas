@@ -1,3 +1,8 @@
+? verify if ParseExpr type is longer used
+? parse class func checks FindEqualFunction without type
+
++ ParseFunctionArgs -> ParseConstExpr
+
 CHAIN OF TODO:
 + reference
 + subscript require reference
@@ -17,6 +22,7 @@ CHAIN OF TODO:
 - ParseExpr end/end2 is unused
 - ParseNode::str cleanup
 - class A { void int; } cause Member of 'void' type not allowed.
+- code constructor create copy two instance and then copy value from one to another
 
 NEST A STRING:
 + raise error
@@ -144,6 +150,7 @@ vector functions:
 + const
 + advanced function default params (using expr not const_item)
 + object
+	+ type var, get_type()
 + register function thiscall
 + typeid
 + static type functions
@@ -212,3 +219,4 @@ else return in reg
 		while(true)
 			return 1;
 	}
++ CommonType user cast
