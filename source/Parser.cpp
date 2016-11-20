@@ -229,6 +229,7 @@ void Parser::Cleanup()
 	Str::Free(strs);
 	DeleteElements(ufuncs);
 	DeleteElements(rsvs);
+	DeleteElements(enums);
 	delete run_module;
 	main_block->Free();
 	if(global_node)
@@ -252,6 +253,7 @@ void Parser::ParseCode()
 	current_type = nullptr;
 	global_node = nullptr;
 	global_returns.clear();
+	active_enum = nullptr;
 
 	NodeRef node;
 	node->pseudo_op = GROUP;
@@ -829,6 +831,8 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 
 void Parser::ParseEnum()
 {
+	if(current_block != main_block)
+		t.Throw("Enum can't be declared inside block.");
 	t.Next();
 
 	// name
@@ -1988,6 +1992,26 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 	}
 }
 
+ParseNode* Parser::ParseConstExpr()
+{
+	NodeRef expr = ParseExpr(';');
+	bool is_const = false;
+	switch(expr->op)
+	{
+	case PUSH_BOOL:
+	case PUSH_CHAR:
+	case PUSH_INT:
+	case PUSH_FLOAT:
+	case PUSH_STRING:
+	case PUSH_ENUM:
+		is_const = true;
+		break;
+	}
+	if(!is_const)
+		t.Throw("Const expression required.");
+	return expr.Pin();
+}
+
 void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 {
 	// (
@@ -2937,7 +2961,7 @@ bool Parser::TryConstExpr1(ParseNode* node, SYMBOL symbol)
 	return false;
 }
 
-void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool implici)
+bool Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool implici, bool require_const)
 {
 	CastResult cast_result;
 	if(_cast_result)
@@ -2948,13 +2972,15 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 
 	// no cast required?
 	if(!cast_result.NeedCast())
-		return;
+		return true;
 
 	assert(!implici || IS_SET(cast_result.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) || cast_result.type == CastResult::NOT_REQUIRED);
 
 	// can const cast?
 	if(TryConstCast(node, type.core))
-		return;
+		return true;
+	else if(require_const)
+		return false;
 
 	if(cast_result.ref_type == CastResult::DEREF)
 	{
@@ -3011,6 +3037,8 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 		cast->push(node);
 		node = cast;
 	}
+
+	return true;
 }
 
 // used in var assignment, passing argument to function
@@ -3176,6 +3204,17 @@ void Parser::ForceCast(ParseNode*& node, ParseNode* type, cstring op)
 {
 	if(!TryCast(node, VarType(type->type)))
 		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetTypeName(type), op);
+}
+
+bool Parser::TryConstCast(ParseNode*& node, VarType type)
+{
+	CastResult c = MayCast(node, type);
+	if(c.CantCast())
+		return false;
+	else if(c.NeedCast())
+		return Cast(node, type, nullptr, true, true);
+	else
+		return true;
 }
 
 void Parser::Optimize()

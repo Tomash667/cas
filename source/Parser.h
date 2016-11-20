@@ -66,11 +66,11 @@ private:
 	ParseNode* ParseCond();
 	ParseNode* ParseVarDecl(VarType type);
 	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
-	ParseNode* ParseConstExpr();
 	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
 	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);
 	void ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn);
+	ParseNode* ParseConstExpr();
 	void ParseArgs(vector<ParseNode*>& nodes, char open = '(', char close = ')');
 	ParseNode* ParseItem(int* type = nullptr);
 	ParseNode* ParseConstItem();
@@ -86,7 +86,7 @@ private:
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
-	void Cast(ParseNode*& node, VarType type, CastResult* cast_result = nullptr, bool implici = true);
+	bool Cast(ParseNode*& node, VarType type, CastResult* cast_result = nullptr, bool implici = true, bool require_const = false);
 	bool TryCast(ParseNode*& node, VarType type, bool implici = true);
 	bool TryConstCast(ParseNode* node, int type);
 	CastResult MayCast(ParseNode* node, VarType type);

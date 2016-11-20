@@ -96,6 +96,7 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddCoreType("ref", 0, V_REF, true, true);
 	module.AddCoreType("special", 0, V_SPECIAL, false, true);
 	module.AddCoreType("type", 0, V_TYPE, false, true);
+	module.AddCoreType("enum", sizeof(int), V_ENUM, false, true);
 	// bool methods
 	module.AddMethod("bool", "implicit char operator cast()", nullptr);
 	module.AddMethod("bool", "implicit int operator cast()", nullptr);
