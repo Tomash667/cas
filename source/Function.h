@@ -27,6 +27,7 @@ enum SpecialFunction
 {
 	SF_NO,
 	SF_CTOR,
+	SF_CAST
 	//SF_ADDREF,
 	//SF_RELEASE
 };
@@ -34,13 +35,19 @@ enum SpecialFunction
 // common for parse & code function
 struct CommonFunction
 {
+	enum FLAGS
+	{
+		F_THISCALL = 1 << 0,
+		F_IMPLICIT = 1 << 1,
+		F_BUILTIN = 1 << 2
+	};
+
 	string name;
 	VarType result;
-	int index, type;
+	int index, type, flags;
 	vector<ArgInfo> arg_infos;
 	uint required_args;
 	SpecialFunction special;
-	bool method, thiscall;
 
 	bool Equal(CommonFunction& f) const;
 };

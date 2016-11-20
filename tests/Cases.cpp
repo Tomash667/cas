@@ -178,4 +178,9 @@ TestMethod(Switch)
 	RunFileTest("switch.txt", "", "");
 }
 
+TestMethod(OverloadCast)
+{
+	RunFileTest("overload_cast.txt", "", "");
+}
+
 CA_TEST_CLASS_END();

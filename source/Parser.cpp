@@ -4,6 +4,8 @@
 #include "ParserImpl.h"
 #include "Module.h"
 
+#define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
+
 // http://en.cppreference.com/w/cpp/language/operator_precedence
 SymbolInfo symbols[] = {
 	S_ADD, "add", 6, true, 2, ADD, ST_NONE, "$opAdd", "+",
@@ -44,7 +46,8 @@ SymbolInfo symbols[] = {
 	S_PRE_DEC, "pre decrement", 3, false, 1, DEC, ST_INC_DEC, "$opPreDec", "--",
 	S_POST_INC, "post increment", 2, true, 1, INC, ST_INC_DEC, "$opPostInc", "++",
 	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC, "$opPostDec", "--",
-	S_IS, "reference equal", 9, true, 2, IS, ST_NONE, nullptr, "is",
+	S_IS, "reference equal", 8, true, 2, IS, ST_NONE, nullptr, "is",
+	S_AS, "cast", 8, true, 2, CAST, ST_NONE, nullptr, "as",
 	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT, "$opIndex", "[]",
 	S_CALL, "function call", 2, true, 1, NOP, ST_CALL, "$opCall", "()",
 	S_TERNARY, "ternary", 15, false, 2, NOP, ST_NONE, nullptr, "?:",
@@ -88,13 +91,14 @@ BasicSymbolInfo basic_symbols[] = {
 	BS_INC, "++", S_PRE_INC, S_POST_INC, S_INVALID, nullptr,
 	BS_DEC, "--", S_PRE_DEC, S_POST_DEC, S_INVALID, nullptr,
 	BS_IS, "is", S_INVALID, S_INVALID, S_IS, nullptr,
+	BS_AS, "as", S_INVALID, S_INVALID, S_AS, nullptr,
 	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID, "[]",
 	BS_CALL, "(", S_INVALID, S_CALL, S_INVALID, "()",
 	BS_TERNARY, "?", S_INVALID, S_INVALID, S_INVALID, nullptr
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
-Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR), run_module(nullptr)
+Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), run_module(nullptr)
 {
 	AddKeywords();
 	AddChildModulesKeywords();
@@ -136,10 +140,12 @@ void Parser::AddKeywords()
 		{ "class", K_CLASS },
 		{ "struct", K_STRUCT },
 		{ "is", K_IS },
+		{ "as", K_AS },
 		{ "operator", K_OPERATOR },
 		{ "switch", K_SWITCH },
 		{ "case", K_CASE },
 		{ "default", K_DEFAULT },
+		{ "implicit", K_IMPLICIT },
 		{ "enum", K_ENUM }
 	}, "keywords");
 
@@ -529,6 +535,9 @@ ParseNode* Parser::ParseLine()
 			return nullptr;
 		case K_SWITCH:
 			return ParseSwitch();
+		case K_IMPLICIT:
+			ParseFuncInfo(nullptr, nullptr, false);
+			return nullptr;
 		case K_ENUM:
 			ParseEnum();
 			return nullptr;
@@ -540,50 +549,54 @@ ParseNode* Parser::ParseLine()
 	{
 		// is this function or var declaration or ctor
 		int next_type = GetNextType();
-		if(next_type == 3)
-			t.Throw("Operator function can be used only inside class.");
-		if(next_type == 1)
+		switch(next_type)
 		{
-			// ctor
-			VarType type = GetVarType();
-			t.AssertSymbol('(');
-			t.Next();
-			int var_type = type.core;
-			NodeRef node = ParseExpr(';', 0, &var_type);
-			t.AssertSymbol(';');
-			t.Next();
-			return node.Pin();
-		}
-		else if(next_type == 2 || next_type == 4)
-		{
-			// function
-			if(current_block != main_block)
-				t.Throw("Function can't be declared inside block.");
-			ParseFunction* f = new ParseFunction;
-			current_function = f;
-			ParseFuncInfo(f, nullptr, false);
-			f->index = ufuncs.size();
-			f->node = nullptr;
-			f->block = nullptr;
-			if(FindEqualFunction(f))
+		case 0:
 			{
-				cstring name = GetName(f);
-				delete f;
-				t.Throw("Function '%s' already exists.", name);
+				// var
+				ParseNode* node = ParseVarTypeDecl();
+				t.Next();
+				return node;
 			}
+		case 1:
+			{
+				// ctor
+				VarType type = GetVarType();
+				t.AssertSymbol('(');
+				t.Next();
+				int var_type = type.core;
+				NodeRef node = ParseExpr(';', 0, &var_type);
+				t.AssertSymbol(';');
+				t.Next();
+				return node.Pin();
+			}
+		case 2:
+			{
+				// function
+				if(current_block != main_block)
+					t.Throw("Function can't be declared inside block.");
+				Ptr<ParseFunction> f;
+				f->flags = 0;
+				current_function = f;
+				ParseFuncInfo(f, nullptr, false);
+				f->index = ufuncs.size();
+				if(FindEqualFunction(f))
+					t.Throw("Function '%s' already exists.", GetName(f));
 
-			// block
-			f->node = ParseBlock(f);
-			current_function = nullptr;
-			ufuncs.push_back(f);
-			return nullptr;
-		}
-		else
-		{
-			// var
-			ParseNode* node = ParseVarTypeDecl();
-			t.Next();
-			return node;
+				// block
+				f->node = ParseBlock(f);
+				current_function = nullptr;
+				ufuncs.push_back(f.Pin());
+				return nullptr;
+			}
+		case 3:
+			t.Throw("Operator function can be used only inside class.");
+		case 4:
+			// fallback to ParseExpr
+			break;
+		default:
+			assert(0);
+			break;
 		}
 	}
 
@@ -629,13 +642,14 @@ void Parser::ParseClass(bool is_struct)
 		// member, method or ctor
 		if(GetNextType() != 0)
 		{
-			ParseFunction* f = new ParseFunction;
+			Ptr<ParseFunction> f;
+			f->flags = 0;
 			current_function = f;
 
 			ParseFuncInfo(f, type, false);
 
-			if(FindEqualFunction(f))
-				t.Throw("Function '%s' already exists.", GetName(f));
+			if(FindEqualFunction(type, AnyFunction(f)))
+				t.Throw("Method '%s' already exists.", GetName(f));
 
 			// block
 			f->node = ParseBlock(f);
@@ -644,7 +658,7 @@ void Parser::ParseClass(bool is_struct)
 				type->flags |= Type::HaveCtor;
 			f->index = ufuncs.size();
 			ufuncs.push_back(f);
-			type->ufuncs.push_back(f);
+			type->ufuncs.push_back(f.Pin());
 		}
 		else
 			ParseMemberDeclClass(type, pad);
@@ -871,6 +885,7 @@ Function* Parser::ParseFuncDecl(cstring decl, Type* type)
 	assert(decl);
 
 	Function* f = new Function;
+	f->flags = 0;
 
 	try
 	{
@@ -959,6 +974,14 @@ void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 
 void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 {
+	if(t.IsKeyword(K_IMPLICIT, G_KEYWORD))
+	{
+		if(!type)
+			t.Throw("Implicit can only be used for methods.");
+		f->flags |= CommonFunction::F_IMPLICIT;
+		t.Next();
+	}
+
 	BASIC_SYMBOL symbol = BS_MAX;
 	f->result = GetVarType(in_cpp);
 	f->type = (type ? type->index : V_VOID);
@@ -975,12 +998,21 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 		{
 			t.Next();
-			symbol = GetSymbol(true);
-			if(symbol == BS_MAX)
-				t.Unexpected();
-			if(!CanOverload(symbol))
-				t.Throw("Can't overload operator '%s'.", basic_symbols[symbol].GetOverloadText());
-			t.Next();
+			if(t.IsItem("cast"))
+			{
+				t.Next();
+				f->special = SF_CAST;
+				f->name = "$opCast";
+			}
+			else
+			{
+				symbol = GetSymbol(true);
+				if(symbol == BS_MAX)
+					t.Unexpected();
+				if(!CanOverload(symbol))
+					t.Throw("Can't overload operator '%s'.", basic_symbols[symbol].GetOverloadText());
+				t.Next();
+			}
 		}
 		else
 		{
@@ -998,6 +1030,24 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	{
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
 		f->required_args++;
+	}
+
+	if(IS_SET(f->flags, CommonFunction::F_IMPLICIT))
+	{
+		if(f->special == SF_CTOR)
+		{
+			uint required = (in_cpp ? 1u : 2u);
+			if(f->arg_infos.size() != required)
+				t.Throw("Implicit constructor require single argument.");
+		}
+		else if(f->special != SF_CAST)
+			t.Throw("Implicit can only be used for constructor and cast operators.");
+	}
+
+	if(f->special == SF_CAST)
+	{
+		if(f->arg_infos.size() != 1u) // first arg is this
+			t.Throw("Invalid cast operator definition '%s'.", GetName(f));
 	}
 
 	if(symbol != BS_MAX)
@@ -1901,7 +1951,12 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			if(!CanOp(si.symbol, left, right, cast, result, over_result, si.symbol))
 				t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-			if(over_result)
+			if(si.symbol == S_AS)
+			{
+				Cast(left.Get(), VarType(right->value), nullptr, false);
+				stack.push_back(left.Pin());
+			}
+			else if(over_result)
 			{
 				left.Pin();
 				right.Pin();
@@ -1967,18 +2022,32 @@ ParseNode* Parser::ParseItem(int* type)
 			t.Next();
 		}
 
-		t.AssertSymbol('(');
-		Type* rtype = GetType(var_type.core);
-		if(!IS_SET(rtype->flags, Type::HaveCtor))
-			t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
-		NodeRef node;
-		node->ref = REF_NO;
-		node->source = nullptr;
-		ParseArgs(node->childs);
-		vector<AnyFunction> funcs;
-		FindAllCtors(rtype, funcs);
-		ApplyFunctionCall(node, funcs, rtype, true);
-		return node.Pin();
+		if(t.IsSymbol('('))
+		{
+			// ctor
+			Type* rtype = GetType(var_type.core);
+			if(!IS_SET(rtype->flags, Type::HaveCtor))
+				t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
+			NodeRef node;
+			node->ref = REF_NO;
+			node->source = nullptr;
+			ParseArgs(node->childs);
+			vector<AnyFunction> funcs;
+			FindAllCtors(rtype, funcs);
+			ApplyFunctionCall(node, funcs, rtype, true);
+			return node.Pin();
+		}
+		else
+		{
+			// type
+			ParseNode* type = ParseNode::Get();
+			type->pseudo_op = PUSH_TYPE;
+			type->type = V_TYPE;
+			type->value = var_type.core;
+			type->ref = REF_NO;
+			type->source = nullptr;
+			return type;
+		}
 	}
 	else if(t.IsItem())
 	{
@@ -2309,8 +2378,14 @@ bool Parser::GetNextSymbol(BASIC_SYMBOL& symbol)
 
 BASIC_SYMBOL Parser::GetSymbol(bool full_over)
 {
-	if(t.IsKeyword(K_IS, G_KEYWORD))
-		return BS_IS;
+	if(t.IsKeywordGroup(G_KEYWORD))
+	{
+		KEYWORD k = (KEYWORD)t.GetKeywordId(G_KEYWORD);
+		if(k == K_IS)
+			return BS_IS;
+		if(k == K_AS)
+			return BS_AS;
+	}
 	if(!t.IsSymbol())
 		return BS_MAX;
 	char c = t.GetSymbol();
@@ -2428,8 +2503,18 @@ bool Parser::CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& c
 	castvar.special = SV_NORMAL;
 	int left = leftvar.core;
 	int right = rightvar.core;
-	if(left == V_VOID)
+	if(left == V_VOID || left == V_TYPE)
 		return false;
+	if(right == V_TYPE)
+	{
+		if(symbol != S_AS)
+			return false;
+		VarType type(rnode->value);
+		CastResult c = MayCast(lnode, type);
+		if(c.CantCast())
+			t.Throw("Can't cast from '%s' to '%s'.", GetTypeName(lnode), GetName(type));
+		return true;
+	}
 	if(right == V_VOID && symbols[symbol].args != 1)
 		return false;
 	Type* ltype = GetType(left);
@@ -2852,32 +2937,26 @@ bool Parser::TryConstExpr1(ParseNode* node, SYMBOL symbol)
 	return false;
 }
 
-void Parser::Cast(ParseNode*& node, VarType type)
+void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool implici)
 {
-	bool need_cast = (node->type != type.core);
-	int need_ref = 0; // -1 deref, 0-none, 1-take ref
-	if(type.special == SV_NORMAL)
-	{
-		// require value type
-		if(node->ref == REF_YES)
-			need_ref = -1; // deref
-	}
+	CastResult cast_result;
+	if(_cast_result)
+		cast_result = *_cast_result;
 	else
-	{
-		// require reference to value type
-		if(node->ref == REF_MAY)
-			need_ref = 1; // take ref
-	}
+		cast_result = MayCast(node, type);
+	assert(!cast_result.CantCast());
 
 	// no cast required?
-	if(!need_cast && need_ref == 0)
+	if(!cast_result.NeedCast())
 		return;
+
+	assert(!implici || IS_SET(cast_result.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) || cast_result.type == CastResult::NOT_REQUIRED);
 
 	// can const cast?
 	if(TryConstCast(node, type.core))
 		return;
 
-	if(need_ref == -1)
+	if(cast_result.ref_type == CastResult::DEREF)
 	{
 		// dereference
 		ParseNode* deref = ParseNode::Get();
@@ -2888,7 +2967,7 @@ void Parser::Cast(ParseNode*& node, VarType type)
 		deref->push(node);
 		node = deref;
 	}
-	else if(need_ref == 1)
+	else if(cast_result.ref_type == CastResult::TAKE_REF)
 	{
 		// take address
 		assert(node->op == PUSH_LOCAL || node->op == PUSH_GLOBAL || node->op == PUSH_ARG || node->op == PUSH_MEMBER || node->op == PUSH_THIS_MEMBER);
@@ -2896,14 +2975,38 @@ void Parser::Cast(ParseNode*& node, VarType type)
 		node->ref = REF_YES;
 	}
 
-	// cast
-	if(need_cast)
+	// cast?
+	if(IS_SET(cast_result.type, CastResult::IMPLICIT_CAST) || (!implici && IS_SET(cast_result.type, CastResult::EXPLICIT_CAST)))
 	{
 		ParseNode* cast = ParseNode::Get();
-		cast->op = CAST;
-		cast->value = type.core;
-		cast->type = type.core;
-		cast->ref = REF_NO;
+		if(IS_SET(cast_result.type, CastResult::BUILTIN_CAST))
+		{
+			// builtin type cast
+			cast->op = CAST;
+			cast->value = type.core;
+			cast->type = type.core;
+			cast->ref = REF_NO;
+		}
+		else
+		{
+			// user defined function cast
+			cast->op = (cast_result.cast_func.is_parse ? CALLU : CALL);
+			cast->type = cast_result.cast_func.cf->result.core;
+			cast->ref = (cast_result.cast_func.cf->result.special == SV_NORMAL ? REF_NO : REF_YES);
+			cast->value = cast_result.cast_func.cf->index;
+		}
+		cast->source = nullptr;
+		cast->push(node);
+		node = cast;
+	}
+	else if(IS_SET(cast_result.type, CastResult::IMPLICIT_CTOR))
+	{
+		// ctor cast
+		ParseNode* cast = ParseNode::Get();
+		cast->op = (cast_result.ctor_func.is_parse ? CALLU_CTOR : CALL);
+		cast->type = cast_result.ctor_func.cf->result.core;
+		cast->ref = (cast_result.ctor_func.cf->result.special == SV_NORMAL ? REF_NO : REF_YES);
+		cast->value = cast_result.ctor_func.cf->index;
 		cast->source = nullptr;
 		cast->push(node);
 		node = cast;
@@ -2911,14 +3014,20 @@ void Parser::Cast(ParseNode*& node, VarType type)
 }
 
 // used in var assignment, passing argument to function
-bool Parser::TryCast(ParseNode*& node, VarType type)
+bool Parser::TryCast(ParseNode*& node, VarType type, bool implici)
 {
-	int c = MayCast(node, type);
-	if(c == 0)
-		return true;
-	else if(c == -1)
+	CastResult c = MayCast(node, type);
+	if(c.CantCast())
 		return false;
-	Cast(node, type);
+	else if(c.NeedCast())
+	{
+		if(implici)
+		{
+			if(!IS_SET(c.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) && c.type != CastResult::NOT_REQUIRED)
+				return false;
+		}
+		Cast(node, type, &c, implici);
+	}
 	return true;
 }
 
@@ -2927,8 +3036,6 @@ bool Parser::TryConstCast(ParseNode* node, int type)
 	// can cast only const literal
 	if(type == V_STRING)
 		return false;
-
-#define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
 
 	switch(COMBINE(node->op,type))
 	{
@@ -2995,44 +3102,74 @@ bool Parser::TryConstCast(ParseNode* node, int type)
 	default:
 		return false;
 	}
-
-#undef COMBINE
 }
 
-// -1 - can't cast, 0 - no cast required, 1 - can cast
-int Parser::MayCast(ParseNode* node, VarType type)
+CastResult Parser::MayCast(ParseNode* node, VarType type)
 {
-	// can't cast from void
-	if(node->type == V_VOID)
-		return -1;
+	CastResult result;
 
-	// no implicit cast from string to bool/char/int/float
-	if(node->type == V_STRING && (type.core == V_BOOL || type.core == V_CHAR || type.core == V_INT || type.core == V_FLOAT))
-		return -1;
+	if(node->type == type.core)
+		result.type = CastResult::NOT_REQUIRED;
+	else
+	{
+		Type* left = GetType(node->type);
+		Type* right = GetType(type.core);
 
-	bool cast = (node->type != type.core);
-	// can't cast class
-	if(cast && (GetType(node->type)->IsClass() || GetType(type.core)->IsClass()))
-		return -1;
+		result.cast_func = FindSpecialFunction(left, SF_CAST, [type](AnyFunction& f) {return f.cf->result == type; });
+		result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
+		{
+			uint required = (f.is_parse ? 2u : 1u);
+			return f.cf->arg_infos.size() == required
+				&& f.cf->arg_infos[required - 1].type == node->GetVarType()
+				&& IS_SET(f.cf->flags, CommonFunction::F_IMPLICIT);
+		});
+
+		if(!result.cast_func && !result.ctor_func)
+		{
+			result.type = CastResult::CANT;
+			return result;
+		}
+
+		if(result.cast_func)
+		{
+			if(IS_SET(result.cast_func.cf->flags, CommonFunction::F_IMPLICIT))
+				result.type |= CastResult::IMPLICIT_CAST;
+			else
+				result.type |= CastResult::EXPLICIT_CAST;
+			if(IS_SET(result.cast_func.cf->flags, CommonFunction::F_BUILTIN))
+				result.type |= CastResult::BUILTIN_CAST;
+		}
+
+		if(result.ctor_func)
+			result.type |= CastResult::IMPLICIT_CTOR;
+	}
 
 	if(type.special == SV_NORMAL)
 	{
 		// require value type
 		if(node->ref == REF_YES)
-			return 1; // dereference (and cast if required)
-		else
-			return cast ? 1 : 0; // cast if required
+			result.ref_type = CastResult::DEREF; // dereference
 	}
 	else
 	{
-		// require reference to value type
+		// require reference to value type, cast not allowed
 		if(node->ref == REF_YES)
-			return (cast ? -1 : 0); // pass reference or can't cast to different type
+		{
+			if(result.type != CastResult::NOT_REQUIRED)
+				result.type = CastResult::CANT; // can't pass reference to casted type
+		}
 		else if(node->ref == REF_MAY)
-			return (cast ? -1 : 1); // take address or can't cast to different type
+		{
+			if(result.type != CastResult::NOT_REQUIRED)
+				result.type = CastResult::CANT; // can't take address, type mismatch
+			else
+				result.ref_type = CastResult::TAKE_REF; // take address
+		}
 		else
-			return -1; // can't take address
+			result.type = CastResult::CANT; // can't take address
 	}
+
+	return result;
 }
 
 void Parser::ForceCast(ParseNode*& node, ParseNode* type, cstring op)
@@ -3880,15 +4017,20 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 	{
 		if(cf->name[0] == '$')
 		{
-			for(int i = 0; i < S_MAX; ++i)
+			if(cf->name == "$opCast")
+				s += "operator cast";
+			else
 			{
-				SymbolInfo& si = symbols[i];
-				if(si.op_code && strcmp(si.op_code, cf->name.c_str()) == 0)
+				for(int i = 0; i < S_MAX; ++i)
 				{
-					s += "operator ";
-					s += si.oper;
-					s += ' ';
-					break;
+					SymbolInfo& si = symbols[i];
+					if(si.op_code && strcmp(si.op_code, cf->name.c_str()) == 0)
+					{
+						s += "operator ";
+						s += si.oper;
+						s += ' ';
+						break;
+					}
 				}
 			}
 		}
@@ -4118,6 +4260,23 @@ void Parser::FindAllCtors(Type* type, vector<AnyFunction>& funcs)
 	}
 }
 
+AnyFunction Parser::FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred)
+{
+	for(Function* f : type->funcs)
+	{
+		if(f->special == spec && pred(AnyFunction(f)))
+			return f;
+	}
+
+	for(ParseFunction* pf : type->ufuncs)
+	{
+		if(pf->special == spec && pred(AnyFunction(pf)))
+			return pf;
+	}
+
+	return nullptr;
+}
+
 AnyFunction Parser::FindEqualFunction(ParseFunction* pf)
 {
 	for(auto& m : module->modules)
@@ -4138,35 +4297,51 @@ AnyFunction Parser::FindEqualFunction(ParseFunction* pf)
 	return nullptr;
 }
 
-AnyFunction Parser::FindEqualFunction(Type* type, Function& fc)
+AnyFunction Parser::FindEqualFunction(Type* type, AnyFunction _f)
 {
 	assert(type);
+	CommonFunction& cf = *_f.cf;
 
-	if(fc.special <= SF_CTOR)
+	if(cf.special == SF_NO || cf.special == SF_CTOR)
 	{
 		for(Function* f : type->funcs)
 		{
-			if(f->name == fc.name && f->Equal(fc))
+			if(f->name == cf.name && f->Equal(cf))
 				return f;
 		}
 
 		for(ParseFunction* pf : type->ufuncs)
 		{
-			if(pf->name == fc.name && pf->Equal(fc))
+			if(pf->name == cf.name && pf->Equal(cf))
+				return pf;
+		}
+	}
+	else if(cf.special != SF_CAST)
+	{
+		for(Function* f : type->funcs)
+		{
+			if(f->special == cf.special)
+				return f;
+		}
+
+		for(ParseFunction* pf : type->ufuncs)
+		{
+			if(pf->special == cf.special)
 				return pf;
 		}
 	}
 	else
 	{
+		assert(cf.special == SF_CAST);
 		for(Function* f : type->funcs)
 		{
-			if(f->special == fc.special)
+			if(f->special == cf.special && f->result == cf.result)
 				return f;
 		}
 
 		for(ParseFunction* pf : type->ufuncs)
 		{
-			if(pf->special == fc.special)
+			if(pf->special == cf.special && pf->result == cf.result)
 				return pf;
 		}
 	}
@@ -4187,10 +4362,10 @@ int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse)
 	bool require_cast = false;
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
-		int c = MayCast(node->childs[i], f.arg_infos[i + offset].type);
-		if(c == -1)
+		CastResult c = MayCast(node->childs[i], f.arg_infos[i + offset].type);
+		if(c.CantCast())
 			return 0;
-		else if(c == 1)
+		else if(c.NeedCast())
 			require_cast = true;
 	}
 
@@ -4396,10 +4571,12 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 	return false;
 }
 
-// 0-var, 1-ctor, 2-func, 3-operator, 4-invalid
+// 0-var, 1-ctor, 2-func, 3-operator, 4-type
 int Parser::GetNextType()
 {
 	// member, method or ctor
+	if(t.IsKeyword(K_IMPLICIT, G_KEYWORD))
+		return 2; // func
 	int type;
 	tokenizer::Pos pos = t.GetPos();
 	GetVarType();
@@ -4416,7 +4593,7 @@ int Parser::GetNextType()
 			type = 0; // var
 	}
 	else
-		type = 4; // invalid
+		type = 4; // type
 	t.MoveTo(pos);
 	return type;
 }

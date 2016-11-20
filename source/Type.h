@@ -55,6 +55,7 @@ enum CoreVarType
 	V_STRING,
 	V_REF,
 	V_SPECIAL,
+	V_TYPE,
 	V_ENUM,
 	V_MAX
 };
@@ -112,7 +113,6 @@ struct Type
 
 	~Type();
 	Member* FindMember(const string& name, int& index);
-	Function* FindSpecialFunction(int type);
 
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }

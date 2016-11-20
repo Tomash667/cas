@@ -64,6 +64,7 @@
       <AdditionalIncludeDirectories>..\include;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_CI_MODE=$(ciMode);_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
+      <AdditionalOptions>/std:c++latest %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -83,6 +84,7 @@
       <PreprocessorDefinitions>WIN32;_CI_MODE=$(ciMode);NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalOptions>/std:c++latest %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -130,6 +132,7 @@
     <Text Include="..\cases\is.txt" />
     <Text Include="..\cases\math.txt" />
     <Text Include="..\cases\nullable.txt" />
+    <Text Include="..\cases\overload_cast.txt" />
     <Text Include="..\cases\parentheses.txt" />
     <Text Include="..\cases\ref.txt" />
     <Text Include="..\cases\script_class.txt" />
@@ -138,6 +141,8 @@
     <Text Include="..\cases\string.txt" />
     <Text Include="..\cases\struct.txt" />
     <Text Include="..\cases\subscript.txt" />
+    <Text Include="..\cases\switch.txt" />
+    <Text Include="..\cases\ternary.txt" />
     <Text Include="..\cases\type_func.txt" />
     <Text Include="..\cases\user_func.txt" />
     <Text Include="..\cases\while.txt" />

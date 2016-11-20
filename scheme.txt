@@ -9,8 +9,8 @@ func_def:
 
 func_info:
 	var_type <func_name> arg_decl
-	<class_name> arg_decl // ctor
-	var_type operator override_op arg_decl
+	[implicit] <class_name> arg_decl // ctor
+	[implicit] var_type operator override_op arg_decl
 
 member_decl:
 	simple_var_type <member_name> EOF
@@ -94,6 +94,7 @@ const_item:
 	<char>
 	<string>
 	const
+	<var_type>
 
 args:
 	( expr [, expr ...] )
@@ -109,6 +110,7 @@ post_op:
 op:
 	base_op
 	is
+	as
 	compare_op
 	&&
 	||

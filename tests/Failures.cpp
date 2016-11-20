@@ -127,7 +127,7 @@ TEST_METHOD(InvalidFunctionDeclaration)
 TEST_METHOD(FunctionRedeclaration)
 {
 	RunFailureTest("void f(){} void f(){}", "Function 'void f()' already exists.");
-	RunFailureTest("class A{ void f(){} void f(){} }", "Function 'void A.f()' already exists.");
+	RunFailureTest("class A{ void f(){} void f(){} }", "Method 'void A.f()' already exists.");
 }
 
 TEST_METHOD(ReferenceVariableUnavailable)
@@ -348,8 +348,34 @@ TEST_METHOD(DefaultCaseAlreadyDefined)
 
 TEST_METHOD(BrokenSwitch)
 {
-	RunFailureTest("int a; switch(a){do}", "Expecting keyword 'case'(12) from group 'keywords'(0), keyword 'default'(13) from group 'keywords'(0), "
-		"found keyword 'do'(2) from group 'keywords'(0).");
+	RunFailureTest("int a; switch(a){do}", "Expecting keyword 'case' from group 'keywords', keyword 'default' from group 'keywords', "
+		"found keyword 'do' from group 'keywords'.");
+}
+
+TEST_METHOD(ImplicitFunction)
+{
+	RunFailureTest("implicit void f(){}", "Implicit can only be used for methods.");
+}
+
+TEST_METHOD(ImplicitInvalidArgumentCount)
+{
+	RunFailureTest("class X{implicit X(){}}", "Implicit constructor require single argument.");
+
+	module->AddType<A>("A");
+	bool r = module->AddMethod("A", "implicit A()", AsCtor<A>());
+	Assert::IsFalse(r);
+	AssertError("Implicit constructor require single argument.");
+}
+
+TEST_METHOD(InvalidImplicitMethod)
+{
+	RunFailureTest("class X{implicit void f(){}}", "Implicit can only be used for constructor and cast operators.");
+	RunFailureTest("class X{implicit void operator += (int a){}}", "Implicit can only be used for constructor and cast operators.");
+}
+
+TEST_METHOD(CantCast)
+{
+	RunFailureTest("class A{} void f(int x){} A a; f(a as int);", "Can't cast from 'A' to 'int'.");
 }
 
 CA_TEST_CLASS_END();

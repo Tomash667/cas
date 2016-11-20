@@ -95,12 +95,32 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddCoreType("string", sizeof(string), V_STRING, true);
 	module.AddCoreType("ref", 0, V_REF, true, true);
 	module.AddCoreType("special", 0, V_SPECIAL, false, true);
-
-	// type functions
-	module.AddMethod("string", "int length()", f_string_length);
+	module.AddCoreType("type", 0, V_TYPE, false, true);
+	// bool methods
+	module.AddMethod("bool", "implicit char operator cast()", nullptr);
+	module.AddMethod("bool", "implicit int operator cast()", nullptr);
+	module.AddMethod("bool", "implicit float operator cast()", nullptr);
+	module.AddMethod("bool", "implicit string operator cast()", nullptr);
+	// char methods
+	module.AddMethod("char", "implicit bool operator cast()", nullptr);
+	module.AddMethod("char", "implicit int operator cast()", nullptr);
+	module.AddMethod("char", "implicit float operator cast()", nullptr);
+	module.AddMethod("char", "implicit string operator cast()", nullptr);
+	// int methods
+	module.AddMethod("int", "implicit bool operator cast()", nullptr);
+	module.AddMethod("int", "implicit char operator cast()", nullptr);
+	module.AddMethod("int", "implicit float operator cast()", nullptr);
+	module.AddMethod("int", "implicit string operator cast()", nullptr);
 	module.AddMethod("int", "int abs()", f_int_abs);
+	// float methods
+	module.AddMethod("float", "implicit bool operator cast()", nullptr);
+	module.AddMethod("float", "implicit char operator cast()", nullptr);
+	module.AddMethod("float", "implicit int operator cast()", nullptr);
+	module.AddMethod("float", "implicit string operator cast()", nullptr);
 	module.AddMethod("float", "float abs()", f_float_abs);
-
+	// string methods
+	module.AddMethod("string", "int length()", f_string_length);
+	
 	// functions
 	module.AddFunction("void print(string str)", f_print);
 	module.AddFunction("void println()", f_println0);
