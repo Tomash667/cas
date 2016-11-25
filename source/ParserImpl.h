@@ -189,12 +189,6 @@ enum BASIC_SYMBOL
 	BS_MAX
 };
 
-struct VarSource
-{
-	int index;
-	bool mod;
-};
-
 struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 {
 	enum Type

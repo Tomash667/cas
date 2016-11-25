@@ -1,0 +1,104 @@
+arg
+void f(int& x){}
+
+1. arg ref to global
+int a;
+f(a);
+
+push_global_ref 0
+callu f
+
+2. arg ref to local
+void f2()
+{
+	int a;
+	f(a);
+	
+	push_local_ref 0
+	callu f
+	ret <- invalidate ref
+}
+f2();
+
+callu f2
+
+3. arg ref to arg
+void f2(int a)
+{
+	f(a);
+	
+	push_arg_ref 0
+	callu f
+	ret <- invalidate ref
+}
+f2(3);
+
+push_int 3
+callu f2
+
+4. arg ref to member
+class X
+{
+	int a;
+}
+
+X x;
+f(x.a);
+
+ctor X
+set_local 0
+pop
+push_local 0
+push_member_ref 0 // inc ref to class
+callu f
+
+5. arg ref to this member
+
+class X
+{
+	int a;
+	void f2()
+	{
+		f(a);
+		
+		push_this_member_ref 0 // inc ref to class
+		callu f
+		ret
+	}
+}
+
+X x;
+x.f2();
+
+ctor X
+set_local 0
+pop
+push_local 0
+callu X.f2
+
+6. arg res to index
+
+char& operator [] (int index);
+
+string str = "aaa";
+void f(char& c){}
+f(str[0]);
+
+push_local 0
+push_int 0
+call string.$opIndex
+callu f
+
+================================================================================
+*** ref ops
+get
+set
+compound
+pre inc
+post inc
+index
+
+*** return ref
+*** var ref
+*** script arg ref
+*** script return ref

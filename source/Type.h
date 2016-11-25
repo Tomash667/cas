@@ -101,8 +101,14 @@ struct Type
 	inline bool IsStruct() const { return IsClass() && !IsRef(); }
 };
 
+struct VarSource
+{
+	int index;
+	bool mod;
+};
+
 // class member
-struct Member
+struct Member : public VarSource
 {
 	string name;
 	VarType vartype;

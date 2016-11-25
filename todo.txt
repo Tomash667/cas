@@ -1,3 +1,5 @@
+++-- returns reference
+
 Parser:
 + disallow return by ref for now
 + ref arg,ptr,const not allowed
