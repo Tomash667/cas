@@ -1,3 +1,6 @@
+TESTS:
++ invalid enum to function
+
 ENUM TODO:
 + enum ops
 	+ single op
@@ -6,12 +9,10 @@ ENUM TODO:
 + add enum type
 + register enum
 
-+ ParseConstExpr in switch
++ ParseConstExpr in switch, default arg value
 
 ? verify if ParseExpr type is longer used
 ? parse class func checks FindEqualFunction without type
-
-+ ParseFunctionArgs -> ParseConstExpr
 
 CHAIN OF TODO:
 + reference

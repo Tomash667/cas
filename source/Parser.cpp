@@ -435,7 +435,7 @@ ParseNode* Parser::ParseLine()
 					for3 = ParseExpr(')');
 				t.Next();
 
-				if(for2 && !TryCast(for2.Get(), VarType(V_BOOL)))
+				if(for2 && !TryCast(for2.Get(), V_BOOL))
 					t.Throw("Condition expression with '%s' type.", GetTypeName(for2));
 
 				NodeRef fo = ParseNode::Get();
@@ -483,7 +483,7 @@ ParseNode* Parser::ParseLine()
 				{
 					VarType req_type;
 					if(current_function->special == SF_CTOR)
-						req_type = VarType(V_VOID);
+						req_type = V_VOID;
 					else
 						req_type = current_function->result;
 
@@ -522,7 +522,7 @@ ParseNode* Parser::ParseLine()
 					if(!ret->childs.empty())
 					{
 						ParseNode* r = ret->childs[0];
-						if((r->type != V_INT && r->type != V_BOOL && r->type != V_FLOAT) || r->ref == REF_YES)
+						if((r->type != V_BOOL && r->type != V_CHAR && r->type != V_INT && r->type != V_FLOAT) || r->ref == REF_YES)
 							t.Throw("Invalid type '%s' for global return.", GetName(r->GetVarType()));
 					}
 					ReturnInfo info = { ret, t.GetLine(), t.GetCharPos() };
@@ -680,7 +680,7 @@ ParseNode* Parser::ParseSwitch()
 	t.Next();
 	swi->push(ParseExpr(')'));
 	int type = swi->childs[0]->type;
-	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING)
+	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING && type != V_ENUM)
 		t.Throw("Invalid switch type '%s'.", GetName(VarType(type)));
 	t.AssertSymbol(')');
 	t.Next();
@@ -738,7 +738,7 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 	{
 		t.Next();
 		NodeRef val = ParseConstItem();
-		if(val->type != V_BOOL && val->type != V_CHAR && val->type != V_INT && val->type != V_FLOAT && val->type != V_STRING)
+		if(val->type != V_BOOL && val->type != V_CHAR && val->type != V_INT && val->type != V_FLOAT && val->type != V_STRING && val->type != V_ENUM)
 			t.Throw("Invalid case type '%s'.", GetName(VarType(val->type)));
 		if(!TryCast(val.Get(), swi->childs[0]->GetVarType()))
 			t.Throw("Can't cast case value from '%s' to '%s'.", GetTypeName(val), GetTypeName(swi->childs[0]));
@@ -772,6 +772,10 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 				if(strs[val->value]->s == strs[chi->value]->s)
 					dup = strs[val->value]->s.c_str();
 				break;
+			case V_ENUM:
+				if(val->value == chi->value)
+					dup = Format("%s.%s", val->enu->name.c_str(), val->enu->values[val->value].first.c_str());
+				break;
 			default:
 				assert(0);
 				break;
@@ -788,6 +792,7 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 			cas->cvalue = val->cvalue;
 			break;
 		case V_INT:
+		case V_ENUM:
 			cas->value = val->value;
 			break;
 		case V_FLOAT:
@@ -840,7 +845,8 @@ void Parser::ParseEnum()
 	CheckFindItem(name, false);
 	Enum* enu = new Enum;
 	enu->name = name;
-	enums.push_back(active_enum);
+	enu->index = enums.size();
+	enums.push_back(enu);
 	active_enum = enu;
 	t.Next();
 
@@ -849,7 +855,7 @@ void Parser::ParseEnum()
 	t.Next();
 
 	// enum values
-	if(t.IsSymbol('}'))
+	if(!t.IsSymbol('}'))
 	{
 		while(true)
 		{
@@ -1090,8 +1096,8 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 			{
 				prev_arg_def = true;
 				t.Next();
-				ParseNode* item = ParseConstItem();
-				if(!TryCast(item, type))
+				NodeRef item = ParseConstExpr();
+				if(!TryConstCast(item.Get(), type))
 					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(type));
 				switch(item->op)
 				{
@@ -1110,6 +1116,8 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				case PUSH_STRING:
 					f->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
 					break;
+				case PUSH_ENUM:
+					f->arg_infos.push_back(ArgInfo()) // todo
 				default:
 					assert(0);
 					break;
@@ -2155,6 +2163,8 @@ ParseNode* Parser::ParseItem(int* type)
 			}
 		default:
 			assert(0);
+			t.Unexpected();
+			break;
 		case F_NONE:
 			if(active_enum)
 			{
@@ -2168,10 +2178,13 @@ ParseNode* Parser::ParseItem(int* type)
 					enu->enu = active_enum;
 					enu->source = nullptr;
 					enu->ref = REF_NO;
+					enu->type = VarType()
+					t.Next();
 					return enu;
 				}
 			}
 			t.Unexpected();
+			break;
 		}
 	}
 	else
@@ -2283,59 +2296,40 @@ ParseVar* Parser::GetVar(ParseNode* node)
 
 VarType Parser::GetVarType(bool in_cpp)
 {
-	/*bool is_const = false;
-	if(t.IsKeyword(K_CONST, G_KEYWORD))
+	VarType type(nullptr);
+	bool ok = false;
+	if(t.IsKeywordGroup(G_VAR))
 	{
-		is_const = true;
-		t.Next();
-	}*/
-	if(!t.IsKeywordGroup(G_VAR))
+		type.core = t.GetKeywordId(G_VAR);
+		ok = true;
+	}
+	else if(t.IsItem())
+	{
+		Enum* enu = FindEnum();
+		if(enu)
+		{
+			type.core = V_ENUM;
+			type.subtype = enu->index;
+			ok = true;
+		}
+	}
+	if(!ok)
 		t.Unexpected("Expecting var type.");
-	int type = t.GetKeywordId(G_VAR);
-	//VarType type;
-	//type.special = SV_NORMAL;
-	//type.core = t.GetKeywordId(G_VAR);
 	t.Next();
+
 	if(t.IsSymbol('&'))
 	{
 		Type* ty = GetType(type);
 		if(ty->IsRef())
 			t.Throw("Can't create reference to reference type '%s'.", ty->name.c_str());
 		t.Next();
-		return VarType(type, SV_REF);
+		type.special = SV_REF;
 	}
-	/*else if(t.IsSymbol('*'))
-	{
-
-	}
-	else if(t.IsSymbol('?'))
-	{
-
-	}
-
-	if(is_const)
-	{
-		switch(type.special)
-		{
-		case SV_NORMAL:
-			type.special = SV_CONST;
-			break;
-		case SV_REF:
-			type.special = SV_CONST_REF;
-			break;
-		case SV_PTR:
-			type.special = SV_CONST_PTR;
-			break;
-		default:
-			assert(0);
-			break;
-		}
-	}*/
 	
-	return VarType(type);
+	return type;
 }
 
-int Parser::GetVarTypeForMember()
+VarType Parser::GetVarTypeForMember()
 {
 	VarType type = GetVarType();
 	if(type.core == V_VOID)
@@ -2345,8 +2339,6 @@ int Parser::GetVarTypeForMember()
 		cstring name = nullptr;
 		if(type.special == SV_REF)
 			name = "reference";
-		//else if(type.special == SV_ARRAY)
-		//	name = "array";
 		else if(type.core == V_STRING)
 			name = "string";
 		else
@@ -2363,7 +2355,7 @@ int Parser::GetVarTypeForMember()
 		if(name)
 			t.Throw("Member of '%s' type not allowed yet.", name);
 	}
-	return type.core;
+	return type;
 }
 
 void Parser::PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node)
@@ -4198,16 +4190,25 @@ FOUND Parser::FindItem(const string& id, Found& found)
 		}
 	}
 
-	for(Enum* enu : enums)
+	Enum* enu = FindEnum(id);
+	if(enu)
 	{
-		if(enu->name == id)
-		{
-			found.enu = enu;
-			return F_ENUM;
-		}
+		found.end = enu;
+		return F_ENUM;
 	}
 
 	return F_NONE;
+}
+
+Enum* Parser::FindEnum(const string& id)
+{
+	for(Enum* enu : enums)
+	{
+		if(enu->name == id)
+			return enu;
+	}
+
+	return nullptr;
 }
 
 Function* Parser::FindFunction(const string& name)

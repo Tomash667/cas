@@ -211,7 +211,8 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 	if(hidden)
 		type->flags |= Type::Hidden;
 	types.push_back(type);
-	parser->AddType(type);
+	if(!hidden)
+		parser->AddType(type);
 }
 
 Function* Module::FindEqualFunction(Function& fc)

@@ -76,6 +76,13 @@ struct Retval
 		Assert::AreEqual(expected, ret.bool_value);
 	}
 
+	void IsChar(char expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(ReturnValue::Char, ret.type);
+		Assert::AreEqual(expected, ret.char_value);
+	}
+
 	void IsInt(int expected)
 	{
 		ReturnValue ret = module->GetReturnValue();

@@ -12,6 +12,7 @@ static Module* core_module;
 static int module_index;
 static bool initialized;
 static bool have_errors;
+static bool using_event_logger;
 
 void Event(EventType event_type, cstring msg)
 {
@@ -76,7 +77,10 @@ bool cas::Initialize(Settings* settings)
 	if(_settings.use_assert_handler)
 		set_assert_handler(AssertEventHandler);
 	if(_settings.use_logger_handler)
-		cacore::SetLogger(new EventLogger);
+	{
+		logger = new EventLogger;
+		using_event_logger = true;
+	}
 
 	module_index = 1;
 	core_module = new Module(0, nullptr);
@@ -104,6 +108,8 @@ void cas::Shutdown()
 	for(Module* m : Module::all_modules)
 		delete m;
 	Module::all_modules.clear();
+	if(using_event_logger)
+		delete logger;
 }
 
 void cas::SetHandler(EventHandler _handler)

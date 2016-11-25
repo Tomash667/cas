@@ -60,33 +60,24 @@ enum CoreVarType
 	V_MAX
 };
 
-enum SpecialVarType
-{
-	SV_NORMAL,
-	//SV_CONST,
-	SV_REF,
-	//SV_CONST_REF,
-	//SV_PTR,
-	//SV_CONST_PTR
-};
-
 struct VarType
 {
-	int core;
+	int core, subtype;
 	SpecialVarType special;
 
 	VarType() {}
-	explicit VarType(CoreVarType core) : core(core), special(SV_NORMAL) {}
-	explicit VarType(int type, SpecialVarType special = SV_NORMAL) : core(type), special(special) {}
-
+	explicit VarType(nullptr_t) : core(0), subtype(0) {}
+	VarType(CoreVarType core) : core(core), subtype(0) {}
+	VarType(int type, int subtype) : core(type), subtype(subtype) {}
+	
 	inline bool operator == (const VarType& type) const
 	{
-		return core == type.core && special == type.special;
+		return core == type.core && subtype == type.subtype;
 	}
 
 	inline bool operator != (const VarType& type) const
 	{
-		return core != type.core || special != type.special;
+		return core != type.core || subtype != type.subtype;
 	}
 };
 

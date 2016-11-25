@@ -78,7 +78,7 @@ private:
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);
 	VarType GetVarType(bool in_cpp = false);
-	int GetVarTypeForMember();
+	VarType GetVarTypeForMember();
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
 	BASIC_SYMBOL GetSymbol(bool full_over = false);
@@ -111,6 +111,7 @@ private:
 	cstring GetTypeName(ParseNode* node);
 	int CommonType(int a, int b);
 	FOUND FindItem(const string& id, Found& found);
+	Enum* FindEnum(const string& id);
 	Function* FindFunction(const string& name);
 	AnyFunction FindFunction(Type* type, const string& name);
 	void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items);

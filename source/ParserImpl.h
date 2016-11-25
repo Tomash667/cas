@@ -240,7 +240,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		float fvalue;
 		string* str;
 	};
-	int type;
+	VarType type;
 	union
 	{
 		ParseNode* linked;
@@ -297,6 +297,8 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	}
 	inline VarType GetVarType()
 	{
+		if(ref != REF_YES)
+
 		return VarType(type, ref == REF_YES ? SV_REF : SV_NORMAL);
 	}
 };
@@ -403,6 +405,7 @@ struct Enum
 {
 	string name;
 	vector<std::pair<string, int>> values;
+	int index;
 
 	std::pair<string, int>* Find(const string& id)
 	{
