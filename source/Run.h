@@ -9,7 +9,7 @@ enum REF_TYPE
 	REF_GLOBAL,
 	REF_LOCAL,
 	REF_MEMBER,
-	REF_CODE
+	//REF_CODE
 };
 
 enum SPECIAL_VAR
@@ -90,7 +90,7 @@ struct Class
 
 struct Var
 {
-	int type;
+	VarType vartype;
 	union
 	{
 		bool bvalue;
@@ -119,19 +119,18 @@ struct Var
 		Class* clas;
 		struct
 		{
-			int special_type;
 			int value1;
 			int value2;
 		};
 	};
 
-	inline explicit Var() : type(V_VOID) {}
-	inline explicit Var(bool bvalue) : type(V_BOOL), bvalue(bvalue) {}
-	inline explicit Var(char cvalue) : type(V_CHAR), cvalue(cvalue) {}
-	inline explicit Var(int value) : type(V_INT), value(value) {}
-	inline explicit Var(float fvalue) : type(V_FLOAT), fvalue(fvalue) {}
-	inline explicit Var(Str* str) : type(V_STRING), str(str) {}
-	inline Var(REF_TYPE ref_type, uint ref_index, Class* ref_class) : type(V_REF), ref_type(ref_type), ref_index(ref_index), ref_class(ref_class) {}
-	inline explicit Var(Class* clas) : type(clas->type->index), clas(clas) {}
-	inline Var(int type, int special_type, int value1, int value2) : type(type), special_type(special_type), value1(value1), value2(value2) {}
+	inline explicit Var() : vartype(V_VOID) {}
+	inline explicit Var(bool bvalue) : vartype(V_BOOL), bvalue(bvalue) {}
+	inline explicit Var(char cvalue) : vartype(V_CHAR), cvalue(cvalue) {}
+	inline explicit Var(int value) : vartype(V_INT), value(value) {}
+	inline explicit Var(float fvalue) : vartype(V_FLOAT), fvalue(fvalue) {}
+	inline explicit Var(Str* str) : vartype(V_STRING), str(str) {}
+	inline Var(REF_TYPE ref_type, uint ref_index, Class* ref_class) : vartype(V_REF), ref_type(ref_type), ref_index(ref_index), ref_class(ref_class) {}
+	inline explicit Var(Class* clas) : vartype(clas->type->index, 0), clas(clas) {}
+	inline Var(VarType vartype, int value1, int value2) : vartype(vartype), value1(value1), value2(value2) {}
 };

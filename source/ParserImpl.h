@@ -77,13 +77,6 @@ enum PseudoOpValue
 	DO_WHILE_INF = 2
 };
 
-enum RefType
-{
-	REF_NO,
-	REF_MAY,
-	REF_YES
-};
-
 enum SYMBOL
 {
 	S_ADD,
@@ -213,7 +206,7 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 	};
 
 	string name;
-	VarType type;
+	VarType vartype;
 	Type subtype;
 };
 
@@ -237,10 +230,9 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		float fvalue;
 		string* str;
 	};
-	int type;
+	VarType result;
 	ParseNode* linked;
 	vector<ParseNode*> childs;
-	RefType ref;
 	VarSource* source;
 
 	inline ParseNode* copy()
@@ -248,8 +240,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		ParseNode* p = Get();
 		p->op = op;
 		p->value = value;
-		p->type = type;
-		p->ref = ref;
+		p->result = result;
 		p->source = source;
 		if(!childs.empty())
 		{
@@ -287,10 +278,6 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		node->op = op;
 		node->value = value;
 		push(node);
-	}
-	inline VarType GetVarType()
-	{
-		return VarType(type, ref == REF_YES ? SV_REF : SV_NORMAL);
 	}
 };
 
@@ -534,4 +521,24 @@ struct CastResult
 	{
 		return type != NOT_REQUIRED || ref_type != NO;
 	}
+};
+
+struct OpResult
+{
+	enum Result
+	{
+		NO,
+		YES,
+		CAST,
+		OVERLOAD,
+		FALLBACK
+	};
+
+	CastResult cast_result;
+	VarType cast_var;
+	VarType result_var;
+	ParseNode* over_result;
+	Result result;
+
+	OpResult() : cast_var(V_VOID), result_var(V_VOID), over_result(nullptr), result(NO) {}
 };

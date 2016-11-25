@@ -2,6 +2,7 @@
 
 struct Function;
 struct CommonFunction;
+struct Member;
 struct ParseFunction;
 struct Type;
 
@@ -36,14 +37,6 @@ struct Str : ObjectPoolProxy<Str>
 	}
 };
 
-// class member
-struct Member
-{
-	string name;
-	int type;
-	int offset;
-};
-
 // var type
 enum CoreVarType
 {
@@ -59,33 +52,23 @@ enum CoreVarType
 	V_MAX
 };
 
-enum SpecialVarType
-{
-	SV_NORMAL,
-	//SV_CONST,
-	SV_REF,
-	//SV_CONST_REF,
-	//SV_PTR,
-	//SV_CONST_PTR
-};
-
 struct VarType
 {
-	int core;
-	SpecialVarType special;
+	int type, subtype;
 
 	VarType() {}
-	explicit VarType(CoreVarType core) : core(core), special(SV_NORMAL) {}
-	explicit VarType(int type, SpecialVarType special = SV_NORMAL) : core(type), special(special) {}
+	VarType(nullptr_t) : type(0), subtype(0) {}
+	VarType(CoreVarType core) : type(core), subtype(0) {}
+	VarType(int type, int subtype) : type(type), subtype(subtype) {}
 
-	inline bool operator == (const VarType& type) const
+	inline bool operator == (const VarType& vartype) const
 	{
-		return core == type.core && special == type.special;
+		return type == vartype.type && subtype == vartype.subtype;
 	}
 
-	inline bool operator != (const VarType& type) const
+	inline bool operator != (const VarType& vartype) const
 	{
-		return core != type.core || special != type.special;
+		return type != vartype.type || subtype != vartype.subtype;
 	}
 };
 
@@ -116,4 +99,12 @@ struct Type
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
 	inline bool IsStruct() const { return IsClass() && !IsRef(); }
+};
+
+// class member
+struct Member
+{
+	string name;
+	VarType vartype;
+	int offset;
 };

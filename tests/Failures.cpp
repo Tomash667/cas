@@ -152,7 +152,7 @@ TEST_METHOD(RequiredVariable)
 
 TEST_METHOD(InvalidMemberAccess)
 {
-	RunFailureTest("void f(){} f().dodo();", "Invalid member access for type 'void'.");
+	RunFailureTest("void f(){} f().dodo();", "Missing method 'dodo' for type 'void'.");
 	RunFailureTest("3.ok();", "Missing method 'ok' for type 'int'.");
 	RunFailureTest("class A{} A a; a.ok();", "Missing method 'ok' for type 'A'.");
 	RunFailureTest("class A{} A a; a.b=1;", "Missing member 'b' for type 'A'.");

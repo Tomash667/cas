@@ -207,7 +207,7 @@ void Parser::FinishRunModule()
 		uf.locals = f.locals;
 		uf.result = f.result;
 		for(auto& arg : f.arg_infos)
-			uf.args.push_back(arg.type);
+			uf.args.push_back(arg.vartype);
 		uf.type = f.type;
 	}
 	run_module->globals = main_block->GetMaxVars();
@@ -254,8 +254,8 @@ void Parser::ParseCode()
 
 	NodeRef node;
 	node->pseudo_op = GROUP;
-	node->type = V_VOID;
-	node->ref = REF_NO;
+	node->result = V_VOID;
+	node->source = nullptr;
 
 	t.Next();
 	while(!t.IsEof())
@@ -318,8 +318,7 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 	else
 	{
 		group->pseudo_op = GROUP;
-		group->type = V_VOID;
-		group->ref = REF_NO;
+		group->result = V_VOID;
 		group->source = nullptr;
 		return group.Pin();
 	}
@@ -346,8 +345,7 @@ ParseNode* Parser::ParseLine()
 
 				NodeRef if_op;
 				if_op->pseudo_op = IF;
-				if_op->type = V_VOID;
-				if_op->ref = REF_NO;
+				if_op->result = V_VOID;
 				if_op->source = nullptr;
 				if_op->push(if_expr);
 				if_op->push(ParseLineOrBlock());
@@ -376,9 +374,8 @@ ParseNode* Parser::ParseLine()
 				t.Next();
 				ParseNode* do_whil = ParseNode::Get();
 				do_whil->pseudo_op = DO_WHILE;
-				do_whil->type = V_VOID;
+				do_whil->result = V_VOID;
 				do_whil->value = DO_WHILE_NORMAL;
-				do_whil->ref = REF_NO;
 				do_whil->source = nullptr;
 				do_whil->push(block.Pin());
 				do_whil->push(cond.Pin());
@@ -393,8 +390,7 @@ ParseNode* Parser::ParseLine()
 				--breakable_block;
 				ParseNode* whil = ParseNode::Get();
 				whil->pseudo_op = WHILE;
-				whil->type = V_VOID;
-				whil->ref = REF_NO;
+				whil->result = V_VOID;
 				whil->source = nullptr;
 				whil->push(cond.Pin());
 				whil->push(block.Pin());
@@ -432,13 +428,12 @@ ParseNode* Parser::ParseLine()
 					for3 = ParseExpr(')');
 				t.Next();
 
-				if(for2 && !TryCast(for2.Get(), VarType(V_BOOL)))
+				if(for2 && !TryCast(for2.Get(), V_BOOL))
 					t.Throw("Condition expression with '%s' type.", GetTypeName(for2));
 
 				NodeRef fo = ParseNode::Get();
 				fo->pseudo_op = FOR;
-				fo->type = V_VOID;
-				fo->ref = REF_NO;
+				fo->result = V_VOID;
 				fo->source = nullptr;
 				fo->push(for1.Pin());
 				fo->push(for2.Pin());
@@ -458,8 +453,7 @@ ParseNode* Parser::ParseLine()
 				t.Next();
 				ParseNode* br = ParseNode::Get();
 				br->pseudo_op = BREAK;
-				br->type = V_VOID;
-				br->ref = REF_NO;
+				br->result = V_VOID;
 				br->source = nullptr;
 				return br;
 			}
@@ -467,8 +461,7 @@ ParseNode* Parser::ParseLine()
 			{
 				NodeRef ret = ParseNode::Get();
 				ret->pseudo_op = RETURN;
-				ret->type = V_VOID;
-				ret->ref = REF_NO;
+				ret->result = V_VOID;
 				ret->source = nullptr;
 				t.Next();
 				if(!t.IsSymbol(';'))
@@ -480,7 +473,7 @@ ParseNode* Parser::ParseLine()
 				{
 					VarType req_type;
 					if(current_function->special == SF_CTOR)
-						req_type = VarType(V_VOID);
+						req_type = V_VOID;
 					else
 						req_type = current_function->result;
 
@@ -488,7 +481,7 @@ ParseNode* Parser::ParseLine()
 					cstring type_name = nullptr;
 					if(ret->childs.empty())
 					{
-						if(req_type.core != V_VOID)
+						if(req_type.type != V_VOID)
 						{
 							ok = false;
 							type_name = GetType(V_VOID)->name.c_str();
@@ -500,10 +493,10 @@ ParseNode* Parser::ParseLine()
 						if(!TryCast(r, req_type))
 						{
 							ok = false;
-							type_name = GetName(r->GetVarType());
+							type_name = GetName(r->result);
 						}
 
-						if(ok && current_function->special == SF_NO && current_function->result.special == SV_REF)
+						if(ok && current_function->result == V_REF)
 						{
 							if(r->op == PUSH_LOCAL_REF || r->op == PUSH_ARG_REF)
 								t.Throw("Returning reference to temporary variable '%s'.", GetName(GetVar(r)));
@@ -519,8 +512,8 @@ ParseNode* Parser::ParseLine()
 					if(!ret->childs.empty())
 					{
 						ParseNode* r = ret->childs[0];
-						if((r->type != V_INT && r->type != V_BOOL && r->type != V_FLOAT) || r->ref == REF_YES)
-							t.Throw("Invalid type '%s' for global return.", GetName(r->GetVarType()));
+						if(r->result.type != V_BOOL && r->result.type != V_CHAR && r->result.type != V_INT && r->result.type != V_FLOAT)
+							t.Throw("Invalid type '%s' for global return.", GetName(r->result));
 					}
 					ReturnInfo info = { ret, t.GetLine(), t.GetCharPos() };
 					global_returns.push_back(info);
@@ -613,11 +606,10 @@ ParseNode* Parser::ParseLine()
 		case 1:
 			{
 				// ctor
-				VarType type = GetVarType();
+				VarType vartype = GetVarType();
 				t.AssertSymbol('(');
 				t.Next();
-				int var_type = type.core;
-				NodeRef node = ParseExpr(';', 0, &var_type);
+				NodeRef node = ParseExpr(';', 0, &vartype);
 				t.AssertSymbol(';');
 				t.Next();
 				return node.Pin();
@@ -670,9 +662,9 @@ ParseNode* Parser::ParseSwitch()
 	t.AssertSymbol('(');
 	t.Next();
 	swi->push(ParseExpr(')'));
-	int type = swi->childs[0]->type;
+	int type = swi->childs[0]->result.type;
 	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING)
-		t.Throw("Invalid switch type '%s'.", GetName(VarType(type)));
+		t.Throw("Invalid switch type '%s'.", GetName(swi->childs[0]->result));
 	t.AssertSymbol(')');
 	t.Next();
 
@@ -717,7 +709,7 @@ ParseNode* Parser::ParseSwitch()
 	t.Next();
 
 	swi->pseudo_op = SWITCH;
-	swi->type = V_VOID;
+	swi->result = V_VOID;
 	return swi.Pin();
 }
 
@@ -729,9 +721,10 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 	{
 		t.Next();
 		NodeRef val = ParseConstItem();
-		if(val->type != V_BOOL && val->type != V_CHAR && val->type != V_INT && val->type != V_FLOAT && val->type != V_STRING)
-			t.Throw("Invalid case type '%s'.", GetName(VarType(val->type)));
-		if(!TryCast(val.Get(), swi->childs[0]->GetVarType()))
+		if(val->result.type != V_BOOL && val->result.type != V_CHAR && val->result.type != V_INT && val->result.type != V_FLOAT
+			&& val->result.type != V_STRING)
+			t.Throw("Invalid case type '%s'.", GetName(val->result));
+		if(!TryCast(val.Get(), swi->childs[0]->result))
 			t.Throw("Can't cast case value from '%s' to '%s'.", GetTypeName(val), GetTypeName(swi->childs[0]));
 		assert(val->op != CAST);
 		for(uint i = 1, count = swi->childs.size(); i < count; ++i)
@@ -739,9 +732,9 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 			ParseNode* chi = swi->childs[i];
 			if(chi->pseudo_op == DEFAULT_CASE || chi->pseudo_op == CASE_BLOCK)
 				continue;
-			assert(chi->type == val->type);
+			assert(chi->result == val->result);
 			cstring dup = nullptr;
-			switch(val->type)
+			switch(val->result.type)
 			{
 			case V_BOOL:
 				if(val->bvalue == chi->bvalue)
@@ -770,7 +763,7 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 			if(dup)
 				t.Throw("Case with value '%s' is already defined.", dup);
 		}
-		switch(val->type)
+		switch(val->result.type)
 		{
 		case V_BOOL:
 			cas->bvalue = val->bvalue;
@@ -792,7 +785,7 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 			break;
 		}
 		cas->pseudo_op = CASE;
-		cas->type = val->type;
+		cas->result = val->result;
 	}
 	else if(t.IsKeyword(K_DEFAULT, G_KEYWORD))
 	{
@@ -856,7 +849,7 @@ Member* Parser::ParseMemberDecl(cstring decl)
 		t.FromString(decl);
 		t.Next();
 
-		m->type = GetVarTypeForMember();
+		m->vartype = GetVarTypeForMember();
 
 		m->name = t.MustGetItem();
 		t.Next();
@@ -875,14 +868,14 @@ Member* Parser::ParseMemberDecl(cstring decl)
 
 void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 {
-	int var_type = GetVarTypeForMember();
-	uint var_size = GetType(var_type)->size;
+	VarType vartype = GetVarTypeForMember();
+	uint var_size = GetType(vartype.type)->size;
 	assert(var_size == 1 || var_size == 4);
 
 	do
 	{
 		Member* m = new Member;
-		m->type = var_type;
+		m->vartype = vartype;
 		m->name = t.MustGetItem();
 		int index;
 		if(type->FindMember(m->name, index))
@@ -927,7 +920,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	f->result = GetVarType(in_cpp);
 	f->type = (type ? type->index : V_VOID);
 	
-	if(type && type->index == f->result.core && t.IsSymbol('('))
+	if(type && type->index == f->result.type && t.IsSymbol('('))
 	{
 		// ctor
 		f->special = SF_CTOR;
@@ -969,7 +962,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 
 	if(type && (f->special != SF_CTOR || !in_cpp)) 
 	{
-		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType(type->index), 0, false));
+		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
 		f->required_args++;
 	}
 
@@ -1009,14 +1002,14 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 	{
 		while(true)
 		{
-			VarType type = GetVarType(in_cpp);
+			VarType vartype = GetVarType(in_cpp);
 			LocalString id = t.MustGetItem();
 			CheckFindItem(id.get_ref(), false);
 			if(!in_cpp)
 			{
 				ParseVar* arg = ParseVar::Get();
 				arg->name = id;
-				arg->type = type;
+				arg->vartype = vartype;
 				arg->subtype = ParseVar::ARG;
 				arg->index = current_function->args.size();
 				arg->mod = false;
@@ -1027,9 +1020,9 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 			{
 				prev_arg_def = true;
 				t.Next();
-				ParseNode* item = ParseConstItem();
-				if(!TryCast(item, type))
-					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(type));
+				NodeRef item = ParseConstItem();
+				if(!TryCast(item.Get(), vartype))
+					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
 				switch(item->op)
 				{
 				case PUSH_BOOL:
@@ -1056,7 +1049,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 			{
 				if(prev_arg_def)
 					t.Throw("Missing default value for argument '%s'.", id.c_str());
-				f->arg_infos.push_back(ArgInfo(type, 0, false));
+				f->arg_infos.push_back(ArgInfo(vartype, 0, false));
 				f->required_args++;
 			}
 			if(t.IsSymbol(')'))
@@ -1071,17 +1064,17 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 ParseNode* Parser::ParseVarTypeDecl()
 {
 	// var_type
-	VarType type = GetVarType(false);
-	if(type.core == V_VOID)
+	VarType vartype = GetVarType(false);
+	if(vartype.type == V_VOID)
 		t.Throw("Can't declare void variable.");
-	if(type.special == SV_REF)
+	else if(vartype.type == V_REF)
 		t.Throw("Can't declare reference variable yet.");
 
 	// var_decl(s)
 	vector<ParseNode*> nodes;
 	do
 	{
-		ParseNode* decl = ParseVarDecl(type);
+		ParseNode* decl = ParseVarDecl(vartype);
 		if(decl)
 			nodes.push_back(decl);
 		if(t.IsSymbol(';'))
@@ -1097,8 +1090,7 @@ ParseNode* Parser::ParseVarTypeDecl()
 	{
 		ParseNode* node = ParseNode::Get();
 		node->pseudo_op = GROUP;
-		node->type = V_VOID;
-		node->ref = REF_NO;
+		node->result = V_VOID;
 		node->source = nullptr;
 		node->childs = nodes;
 		return node;
@@ -1111,13 +1103,13 @@ ParseNode* Parser::ParseCond()
 	t.Next();
 	NodeRef cond = ParseExpr(')');
 	t.AssertSymbol(')');
-	if(!TryCast(cond.Get(), VarType(V_BOOL)))
+	if(!TryCast(cond.Get(), V_BOOL))
 		t.Throw("Condition expression with '%s' type.", GetTypeName(cond));
 	t.Next();
 	return cond.Pin();
 }
 
-ParseNode* Parser::ParseVarDecl(VarType type)
+ParseNode* Parser::ParseVarDecl(VarType vartype)
 {
 	// var_name
 	const string& name = t.MustGetItem();
@@ -1125,7 +1117,7 @@ ParseNode* Parser::ParseVarDecl(VarType type)
 
 	ParseVar* var = ParseVar::Get();
 	var->name = name;
-	var->type = type;
+	var->vartype = vartype;
 	var->index = current_block->var_offset;
 	var->subtype = (current_function == nullptr ? ParseVar::GLOBAL : ParseVar::LOCAL);
 	var->mod = false;
@@ -1138,32 +1130,31 @@ ParseNode* Parser::ParseVarDecl(VarType type)
 	if(!t.IsSymbol('='))
 	{
 		expr = ParseNode::Get();
-		expr->ref = REF_NO;
 		expr->source = nullptr;
-		switch(type.core)
+		switch(vartype.type)
 		{
 		case V_BOOL:
-			expr->type = V_BOOL;
+			expr->result = V_BOOL;
 			expr->pseudo_op = PUSH_BOOL;
 			expr->bvalue = false;
 			break;
 		case V_CHAR:
-			expr->type = V_CHAR;
+			expr->result = V_CHAR;
 			expr->op = PUSH_CHAR;
 			expr->cvalue = 0;
 			break;
 		case V_INT:
-			expr->type = V_INT;
+			expr->result = V_INT;
 			expr->op = PUSH_INT;
 			expr->value = 0;
 			break;
 		case V_FLOAT:
-			expr->type = V_FLOAT;
+			expr->result = V_FLOAT;
 			expr->op = PUSH_FLOAT;
 			expr->fvalue = 0.f;
 			break;
 		case V_STRING:
-			expr->type = V_STRING;
+			expr->result = V_STRING;
 			expr->op = PUSH_STRING;
 			if(empty_string == -1)
 			{
@@ -1177,7 +1168,8 @@ ParseNode* Parser::ParseVarDecl(VarType type)
 			break;
 		default: // class
 			{
-				Type* rtype = GetType(type.core);
+				Type* rtype = GetType(vartype.type);
+				assert(rtype->IsClass());
 				if(IS_SET(rtype->flags, Type::HaveCtor))
 				{
 					vector<AnyFunction> funcs;
@@ -1186,9 +1178,9 @@ ParseNode* Parser::ParseVarDecl(VarType type)
 				}
 				else
 				{
-					expr->type = type.core;
+					expr->result = vartype;
 					expr->op = CTOR;
-					expr->value = type.core;
+					expr->value = vartype.type;
 				}
 			}
 			break;
@@ -1200,35 +1192,39 @@ ParseNode* Parser::ParseVarDecl(VarType type)
 
 		// expr<,;>
 		expr = ParseExpr(',', ';');
-		if(!TryCast(expr.Get(), type))
+		if(!TryCast(expr.Get(), vartype))
 			t.Throw("Can't assign type '%s' to variable '%s'.", GetTypeName(expr), GetName(var));
 	}
 
 	ParseNode* node = ParseNode::Get();
 	node->op = (var->subtype == ParseVar::GLOBAL ? SET_GLOBAL : SET_LOCAL);
-	node->type = var->type.core;
+	node->result = var->vartype;
 	node->value = var->index;
-	node->ref = REF_NO;
 	node->source = nullptr;
 	node->push(expr.Pin());
 	return node;
 }
 
-ParseNode* Parser::ParseExpr(char end, char end2, int* type)
+ParseNode* Parser::ParseExpr(char end, char end2, VarType* vartype)
 {
 	vector<SymbolNode> stack, exit;
 	vector<ParseNode*> stack2;
 
 	try
 	{
-		ParseExprConvertToRPN(exit, stack, type);
+		ParseExprConvertToRPN(exit, stack, vartype);
 
 		for(SymbolNode& sn : exit)
 		{
 			if(sn.is_symbol)
+			{
 				ParseExprApplySymbol(stack2, sn);
+				for(ParseNode* node : stack2)
+					assert(node);
+			}
 			else
 			{
+				assert(sn.node);
 				stack2.push_back(sn.node);
 				sn.node = nullptr;
 			}
@@ -1259,12 +1255,12 @@ ParseNode* Parser::ParseExpr(char end, char end2, int* type)
 	}
 }
 
-void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type)
+void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype)
 {
 	while(true)
 	{
-		BASIC_SYMBOL left = ParseExprPart(exit, stack, type);
-		type = nullptr;
+		BASIC_SYMBOL left = ParseExprPart(exit, stack, vartype);
+		vartype = nullptr;
 	next_symbol:
 		if(GetNextSymbol(left))
 		{
@@ -1280,14 +1276,13 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 				ter->push(ParseExpr(';'));
 				ParseNode*& leftn = ter->childs[0];
 				ParseNode*& rightn = ter->childs[1];
-				int common = CommonType(leftn->type, rightn->type);
-				if(common == -1)
+				VarType common = CommonType(leftn->result, rightn->result);
+				if(common.type == -1)
 					t.Throw("Invalid common type for ternary operator with types '%s' and '%s'.", GetTypeName(leftn), GetTypeName(rightn));
-				Cast(leftn, VarType(common));
-				Cast(rightn, VarType(common));
+				Cast(leftn, common);
+				Cast(rightn, common);
 				ter->pseudo_op = TERNARY_PART;
-				ter->type = common;
-				ter->ref = REF_NO;
+				ter->result = common;
 				ter->source = nullptr;
 				exit.push_back(ter.Pin());
 
@@ -1307,9 +1302,8 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 				*str = t.MustGetItem();
 				t.Next();
 				NodeRef node = ParseNode::Get();
-				node->type = V_VOID;
+				node->result = V_VOID;
 				node->str = str;
-				node->ref = REF_NO;
 				node->source = nullptr;
 				if(t.IsSymbol('('))
 				{
@@ -1337,11 +1331,11 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 	}
 }
 
-BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type)
+BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype)
 {
 	BASIC_SYMBOL symbol = BS_MAX;
 
-	if(!type)
+	if(!vartype)
 	{
 		// [pre_op ...]
 		while(GetNextSymbol(symbol))
@@ -1375,7 +1369,7 @@ BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>&
 			exit.push_back(ParseItem());
 	}
 	else
-		exit.push_back(ParseItem(type));
+		exit.push_back(ParseItem(vartype));
 
 	ParseExprPartPost(symbol, exit, stack);
 
@@ -1439,26 +1433,24 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		if(si.type == ST_NONE)
 		{
 			// unrary operator
-			VarType cast;
-			int result;
-			ParseNode* over_result;
-			if(!CanOp(sn.symbol, node, nullptr, cast, result, over_result, sn.symbol))
+			OpResult op_result = CanOp(sn.symbol, sn.symbol, node, nullptr);
+			if(op_result.result == OpResult::NO)
 				t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
-			if(over_result)
+			if(op_result.result == OpResult::OVERLOAD)
 			{
 				node.Pin();
-				stack.push_back(over_result);
+				stack.push_back(op_result.over_result);
 			}
 			else
 			{
-				Cast(node.Get(), cast);
+				assert(op_result.result == OpResult::YES);
+				Cast(node.Get(), op_result.cast_var);
 				if(!TryConstExpr1(node, si.symbol) && si.op != NOP)
 				{
 					ParseNode* op = ParseNode::Get();
 					op->op = (Op)si.op;
-					op->type = result;
+					op->result = op_result.result_var;
 					op->push(node.Pin());
-					op->ref = REF_NO;
 					op->source = nullptr;
 					node = op;
 				}
@@ -1468,12 +1460,11 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		else if(si.type == ST_SUBSCRIPT)
 		{
 			// subscript operator
-			if(node->type != V_STRING)
+			if(node->result != V_STRING)
 				t.Throw("Type '%s' don't have subscript operator.", GetTypeName(node));
 			ParseNode* op = ParseNode::Get();
 			op->op = PUSH_INDEX;
-			op->type = V_CHAR;
-			op->ref = REF_NO;
+			op->result = V_CHAR;
 			op->source = nullptr;
 			op->push(node.Pin());
 			op->push(sn.node->childs[0]);
@@ -1485,14 +1476,13 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		else if(si.type == ST_CALL)
 		{
 			// call operator
-			Type* type = GetType(node->type);
+			Type* type = GetType(node->result.type);
 			vector<AnyFunction> funcs;
 			FindAllFunctionOverloads(type, si.op_code, funcs);
 			if(funcs.empty())
 				t.Throw("Type '%s' don't have call operator.", GetTypeName(node));
 
 			NodeRef f;
-			f->ref = REF_NO;
 			f->source = node->source;
 			f->push(node.Pin());
 			f->push(sn.node->childs);
@@ -1507,18 +1497,25 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		else
 		{
 			// inc dec
-			VarType cast;
-			int result;
-			ParseNode* over_result;
-			if(CanOp(si.symbol, node, nullptr, cast, result, over_result, si.symbol))
+			assert(si.type == ST_INC_DEC);
+			OpResult op_result = CanOp(si.symbol, si.symbol, node, nullptr);
+			if(op_result.result == OpResult::OVERLOAD)
 			{
 				node.Pin();
-				stack.push_back(over_result);
+				stack.push_back(op_result.over_result);
 			}
 			else
 			{
-				assert(si.type == ST_INC_DEC);
-				if(node->type != V_INT && node->type != V_FLOAT && node->type != V_CHAR)
+				assert(op_result.result == OpResult::FALLBACK);
+				bool ok = false;
+				if(node->result.type == V_CHAR || node->result.type == V_INT || node->result.type == V_FLOAT)
+					ok = true;
+				else if(node->result.type == V_REF)
+				{
+					if(node->result.subtype == V_CHAR || node->result.subtype == V_INT || node->result.subtype == V_FLOAT)
+						ok = true;
+				}
+				if(!ok)
 					t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
 
 				bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
@@ -1527,13 +1524,12 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 
 				NodeRef op;
 				op->pseudo_op = INTERNAL_GROUP;
-				op->type = node->type;
-				op->ref = REF_NO;
+				op->result = node->result;
 				op->source = nullptr;
 				if(node->source)
 					node->source->mod = true;
 
-				if(node->ref != REF_YES)
+				if(node->result.type != V_REF)
 				{
 					Op set_op;
 					switch(node->op)
@@ -1660,9 +1656,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		if(si.symbol == S_MEMBER_ACCESS)
 		{
 			// member access
-			if(left->type == V_VOID)
-				t.Throw("Invalid member access for type 'void'.");
-			Type* type = GetType(left->type);
+			Type* type = GetType(left->result.type);
 			if(right->pseudo_op == OBJ_FUNC)
 			{
 				vector<AnyFunction> funcs;
@@ -1672,7 +1666,6 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				StringPool.Free(right->str);
 
 				NodeRef node = ParseNode::Get();
-				node->ref = REF_NO;
 				node->source = left->source;
 				node->push(left.Pin());
 				for(ParseNode* n : right->childs)
@@ -1694,9 +1687,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				StringPool.Free(right->str);
 				ParseNode* node = ParseNode::Get();
 				node->op = PUSH_MEMBER;
-				node->type = m->type;
+				node->result = m->vartype;
 				node->value = m_index;
-				node->ref = REF_MAY;
 				node->source = left->source;
 				node->push(left.Pin());
 				right.Pin()->Free();
@@ -1706,7 +1698,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		else if(si.symbol == S_TERNARY)
 		{
 			assert(right->pseudo_op == TERNARY_PART);
-			if(!TryCast(left.Get(), VarType(V_BOOL)))
+			if(!TryCast(left.Get(), V_BOOL))
 				t.Throw("Ternary condition expression with '%s' type.", GetTypeName(left));
 			NodeRef ter;
 			ter->push(left.Pin());
@@ -1714,23 +1706,22 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			ter->push(right->childs[1]);
 			right->childs.clear();
 			ter->pseudo_op = TERNARY;
-			ter->type = ter->childs[1]->type;
+			ter->result = ter->childs[1]->result;
 			ter->source = nullptr;
-			ter->ref = REF_NO;
 			stack.push_back(ter.Pin());
 		}
 		else if(si.type == ST_ASSIGN)
 		{
 			// assign to variable
 			if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
-				&& left->op != PUSH_INDEX && left->ref != REF_YES)
+				&& left->op != PUSH_INDEX && left->result.type != V_REF)
 				t.Throw("Can't assign, left value must be variable.");
 			if(left->source)
 				left->source->mod = true;
 
 			NodeRef set;
 			set->source = nullptr;
-			if(left->ref != REF_YES)
+			if(left->result.type != V_REF)
 			{
 				switch(left->op)
 				{
@@ -1757,13 +1748,12 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 					break;
 				}
 				set->value = left->value;
-				set->type = left->type;
-				set->ref = REF_NO;
+				set->result = left->result;
 
 				if(si.op == NOP)
 				{
 					// assign
-					if(!TryCast(right.Get(), VarType(left->type)))
+					if(!TryCast(right.Get(), left->result))
 						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
 					if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
 					{
@@ -1776,24 +1766,21 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				else
 				{
 					// compound assign, left op= right
-					VarType cast;
-					int result;
-					ParseNode* over_result;
-					if(!CanOp((SYMBOL)si.op, left, right, cast, result, over_result, si.symbol))
+					OpResult op_result = CanOp((SYMBOL)si.op, si.symbol, left, right);
+					if(op_result.result == OpResult::NO)
 						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-					if(over_result)
+					if(op_result.result == OpResult::OVERLOAD)
 					{
 						left.Pin();
 						right.Pin();
-						set = over_result;
+						set = op_result.over_result;
 					}
 					else
 					{
 						NodeRef op;
 						op->op = (Op)symbols[si.op].op;
-						op->type = result;
-						op->ref = REF_NO;
+						op->result = op_result.result_var;
 						op->source = nullptr;
 
 						if(left->op == PUSH_MEMBER)
@@ -1801,8 +1788,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 							set->push(left->childs);
 							set->push(PUSH);
 							left->childs.clear();
-							Cast(left.Get(), cast);
-							Cast(right.Get(), cast);
+							Cast(left.Get(), op_result.cast_var);
+							Cast(right.Get(), op_result.cast_var);
 							set->push(left.Pin());
 							set->push(right.Pin());
 							ForceCast(op.Get(), set, si.name);
@@ -1816,8 +1803,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 							left->childs.insert(left->childs.begin() + 1, push);
 							left->push(PUSH);
 							left->push(SWAP, 1);
-							Cast(left.Get(), cast);
-							Cast(right.Get(), cast);
+							Cast(left.Get(), op_result.cast_var);
+							Cast(right.Get(), op_result.cast_var);
 							op->push(left.Pin());
 							op->push(right.Pin());
 							ForceCast(op.Get(), set, si.name);
@@ -1825,8 +1812,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 						}
 						else
 						{
-							Cast(left.Get(), cast);
-							Cast(right.Get(), cast);
+							Cast(left.Get(), op_result.cast_var);
+							Cast(right.Get(), op_result.cast_var);
 
 							op->push(left.Pin());
 							op->push(right.Pin());
@@ -1839,13 +1826,12 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			}
 			else
 			{
-				set->type = left->type;
-				set->ref = REF_NO;
+				set->result = left->result;
 
 				if(si.op == NOP)
 				{
 					// assign
-					if(!TryCast(right.Get(), VarType(left->type)))
+					if(!TryCast(right.Get(), left->result))
 						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(left));
 					set->op = SET_ADR;
 					set->push(left.Pin());
@@ -1854,22 +1840,19 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				else
 				{
 					// compound assign
-					VarType cast;
-					int result;
-					ParseNode* over_result;
-					if(!CanOp((SYMBOL)si.op, left, right, cast, result, over_result, si.symbol))
+					OpResult op_result = CanOp((SYMBOL)si.op, si.symbol, left, right);
+					if(op_result.result == OpResult::NO)
 						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
 
-					assert(over_result == nullptr); // compound assign on reference ???
+					assert(op_result.result == OpResult::YES); // compound assign on reference ???
 
 					NodeRef real_left = left.Get()->copy();
-					Cast(left.Get(), cast);
-					Cast(right.Get(), cast);
+					Cast(left.Get(), op_result.cast_var);
+					Cast(right.Get(), op_result.cast_var);
 
 					NodeRef op;
 					op->op = (Op)symbols[si.op].op;
-					op->type = result;
-					op->ref = REF_NO;
+					op->result = op_result.result_var;
 					op->source = nullptr;
 					op->push(left.Pin());
 					op->push(right.Pin());
@@ -1886,44 +1869,44 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		else
 		{
 			// normal operation
-			VarType cast;
-			int result;
-			ParseNode* over_result;
-			if(!CanOp(si.symbol, left, right, cast, result, over_result, si.symbol))
+			OpResult op_result = CanOp(si.symbol, si.symbol, left, right);
+			switch(op_result.result)
+			{
+			case OpResult::FALLBACK:
+				assert(0);
+			case OpResult::NO:
 				t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
+			case OpResult::YES:
+				{
+					ParseNode* pleft = left.Pin();
+					ParseNode* pright = right.Pin();
 
-			if(si.symbol == S_AS)
-			{
-				Cast(left.Get(), VarType(right->value), nullptr, false);
-				stack.push_back(left.Pin());
-			}
-			else if(over_result)
-			{
+					Cast(pleft, op_result.cast_var);
+					Cast(pright, op_result.cast_var);
+
+					ParseNode* op = ParseNode::Get();
+					op->result = op_result.result_var;
+					op->source = nullptr;
+
+					if(!TryConstExpr(pleft, pright, op, si.symbol))
+					{
+						op->op = (Op)si.op;
+						op->push(pleft);
+						op->push(pright);
+					}
+
+					stack.push_back(op);
+				}
+				break;
+			case OpResult::OVERLOAD:
 				left.Pin();
 				right.Pin();
-				stack.push_back(over_result);
-			}
-			else
-			{
-				ParseNode* pleft = left.Pin();
-				ParseNode* pright = right.Pin();
-
-				Cast(pleft, cast);
-				Cast(pright, cast);
-
-				ParseNode* op = ParseNode::Get();
-				op->type = result;
-				op->ref = REF_NO;
-				op->source = nullptr;
-
-				if(!TryConstExpr(pleft, pright, op, si.symbol))
-				{
-					op->op = (Op)si.op;
-					op->push(pleft);
-					op->push(pright);
-				}
-
-				stack.push_back(op);
+				stack.push_back(op_result.over_result);
+				break;
+			case OpResult::CAST:
+				Cast(left.Get(), VarType(right->value, 0), &op_result.cast_result, false);
+				stack.push_back(left.Pin());
+				break;
 			}
 		}
 	}
@@ -1950,27 +1933,26 @@ void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 	t.Next();
 }
 
-ParseNode* Parser::ParseItem(int* type)
+ParseNode* Parser::ParseItem(VarType* _vartype)
 {
-	if(t.IsKeywordGroup(G_VAR) || type)
+	if(t.IsKeywordGroup(G_VAR) || _vartype)
 	{
-		VarType var_type(V_VOID);
-		if(type)
-			var_type.core = *type;
+		VarType vartype(nullptr);
+		if(_vartype)
+			vartype = *_vartype;
 		else
 		{
-			var_type.core = t.GetKeywordId(G_VAR);
+			vartype.type = t.GetKeywordId(G_VAR);
 			t.Next();
 		}
 
 		if(t.IsSymbol('('))
 		{
 			// ctor
-			Type* rtype = GetType(var_type.core);
+			Type* rtype = GetType(vartype.type);
 			if(!IS_SET(rtype->flags, Type::HaveCtor))
 				t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 			NodeRef node;
-			node->ref = REF_NO;
 			node->source = nullptr;
 			ParseArgs(node->childs);
 			vector<AnyFunction> funcs;
@@ -1983,9 +1965,8 @@ ParseNode* Parser::ParseItem(int* type)
 			// type
 			ParseNode* type = ParseNode::Get();
 			type->pseudo_op = PUSH_TYPE;
-			type->type = V_TYPE;
-			type->value = var_type.core;
-			type->ref = REF_NO;
+			type->result = V_TYPE;
+			type->value = vartype.type;
 			type->source = nullptr;
 			return type;
 		}
@@ -2001,9 +1982,8 @@ ParseNode* Parser::ParseItem(int* type)
 			{
 				ParseVar* var = found.var;
 				ParseNode* node = ParseNode::Get();
-				node->type = var->type.core;
+				node->result = var->vartype;
 				node->value = var->index;
-				node->ref = (var->type.special == SV_NORMAL ? REF_MAY : REF_YES);
 				node->source = var;
 				switch(var->subtype)
 				{
@@ -2032,7 +2012,6 @@ ParseNode* Parser::ParseItem(int* type)
 				t.Next();
 
 				NodeRef node;
-				node->ref = REF_NO;
 				node->source = nullptr;
 
 				ParseArgs(node->childs);
@@ -2044,9 +2023,8 @@ ParseNode* Parser::ParseItem(int* type)
 			{
 				ParseNode* node = ParseNode::Get();
 				node->op = PUSH_THIS_MEMBER;
-				node->type = found.member->type;
+				node->result = found.member->vartype;
 				node->value = found.member_index;
-				node->ref = REF_MAY;
 				node->source = nullptr;
 				t.Next();
 				return node;
@@ -2069,9 +2047,8 @@ ParseNode* Parser::ParseConstItem()
 		int val = t.GetInt();
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_INT;
-		node->type = V_INT;
+		node->result = V_INT;
 		node->value = val;
-		node->ref = REF_NO;
 		node->source = nullptr;
 		t.Next();
 		return node;
@@ -2082,9 +2059,8 @@ ParseNode* Parser::ParseConstItem()
 		float val = t.GetFloat();
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_FLOAT;
-		node->type = V_FLOAT;
+		node->result = V_FLOAT;
 		node->fvalue = val;
-		node->ref = REF_NO;
 		node->source = nullptr;
 		t.Next();
 		return node;
@@ -2095,9 +2071,8 @@ ParseNode* Parser::ParseConstItem()
 		char c = t.GetChar();
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_CHAR;
-		node->type = V_CHAR;
+		node->result = V_CHAR;
 		node->cvalue = c;
-		node->ref = REF_NO;
 		node->source = nullptr;
 		t.Next();
 		return node;
@@ -2113,8 +2088,7 @@ ParseNode* Parser::ParseConstItem()
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_STRING;
 		node->value = index;
-		node->type = V_STRING;
-		node->ref = REF_NO;
+		node->result = V_STRING;
 		node->source = nullptr;
 		t.Next();
 		return node;
@@ -2126,8 +2100,7 @@ ParseNode* Parser::ParseConstItem()
 		ParseNode* node = ParseNode::Get();
 		node->pseudo_op = PUSH_BOOL;
 		node->bvalue = (c == C_TRUE);
-		node->type = V_BOOL;
-		node->ref = REF_NO;
+		node->result = V_BOOL;
 		node->source = nullptr;
 		return node;
 	}
@@ -2166,78 +2139,45 @@ ParseVar* Parser::GetVar(ParseNode* node)
 
 VarType Parser::GetVarType(bool in_cpp)
 {
-	/*bool is_const = false;
-	if(t.IsKeyword(K_CONST, G_KEYWORD))
-	{
-		is_const = true;
-		t.Next();
-	}*/
+	VarType vartype(nullptr);
 	if(!t.IsKeywordGroup(G_VAR))
 		t.Unexpected("Expecting var type.");
-	int type = t.GetKeywordId(G_VAR);
-	//VarType type;
-	//type.special = SV_NORMAL;
-	//type.core = t.GetKeywordId(G_VAR);
+	vartype.type = t.GetKeywordId(G_VAR);
 	t.Next();
+
 	if(t.IsSymbol('&'))
 	{
-		Type* ty = GetType(type);
+		Type* ty = GetType(vartype.type);
 		if(ty->IsRef())
 			t.Throw("Can't create reference to reference type '%s'.", ty->name.c_str());
 		t.Next();
-		return VarType(type, SV_REF);
-	}
-	/*else if(t.IsSymbol('*'))
-	{
-
-	}
-	else if(t.IsSymbol('?'))
-	{
-
+		vartype.subtype = vartype.type;
+		vartype.type = V_REF;
 	}
 
-	if(is_const)
-	{
-		switch(type.special)
-		{
-		case SV_NORMAL:
-			type.special = SV_CONST;
-			break;
-		case SV_REF:
-			type.special = SV_CONST_REF;
-			break;
-		case SV_PTR:
-			type.special = SV_CONST_PTR;
-			break;
-		default:
-			assert(0);
-			break;
-		}
-	}*/
-	
-	return VarType(type);
+	return vartype;
 }
 
-int Parser::GetVarTypeForMember()
+VarType Parser::GetVarTypeForMember()
 {
-	VarType type = GetVarType();
-	if(type.core == V_VOID)
+	VarType vartype = GetVarType();
+	if(vartype.type == V_VOID)
 		t.Throw("Member of 'void' type not allowed.");
 	else
 	{
 		cstring name = nullptr;
-		if(type.special == SV_REF)
+		if(vartype.type == V_REF)
 			name = "reference";
 		//else if(type.special == SV_ARRAY)
 		//	name = "array";
-		else if(type.core == V_STRING)
+		else if(vartype.type == V_STRING)
 			name = "string";
 		else
 		{
-			Type* ptype = GetType(type.core);
-			if(ptype->IsClass())
+			Type* type = GetType(vartype.type);
+			if(type->IsClass())
 			{
-				if(ptype->IsRef())
+				if(type->IsRef())
 					name = "class";
 				else
 					name = "struct";
@@ -2246,7 +2186,7 @@ int Parser::GetVarTypeForMember()
 		if(name)
 			t.Throw("Member of '%s' type not allowed yet.", name);
 	}
-	return type.core;
+	return vartype;
 }
 
 void Parser::PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node)
@@ -2401,42 +2341,52 @@ BASIC_SYMBOL Parser::GetSymbol(bool full_over)
 	}
 }
 
-bool Parser::CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& castvar, int& result, ParseNode*& over_result, SYMBOL real_symbol)
+OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, ParseNode* rnode)
 {
-	over_result = nullptr;
-	VarType leftvar = lnode->GetVarType();
-	VarType rightvar = (rnode ? rnode->GetVarType() : VarType(V_VOID));
-	int& cast = castvar.core;
-	castvar.special = SV_NORMAL;
-	int left = leftvar.core;
-	int right = rightvar.core;
-	if(left == V_VOID || left == V_TYPE)
-		return false;
+	OpResult op_result;
+	VarType leftvar = lnode->result;
+	VarType rightvar = (rnode ? rnode->result : V_VOID);
+	int& cast = op_result.cast_var.type;
+	int left = leftvar.type;
+	int right = rightvar.type;
+
+	// left is void, right is void for two arg op, left is type
+	if(left == V_VOID || left == V_TYPE || (right == V_VOID && symbols[symbol].args != 1))
+		return op_result;
+
 	if(right == V_TYPE)
 	{
+		// when right is type, only as can be used
 		if(symbol != S_AS)
-			return false;
-		VarType type(rnode->value);
-		CastResult c = MayCast(lnode, type);
-		if(c.CantCast())
-			t.Throw("Can't cast from '%s' to '%s'.", GetTypeName(lnode), GetName(type));
-		return true;
+			return op_result;
+		VarType vartype(rnode->value, 0);
+		op_result.cast_result = MayCast(lnode, vartype);
+		if(op_result.cast_result.CantCast())
+			t.Throw("Can't cast from '%s' to '%s'.", GetTypeName(lnode), GetName(vartype));
+		op_result.result = OpResult::CAST;
+		return op_result;
 	}
-	if(right == V_VOID && symbols[symbol].args != 1)
-		return false;
+
+	// check for overloads
 	Type* ltype = GetType(left);
 	Type* rtype = GetType(right);
 	if((ltype->IsClass() || rtype->IsClass()) && symbol != S_IS)
 	{
+		// left type must be class
 		if(!ltype->IsClass())
-			return false;
+			return op_result;
+
+		// not overloadable symbol ?
 		SymbolInfo& si = symbols[real_symbol];
 		if(!si.op_code)
-			return false;
+			return op_result;
+
+		// find all overloads
 		vector<AnyFunction> funcs;
 		FindAllFunctionOverloads(ltype, si.op_code, funcs);
 		if(funcs.empty())
-			return false;
+			return op_result;
+
 		NodeRef node;
 		node->push(lnode);
 		node->source = nullptr;
@@ -2451,52 +2401,51 @@ bool Parser::CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& c
 			node->childs.clear();
 			throw;
 		}
-		over_result = node.Pin();
-		return true;
+		op_result.over_result = node.Pin();
+		op_result.result = OpResult::OVERLOAD;
+		return op_result;
 	}
 
-	int type;
+	VarType vartype;
 	switch(symbol)
 	{
 	case S_ADD:
 		if(left == V_STRING || right == V_STRING)
-			type = V_STRING;
+			vartype = V_STRING;
 		else if(left == V_FLOAT || right == V_FLOAT)
-			type = V_FLOAT;
+			vartype = V_FLOAT;
 		else // int or char or bool
-			type = V_INT;
-		cast = type;
-		result = type;
-		return true;
+			vartype = V_INT;
+		op_result.cast_var = vartype;
+		op_result.result_var = vartype;
+		op_result.result = OpResult::YES;
+		break;
 	case S_SUB:
 	case S_MUL:
 	case S_DIV:
 	case S_MOD:
 		if(left == V_STRING || right == V_STRING)
-			return false; // can't do with string
+			break; // can't do with string
 		if(left == V_FLOAT || right == V_FLOAT)
-			type = V_FLOAT;
+			vartype = V_FLOAT;
 		else // int or char or bool
-			type = V_INT;
-		cast = type;
-		result = type;
-		return true;
+			vartype = V_INT;
+		op_result.cast_var = vartype;
+		op_result.result_var = vartype;
+		op_result.result = OpResult::YES;
+		break;
 	case S_PLUS:
 	case S_MINUS:
 		if(left == V_INT || left == V_FLOAT)
-		{
-			cast = left;
-			result = left;
-			return true;
-		}
+			vartype = (CoreVarType)left;
 		else if(left == V_BOOL || left == V_CHAR)
-		{
-			cast = V_INT;
-			result = V_INT;
-			return true;
-		}
+			vartype = V_INT;
 		else
-			return false;
+			break;
+		op_result.cast_var = vartype;
+		op_result.result_var = vartype;
+		op_result.result = OpResult::YES;
+		break;
 	case S_EQUAL:
 	case S_NOT_EQUAL:
 	case S_GREATER:
@@ -2506,43 +2455,46 @@ bool Parser::CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& c
 		if(left == V_STRING || right == V_STRING)
 		{
 			if(symbol != S_EQUAL && symbol != S_NOT_EQUAL)
-				return false;
-			type = V_STRING;
+				break;
+			vartype = V_STRING;
 		}
 		else if(left == V_FLOAT || right == V_FLOAT)
-			type = V_FLOAT;
+			vartype = V_FLOAT;
 		else if(left == V_INT || right == V_INT)
-			type = V_INT;
+			vartype = V_INT;
 		else if(symbol == S_EQUAL || symbol == S_NOT_EQUAL)
 		{
 			if(left == V_CHAR || right == V_CHAR)
-				type = V_CHAR;
+				vartype = V_CHAR;
 			else
 			{
 				assert(left == V_BOOL && right == V_BOOL);
-				type = V_BOOL;
+				vartype = V_BOOL;
 			}
 		}
 		else
-			type = V_INT;
-		cast = type;
-		result = V_BOOL;
-		return true;
+			vartype = V_INT;
+		op_result.cast_var = vartype;
+		op_result.result_var = V_BOOL;
+		op_result.result = OpResult::YES;
+		break;
 	case S_AND:
 	case S_OR:
 		// not allowed for string, cast other to bool
 		if(left == V_STRING || right == V_STRING)
-			return false;
-		cast = V_BOOL;
-		result = V_BOOL;
-		return true;
+			break;
+		op_result.cast_var = V_BOOL;
+		op_result.result_var = V_BOOL;
+		op_result.result = OpResult::YES;
+		break;
 	case S_NOT:
 		// not allowed for string, cast other to bool
 		if(left == V_STRING)
-			return false;
-		cast = V_BOOL;
-		result = V_BOOL;
-		return true;
+			break;
+		op_result.cast_var = V_BOOL;
+		op_result.result_var = V_BOOL;
+		op_result.result = OpResult::YES;
+		break;
 	case S_BIT_AND:
 	case S_BIT_OR:
 	case S_BIT_XOR:
@@ -2550,48 +2502,50 @@ bool Parser::CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& c
 	case S_BIT_RSHIFT:
 		// not allowed for string, cast other to int
 		if(left == V_STRING || right == V_STRING)
-			return false;
-		cast = V_INT;
-		result = V_INT;
-		return true;
+			break;
+		op_result.cast_var = V_INT;
+		op_result.result_var = V_INT;
+		op_result.result = OpResult::YES;
+		break;
 	case S_BIT_NOT:
 		// not allowed for string, cast other to int
 		if(left == V_STRING)
-			return false;
-		cast = V_INT;
-		result = V_INT;
-		return true;
+			break;
+		op_result.cast_var = V_INT;
+		op_result.result_var = V_INT;
+		op_result.result = OpResult::YES;
+		break;
 	case S_IS:
 		if(left == V_STRING && right == V_STRING)
 		{
-			cast = V_STRING;
-			result = V_BOOL;
-			return true;
+			op_result.cast_var = V_STRING;
+			op_result.result = OpResult::YES;
 		}
 		else if(ltype->IsClass() && left == right)
 		{
-			cast = left;
-			result = V_BOOL;
-			return true;
+			op_result.cast_var = VarType(left, 0);
+			op_result.result = OpResult::YES;
 		}
-		else if(leftvar.special == SV_REF && rightvar.special == SV_REF && left == right)
+		else if(left == V_REF && right == V_REF && leftvar.subtype == rightvar.subtype)
 		{
-			cast = left;
-			castvar.special = SV_REF;
-			result = V_BOOL;
-			return true;
+			op_result.cast_var = leftvar;
+			op_result.result = OpResult::YES;
 		}
-		else
-			return false;
+		op_result.result_var = V_BOOL;
+		break;
 	case S_PRE_INC:
 	case S_PRE_DEC:
 	case S_POST_INC:
 	case S_POST_DEC:
-		return false; // hardcoded handling in ParseExprApplySymbol (called CanOp for overload checking)
+		// hardcoded handling in ParseExprApplySymbol (called CanOp for overload checking)
+		op_result.result = OpResult::FALLBACK;
+		break;
 	default:
 		assert(0);
-		return false;
+		break;
 	}
+
+	return op_result;
 }
 
 bool Parser::TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol)
@@ -2644,7 +2598,7 @@ bool Parser::TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMB
 				assert(0);
 				op->cvalue = 0;
 				op->op = PUSH_CHAR;
-				op->type = V_CHAR;
+				op->result = V_CHAR;
 				break;
 			}
 		}
@@ -2728,7 +2682,7 @@ bool Parser::TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMB
 				assert(0);
 				op->value = 0;
 				op->op = PUSH_INT;
-				op->type = V_INT;
+				op->result = V_INT;
 				break;
 			}
 		}
@@ -2792,7 +2746,7 @@ bool Parser::TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMB
 				assert(0);
 				op->fvalue = 0;
 				op->op = PUSH_FLOAT;
-				op->type = V_FLOAT;
+				op->result = V_FLOAT;
 				break;
 			}
 		}
@@ -2844,13 +2798,13 @@ bool Parser::TryConstExpr1(ParseNode* node, SYMBOL symbol)
 	return false;
 }
 
-void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool implici)
+void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, bool implici)
 {
 	CastResult cast_result;
 	if(_cast_result)
 		cast_result = *_cast_result;
 	else
-		cast_result = MayCast(node, type);
+		cast_result = MayCast(node, vartype);
 	assert(!cast_result.CantCast());
 
 	// no cast required?
@@ -2860,7 +2814,7 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 	assert(!implici || IS_SET(cast_result.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) || cast_result.type == CastResult::NOT_REQUIRED);
 
 	// can const cast?
-	if(TryConstCast(node, type.core))
+	if(TryConstCast(node, vartype))
 		return;
 
 	if(cast_result.ref_type == CastResult::DEREF)
@@ -2868,8 +2822,7 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 		// dereference
 		ParseNode* deref = ParseNode::Get();
 		deref->op = DEREF;
-		deref->type = node->type;
-		deref->ref = REF_NO;
+		deref->result = VarType(node->result.subtype, 0);
 		deref->source = nullptr;
 		deref->push(node);
 		node = deref;
@@ -2879,7 +2832,6 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 		// take address
 		assert(node->op == PUSH_LOCAL || node->op == PUSH_GLOBAL || node->op == PUSH_ARG || node->op == PUSH_MEMBER || node->op == PUSH_THIS_MEMBER);
 		node->op = Op(node->op + 1);
-		node->ref = REF_YES;
 	}
 
 	// cast?
@@ -2890,16 +2842,14 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 		{
 			// builtin type cast
 			cast->op = CAST;
-			cast->value = type.core;
-			cast->type = type.core;
-			cast->ref = REF_NO;
+			cast->value = vartype.type;
+			cast->result = vartype;
 		}
 		else
 		{
 			// user defined function cast
 			cast->op = (cast_result.cast_func.is_parse ? CALLU : CALL);
-			cast->type = cast_result.cast_func.cf->result.core;
-			cast->ref = (cast_result.cast_func.cf->result.special == SV_NORMAL ? REF_NO : REF_YES);
+			cast->result = cast_result.cast_func.cf->result;
 			cast->value = cast_result.cast_func.cf->index;
 		}
 		cast->source = nullptr;
@@ -2911,8 +2861,7 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 		// ctor cast
 		ParseNode* cast = ParseNode::Get();
 		cast->op = (cast_result.ctor_func.is_parse ? CALLU_CTOR : CALL);
-		cast->type = cast_result.ctor_func.cf->result.core;
-		cast->ref = (cast_result.ctor_func.cf->result.special == SV_NORMAL ? REF_NO : REF_YES);
+		cast->result = cast_result.ctor_func.cf->result;
 		cast->value = cast_result.ctor_func.cf->index;
 		cast->source = nullptr;
 		cast->push(node);
@@ -2921,9 +2870,9 @@ void Parser::Cast(ParseNode*& node, VarType type, CastResult* _cast_result, bool
 }
 
 // used in var assignment, passing argument to function
-bool Parser::TryCast(ParseNode*& node, VarType type, bool implici)
+bool Parser::TryCast(ParseNode*& node, VarType vartype, bool implici)
 {
-	CastResult c = MayCast(node, type);
+	CastResult c = MayCast(node, vartype);
 	if(c.CantCast())
 		return false;
 	else if(c.NeedCast())
@@ -2933,101 +2882,101 @@ bool Parser::TryCast(ParseNode*& node, VarType type, bool implici)
 			if(!IS_SET(c.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) && c.type != CastResult::NOT_REQUIRED)
 				return false;
 		}
-		Cast(node, type, &c, implici);
+		Cast(node, vartype, &c, implici);
 	}
 	return true;
 }
 
-bool Parser::TryConstCast(ParseNode* node, int type)
+bool Parser::TryConstCast(ParseNode* node, VarType vartype)
 {
 	// can cast only const literal
-	if(type == V_STRING)
+	if(vartype == V_STRING)
 		return false;
 
-	switch(COMBINE(node->op,type))
+	switch(COMBINE(node->op, vartype.type))
 	{
 	case COMBINE(PUSH_BOOL,V_CHAR):
 		node->cvalue = (node->bvalue ? 't' : 'f');
 		node->op = PUSH_CHAR;
-		node->type = V_CHAR;
+		node->result = V_CHAR;
 		return true;
 	case COMBINE(PUSH_BOOL,V_INT):
 		node->value = (node->bvalue ? 1 : 0);
 		node->op = PUSH_INT;
-		node->type = V_INT;
+		node->result = V_INT;
 		return true;
 	case COMBINE(PUSH_BOOL,V_FLOAT):
 		node->fvalue = (node->bvalue ? 1.f : 0.f);
 		node->op = PUSH_FLOAT;
-		node->type = V_FLOAT;
+		node->result = V_FLOAT;
 		return true;
 	case COMBINE(PUSH_CHAR,V_BOOL):
 		node->bvalue = (node->cvalue != 0);
 		node->pseudo_op = PUSH_BOOL;
-		node->type = V_BOOL;
+		node->result = V_BOOL;
 		return true;
 	case COMBINE(PUSH_CHAR,V_INT):
 		node->value = (int)node->cvalue;
 		node->op = PUSH_INT;
-		node->type = V_INT;
+		node->result = V_INT;
 		return true;
 	case COMBINE(PUSH_CHAR,V_FLOAT):
 		node->fvalue = (float)node->cvalue;
 		node->op = PUSH_FLOAT;
-		node->type = V_FLOAT;
+		node->result = V_FLOAT;
 		return true;
 	case COMBINE(PUSH_INT,V_BOOL):
 		node->bvalue = (node->value != 0);
 		node->pseudo_op = PUSH_BOOL;
-		node->type = V_BOOL;
+		node->result = V_BOOL;
 		return true;
 	case COMBINE(PUSH_INT,V_CHAR):
 		node->cvalue = (char)node->value;
 		node->op = PUSH_CHAR;
-		node->type = V_CHAR;
+		node->result = V_CHAR;
 		return true;
 	case COMBINE(PUSH_INT,V_FLOAT):
 		node->fvalue = (float)node->value;
 		node->op = PUSH_FLOAT;
-		node->type = V_FLOAT;
+		node->result = V_FLOAT;
 		return true;
 	case COMBINE(PUSH_FLOAT,V_BOOL):
 		node->bvalue = (node->fvalue != 0.f);
 		node->pseudo_op = PUSH_BOOL;
-		node->type = V_BOOL;
+		node->result = V_BOOL;
 		return true;
 	case COMBINE(PUSH_FLOAT,V_CHAR):
 		node->cvalue = (char)node->fvalue;
 		node->op = PUSH_CHAR;
-		node->type = V_CHAR;
+		node->result = V_CHAR;
 		return true;
 	case COMBINE(PUSH_FLOAT,V_INT):
 		node->value = (int)node->fvalue;
 		node->op = PUSH_INT;
-		node->type = V_INT;
+		node->result = V_INT;
 		return true;
 	default:
 		return false;
 	}
 }
 
-CastResult Parser::MayCast(ParseNode* node, VarType type)
+CastResult Parser::MayCast(ParseNode* node, VarType vartype)
 {
 	CastResult result;
 
-	if(node->type == type.core)
+	if(node->result.type == vartype.type)
 		result.type = CastResult::NOT_REQUIRED;
 	else
 	{
-		Type* left = GetType(node->type);
-		Type* right = GetType(type.core);
+		Type* left = GetType(node->result.type);
+		Type* right = GetType(vartype.type);
 
-		result.cast_func = FindSpecialFunction(left, SF_CAST, [type](AnyFunction& f) {return f.cf->result == type; });
+		result.cast_func = FindSpecialFunction(left, SF_CAST, [vartype](AnyFunction& f) {return f.cf->result == vartype; });
 		result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
 		{
 			uint required = (f.is_parse ? 2u : 1u);
 			return f.cf->arg_infos.size() == required
-				&& f.cf->arg_infos[required - 1].type == node->GetVarType()
+				&& f.cf->arg_infos[required - 1].vartype == node->result
 				&& IS_SET(f.cf->flags, CommonFunction::F_IMPLICIT);
 		});
 
@@ -3051,7 +3000,7 @@ CastResult Parser::MayCast(ParseNode* node, VarType type)
 			result.type |= CastResult::IMPLICIT_CTOR;
 	}
 
-	if(type.special == SV_NORMAL)
+	/*if(type.special == SV_NORMAL)
 	{
 		// require value type
 		if(node->ref == REF_YES)
@@ -3074,14 +3023,14 @@ CastResult Parser::MayCast(ParseNode* node, VarType type)
 		}
 		else
 			result.type = CastResult::CANT; // can't take address
-	}
+	}*/
 
 	return result;
 }
 
 void Parser::ForceCast(ParseNode*& node, ParseNode* type, cstring op)
 {
-	if(!TryCast(node, VarType(type->type)))
+	if(!TryCast(node, type->result))
 		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetTypeName(type), op);
 }
 
@@ -3146,8 +3095,7 @@ ParseNode* Parser::OptimizeTree(ParseNode* node)
 				// if block is empty, negate if and drop else
 				ParseNode * not = ParseNode::Get();
 				not->op = NOT;
-				not->type = V_BOOL;
-				not->ref = REF_NO;
+				not->result = V_BOOL;
 				not->source = nullptr;
 				not->push(cond);
 				node->childs[0] = not;
@@ -3289,44 +3237,44 @@ void Parser::CheckGlobalReturnValue()
 		return;
 	}
 
-	int common = GetReturnType(global_returns[0].node);
+	VarType common = GetReturnType(global_returns[0].node);
 
 	// verify common type
 	for(uint i = 1; i < global_returns.size(); ++i)
 	{
 		ReturnInfo& info = global_returns[i];
-		int other_type = GetReturnType(info.node);
-		int new_common = CommonType(common, other_type);
-		if(new_common == -1)
-			t.ThrowAt(info.line, info.charpos, "Mismatched return type '%s' and '%s'.", GetType(common)->name.c_str(), GetType(other_type)->name.c_str());
+		VarType other_type = GetReturnType(info.node);
+		VarType new_common = CommonType(common, other_type);
+		if(new_common.type == -1)
+			t.ThrowAt(info.line, info.charpos, "Mismatched return type '%s' and '%s'.", GetType(common.type)->name.c_str(),
+				GetType(other_type.type)->name.c_str());
 		common = new_common;
 	}
 
 	// cast to common type
 	for(ReturnInfo& info : global_returns)
 	{
-		int type = GetReturnType(info.node);
-		if(type != common)
+		VarType vartype = GetReturnType(info.node);
+		if(vartype != common)
 		{
 			ParseNode* ret = info.node;
 			ParseNode* expr = info.node->childs[0];
 			ParseNode* cast = ParseNode::Get();
 			cast->push(expr);
 			cast->op = CAST;
-			cast->type = common;
-			cast->value = common;
-			cast->ref = REF_NO;
+			cast->result = common;
+			cast->value = common.type;
 			cast->source = nullptr;
 			ret->childs[0] = cast;
 		}
 	}
 
-	global_result = (CoreVarType)common;
+	global_result = (CoreVarType)common.type;
 }
 
 void Parser::VerifyFunctionReturnValue(ParseFunction* f)
 {
-	if(f->result.core == V_VOID || f->special == SF_CTOR)
+	if(f->result.type == V_VOID || f->special == SF_CTOR)
 		return;
 
 	if(f->node)
@@ -3412,13 +3360,14 @@ void Parser::CopyFunctionChangedStructs()
 		ParseNode* node = nullptr;
 		for(ParseVar* local : f->args)
 		{
-			if(local->mod && GetType(local->type.core)->IsStruct())
+			if(local->mod && GetType(local->vartype.type)->IsStruct())
 			{
 				if(!node)
 				{
 					node = ParseNode::Get();
 					node->pseudo_op = INTERNAL_GROUP;
-					node->type = V_VOID;
+					node->result = V_VOID;
+					node->source = nullptr;
 				}
 				node->push(COPY_ARG, local->index);
 			}
@@ -3475,7 +3424,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 					if(node->childs[1])
 					{
 						ToCode(code, node->childs[1], break_pos);
-						if(node->childs[1]->type != V_VOID && node->pseudo_op != TERNARY)
+						if(node->childs[1]->result != V_VOID && node->pseudo_op != TERNARY)
 							code.push_back(POP);
 					}
 					code.push_back(JMP);
@@ -3485,7 +3434,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 					if(node->childs[2])
 					{
 						ToCode(code, node->childs[2], break_pos);
-						if(node->childs[2]->type != V_VOID && node->pseudo_op != TERNARY)
+						if(node->childs[2]->result != V_VOID && node->pseudo_op != TERNARY)
 							code.push_back(POP);
 					}
 					uint end_start = code.size();
@@ -3503,7 +3452,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 					if(node->childs[1])
 					{
 						ToCode(code, node->childs[1], break_pos);
-						if(node->childs[1]->type != V_VOID && node->pseudo_op != TERNARY)
+						if(node->childs[1]->result != V_VOID && node->pseudo_op != TERNARY)
 							code.push_back(POP);
 					}
 					uint end_start = code.size();
@@ -3614,7 +3563,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 				if(for1)
 				{
 					ToCode(code, for1, &wh_break_pos);
-					if(for1->type != V_VOID)
+					if(for1->result != V_VOID)
 						code.push_back(POP);
 				}
 				uint start = code.size();
@@ -3629,13 +3578,13 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 				if(block)
 				{
 					ToCode(code, block, &wh_break_pos);
-					if(block->type != V_VOID)
+					if(block->result != V_VOID)
 						code.push_back(POP);
 				}
 				if(for3)
 				{
 					ToCode(code, for3, &wh_break_pos);
-					if(for3->type != V_VOID)
+					if(for3->result != V_VOID)
 						code.push_back(POP);
 				}
 				code.push_back(JMP);
@@ -3653,7 +3602,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 				for(ParseNode* n : node->childs)
 				{
 					ToCode(code, n, break_pos);
-					if(n->type != V_VOID)
+					if(n->result != V_VOID)
 						code.push_back(POP);
 				}
 			}
@@ -3686,7 +3635,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 						continue;
 					}
 					code.push_back(PUSH_TMP);
-					switch(cas->type)
+					switch(cas->result.type)
 					{
 					case V_BOOL:
 						code.push_back(cas->bvalue ? PUSH_TRUE : PUSH_FALSE);
@@ -3887,18 +3836,18 @@ Function* Parser::GetFunction(int index)
 	return m->functions[func_index];
 }
 
-int Parser::GetReturnType(ParseNode* node)
+VarType Parser::GetReturnType(ParseNode* node)
 {
 	if(node->childs.empty())
 		return V_VOID;
 	else
-		return node->childs.front()->type;
+		return node->childs.front()->result;
 }
 
 cstring Parser::GetName(ParseVar* var)
 {
 	assert(var);
-	return Format("%s %s", GetType(var->type.core)->name.c_str(), var->name.c_str());
+	return Format("%s %s", GetName(var->vartype), var->name.c_str());
 }
 
 cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, BASIC_SYMBOL* symbol)
@@ -3955,16 +3904,16 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 	{
 		if(i != var_offset)
 			s += ",";
-		s += GetName(cf->arg_infos[i].type);
+		s += GetName(cf->arg_infos[i].vartype);
 	}
 	s += ")";
 	return Format("%s", s->c_str());
 }
 
-cstring Parser::GetName(VarType type)
+cstring Parser::GetName(VarType vartype)
 {
-	Type* t = GetType(type.core);
-	if(type.special == SV_NORMAL)
+	Type* t = GetType(vartype.type == V_REF ? vartype.subtype : vartype.type);
+	if(vartype.type != V_REF)
 		return t->name.c_str();
 	else
 		return Format("%s&", t->name.c_str());
@@ -3972,7 +3921,7 @@ cstring Parser::GetName(VarType type)
 
 cstring Parser::GetTypeName(ParseNode* node)
 {
-	return GetName(node->GetVarType());
+	return GetName(node->result);
 }
 
 cstring Parser::GetParserFunctionName(uint index)
@@ -3981,22 +3930,23 @@ cstring Parser::GetParserFunctionName(uint index)
 	return GetName(ufuncs[index], false);
 }
 
-int Parser::CommonType(int a, int b)
+VarType Parser::CommonType(VarType a, VarType b)
 {
 	if(a == b)
 		return a;
-	if(a == V_VOID || b == V_VOID)
-		return -1;
-	if(a == V_FLOAT || b == V_FLOAT)
+	if(a.type == V_VOID || b.type == V_VOID)
+		return (CoreVarType)-1;
+	if(a.type == V_FLOAT || b.type == V_FLOAT)
 		return V_FLOAT;
-	else if(a == V_INT || b == V_INT)
+	else if(a.type == V_INT || b.type == V_INT)
 		return V_INT;
-	else if(a == V_CHAR || b == V_CHAR)
+	else if(a.type == V_CHAR || b.type == V_CHAR)
 		return V_CHAR;
 	else
 	{
+		// bool && bool only left but is used by first if
 		assert(0);
-		return -1;
+		return (CoreVarType)-1;
 	}
 }
 
@@ -4260,7 +4210,7 @@ int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse)
 	bool require_cast = false;
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
-		CastResult c = MayCast(node->childs[i], f.arg_infos[i + offset].type);
+		CastResult c = MayCast(node->childs[i], f.arg_infos[i + offset].vartype);
 		if(c.CantCast())
 			return 0;
 		else if(c.NeedCast())
@@ -4330,7 +4280,7 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 				if(!first)
 					s += ',';
 				first = false;
-				s += GetType(node->childs[i]->type)->name;
+				s += GetType(node->childs[i]->result.type)->name;
 			}
 			s += ')';
 		}
@@ -4359,9 +4309,8 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 			// push this
 			ParseNode* thi = ParseNode::Get();
 			thi->op = PUSH_ARG;
-			thi->type = cf.type;
+			thi->result = (CoreVarType)cf.type;
 			thi->value = 0;
-			thi->ref = REF_NO;
 			thi->source = nullptr;
 			node->childs.insert(node->childs.begin(), thi);
 		}
@@ -4375,7 +4324,7 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 		if(match_level == 1)
 		{
 			for(uint i = 0; i < node->childs.size(); ++i)
-				Cast(node->childs[i], cf.arg_infos[i].type);
+				Cast(node->childs[i], cf.arg_infos[i].vartype);
 		}
 
 		// fill default params
@@ -4383,10 +4332,9 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 		{
 			ArgInfo& arg = cf.arg_infos[i];
 			ParseNode* n = ParseNode::Get();
-			n->type = arg.type.core;
+			n->result = arg.vartype;
 			n->source = nullptr;
-			assert(arg.type.special == SV_NORMAL);
-			switch(arg.type.core)
+			switch(arg.vartype.type)
 			{
 			case V_BOOL:
 				n->pseudo_op = PUSH_BOOL;
@@ -4417,11 +4365,10 @@ void Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type
 
 		// apply type
 		node->op = (f.is_parse ? (callu_ctor ? CALLU_CTOR : CALLU) : CALL);
-		node->type = cf.result.core;
-		node->ref = (cf.result.special == SV_NORMAL ? REF_NO : REF_YES);
+		node->result = cf.result;
 		node->value = cf.index;
 
-		if(GetType(node->type)->IsStruct())
+		if(GetType(node->result.type)->IsStruct())
 		{
 			ReturnStructVar* rsv = new ReturnStructVar;
 			rsv->index = -1;

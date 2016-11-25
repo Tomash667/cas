@@ -1,3 +1,13 @@
+Parser:
++ disallow return by ref for now
++ ref arg,ptr,const not allowed
+
+REF:
++ ExecuteFunction
+	+ ret by ref, by ptr, by const ref/ptr
+	+ ref arg,ptr,const not allowed
++ ref to thing that needs subtype
+
 ? verify if ParseExpr type is longer used
 ? parse class func checks FindEqualFunction without type
 
@@ -220,3 +230,4 @@ else return in reg
 			return 1;
 	}
 + CommonType user cast
++ other cast operator (float)x

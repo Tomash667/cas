@@ -162,7 +162,7 @@ bool Module::AddMember(cstring type_name, cstring decl, int offset)
 		delete m;
 		return false;
 	}
-	assert(offset + parser->GetType(m->type)->size <= type->size);
+	assert(offset + parser->GetType(m->vartype.type)->size <= type->size);
 	type->members.push_back(m);
 	return true;
 }
@@ -211,7 +211,8 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 	if(hidden)
 		type->flags |= Type::Hidden;
 	types.push_back(type);
-	parser->AddType(type);
+	if(!hidden)
+		parser->AddType(type);
 }
 
 Function* Module::FindEqualFunction(Function& fc)

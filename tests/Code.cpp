@@ -197,6 +197,10 @@ TEST_METHOD(ReturnValueToCode)
 	RunTest("return true;");
 	retval.IsBool(true);
 
+	// char
+	RunTest("return 'z';");
+	retval.IsChar('z');
+
 	// int
 	RunTest("return 3;");
 	retval.IsInt(3);

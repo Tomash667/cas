@@ -28,17 +28,17 @@ Str* CreateStr(cstring s)
 
 void AddRef(Var& v)
 {
-	assert(v.type != V_VOID);
-	if(v.type == V_STRING)
+	assert(v.vartype != V_VOID);
+	if(v.vartype == V_STRING)
 		v.str->refs++;
-	else if(v.type == V_REF)
+	else if(v.vartype == V_REF)
 	{
 		if(v.ref_type == REF_MEMBER)
 			v.ref_class->refs++;
 	}
 	else
 	{
-		Type* type = run_module->GetType(v.type);
+		Type* type = run_module->GetType(v.vartype.type);
 		if(type->IsClass())
 			v.clas->refs++;
 	}
@@ -46,16 +46,16 @@ void AddRef(Var& v)
 
 void ReleaseRef(Var& v)
 {
-	if(v.type == V_STRING)
+	if(v.vartype == V_STRING)
 		v.str->Release();
-	else if(v.type == V_REF)
+	else if(v.vartype == V_REF)
 	{
 		if(v.ref_type == REF_MEMBER)
 			v.ref_class->Release();
 	}
 	else
 	{
-		Type* type = run_module->GetType(v.type);
+		Type* type = run_module->GetType(v.vartype.type);
 		if(type->IsClass())
 			v.clas->Release();
 	}
@@ -64,9 +64,9 @@ void ReleaseRef(Var& v)
 struct GetRefData
 {
 	int* data;
-	int type;
+	VarType vartype;
 
-	inline GetRefData(int* data, int type) : data(data), type(type) {}
+	inline GetRefData(int* data, VarType vartype) : data(data), vartype(vartype) {}
 
 	template<typename T>
 	inline T& as()
@@ -77,29 +77,29 @@ struct GetRefData
 
 GetRefData GetRef(Var& v)
 {
-	assert(v.type == V_REF);
+	assert(v.vartype.type == V_REF);
 	switch(v.ref_type)
 	{
 	case REF_LOCAL:
 		{
 			assert(v.ref_index < local.size());
 			Var& vr = local[v.ref_index];
-			return GetRefData(&vr.value, vr.type);
+			return GetRefData(&vr.value, vr.vartype);
 		}
 	case REF_GLOBAL:
 		{
 			assert(v.ref_index < global.size());
 			Var& vr = global[v.ref_index];
-			return GetRefData(&vr.value, vr.type);
+			return GetRefData(&vr.value, vr.vartype);
 		}
 	case REF_MEMBER:
 		{
 			Class* c = v.ref_class;
 			Member* m = c->type->members[v.ref_index];
-			return GetRefData((int*)c->at_data(m->offset), m->type);
+			return GetRefData((int*)c->at_data(m->offset), m->vartype);
 		}
-	case REF_CODE:
-		return GetRefData(v.ref_adr, v.ref_var_type);
+	//case REF_CODE:
+	//	return GetRefData(v.ref_adr, v.ref_var_type);
 	default:
 		assert(0);
 		return GetRefData(nullptr, 0);
@@ -114,8 +114,9 @@ void ExecuteFunction(Function& f)
 	void* retptr = nullptr;
 	bool in_mem = false;
 
-	Type* result_type = run_module->GetType(f.result.core);
-	if(f.result.core == V_STRING)
+	assert(f.result.type != V_REF);
+	Type* result_type = run_module->GetType(f.result.type);
+	if(f.result.type == V_STRING)
 	{
 		// string return value
 		Str* str = CreateStr();
@@ -125,10 +126,9 @@ void ExecuteFunction(Function& f)
 	else if(result_type->IsClass())
 	{
 		// class return value
-		Type* type = run_module->GetType(f.result.core);
-		Class* c = Class::Create(type);
+		Class* c = Class::Create(result_type);
 		retptr = c;
-		if(type->size > 8 || IS_SET(type->flags, Type::Complex))
+		if(result_type->size > 8 || IS_SET(result_type->flags, Type::Complex))
 		{
 			packedArgs[packed++] = (int)c->data();
 			in_mem = true;
@@ -142,35 +142,23 @@ void ExecuteFunction(Function& f)
 		Var& v = stack.at(stack.size() - f.arg_infos.size() + i);
 		ArgInfo& arg = f.arg_infos[i];
 		int value;
-		if(arg.type.special == SV_NORMAL)
+		assert(v.vartype == arg.vartype);
+		switch(v.vartype.type)
 		{
-			assert(v.type == arg.type.core);
-			switch(v.type)
-			{
-			case V_BOOL:
-			case V_CHAR:
-			case V_INT:
-			case V_FLOAT:
-				value = v.value;
-				break;
-			case V_STRING:
-				value = (int)&v.str->s;
-				break;
-			default:
-				assert(run_module->GetType(v.type)->IsClass());
-				value = (int)v.clas->data();
-				break;
-			}
-		}
-		else
-		{
-			assert(arg.type.special == SV_REF);
-			assert(v.type == V_REF);
-			GetRefData refdata = GetRef(v);
-			assert(refdata.type == arg.type.core);
-			value = (int)refdata.data;
-		}
-		
+		case V_BOOL:
+		case V_CHAR:
+		case V_INT:
+		case V_FLOAT:
+			value = v.value;
+			break;
+		case V_STRING:
+			value = (int)&v.str->s;
+			break;
+		default:
+			assert(run_module->GetType(v.vartype.type)->IsClass());
+			value = (int)v.clas->data();
+			break;
+		}		
 		packedArgs[packed++] = value;
 	}
 
@@ -246,62 +234,52 @@ void ExecuteFunction(Function& f)
 	}
 
 	// push result
-	if(f.result.special == SV_NORMAL)
+	switch(f.result.type)
 	{
-		switch(f.result.core)
+	case V_VOID:
+		break;
+	case V_BOOL:
+		stack.push_back(Var(result.low != 0));
+		break;
+	case V_CHAR:
+		stack.push_back(Var((char)result.low));
+		break;
+	case V_INT:
+		stack.push_back(Var(result.low));
+		break;
+	case V_FLOAT:
+		stack.push_back(Var(fresult));
+		break;
+	case V_STRING:
+		stack.push_back(Var((Str*)retptr));
+		break;
+	default:
 		{
-		case V_VOID:
-			break;
-		case V_BOOL:
-			stack.push_back(Var(result.low != 0));
-			break;
-		case V_CHAR:
-			stack.push_back(Var((char)result.low));
-			break;
-		case V_INT:
-			stack.push_back(Var(result.low));
-			break;
-		case V_FLOAT:
-			stack.push_back(Var(fresult));
-			break;
-		case V_STRING:
-			stack.push_back(Var((Str*)retptr));
-			break;
-		default:
-			{
-				assert(result_type->IsClass());
-				Class* c = (Class*)retptr;
-				if(!in_mem)
-					memcpy(c->data(), &result, c->type->size);
-				stack.push_back(Var(c));
-			}
-			break;
+			assert(result_type->IsClass());
+			Class* c = (Class*)retptr;
+			if(!in_mem)
+				memcpy(c->data(), &result, c->type->size);
+			stack.push_back(Var(c));
 		}
-	}
-	else
-	{
-		assert(f.result.core == V_BOOL || f.result.core == V_CHAR || f.result.core == V_INT || f.result.core == V_FLOAT);
-		stack.push_back(Var(V_REF, REF_CODE, result.low, f.result.core));
+		break;
 	}
 }
 
-bool CompareVar(Var& v, const VarType& type)
+bool CompareVar(Var& v, const VarType& vartype)
 {
-	if(type.special == SV_NORMAL)
-		return (v.type == type.core);
-	else if(v.type != V_REF)
-		return false;
+	if(v.vartype.type != V_REF)
+		return (v.vartype == vartype);
 	else
 	{
 		GetRefData data = GetRef(v);
-		return (data.type == type.core);
+		return (data.vartype == vartype);
 	}
 }
 
 void MakeSingleInstance(Var& v)
 {
-	Type* type = run_module->GetType(v.type);
-	assert(type->IsStruct());
+	Type* type = run_module->GetType(v.vartype.type);
+	assert(type && type->IsStruct());
 	assert(v.clas->refs >= START_REF_COUNT);
 	if(v.clas->refs <= START_REF_COUNT)
 		return;
@@ -314,8 +292,8 @@ void SetFromStack(Var& v)
 {
 	assert(!stack.empty());
 	Var& s = stack.back();
-	assert(v.type == V_VOID || v.type == s.type);
-	Type* type = run_module->GetType(v.type);
+	assert(v.vartype == V_VOID || v.vartype == s.vartype);
+	Type* type = run_module->GetType(v.vartype.type);
 	if(!type->IsStruct())
 	{
 		// free what was in variable previously
@@ -328,79 +306,79 @@ void SetFromStack(Var& v)
 		memcpy(v.clas->data(), s.clas->data(), type->size);
 }
 
-void Cast(Var& v, int type)
+void Cast(Var& v, VarType vartype)
 {
-	assert(v.type == V_BOOL || v.type == V_CHAR || v.type == V_INT || v.type == V_FLOAT || v.type == V_STRING);
-	assert(type == V_BOOL || type == V_CHAR || type == V_INT || type == V_FLOAT || type == V_STRING);
-	assert(v.type != type);
+	assert(In((CoreVarType)v.vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }));
+	assert(In((CoreVarType)vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }));
+	assert(v.vartype != vartype);
 
 #define COMBINE(x,y) ((x & 0xFF) | ((y & 0xFF) << 8))
 
-	switch(COMBINE(v.type, type))
+	switch(COMBINE(v.vartype.type, vartype.type))
 	{
 	case COMBINE(V_BOOL,V_CHAR):
 		v.cvalue = (v.bvalue ? 't' : 'f');
-		v.type = V_CHAR;
+		v.vartype.type = V_CHAR;
 		break;
 	case COMBINE(V_BOOL,V_INT):
 		v.value = (v.bvalue ? 1 : 0);
-		v.type = V_INT;
+		v.vartype.type = V_INT;
 		break;
 	case COMBINE(V_BOOL,V_FLOAT):
 		v.fvalue = (v.bvalue ? 1.f : 0.f);
-		v.type = V_FLOAT;
+		v.vartype.type = V_FLOAT;
 		break;
 	case COMBINE(V_BOOL,V_STRING):
 		v.str = CreateStr(v.bvalue ? "true" : "false");
-		v.type = V_STRING;
+		v.vartype.type = V_STRING;
 		break;
 	case COMBINE(V_CHAR,V_BOOL):
 		v.bvalue = (v.cvalue != 0);
-		v.type = V_BOOL;
+		v.vartype.type = V_BOOL;
 		break;
 	case COMBINE(V_CHAR,V_INT):
 		v.value = (int)v.cvalue;
-		v.type = V_INT;
+		v.vartype.type = V_INT;
 		break;
 	case COMBINE(V_CHAR,V_FLOAT):
 		v.fvalue = (float)v.cvalue;
-		v.type = V_FLOAT;
+		v.vartype.type = V_FLOAT;
 		break;
 	case COMBINE(V_CHAR,V_STRING):
 		v.str = CreateStr(Format("%c", v.cvalue));
-		v.type = V_STRING;
+		v.vartype.type = V_STRING;
 		break;
 	case COMBINE(V_INT,V_BOOL):
 		v.bvalue = (v.value != 0);
-		v.type = V_BOOL;
+		v.vartype.type = V_BOOL;
 		break;
 	case COMBINE(V_INT,V_CHAR):
 		v.cvalue = (char)v.value;
-		v.type = V_CHAR;
+		v.vartype.type = V_CHAR;
 		break;
 	case COMBINE(V_INT,V_FLOAT):
 		v.fvalue = (float)v.value;
-		v.type = V_FLOAT;
+		v.vartype.type = V_FLOAT;
 		break;
 	case COMBINE(V_INT,V_STRING):
 		v.str = CreateStr(Format("%d", v.value));
-		v.type = V_STRING;
+		v.vartype.type = V_STRING;
 		break;
 	case COMBINE(V_FLOAT,V_BOOL):
 		v.bvalue = (v.fvalue != 0.f);
-		v.type = V_BOOL;
+		v.vartype.type = V_BOOL;
 		break;
 	case COMBINE(V_FLOAT,V_CHAR):
 		v.cvalue = (char)v.fvalue;
-		v.type = V_CHAR;
+		v.vartype.type = V_CHAR;
 		break;
 	case COMBINE(V_FLOAT,V_INT):
 		v.value = (int)v.fvalue;
-		v.type = V_INT;
+		v.vartype.type = V_INT;
 		break;
 	case COMBINE(V_FLOAT,V_STRING):
 		v.str = CreateStr(Format("%g", v.fvalue));
-		v.type = V_STRING;
+		v.vartype.type = V_STRING;
 		break;
 	default:
 		assert(0);
@@ -481,7 +459,7 @@ void RunInternal(ReturnValue& retval)
 				assert(run_module->ufuncs[current_function].locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module->GetType(v.type)->IsClass());
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING && !run_module->GetType(v.vartype.type)->IsClass());
 				stack.push_back(Var(REF_LOCAL, index, nullptr));
 			}
 			break;
@@ -499,7 +477,7 @@ void RunInternal(ReturnValue& retval)
 				uint global_index = *c++;
 				assert(global_index < global.size());
 				Var& v = global[global_index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module->GetType(v.type)->IsClass());
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING && !run_module->GetType(v.vartype.type)->IsClass());
 				stack.push_back(Var(REF_GLOBAL, global_index, nullptr));
 			}
 			break;
@@ -520,7 +498,7 @@ void RunInternal(ReturnValue& retval)
 				assert(run_module->ufuncs[current_function].args.size() > arg_index);
 				uint index = args_offset + arg_index;
 				Var& v = local[index];
-				assert(v.type != V_VOID && v.type != V_REF && v.type != V_STRING && !run_module->GetType(v.type)->IsClass());
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING && !run_module->GetType(v.vartype.type)->IsClass());
 				stack.push_back(Var(REF_LOCAL, index, nullptr));
 			}
 			break;
@@ -528,14 +506,14 @@ void RunInternal(ReturnValue& retval)
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(run_module->GetType(v.type)->IsClass());
-				Type* type = run_module->GetType(v.type);
+				Type* type = run_module->GetType(v.vartype.type);
+				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
 				Class* c = v.clas;
 				stack.pop_back();
-				switch(m->type)
+				switch(m->vartype.type)
 				{
 				case V_BOOL:
 					stack.push_back(Var(c->at<bool>(m->offset)));
@@ -561,12 +539,12 @@ void RunInternal(ReturnValue& retval)
 				// don't release class ref because MEMBER_REF increase by 1
 				assert(!stack.empty());
 				Var& v = stack.back();
-				assert(run_module->GetType(v.type)->IsClass());
-				Type* type = run_module->GetType(v.type);
+				Type* type = run_module->GetType(v.vartype.type);
+				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
-				assert(m->type == V_BOOL || m->type == V_CHAR || m->type == V_INT || m->type == V_FLOAT);
+				assert(m->vartype.type == V_BOOL || m->vartype.type == V_CHAR || m->vartype.type == V_INT || m->vartype.type == V_FLOAT);
 				Class* c = v.clas;
 				stack.pop_back();
 				stack.push_back(Var(REF_MEMBER, member_index, c));
@@ -578,17 +556,17 @@ void RunInternal(ReturnValue& retval)
 				assert(current_function != -1);
 				assert((uint)current_function < run_module->ufuncs.size());
 				UserFunction& f = run_module->ufuncs[current_function];
-				assert(run_module->GetType(f.type)->IsClass());
 				Type* type = run_module->GetType(f.type);
+				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Var& v = local[args_offset];
-				assert(v.type == f.type);
+				assert(v.vartype.type == f.type);
 				Class* c = v.clas;
 				Member* m = type->members[member_index];
 
 				// push value
-				switch(m->type)
+				switch(m->vartype.type)
 				{
 				case V_BOOL:
 					stack.push_back(Var(c->at<bool>(m->offset)));
@@ -614,18 +592,18 @@ void RunInternal(ReturnValue& retval)
 				assert(current_function != -1);
 				assert((uint)current_function < run_module->ufuncs.size());
 				UserFunction& f = run_module->ufuncs[current_function];
-				assert(run_module->GetType(f.type)->IsClass());
 				Type* type = run_module->GetType(f.type);
+				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Var& v = local[args_offset];
-				assert(v.type == f.type);
+				assert(v.vartype.type == f.type);
 				Class* c = v.clas;
 				++c->refs;
 				Member* m = type->members[member_index];
 
 				// push reference
-				assert(m->type == V_BOOL || m->type == V_CHAR || m->type == V_INT || m->type == V_FLOAT);
+				assert(m->vartype.type == V_BOOL || m->vartype.type == V_CHAR || m->vartype.type == V_INT || m->vartype.type == V_FLOAT);
 				stack.push_back(Var(REF_MEMBER, member_index, c));
 			}
 			break;
@@ -636,15 +614,15 @@ void RunInternal(ReturnValue& retval)
 			{
 				assert(stack.size() >= 2u);
 				Var vindex = stack.back();
-				assert(vindex.type == V_INT);
+				assert(vindex.vartype.type == V_INT);
 				uint index = vindex.value;
 				stack.pop_back();
 				Var& v = stack.back();
-				assert(v.type == V_STRING);
+				assert(v.vartype.type == V_STRING);
 				assert(index < v.str->s.length());
 				char c = v.str->s[index];
 				ReleaseRef(v);
-				v.type = V_CHAR;
+				v.vartype.type = V_CHAR;
 				v.cvalue = c;
 			}
 			break;
@@ -691,15 +669,15 @@ void RunInternal(ReturnValue& retval)
 
 				// get class
 				Var& cv = stack.back();
-				assert(run_module->GetType(cv.type)->IsClass());
-				Type* type = run_module->GetType(cv.type);
+				Type* type = run_module->GetType(cv.vartype.type);
+				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
-				assert(v.type == m->type);
+				assert(v.vartype.type == m->vartype.type);
 				Class* c = cv.clas;				
 
-				switch(m->type)
+				switch(m->vartype.type)
 				{
 				case V_BOOL:
 					c->at<bool>(m->offset) = v.bvalue;
@@ -731,16 +709,16 @@ void RunInternal(ReturnValue& retval)
 				assert(current_function != -1);
 				assert((uint)current_function < run_module->ufuncs.size());
 				UserFunction& f = run_module->ufuncs[current_function];
-				assert(run_module->GetType(f.type)->IsClass());
 				Type* type = run_module->GetType(f.type);
+				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Var& vl = local[args_offset];
-				assert(vl.type == f.type);
+				assert(vl.vartype.type == f.type);
 				Class* c = vl.clas;
 				Member* m = type->members[member_index];
 				
-				switch(m->type)
+				switch(m->vartype.type)
 				{
 				case V_BOOL:
 					c->at<bool>(m->offset) = v.bvalue;
@@ -769,13 +747,13 @@ void RunInternal(ReturnValue& retval)
 				assert(stack.size() >= 3u);
 				Var x = stack.back();
 				stack.pop_back();
-				assert(x.type == V_CHAR);
+				assert(x.vartype.type == V_CHAR);
 				Var vindex = stack.back();
 				stack.pop_back();
-				assert(vindex.type == V_INT);
+				assert(vindex.vartype.type == V_INT);
 				uint index = vindex.value;
 				Var& arr = stack.back();
-				assert(arr.type == V_STRING);
+				assert(arr.vartype.type == V_STRING);
 				assert(index <= arr.str->s.length());
 				arr.str->s[index] = x.cvalue;
 				ReleaseRef(arr);
@@ -796,7 +774,7 @@ void RunInternal(ReturnValue& retval)
 				int type = *c++;
 				assert(!stack.empty());
 				Var& v = stack.back();
-				Cast(v, type);
+				Cast(v, VarType(type, 0));
 			}
 			break;
 		case NEG:
@@ -810,36 +788,36 @@ void RunInternal(ReturnValue& retval)
 				Var& v = stack.back();
 				if(op == NEG)
 				{
-					assert(v.type == V_INT || v.type == V_FLOAT);
-					if(v.type == V_INT)
+					assert(v.vartype.type == V_INT || v.vartype.type == V_FLOAT);
+					if(v.vartype.type == V_INT)
 						v.value = -v.value;
 					else
 						v.fvalue = -v.fvalue;
 				}
 				else if(op == NOT)
 				{
-					assert(v.type == V_BOOL);
+					assert(v.vartype.type == V_BOOL);
 					v.bvalue = !v.bvalue;
 				}
 				else if(op == BIT_NOT)
 				{
-					assert(v.type == V_INT);
+					assert(v.vartype.type == V_INT);
 					v.value = ~v.value;
 				}
 				else if(op == DEREF)
 				{
 					auto data = GetRef(v);
 					ReleaseRef(v);
-					v.type = data.type;
+					v.vartype = data.vartype;
 					v.value = *data.data;
 					AddRef(v);
 				}
 				else
 				{
-					assert(v.type == V_CHAR || v.type == V_INT || v.type == V_FLOAT);
+					assert(v.vartype.type == V_CHAR || v.vartype.type == V_INT || v.vartype.type == V_FLOAT);
 					if(op == INC)
 					{
-						switch(v.type)
+						switch(v.vartype.type)
 						{
 						case V_CHAR:
 							v.cvalue++;
@@ -854,7 +832,7 @@ void RunInternal(ReturnValue& retval)
 					}
 					else
 					{
-						switch(v.type)
+						switch(v.vartype.type)
 						{
 						case V_CHAR:
 							v.cvalue--;
@@ -896,31 +874,32 @@ void RunInternal(ReturnValue& retval)
 				stack.pop_back();
 				Var& left = stack.back();
 				if(op != SET_ADR)
-					assert(left.type == right.type);
+					assert(left.vartype.type == right.vartype.type);
 				if(op == ADD)
-					assert(left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
+					assert(left.vartype.type == V_INT || left.vartype.type == V_FLOAT || left.vartype.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
-					assert(left.type == V_BOOL || left.type == V_CHAR || left.type == V_INT || left.type == V_FLOAT || left.type == V_STRING);
+					assert(left.vartype.type == V_BOOL || left.vartype.type == V_CHAR || left.vartype.type == V_INT || left.vartype.type == V_FLOAT
+						|| left.vartype.type == V_STRING);
 				else if(op == AND || op == OR)
-					assert(left.type == V_BOOL);
+					assert(left.vartype.type == V_BOOL);
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
-					assert(left.type == V_INT);
+					assert(left.vartype.type == V_INT);
 				else if(op == IS)
-					assert(left.type == V_STRING || run_module->GetType(left.type)->IsClass() || left.type == V_REF);
+					assert(left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass() || left.vartype.type == V_REF);
 				else if(op == SET_ADR)
 				{
-					assert(left.type == V_REF);
-					assert(!run_module->GetType(right.type)->IsRef());
+					assert(left.vartype.type == V_REF);
+					assert(!run_module->GetType(right.vartype.type)->IsRef());
 				}
 				else
-					assert(left.type == V_INT || left.type == V_FLOAT);
+					assert(left.vartype.type == V_INT || left.vartype.type == V_FLOAT);
 
 				switch(op)
 				{
 				case ADD:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 						left.value += right.value;
-					else if(left.type == V_FLOAT)
+					else if(left.vartype.type == V_FLOAT)
 						left.fvalue += right.fvalue;
 					else
 					{
@@ -931,19 +910,19 @@ void RunInternal(ReturnValue& retval)
 					}
 					break;
 				case SUB:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 						left.value -= right.value;
 					else
 						left.fvalue -= right.fvalue;
 					break;
 				case MUL:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 						left.value *= right.value;
 					else
 						left.fvalue *= right.fvalue;
 					break;
 				case DIV:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 					{
 						if(right.value == 0)
 							left.value = 0;
@@ -959,7 +938,7 @@ void RunInternal(ReturnValue& retval)
 					}
 					break;
 				case MOD:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 					{
 						if(right.value == 0)
 							left.value = 0;
@@ -975,7 +954,7 @@ void RunInternal(ReturnValue& retval)
 					}
 					break;
 				case EQ:
-					switch(left.type)
+					switch(left.vartype.type)
 					{
 					case V_BOOL:
 						left.bvalue = (left.bvalue == right.bvalue);
@@ -993,10 +972,10 @@ void RunInternal(ReturnValue& retval)
 						left.bvalue = (left.str->s == right.str->s);
 						break;
 					}
-					left.type = V_BOOL;
+					left.vartype.type = V_BOOL;
 					break;
 				case NOT_EQ:
-					switch(left.type)
+					switch(left.vartype.type)
 					{
 					case V_BOOL:
 						left.bvalue = (left.bvalue != right.bvalue);
@@ -1014,35 +993,35 @@ void RunInternal(ReturnValue& retval)
 						left.bvalue = (left.str->s != right.str->s);
 						break;
 					}
-					left.type = V_BOOL;
+					left.vartype.type = V_BOOL;
 					break;
 				case GR:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 						left.bvalue = (left.value > right.value);
 					else
 						left.bvalue = (left.fvalue > right.fvalue);
-					left.type = V_BOOL;
+					left.vartype.type = V_BOOL;
 					break;
 				case GR_EQ:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 						left.bvalue = (left.value >= right.value);
 					else
 						left.bvalue = (left.fvalue >= right.fvalue);
-					left.type = V_BOOL;
+					left.vartype.type = V_BOOL;
 					break;
 				case LE:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 						left.bvalue = (left.value < right.value);
 					else
 						left.bvalue = (left.fvalue < right.fvalue);
-					left.type = V_BOOL;
+					left.vartype.type = V_BOOL;
 					break;
 				case LE_EQ:
-					if(left.type == V_INT)
+					if(left.vartype.type == V_INT)
 						left.bvalue = (left.value <= right.value);
 					else
 						left.bvalue = (left.fvalue <= right.fvalue);
-					left.type = V_BOOL;
+					left.vartype.type = V_BOOL;
 					break;
 				case AND:
 					left.bvalue = (left.bvalue && right.bvalue);
@@ -1068,9 +1047,9 @@ void RunInternal(ReturnValue& retval)
 				case IS:
 					{
 						bool result;
-						if(left.type == V_STRING)
+						if(left.vartype.type == V_STRING)
 							result = (left.str == right.str);
-						else if(left.type == V_REF)
+						else if(left.vartype.type == V_REF)
 						{
 							assert(left.ref_type == right.ref_type);
 							GetRefData refl = GetRef(left);
@@ -1081,7 +1060,7 @@ void RunInternal(ReturnValue& retval)
 							result = (left.clas == right.clas);
 						ReleaseRef(right);
 						ReleaseRef(left);
-						left.type = V_BOOL;
+						left.vartype.type = V_BOOL;
 						left.bvalue = result;
 					}
 					break;
@@ -1089,8 +1068,8 @@ void RunInternal(ReturnValue& retval)
 					{
 						GetRefData ref = GetRef(left);
 						ReleaseRef(left);
-						assert(ref.type == right.type);
-						memcpy(ref.data, &right.value, run_module->GetType(right.type)->size);
+						assert(ref.vartype.type == right.vartype.type);
+						memcpy(ref.data, &right.value, run_module->GetType(right.vartype.type)->size);
 						stack.pop_back();
 						stack.push_back(right);
 					}
@@ -1112,7 +1091,7 @@ void RunInternal(ReturnValue& retval)
 				{
 					assert(stack.size() == 1u);
 					Var& v = stack.back();
-					assert(v.type == run_module->result);
+					assert(v.vartype.type == run_module->result);
 					retval.type = (cas::ReturnValue::Type)run_module->result;
 					retval.int_value = v.value;
 					stack.pop_back();
@@ -1126,8 +1105,8 @@ void RunInternal(ReturnValue& retval)
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
 				Var& func_mark = *(local.end() - to_pop - 1);
-				assert(func_mark.type == V_SPECIAL && (func_mark.special_type == V_FUNCTION || func_mark.special_type == V_CTOR));
-				bool is_ctor = (func_mark.special_type == V_CTOR);
+				assert(func_mark.vartype.type == V_SPECIAL && (func_mark.vartype.subtype == V_FUNCTION || func_mark.vartype.subtype == V_CTOR));
+				bool is_ctor = (func_mark.vartype.subtype == V_CTOR);
 				if(is_ctor)
 					--to_pop;
 				while(to_pop--)
@@ -1139,7 +1118,7 @@ void RunInternal(ReturnValue& retval)
 				Class* thi = nullptr;
 				if(is_ctor)
 				{
-					assert(local.back().type == f.type);
+					assert(local.back().vartype.type == f.type);
 					thi = local.back().clas;
 					local.pop_back();
 				}
@@ -1154,14 +1133,14 @@ void RunInternal(ReturnValue& retval)
 					uint count = 1 + f.locals + f.args.size();
 					assert(local.size() >= count);
 					Var& d = *(local.end() - count);
-					assert(d.type == V_SPECIAL && (d.special_type == V_FUNCTION || d.special_type == V_CTOR));
+					assert(d.vartype.type == V_SPECIAL && (d.vartype.subtype == V_FUNCTION || d.vartype.subtype == V_CTOR));
 					locals_offset = local.size() - f.locals;
 					args_offset = locals_offset - f.args.size();
 				}
 				if(thi)
 					stack.push_back(Var(thi));
 				assert(expected_stack.back() == stack.size());
-				if(f.result.core != V_VOID)
+				if(f.result.type != V_VOID)
 					assert(CompareVar(stack.back(), f.result));
 				expected_stack.pop_back();
 			}
@@ -1182,7 +1161,7 @@ void RunInternal(ReturnValue& retval)
 				assert(!stack.empty());
 				Var v = stack.back();
 				stack.pop_back();
-				assert(v.type == V_BOOL);
+				assert(v.vartype.type == V_BOOL);
 				bool ok = v.bvalue;
 				if(op == FJMP)
 					ok = !ok;
@@ -1204,7 +1183,7 @@ void RunInternal(ReturnValue& retval)
 				UserFunction& f = run_module->ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
-				local.push_back(Var(V_SPECIAL, V_FUNCTION, current_function, pos));
+				local.push_back(Var(VarType(V_SPECIAL, V_FUNCTION), current_function, pos));
 				// handle args
 				assert(stack.size() >= f.args.size());
 				args_offset = local.size();
@@ -1220,7 +1199,7 @@ void RunInternal(ReturnValue& retval)
 				local.resize(local.size() + f.locals);
 				// call
 				uint expected = stack.size();
-				if(f.result.core != V_VOID)
+				if(f.result.type != V_VOID)
 					++expected;
 				expected_stack.push_back(expected);
 				current_function = f_idx;
@@ -1234,7 +1213,7 @@ void RunInternal(ReturnValue& retval)
 				UserFunction& f = run_module->ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
-				local.push_back(Var(V_SPECIAL, V_CTOR, current_function, pos));
+				local.push_back(Var(VarType(V_SPECIAL, V_CTOR), current_function, pos));
 				// push this
 				args_offset = local.size();
 				assert(run_module->GetType(f.type)->IsClass());

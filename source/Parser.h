@@ -5,6 +5,7 @@
 
 struct Block;
 struct CastResult;
+struct OpResult;
 struct ParseFunction;
 struct ParseNode;
 struct ParseVar;
@@ -61,31 +62,31 @@ private:
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
 	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
-	ParseNode* ParseVarDecl(VarType type);
-	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
-	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
-	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
+	ParseNode* ParseVarDecl(VarType vartype);
+	ParseNode* ParseExpr(char end, char end2 = 0, VarType* vartype = nullptr);
+	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype);
+	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype);
 	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);
 	void ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn);
 	void ParseArgs(vector<ParseNode*>& nodes, char open = '(', char close = ')');
-	ParseNode* ParseItem(int* type = nullptr);
+	ParseNode* ParseItem(VarType* vartype = nullptr);
 	ParseNode* ParseConstItem();
 
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);
 	VarType GetVarType(bool in_cpp = false);
-	int GetVarTypeForMember();
+	VarType GetVarTypeForMember();
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
 	BASIC_SYMBOL GetSymbol(bool full_over = false);
-	bool CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& cast, int& result, ParseNode*& over_result, SYMBOL real_symbol);
+	OpResult CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, ParseNode* rnode);
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
-	void Cast(ParseNode*& node, VarType type, CastResult* cast_result = nullptr, bool implici = true);
-	bool TryCast(ParseNode*& node, VarType type, bool implici = true);
-	bool TryConstCast(ParseNode* node, int type);
-	CastResult MayCast(ParseNode* node, VarType type);
+	void Cast(ParseNode*& node, VarType vartype, CastResult* cast_result = nullptr, bool implici = true);
+	bool TryCast(ParseNode*& node, VarType vartype, bool implici = true);
+	bool TryConstCast(ParseNode* node, VarType vartype);
+	CastResult MayCast(ParseNode* node, VarType vartype);
 	void ForceCast(ParseNode*& node, ParseNode* type, cstring op);
 
 	void Optimize();
@@ -100,11 +101,11 @@ private:
 	void ConvertToBytecode();
 	void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos);
 
-	int GetReturnType(ParseNode* node);
+	VarType GetReturnType(ParseNode* node);
 	cstring GetName(ParseVar* var);
-	cstring GetName(VarType type);
+	cstring GetName(VarType vartype);
 	cstring GetTypeName(ParseNode* node);
-	int CommonType(int a, int b);
+	VarType CommonType(VarType a, VarType b);
 	FOUND FindItem(const string& id, Found& found);
 	Function* FindFunction(const string& name);
 	AnyFunction FindFunction(Type* type, const string& name);
