@@ -135,6 +135,7 @@
     <Text Include="..\cases\overload_cast.txt" />
     <Text Include="..\cases\parentheses.txt" />
     <Text Include="..\cases\ref.txt" />
+    <Text Include="..\cases\ref2.txt" />
     <Text Include="..\cases\script_class.txt" />
     <Text Include="..\cases\script_class_func.txt" />
     <Text Include="..\cases\simple.txt" />

@@ -20,12 +20,6 @@ TEST_METHOD(FunctionNoReturnValue)
 	RunFailureTest("int f(){}", "Function 'int f()' not always return value.");
 }
 
-TEST_METHOD(ReturnReferenceToLocal)
-{
-	RunFailureTest("int& f() { int a; return a; }", "Returning reference to temporary variable 'int a'.");
-	RunFailureTest("int& f(int a) { return a; }", "Returning reference to temporary variable 'int a'.");
-}
-
 TEST_METHOD(ItemNameAlreadyUsed)
 {
 	RunFailureTest("int f, f;", "Name 'f' already used as global variable.");
@@ -87,11 +81,6 @@ TEST_METHOD(VoidVariable)
 	RunFailureTest("class A{void a;}", "Member of 'void' type not allowed.");
 }
 
-TEST_METHOD(ReferenceToReferenceType)
-{
-	RunFailureTest("class A{} void f(A& a){}", "Can't create reference to reference type 'A'.");
-}
-
 TEST_METHOD(InvalidDefaultValue)
 {
 	RunFailureTest("void f(int a=\"dodo\"){}", "Invalid default value of type 'string', required 'int'.");
@@ -130,9 +119,9 @@ TEST_METHOD(FunctionRedeclaration)
 	RunFailureTest("class A{ void f(){} void f(){} }", "Method 'void A.f()' already exists.");
 }
 
-TEST_METHOD(ReferenceVariableUnavailable)
+TEST_METHOD(ReferenceVariableUninitialized)
 {
-	RunFailureTest("int& a;", "Can't declare reference variable yet.");
+	RunFailureTest("int& a;", "Uninitialized reference variable.");
 }
 
 TEST_METHOD(InvalidOperationTypes)
@@ -376,6 +365,14 @@ TEST_METHOD(InvalidImplicitMethod)
 TEST_METHOD(CantCast)
 {
 	RunFailureTest("class A{} void f(int x){} A a; f(a as int);", "Can't cast from 'A' to 'int'.");
+}
+
+TEST_METHOD(ReferenceAssignToInvalidType)
+{
+	RunFailureTest("int a; 3 -> a;", "Can't assign reference, left value must be reference variable.");
+	RunFailureTest("int a; int& b -> a; b -> 3;", "Can't assign reference, right value must be variable.");
+	RunFailureTest("int a; float b; float& c -> b; c -> a;", "Can't reference assign 'int' to type 'float&'.");
+	RunFailureTest("int& a -> 3;", "Can't reference assign 'int' to type 'int&'.");
 }
 
 CA_TEST_CLASS_END();

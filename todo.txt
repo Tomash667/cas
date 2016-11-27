@@ -1,29 +1,41 @@
+NEW TODO ORDER:
+1) VALUE TYPE
+var a = b; // copy value of b into a (use cast/ctor/assign)
+
+if(a == b) // compare value (by default)
+
+REFERENCE TYPE
+var a = b; // copy address of b into a, both points to same instance
+
+if(a == b) // compare address (by default)
+
+REF VAR
+struct& a = b; // copy value
+
+class& a = ...;
+a = b; // a points to b
+
+class& a;
+if(a == b) // compare address of a with address of b (not ref address)
+
+struct& a;
+if(a == b) // compare value
+
+is - any purpose for it now ?
+
+2) string is struct + tests
+3) nullable?
+4) script arg/ret ref
+
 + modify string reference (execution error)
 ++-- returns reference
-
-+ reference to string
-+ reference to struct
-+ reference to class?
-
-REF:
-+ ExecuteFunction
-	+ ret by ref, by ptr, by const ref/ptr
-	+ ref arg,ptr,const not allowed
-+ ref to thing that needs subtype
 
 ? verify if ParseExpr type is longer used
 ? parse class func checks FindEqualFunction without type
 
 + ParseFunctionArgs -> ParseConstExpr
-
-CHAIN OF TODO:
-+ reference
-+ subscript require reference
-+ array require subscript
-
 + subscript
 + subscript with multiple items
-+ check all operators
 + overload pre/post ++ --
 + set_tmp reference (string?), check string references
 + string oper
@@ -36,6 +48,7 @@ CHAIN OF TODO:
 - ParseNode::str cleanup
 - class A { void int; } cause Member of 'void' type not allowed.
 - code constructor create copy two instance and then copy value from one to another
+- missing member for type x/func - memory leak of string
 
 NEST A STRING:
 + raise error
@@ -45,9 +58,6 @@ NEST A STRING:
 + array
 
 TODO:
-out
-nullable?
-return
 register class/struct
 verify
 norefcount
@@ -76,19 +86,11 @@ noinstance
 
 + AddFunction/Method optional parameter name
 + register virtual function or else (sizeof(ptr) != sizeof(void*))
-+ string is value type
-+ pass by reference
-+ struct
-+ nullable
-+ string as struct (remove op add)
-
-+ checking ref counter on cleanup (for class/string)
++ checking ref counter on cleanup for string
 + allow vars with same name as function
 + call function before declaration
 + better Type* handling, not passing magic index
 + remove not required interactions between Module/Parser and Decompile/Parser (for example ParserMethod/FindEqualFunction should be inside RegisterMethod)
-+ safer reference returning (incrase ref counter for class if this is member, what with script registered?)
-+ refactor register class/funcs in core lib to new unit tests
 + [VEC3 pos; float rot] GetPos()
 	{
 		return [pos = my_pos, rot = my_rot];
@@ -117,12 +119,10 @@ vector functions:
 
 + class
 	+ dtor
-	+ operators + - etc
 	+ string member
 	+ class member (detect recursion), allow declare member of same type as class (but prevent it until nullable type, just don't show error of unknown item)
 	+ properties
 	+ default value for class argument in function
-	+ unit test register c++ struct (require modules)
 	+ copy ctor (default)
 	+ inhertiance
 	+ interfaces
@@ -132,15 +132,12 @@ vector functions:
 + default string for code function
 + allow reuse variable name
 + object/string deconstruction
-+ cast operator (type)x or x as type ?, remove implicit cast on some types
 + warn about implict cast (setting)
-+ custom cast operators
-+ no memleaks, reuse ParseNode (currently there will be old childs)
++ no memleaks
 + warn about div by 0 in const
 + opt: print(4) -> converted to string
 + warn: use of unassigned variable
-+ string functions, substr, first(), last(), trim
-+ classes
++ string functions, substr, first(), last(), trim, clear
 + function constexpr (abs,cin,cos)
 + namespace
 + in - if(x in {3,5})
@@ -154,7 +151,6 @@ vector functions:
 + $opCmp (-1 smaller, 0 equal, 1 greater) - can be used instead of overriding == != > >= < <=
 + use == / != and negate if other is defined
 + optimize multiple conditions (- -a), if(!(a != b))
-+ http://www.tutorialspoint.com/cplusplus/cpp_while_loop.htm
 + allow to turn off optimize const expr
 + superbreak
 + detect unreachable code
@@ -171,7 +167,6 @@ vector functions:
 + multiple files/modules (sharing classes, globals - current globals-> 0 level locals)
 + types
 	+ dictionary/map
-	+ list
 + parse optimizations:
 	+ store functions in map[string] -> vector<Func>
 + delegate/callback
@@ -184,7 +179,6 @@ vector functions:
 	+ TryConstExpr for IS
 	+ exclude functions without side effects or empty and don't call them
 + && || short circuiting
-+ char type
 + remove duplicates in string table
 + shorter class initialization: A b(3,4) ?
 + await/async for spawning units
@@ -194,11 +188,8 @@ vector functions:
 + stdlib
 	+ math: random, rand, floor, ceil, round, abs, sin, cos
 + include code in decompile
-+ ref variable
 + ref arg default value
-+ take reference operator
 + multiline string
-+ line numbers in debug (for assert)
 
 calling conventions
 http://www.angelcode.com/dev/callconv/callconv.html
@@ -221,8 +212,7 @@ else return in reg
 	type->AddMember();
 + decompile redirect
 + allow same name class X { ErrorCode ErrorCode; } ?
-+ deassembly labels
-+ exceptions
++ exceptions, try catch
 + complex subscript: map[1,2]
 + checking for return value in {for/do/while} currently this will return error
 	int f()
@@ -232,13 +222,12 @@ else return in reg
 	}
 + CommonType user cast
 + other cast operator (float)x
-+ MayCast (implicit) ctor/cast - allow difference between references ?
-	class X { X(int a){} }
-	X x = 4; // ok
-	int& a = ...;
-	X x = a; // not ok
 + better error message [dupa();] currently "unknown item dupa", new "no function 'dupa()' found"
 + "string" are const
 + debug
 	+ file/line/function on assert/crash
 	+ allow multiple errors, continue parsing after error
+	+ line numbers in debug (for assert)
+	+ deassembly labels
++ delete default operators
++ ref to thing that needs subtype

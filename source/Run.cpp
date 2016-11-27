@@ -452,7 +452,7 @@ void RunInternal(ReturnValue& retval)
 				assert(run_module->ufuncs[current_function].locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
-				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING && !run_module->GetType(v.vartype.type)->IsClass());
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING);
 				RefVar* ref = new RefVar(RefVar::LOCAL, index, local_index, depth);
 				ref->refs++;
 				refs.push_back(ref);
@@ -473,7 +473,7 @@ void RunInternal(ReturnValue& retval)
 				uint global_index = *c++;
 				assert(global_index < global.size());
 				Var& v = global[global_index];
-				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING && !run_module->GetType(v.vartype.type)->IsClass());
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING);
 				stack.push_back(Var(new RefVar(RefVar::GLOBAL, global_index), v.vartype.type));
 			}
 			break;
@@ -494,7 +494,7 @@ void RunInternal(ReturnValue& retval)
 				assert(run_module->ufuncs[current_function].args.size() > arg_index);
 				uint index = args_offset + arg_index;
 				Var& v = local[index];
-				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING && !run_module->GetType(v.vartype.type)->IsClass());
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING);
 				RefVar* ref = new RefVar(RefVar::LOCAL, index, ((int)arg_index) - 1, depth);
 				ref->refs++;
 				refs.push_back(ref);
@@ -872,10 +872,7 @@ void RunInternal(ReturnValue& retval)
 				else if(op == IS)
 					assert(left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass() || left.vartype.type == V_REF);
 				else if(op == SET_ADR)
-				{
 					assert(left.vartype.type == V_REF);
-					assert(!run_module->GetType(right.vartype.type)->IsRef());
-				}
 				else
 					assert(left.vartype.type == V_INT || left.vartype.type == V_FLOAT);
 
@@ -1044,7 +1041,7 @@ void RunInternal(ReturnValue& retval)
 							result = (left.clas == right.clas);
 						ReleaseRef(right);
 						ReleaseRef(left);
-						left.vartype.type = V_BOOL;
+						left.vartype = VarType(V_BOOL, 0);
 						left.bvalue = result;
 					}
 					break;
@@ -1053,7 +1050,15 @@ void RunInternal(ReturnValue& retval)
 						GetRefData ref = GetRef(left);
 						ReleaseRef(left);
 						assert(ref.vartype.type == right.vartype.type);
-						memcpy(ref.data, &right.value, run_module->GetType(right.vartype.type)->size);
+						Type* type = run_module->GetType(right.vartype.type);
+						if(!type->IsClass())
+							memcpy(ref.data, &right.value, type->size);
+						else
+						{
+							Class* cleft = (Class*)*ref.data;
+							Class* cright = right.clas;
+							memcpy(cleft->data(), cright->data(), type->size);
+						}
 						stack.pop_back();
 						stack.push_back(right);
 					}

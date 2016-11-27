@@ -452,18 +452,106 @@ void ret_ref_to_index_test()
 }
 ret_ref_to_index_test();
 
+//==============================================================================
+// ref to struct, return ref to member
+struct S
+{
+	int a;
+}
+int& ref_to_struct_ref_member(S& s)
+{
+	return s.a;
+	// push_arg 0
+	// deref
+	// push_member_ref 0
+	// ret
+}
+void ref_to_struct_ref_member_test()
+{
+	S s;
+	s.a = 3;
+	int& r = ref_to_struct_ref_member(s);
+	Assert_AreEqual(3, r);
+	++r;
+	Assert_AreEqual(4, s.a);
+}
+ref_to_struct_ref_member_test();
 
+//==============================================================================
+// struct, return ref to member
+int& ref_to_struct_member(S s)
+{
+	return s.a;
+}
+void ref_to_struct_member_test()
+{
+	S s;
+	s.a = 3;
+	int& r = ref_to_struct_member(s);
+	Assert_AreEqual(3, r);
+	r = 5;
+	Assert_AreEqual(3, s.a);
+}
+ref_to_struct_member_test();
+
+//==============================================================================
+// ref to struct modify
+void ref_to_struct_modify_member(S& s)
+{
+	s.a = 1;
+}
+void ref_to_struct_modify_ref(S& s)
+{
+	S s2;
+	s2.a = 2;
+	s = s2;
+}
+void ref_to_struct_modify_test()
+{
+	S s;
+	s.a = 0;
+	ref_to_struct_modify_member(s);
+	Assert_AreEqual(1, s.a);
+	ref_to_struct_modify_ref(s);
+	Assert_AreEqual(2, s.a);
+}
+ref_to_struct_modify_test();
+
+//==============================================================================
+// ref to class overwrite
+class C
+{
+	int x,y;
+	C(int _x, int _y)
+	{
+		x = _x;
+		y = _y;
+	}
+}
+void ref_to_class_overwrite(C& c)
+{
+	C c2 = C(3,14);
+	c = c2;
+}
+void ref_to_class_overwrite_test()
+{
+	C c = C(1,11);
+	ref_to_class_overwrite(c);
+	Assert_AreEqual(3, c.x);
+	Assert_AreEqual(14, c.y);
+}
+ref_to_class_overwrite_test();
 
 /*
-
 
 *** script arg ref
 *** script return ref
 
-
-struct
+string
 array
 
 modify string array
 
 */
+
+pause();
