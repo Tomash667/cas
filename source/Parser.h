@@ -14,6 +14,7 @@ struct ReturnStructVar;
 union Found;
 enum BASIC_SYMBOL;
 enum FOUND;
+enum Op;
 enum RETURN_INFO;
 enum SYMBOL;
 
@@ -87,7 +88,9 @@ private:
 	bool TryCast(ParseNode*& node, VarType vartype, bool implici = true);
 	bool TryConstCast(ParseNode* node, VarType vartype);
 	CastResult MayCast(ParseNode* node, VarType vartype);
-	void ForceCast(ParseNode*& node, ParseNode* type, cstring op);
+	void ForceCast(ParseNode*& node, VarType vartype, cstring op);
+	bool CanTakeRef(ParseNode* node, bool allow_ref = true);
+	Op PushToSet(Op op);
 
 	void Optimize();
 	ParseNode* OptimizeTree(ParseNode* node);

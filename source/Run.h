@@ -4,14 +4,6 @@
 #define CHECK_LEAKS
 #endif
 
-enum REF_TYPE
-{
-	REF_GLOBAL,
-	REF_LOCAL,
-	REF_MEMBER,
-	//REF_CODE
-};
-
 enum SPECIAL_VAR
 {
 	V_FUNCTION,
@@ -20,7 +12,9 @@ enum SPECIAL_VAR
 
 #ifdef CHECK_LEAKS
 struct Class;
+struct RefVar;
 static vector<Class*> all_clases;
+static vector<RefVar*> all_refs;
 static const int START_REF_COUNT = 2;
 #else
 static const int START_REF_COUNT = 1;
@@ -88,6 +82,55 @@ struct Class
 	}
 };
 
+struct RefVar
+{
+	enum Type
+	{
+		LOCAL,
+		GLOBAL,
+		MEMBER,
+		INDEX
+	};
+
+	Type type;
+	int refs, var_index, value;
+	uint index, depth;
+	union
+	{
+		Class* clas;
+		Str* str;
+	};
+	bool is_valid;
+
+	// hopefuly noone will use function with 999 args
+	inline RefVar(Type type, uint index, int var_index = -999, uint depth = 0) : type(type), refs(START_REF_COUNT), index(index), var_index(var_index),
+		depth(depth), is_valid(true)
+	{
+#ifdef CHECK_LEAKS
+		all_refs.push_back(this);
+#endif
+	}
+
+	inline ~RefVar()
+	{
+		if(type == MEMBER)
+			clas->Release();
+		else if(type == INDEX)
+			str->Release();
+	}
+
+	inline void Release()
+	{
+		if(--refs == 0)
+		{
+#ifdef CHECK_LEAKS
+			assert(0); // there should be at last 1 reference
+#endif
+			delete this;
+		}
+	}
+};
+
 struct Var
 {
 	VarType vartype;
@@ -98,24 +141,7 @@ struct Var
 		int value;
 		float fvalue;
 		Str* str;
-		struct
-		{
-			REF_TYPE ref_type;
-			union
-			{
-				struct
-				{
-					Class* ref_class;
-					uint ref_index;
-				};
-				struct
-				{
-					int* ref_adr;
-					int ref_var_type;
-				};
-			};
-
-		};
+		RefVar* ref;
 		Class* clas;
 		struct
 		{
@@ -130,7 +156,7 @@ struct Var
 	inline explicit Var(int value) : vartype(V_INT), value(value) {}
 	inline explicit Var(float fvalue) : vartype(V_FLOAT), fvalue(fvalue) {}
 	inline explicit Var(Str* str) : vartype(V_STRING), str(str) {}
-	inline Var(REF_TYPE ref_type, uint ref_index, Class* ref_class) : vartype(V_REF), ref_type(ref_type), ref_index(ref_index), ref_class(ref_class) {}
+	inline Var(RefVar* ref, int subtype) : vartype(VarType(V_REF, subtype)), ref(ref) {}
 	inline explicit Var(Class* clas) : vartype(clas->type->index, 0), clas(clas) {}
 	inline Var(VarType vartype, int value1, int value2) : vartype(vartype), value1(value1), value2(value2) {}
 };

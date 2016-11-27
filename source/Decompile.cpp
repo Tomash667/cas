@@ -46,7 +46,6 @@ OpInfo ops[] = {
 	SET_MEMBER, "set_member", V_INT,
 	SET_THIS_MEMBER, "set_this_member", V_INT,
 	SET_TMP, "set_tmp", V_VOID,
-	SET_INDEX, "set_index", V_VOID,
 	SWAP, "swap", V_INT,
 	CAST, "cast", V_TYPE,
 	NEG, "neg", V_VOID,
@@ -84,7 +83,8 @@ OpInfo ops[] = {
 	RET, "ret", V_VOID,
 	CTOR, "ctor", V_TYPE,
 	COPY, "copy", V_VOID,
-	COPY_ARG, "copy_arg", V_INT
+	COPY_ARG, "copy_arg", V_INT,
+	RELEASE_REF, "release_ref", V_INT
 };
 static_assert(sizeof(ops) / sizeof(OpInfo) == MAX_OP, "Missing decompile op codes.");
 

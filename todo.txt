@@ -1,8 +1,9 @@
++ modify string reference (execution error)
 ++-- returns reference
 
-Parser:
-+ disallow return by ref for now
-+ ref arg,ptr,const not allowed
++ reference to string
++ reference to struct
++ reference to class?
 
 REF:
 + ExecuteFunction
@@ -44,7 +45,6 @@ NEST A STRING:
 + array
 
 TODO:
-ref, remove old REF_MAY/YES
 out
 nullable?
 return
@@ -143,7 +143,6 @@ vector functions:
 + classes
 + function constexpr (abs,cin,cos)
 + namespace
-+ continue parsing after error
 + in - if(x in {3,5})
 + switch ext
 	+ multivar, range (case 0..30,42:)
@@ -233,3 +232,13 @@ else return in reg
 	}
 + CommonType user cast
 + other cast operator (float)x
++ MayCast (implicit) ctor/cast - allow difference between references ?
+	class X { X(int a){} }
+	X x = 4; // ok
+	int& a = ...;
+	X x = a; // not ok
++ better error message [dupa();] currently "unknown item dupa", new "no function 'dupa()' found"
++ "string" are const
++ debug
+	+ file/line/function on assert/crash
+	+ allow multiple errors, continue parsing after error

@@ -27,7 +27,7 @@ struct AnyFunction
 struct Str : ObjectPoolProxy<Str>
 {
 	string s;
-	int refs;
+	int refs, seed;
 
 	inline void Release()
 	{
@@ -69,6 +69,14 @@ struct VarType
 	inline bool operator != (const VarType& vartype) const
 	{
 		return type != vartype.type || subtype != vartype.subtype;
+	}
+
+	inline int GetType() const
+	{
+		if(type == V_REF)
+			return subtype;
+		else
+			return type;
 	}
 };
 

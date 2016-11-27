@@ -28,7 +28,6 @@ enum Op
 	SET_MEMBER, // [member_index] ..., class, value -> ..., value (class.member = value)
 	SET_THIS_MEMBER,
 	SET_TMP, // [] ..., x -> ..., x (tmp = x)
-	SET_INDEX, // [index] ..., arr, index, x -> ..., x (arr[index] = x)
 	SWAP, // [index] x(n...0) -> x(n...0, x[index] swaped with x[index+1])
 	CAST,
 	NEG, // [] ..., x -> ..., -x (x=int/float)
@@ -67,5 +66,6 @@ enum Op
 	CTOR,
 	COPY, // [] ..., x -> ..., x (x - single instance of struct)
 	COPY_ARG, // [arg_index] - create single instance of struct in arg
+	RELEASE_REF, // [index] - release reference to local/arg variable
 	MAX_OP
 };

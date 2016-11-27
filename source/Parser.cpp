@@ -51,6 +51,7 @@ SymbolInfo symbols[] = {
 	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT, "$opIndex", "[]",
 	S_CALL, "function call", 2, true, 1, NOP, ST_CALL, "$opCall", "()",
 	S_TERNARY, "ternary", 15, false, 2, NOP, ST_NONE, nullptr, "?:",
+	S_SET_REF, "assign reference", 15, false, 2, NOP, ST_NONE, nullptr, "->",
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE, nullptr, ""
 };
 static_assert(sizeof(symbols) / sizeof(SymbolInfo) == S_MAX, "Missing symbols.");
@@ -94,7 +95,8 @@ BasicSymbolInfo basic_symbols[] = {
 	BS_AS, "as", S_INVALID, S_INVALID, S_AS, nullptr,
 	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID, "[]",
 	BS_CALL, "(", S_INVALID, S_CALL, S_INVALID, "()",
-	BS_TERNARY, "?", S_INVALID, S_INVALID, S_INVALID, nullptr
+	BS_TERNARY, "?", S_INVALID, S_INVALID, S_INVALID, nullptr,
+	BS_SET_REF, "->", S_INVALID, S_INVALID, S_SET_REF, nullptr
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
@@ -310,6 +312,23 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 			group->push(node);
 	}
 	t.Next();
+
+	if(!f)
+	{
+		// cleanup block if it's not function main block
+		for(ParseVar* var : current_block->vars)
+		{
+			if(var->referenced)
+			{
+				ParseNode* rel = ParseNode::Get();
+				rel->op = RELEASE_REF;
+				rel->value = (var->subtype == ParseVar::LOCAL ? var->index : -var->index - 1);
+				rel->result = V_VOID;
+				rel->source = nullptr;
+				group->push(rel);
+			}
+		}
+	}
 
 	current_block = old_block;
 
@@ -1013,6 +1032,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				arg->subtype = ParseVar::ARG;
 				arg->index = current_function->args.size();
 				arg->mod = false;
+				arg->referenced = false;
 				current_function->args.push_back(arg);
 			}
 			t.Next();
@@ -1067,8 +1087,6 @@ ParseNode* Parser::ParseVarTypeDecl()
 	VarType vartype = GetVarType(false);
 	if(vartype.type == V_VOID)
 		t.Throw("Can't declare void variable.");
-	else if(vartype.type == V_REF)
-		t.Throw("Can't declare reference variable yet.");
 
 	// var_decl(s)
 	vector<ParseNode*> nodes;
@@ -1121,13 +1139,22 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	var->index = current_block->var_offset;
 	var->subtype = (current_function == nullptr ? ParseVar::GLOBAL : ParseVar::LOCAL);
 	var->mod = false;
+	var->referenced = false;
 	current_block->vars.push_back(var);
 	current_block->var_offset++;
 	t.Next();
 
+	int type; // 0-none, 1-assign, 2-ref assign
+	if(t.IsSymbol('='))
+		type = 1;
+	else if(t.IsSymbol('-') && t.PeekSymbol('>'))
+		type = 2;
+	else
+		type = 0;
+
 	// [=]
 	NodeRef expr(nullptr);
-	if(!t.IsSymbol('='))
+	if(type == 0)
 	{
 		expr = ParseNode::Get();
 		expr->source = nullptr;
@@ -1162,10 +1189,13 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 				Str* str = Str::Get();
 				str->s = "";
 				str->refs = 1;
+				str->seed = 0;
 				strs.push_back(str);
 			}
 			expr->value = empty_string;
 			break;
+		case V_REF:
+			t.Throw("Uninitialized reference variable.");
 		default: // class
 			{
 				Type* rtype = GetType(vartype.type);
@@ -1188,6 +1218,8 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	}
 	else
 	{
+		if(type == 2 && vartype.type != V_REF)
+			t.Unexpected();
 		t.Next();
 
 		// expr<,;>
@@ -1464,7 +1496,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				t.Throw("Type '%s' don't have subscript operator.", GetTypeName(node));
 			ParseNode* op = ParseNode::Get();
 			op->op = PUSH_INDEX;
-			op->result = V_CHAR;
+			op->result = VarType(V_REF, V_CHAR);
 			op->source = nullptr;
 			op->push(node.Pin());
 			op->push(sn.node->childs[0]);
@@ -1507,15 +1539,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			else
 			{
 				assert(op_result.result == OpResult::FALLBACK);
-				bool ok = false;
-				if(node->result.type == V_CHAR || node->result.type == V_INT || node->result.type == V_FLOAT)
-					ok = true;
-				else if(node->result.type == V_REF)
-				{
-					if(node->result.subtype == V_CHAR || node->result.subtype == V_INT || node->result.subtype == V_FLOAT)
-						ok = true;
-				}
-				if(!ok)
+				int type = node->result.GetType();
+				if(type != V_CHAR && type != V_INT && type != V_FLOAT)
 					t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
 
 				bool pre = (si.symbol == S_PRE_INC || si.symbol == S_PRE_DEC);
@@ -1524,37 +1549,16 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 
 				NodeRef op;
 				op->pseudo_op = INTERNAL_GROUP;
-				op->result = node->result;
+				op->result = VarType(node->result.subtype, 0);
 				op->source = nullptr;
 				if(node->source)
 					node->source->mod = true;
 
 				if(node->result.type != V_REF)
 				{
-					Op set_op;
-					switch(node->op)
-					{
-					case PUSH_LOCAL:
-						set_op = SET_LOCAL;
-						break;
-					case PUSH_GLOBAL:
-						set_op = SET_GLOBAL;
-						break;
-					case PUSH_ARG:
-						set_op = SET_ARG;
-						break;
-					case PUSH_MEMBER:
-						set_op = SET_MEMBER;
-						break;
-					case PUSH_THIS_MEMBER:
-						set_op = SET_THIS_MEMBER;
-						break;
-					case PUSH_INDEX:
-						set_op = SET_INDEX;
-						break;
-					default:
+					Op set_op = PushToSet(node->op);
+					if(set_op == NOP)
 						t.Throw("Operation '%s' require variable.", si.name);
-					}
 
 					ParseNode* pnode = node.Pin();
 
@@ -1575,28 +1579,6 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 							op->push(SET_TMP);
 							op->push(oper);
 							op->push(SET_MEMBER, pnode->value);
-							op->push(POP);
-							op->push(PUSH_TMP);
-						}
-					}
-					else if(set_op == SET_INDEX)
-					{
-						// inc dec subscript
-						assert(pnode->childs.size() == 2u); // push ar, push index
-						op->push(pnode->childs[0]);
-						op->push(PUSH);
-						op->push(pnode->childs[1]);
-						pnode->childs.clear();
-						pnode->Free();
-						op->push(PUSH);
-						op->push(SWAP, 1);
-						op->push(PUSH_INDEX);
-						if(!pre)
-							op->push(SET_TMP);
-						op->push(oper);
-						op->push(SET_INDEX);
-						if(!pre)
-						{
 							op->push(POP);
 							op->push(PUSH_TMP);
 						}
@@ -1624,17 +1606,17 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 						op->push(pnode);
 						op->push(PUSH);
 						op->push(DEREF);
-						op->push(INC);
+						op->push(oper);
 						op->push(SET_ADR);
 					}
 					else
 					{
 						op->push(pnode);
-						op->push(DEREF);
-						op->push(pnode->copy());
 						op->push(PUSH);
 						op->push(DEREF);
-						op->push(INC);
+						op->push(PUSH);
+						op->push(SWAP, 1);
+						op->push(oper);
 						op->push(SET_ADR);
 						op->push(POP);
 					}
@@ -1710,11 +1692,36 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			ter->source = nullptr;
 			stack.push_back(ter.Pin());
 		}
+		else if(si.symbol == S_SET_REF)
+		{
+			// assign reference
+			if(!CanTakeRef(left, false) || left->result.type != V_REF)
+				t.Throw("Can't assign reference, left value must be reference variable.");
+			if(!CanTakeRef(right))
+				t.Throw("Can't assign reference, right value must be variable.");
+			NodeRef set;
+			set->source = nullptr;
+			set->op = PushToSet(left->op);
+			assert(set->op != NOP);
+			set->value = left->value;
+			set->result = left->result;
+
+			// assign
+			if(!TryCast(right.Get(), left->result))
+				t.Throw("Can't reference assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
+			if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
+			{
+				set->push(left->childs);
+				left->childs.clear();
+			}
+			set->push(right.Pin());
+			left.Pin()->Free();
+			stack.push_back(set.Pin());
+		}
 		else if(si.type == ST_ASSIGN)
 		{
 			// assign to variable
-			if(left->op != PUSH_LOCAL && left->op != PUSH_GLOBAL && left->op != PUSH_ARG && left->op != PUSH_MEMBER && left->op != PUSH_THIS_MEMBER
-				&& left->op != PUSH_INDEX && left->result.type != V_REF)
+			if(!CanTakeRef(left))
 				t.Throw("Can't assign, left value must be variable.");
 			if(left->source)
 				left->source->mod = true;
@@ -1723,30 +1730,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			set->source = nullptr;
 			if(left->result.type != V_REF)
 			{
-				switch(left->op)
-				{
-				case PUSH_LOCAL:
-					set->op = SET_LOCAL;
-					break;
-				case PUSH_GLOBAL:
-					set->op = SET_GLOBAL;
-					break;
-				case PUSH_ARG:
-					set->op = SET_ARG;
-					break;
-				case PUSH_MEMBER:
-					set->op = SET_MEMBER;
-					break;
-				case PUSH_THIS_MEMBER:
-					set->op = SET_THIS_MEMBER;
-					break;
-				case PUSH_INDEX:
-					set->op = SET_INDEX;
-					break;
-				default:
-					assert(0);
-					break;
-				}
+				set->op = PushToSet(left->op);
+				assert(set->op != NOP);
 				set->value = left->value;
 				set->result = left->result;
 
@@ -1792,7 +1777,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 							Cast(right.Get(), op_result.cast_var);
 							set->push(left.Pin());
 							set->push(right.Pin());
-							ForceCast(op.Get(), set, si.name);
+							ForceCast(op.Get(), set->result, si.name);
 							set->push(op.Pin());
 						}
 						else if(left->op == PUSH_INDEX)
@@ -1807,7 +1792,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 							Cast(right.Get(), op_result.cast_var);
 							op->push(left.Pin());
 							op->push(right.Pin());
-							ForceCast(op.Get(), set, si.name);
+							ForceCast(op.Get(), set->result, si.name);
 							set->push(op.Pin());
 						}
 						else
@@ -1818,7 +1803,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 							op->push(left.Pin());
 							op->push(right.Pin());
 
-							ForceCast(op.Get(), set, si.name);
+							ForceCast(op.Get(), set->result, si.name);
 							set->push(op.Pin());
 						}
 					}
@@ -1826,12 +1811,12 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			}
 			else
 			{
-				set->result = left->result;
+				set->result = VarType(left->result.subtype, 0);
 
 				if(si.op == NOP)
 				{
 					// assign
-					if(!TryCast(right.Get(), left->result))
+					if(!TryCast(right.Get(), VarType(left->result.subtype, 0)))
 						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(left));
 					set->op = SET_ADR;
 					set->push(left.Pin());
@@ -1857,7 +1842,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 					op->push(left.Pin());
 					op->push(right.Pin());
 
-					ForceCast(op.Get(), set, si.name);
+					ForceCast(op.Get(), set->result, si.name);
 					set->push(real_left.Pin());
 					set->push(op.Pin());
 					set->op = SET_ADR;
@@ -2084,6 +2069,7 @@ ParseNode* Parser::ParseConstItem()
 		Str* str = Str::Get();
 		str->s = t.GetString();
 		str->refs = 1;
+		str->seed = 0;
 		strs.push_back(str);
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_STRING;
@@ -2250,6 +2236,8 @@ BASIC_SYMBOL Parser::GetSymbol(bool full_over)
 			return BS_ASSIGN_SUB;
 		else if(t.PeekSymbol('-'))
 			return BS_DEC;
+		else if(t.PeekSymbol('>'))
+			return BS_SET_REF;
 		else
 			return BS_MINUS;
 	case '*':
@@ -2347,8 +2335,8 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 	VarType leftvar = lnode->result;
 	VarType rightvar = (rnode ? rnode->result : V_VOID);
 	int& cast = op_result.cast_var.type;
-	int left = leftvar.type;
-	int right = rightvar.type;
+	int left = leftvar.GetType();
+	int right = rightvar.GetType();
 
 	// left is void, right is void for two arg op, left is type
 	if(left == V_VOID || left == V_TYPE || (right == V_VOID && symbols[symbol].args != 1))
@@ -2832,6 +2820,8 @@ void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, b
 		// take address
 		assert(node->op == PUSH_LOCAL || node->op == PUSH_GLOBAL || node->op == PUSH_ARG || node->op == PUSH_MEMBER || node->op == PUSH_THIS_MEMBER);
 		node->op = Op(node->op + 1);
+		if(node->op == PUSH_LOCAL_REF || node->op == PUSH_ARG_REF)
+			GetVar(node)->referenced = true;
 	}
 
 	// cast?
@@ -2963,8 +2953,8 @@ bool Parser::TryConstCast(ParseNode* node, VarType vartype)
 CastResult Parser::MayCast(ParseNode* node, VarType vartype)
 {
 	CastResult result;
-
-	if(node->result.type == vartype.type)
+	
+	if(node->result.GetType() == vartype.GetType())
 		result.type = CastResult::NOT_REQUIRED;
 	else
 	{
@@ -3000,38 +2990,62 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype)
 			result.type |= CastResult::IMPLICIT_CTOR;
 	}
 
-	/*if(type.special == SV_NORMAL)
+	if(vartype.type != V_REF)
 	{
 		// require value type
-		if(node->ref == REF_YES)
+		if(node->result.type == V_REF)
 			result.ref_type = CastResult::DEREF; // dereference
 	}
 	else
 	{
 		// require reference to value type, cast not allowed
-		if(node->ref == REF_YES)
-		{
-			if(result.type != CastResult::NOT_REQUIRED)
-				result.type = CastResult::CANT; // can't pass reference to casted type
-		}
-		else if(node->ref == REF_MAY)
+		if(!CanTakeRef(node))
+			result.type = CastResult::CANT; // can't take address
+		else 
 		{
 			if(result.type != CastResult::NOT_REQUIRED)
 				result.type = CastResult::CANT; // can't take address, type mismatch
-			else
+			else if(node->result.type != V_REF)
 				result.ref_type = CastResult::TAKE_REF; // take address
-		}
-		else
-			result.type = CastResult::CANT; // can't take address
-	}*/
+		}			
+	}
 
 	return result;
 }
 
-void Parser::ForceCast(ParseNode*& node, ParseNode* type, cstring op)
+void Parser::ForceCast(ParseNode*& node, VarType vartype, cstring op)
 {
-	if(!TryCast(node, type->result))
-		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetTypeName(type), op);
+	if(!TryCast(node, vartype))
+		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetName(vartype), op);
+}
+
+Op Parser::PushToSet(Op op)
+{
+	switch(op)
+	{
+	case PUSH_LOCAL:
+		return SET_LOCAL;
+	case PUSH_GLOBAL:
+		return SET_GLOBAL;
+	case PUSH_ARG:
+		return SET_ARG;
+	case PUSH_MEMBER:
+		return SET_MEMBER;
+	case PUSH_THIS_MEMBER:
+		return SET_THIS_MEMBER;
+	default:
+		return (Op)NOP;
+	}
+}
+
+bool Parser::CanTakeRef(ParseNode* node, bool allow_ref)
+{
+	return node->op == PUSH_GLOBAL
+		|| node->op == PUSH_LOCAL
+		|| node->op == PUSH_ARG
+		|| node->op == PUSH_MEMBER
+		|| node->op == PUSH_THIS_MEMBER
+		|| (allow_ref && node->result.type == V_REF);
 }
 
 void Parser::Optimize()
@@ -3744,6 +3758,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case CTOR:
 	case COPY_ARG:
 	case SWAP:
+	case RELEASE_REF:
 		code.push_back(node->op);
 		code.push_back(node->value);
 		break;
@@ -3787,7 +3802,6 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case IS:
 	case COPY:
 	case PUSH_INDEX:
-	case SET_INDEX:
 		code.push_back(node->op);
 		break;
 	case PUSH_BOOL:

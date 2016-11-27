@@ -122,6 +122,7 @@ enum SYMBOL
 	S_SUBSCRIPT,
 	S_CALL,
 	S_TERNARY,
+	S_SET_REF,
 	S_INVALID,
 	S_MAX
 };
@@ -186,6 +187,7 @@ enum BASIC_SYMBOL
 	BS_SUBSCRIPT, // [
 	BS_CALL, // (
 	BS_TERNARY, // ?
+	BS_SET_REF, // ->
 	BS_MAX
 };
 
@@ -202,6 +204,8 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 	string name;
 	VarType vartype;
 	Type subtype;
+	int local_index;
+	bool referenced;
 };
 
 struct ReturnStructVar : VarSource

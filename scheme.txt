@@ -67,6 +67,7 @@ simple_var_type:
 
 var_decl:
 	<var_name> [ = expr ]
+	<var_name> [ -> expr ]
 
 expr<END>:
 	expr_part [op expr_part ...] <END>
