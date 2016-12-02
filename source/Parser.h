@@ -11,12 +11,14 @@ struct ParseNode;
 struct ParseVar;
 struct SymbolNode;
 struct ReturnStructVar;
+struct SymbolInfo;
 union Found;
 enum BASIC_SYMBOL;
 enum FOUND;
 enum Op;
 enum RETURN_INFO;
 enum SYMBOL;
+typedef ObjectPoolRef<ParseNode> NodeRef;
 
 struct ParseSettings
 {
@@ -56,6 +58,8 @@ private:
 	ParseNode* ParseLineOrBlock();
 	ParseNode* ParseBlock(ParseFunction* f = nullptr);
 	ParseNode* ParseLine();
+	ParseNode* ParseReturn();
+	void ParseClass(bool is_struct);
 	ParseNode* ParseSwitch();
 	ParseNode* ParseCase(ParseNode* swi);
 	void ParseMemberDeclClass(Type* type, uint& pad);
@@ -64,13 +68,14 @@ private:
 	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
 	ParseNode* ParseVarDecl(VarType vartype);
-	ParseNode* ParseExpr(char end, char end2 = 0, VarType* vartype = nullptr);
-	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype);
-	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype);
+	ParseNode* ParseExpr(char end, char end2 = 0, VarType* vartype = nullptr, ParseFunction* func = nullptr);
+	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
+	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
 	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);
 	void ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn);
+	ParseNode* ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right);
 	void ParseArgs(vector<ParseNode*>& nodes, char open = '(', char close = ')');
-	ParseNode* ParseItem(VarType* vartype = nullptr);
+	ParseNode* ParseItem(VarType* vartype = nullptr, ParseFunction* func = nullptr);
 	ParseNode* ParseConstItem();
 
 	void CheckFindItem(const string& id, bool is_func);
@@ -118,7 +123,7 @@ private:
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
 	AnyFunction FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
 	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse);
-	void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
+	AnyFunction ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
 	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type

@@ -1,0 +1,56 @@
+struct DefaultStruct
+{
+	int x, y;
+}
+
+struct OverStruct
+{
+	int x, y;
+	
+	OverStruct(int _x, int _y)
+	{
+		x = _x;
+		y = _y;
+	}
+	
+	int operator = (OverStruct s)
+	{
+		x = s.y;
+		y = s.x;
+		return 4;
+	}
+}
+
+//==============================================================================
+// ASSIGN OPERATOR
+// default for struct (operator = returns left)
+void assign_struct_def()
+{
+	DefaultStruct a, b, c;
+	a.x = 1;
+	a.y = 2;
+	b.x = 3;
+	b.y = 4;
+	Assert_AreEqual(1, a.x);
+	Assert_AreEqual(2, a.y);
+	c = a = b;
+	Assert_AreEqual(3, a.x);
+	Assert_AreEqual(4, a.y);
+	Assert_AreEqual(3, c.x);
+	Assert_AreEqual(4, c.y);
+}
+assign_struct_def();
+
+// overloaded for struct (operator can return anything)
+void assign_struct_over()
+{
+}
+assign_struct_over();
+
+// default for class
+
+// overload for class - can't
+
+// reference for struct
+
+// reference for class

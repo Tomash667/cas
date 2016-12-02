@@ -24,7 +24,7 @@ block:
 	
 line:
 	class/struct <class_name> { [class_item ...] }
-	func_def // can only be used in top block
+	func_def [ ( expr ... ] // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
 	do line_or_block while cond ;
 	while cond line_or_block
@@ -160,3 +160,4 @@ override_op:
 const:
 	true
 	false
+	this

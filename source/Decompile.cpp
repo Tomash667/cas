@@ -39,6 +39,7 @@ OpInfo ops[] = {
 	PUSH_THIS_MEMBER_REF, "push_this_member_ref", V_INT,
 	PUSH_TMP, "push_tmp", V_VOID,
 	PUSH_INDEX, "push_index", V_VOID,
+	PUSH_THIS, "push_this", V_VOID,
 	POP, "pop", V_VOID,
 	SET_LOCAL, "set_local", V_INT,
 	SET_GLOBAL, "set_global", V_INT,

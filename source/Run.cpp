@@ -629,6 +629,18 @@ void RunInternal(ReturnValue& retval)
 				v.ref = ref;
 			}
 			break;
+		case PUSH_THIS:
+			{
+				assert(current_function != -1);
+				assert((uint)current_function < run_module->ufuncs.size());
+				UserFunction& f = run_module->ufuncs[current_function];
+				Type* type = run_module->GetType(f.type);
+				assert(type->IsClass());
+				Var& v = local[args_offset];
+				AddRef(v);
+				stack.push_back(v);
+			}
+			break;
 		case POP:
 			{
 				assert(!stack.empty());

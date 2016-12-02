@@ -32,7 +32,8 @@ enum KEYWORD
 enum CONST
 {
 	C_TRUE,
-	C_FALSE
+	C_FALSE,
+	C_THIS
 };
 
 enum FOUND
@@ -232,6 +233,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 	ParseNode* linked;
 	vector<ParseNode*> childs;
 	VarSource* source;
+	bool owned;
 
 	inline ParseNode* copy()
 	{
@@ -240,6 +242,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		p->value = value;
 		p->result = result;
 		p->source = source;
+		p->owned = owned;
 		if(!childs.empty())
 		{
 			p->childs.reserve(childs.size());
@@ -249,7 +252,14 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		return p;
 	}
 
-	inline void OnFree() { SafeFree(childs); }
+	inline void OnGet() { owned = true; }
+	inline void OnFree()
+	{
+		if(owned)
+			SafeFree(childs);
+		else
+			childs.clear();
+	}
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void push(vector<ParseNode*>& ps)

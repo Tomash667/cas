@@ -1,3 +1,38 @@
+Do I REALLY Need reference to class? When? What can i add to not need them.
+
+TINKERING:
+a -> b   (a&b points to same object)
+push b
+set a
+pop
+
+a -> b&  (a points to same object b reference points to)
+push b
+deref
+set a
+pop
+
+a& -> b  (a points to b)
+a& -> b&
+a --> b invalid
+a --> b& invalid
+a& --> b
+a& --> b&
+
+
++ assign
+	+ class - allow overload
+	+ test - set, left ref, right ref, both ref, compound
+	+ = - can be overloaded, copy by value for value types, copy address for reference types
+	+ <- can't be overloaded, copy by address, can only be used by reference types
+	+ remove builtin assign for struct in Run.cpp
+
++ generate default ctor
++ generate default equal
+	+ == can be overloaded, compare by value or address by default
+	+ is can't be overloaded only for ref
+		+ failure test
+
 NEW TODO ORDER:
 1) VALUE TYPE
 var a = b; // copy value of b into a (use cast/ctor/assign)
@@ -231,3 +266,4 @@ else return in reg
 	+ deassembly labels
 + delete default operators
 + ref to thing that needs subtype
++ push_this is like push_arg 0 - maybe move all arguments by 1 (first arg = 0)

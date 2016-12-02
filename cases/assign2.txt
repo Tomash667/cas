@@ -1,0 +1,235 @@
+//==============================================================================
+// builtin assign
+/*void builtin_assign_test()
+{
+	int x, y = 4, r;
+	r = x = y;
+	Assert_AreEqual(4, x);
+	Assert_IsTrue(x == r);
+}();
+
+//==============================================================================
+// builtin compound
+void builtin_compound_test()
+{
+	int x = 1, y = 3, r;
+	r = x += y;
+	Assert_AreEqual(4, x);
+	Assert_AreEqual(4, r);
+}();
+
+//==============================================================================
+// builtin assign, right ref
+int& to_ref(int& a) { return a; }
+void builtin_assign_right_ref_test()
+{
+	int x, y = 3, r;
+	r = x = to_ref(y);
+	Assert_AreEqual(3, x);
+	Assert_IsTrue(x == r);
+}();
+
+//==============================================================================
+// builtin compound, right ref
+void builtin_compound_right_ref_test()
+{
+	int x = 1, y = 3, r;
+	r = x += to_ref(y);
+	Assert_AreEqual(4, x);
+	Assert_AreEqual(4, r);
+}();
+
+//==============================================================================
+// builtin assign, left ref
+void builtin_assign_left_ref_test()
+{
+	int x, y = 2, r;
+	r = to_ref(x) = y;
+	Assert_AreEqual(2, x);
+	Assert_IsTrue(x == r);
+}();
+
+//==============================================================================
+// builtin compound, left ref
+void builtin_compound_left_ref_test()
+{
+	int x = 1, y = 3, r;
+	r = to_ref(x) += y;
+	Assert_AreEqual(4, x);
+	Assert_AreEqual(4, r);
+}();
+
+//==============================================================================
+// builtin assign, both ref
+void builtin_assign_both_ref_test()
+{
+	int x, y = 1, r;
+	r = to_ref(x) = to_ref(y);
+	Assert_AreEqual(1, x);
+	Assert_IsTrue(x == r);
+}();
+
+//==============================================================================
+// builtin compound, both ref
+void builtin_compound_both_ref_test()
+{
+	int x = 1, y = 3, r;
+	r = to_ref(x) += to_ref(y);
+	Assert_AreEqual(4, x);
+	Assert_AreEqual(4, r);
+}();*/
+
+//==============================================================================
+// default assign
+struct X
+{
+	int x, y;
+	
+	int get_1(int b)
+	{
+		return x+b;
+	}
+}
+void def_assign_test()
+{
+	X a, b, r;
+	b.x = 3;
+	b.y = 14;
+	r = a = b;
+	Assert_AreEqual(3, a.x);
+	Assert_AreEqual(14, a.y);
+	Assert_AreEqual(3, r.x);
+	Assert_AreEqual(14, r.y);
+}();
+
+//==============================================================================
+// default assign, right ref
+X& to_ref(X& a) { return a; }
+void def_assign_right_ref_test()
+{
+	X a, b, r;
+	b.x = 3;
+	b.y = 14;
+	r = a = to_ref(b);
+	Assert_AreEqual(3, a.x);
+	Assert_AreEqual(14, a.y);
+	Assert_AreEqual(3, r.x);
+	Assert_AreEqual(14, r.y);
+}();
+
+//==============================================================================
+// default assign, left ref
+void def_assign_left_ref_test()
+{
+	X a, b, r;
+	b.x = 3;
+	b.y = 14;
+	r = to_ref(a) = b;
+	Assert_AreEqual(3, a.x);
+	Assert_AreEqual(14, a.y);
+	Assert_AreEqual(3, r.x);
+	Assert_AreEqual(14, r.y);
+}();
+
+//==============================================================================
+// default assign, both ref
+void def_assign_both_ref_test()
+{
+	X a, b, r;
+	b.x = 3;
+	b.y = 14;
+	r = to_ref(a) = to_ref(b);
+	Assert_AreEqual(3, a.x);
+	Assert_AreEqual(14, a.y);
+	Assert_AreEqual(3, r.x);
+	Assert_AreEqual(14, r.y);
+}();
+
+//==============================================================================
+// overload assign
+struct Y
+{
+	int x, y;
+	
+	int operator = (Y yy)
+	{
+		x = yy.y - 1;
+		y = yy.x + 1;
+		return y;
+	}
+	
+	int operator = (int g)
+	{
+		x = g;
+		y = g;
+		return x+y;
+	}
+	
+	int operator -= (Y yy)
+	{
+		x -= yy.x;
+		y -= yy.y;
+		return x * y;
+	}
+	
+	bool operator -= (float f)
+	{
+		x = 0;
+		y = 1;
+		return false;
+	}
+}
+void overload_assign_test()
+{
+	Y a, b;
+	int r;
+	b.x = 3;
+	b.y = 14;
+	
+	r = a = b;
+	Assert_AreEqual(13, a.x);
+	Assert_AreEqual(4, a.y);
+	Assert_AreEqual(4, r);
+	
+	r = a = 6;
+	Assert_AreEqual(6, a.x);
+	Assert_AreEqual(6, a.y);
+	Assert_AreEqual(12, r);
+	
+	b.x = 2;
+	b.y = 3;
+	r = a -= b;
+	Assert_AreEqual(4, a.x);
+	Assert_AreEqual(3, a.y);
+	Assert_AreEqual(12, r);
+	
+	bool ret = a -= 3.14;
+	Assert_AreEqual(0, a.x);
+	Assert_AreEqual(1, a.y);
+	Assert_IsFalse(ret);	
+}();
+
+//==============================================================================
+// class assign
+class C
+{
+	int x, y;
+	C(int _x, int _y) { x = _x; y = _y; }
+}
+void class_def_assign_test()
+{
+	C a = C(0,0);
+	C b = C(3,5);
+	a = b;
+	Assert_IsTrue(a is b);
+}
+class_def_assign_test();
+
+//==============================================================================
+// class assign, left ref
+
+//==============================================================================
+// class assign, right ref
+
+//==============================================================================
+// class assign, both ref

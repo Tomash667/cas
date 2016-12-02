@@ -101,24 +101,29 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod("bool", "implicit int operator cast()", nullptr);
 	module.AddMethod("bool", "implicit float operator cast()", nullptr);
 	module.AddMethod("bool", "implicit string operator cast()", nullptr);
+	module.AddMethod("bool", "bool operator = (bool b)", nullptr);
 	// char methods
 	module.AddMethod("char", "implicit bool operator cast()", nullptr);
 	module.AddMethod("char", "implicit int operator cast()", nullptr);
 	module.AddMethod("char", "implicit float operator cast()", nullptr);
 	module.AddMethod("char", "implicit string operator cast()", nullptr);
+	module.AddMethod("char", "char operator = (char c)", nullptr);
 	// int methods
 	module.AddMethod("int", "implicit bool operator cast()", nullptr);
 	module.AddMethod("int", "implicit char operator cast()", nullptr);
 	module.AddMethod("int", "implicit float operator cast()", nullptr);
 	module.AddMethod("int", "implicit string operator cast()", nullptr);
+	module.AddMethod("int", "int operator = (int i)", nullptr);
 	module.AddMethod("int", "int abs()", f_int_abs);
 	// float methods
 	module.AddMethod("float", "implicit bool operator cast()", nullptr);
 	module.AddMethod("float", "implicit char operator cast()", nullptr);
 	module.AddMethod("float", "implicit int operator cast()", nullptr);
 	module.AddMethod("float", "implicit string operator cast()", nullptr);
+	module.AddMethod("float", "float operator = (float f)", nullptr);
 	module.AddMethod("float", "float abs()", f_float_abs);
 	// string methods
+	module.AddMethod("float", "string operator = (string s)", nullptr);
 	module.AddMethod("string", "int length()", f_string_length);
 	
 	// functions
