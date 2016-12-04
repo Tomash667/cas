@@ -257,6 +257,11 @@ void Parser::ParseCode()
 	node->type = V_VOID;
 	node->ref = REF_NO;
 
+	// first pass
+	t.Next();
+	AnalyzeCode();
+
+	// second pass
 	t.Next();
 	while(!t.IsEof())
 	{
@@ -4493,5 +4498,278 @@ int Parser::GetNextType()
 	else
 		type = 4; // type
 	t.MoveTo(pos);
+	return type;
+}
+
+void Parser::AnalyzeCode()
+{
+	string str;
+	char c;
+
+	while(!t.IsEof())
+	{
+		if(t.IsKeyword(K_CLASS, G_KEYWORD) || t.IsKeyword(K_STRUCT, G_KEYWORD))
+		{
+			bool is_class = (t.GetKeywordId(G_KEYWORD) == (int)K_CLASS);
+			t.Next();
+			Type* type;
+			if(t.IsItem())
+				type = AnalyzeAddType(t.GetItem());
+			else if(t.IsKeywordGroup(G_VAR))
+			{
+				type = GetType(t.GetKeywordId(G_VAR));
+				if(type->declared)
+					t.Throw("Can't declare %s '%s', type is already declared.", is_class ? "class" : "struct", t.GetTokenString().c_str());
+			}
+			else
+				t.Unexpected(tokenizer::T_ITEM);
+			type->declared = true;
+			t.Next();
+			t.AssertSymbol('{');
+			t.Next();
+			if(!t.IsSymbol('}'))
+			{
+				while(true)
+				{
+					AnalyzeType(type);
+					if(t.IsSymbol('}'))
+					{
+						t.Next();
+						break;
+					}
+				}
+			}
+		}
+		else if(t.IsSymbol("([{", &c))
+		{
+			char closing;
+			switch(c)
+			{
+			case '(':
+				closing = ')';
+				break;
+			case '[':
+				closing = ']';
+				break;
+			case '{':
+			default:
+				closing = '}';
+				break;
+			}
+			t.ForceMoveToClosingSymbol(c, closing);
+		}
+		else
+			AnalyzeType(nullptr);
+	}
+
+	t.Reset();
+}
+
+void Parser::AnalyzeType(Type* type)
+{
+	static string item, func_name;
+	int result = V_SPECIAL;
+
+	if(t.IsKeywordGroup(G_VAR))
+		result = t.GetKeywordId(G_VAR);
+	else if(t.IsItem())
+		item = t.GetItem();
+	else
+	{
+		t.Next();
+		return;
+	}
+
+	t.Next();
+	if(t.IsSymbol('('))
+	{
+		// ctor
+		if(!type || type->index != result)
+		{
+			t.Next();
+			return;
+		}
+		AnalyzeArgs(VarType(result, SV_NORMAL), SF_CTOR, type, type->name.c_str());
+	}
+	else
+	{
+		SpecialVarType special = SV_NORMAL;
+		if(t.IsSymbol('&'))
+		{
+			special = SV_REF;
+			t.Next();
+		}
+
+		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+		{
+			t.Next();
+			if(t.IsItem("cast"))
+			{
+				t.Next();
+				if(result == V_SPECIAL)
+				{
+					Type* result_type = AnalyzeAddType(item);
+					result = result_type->index;
+				}
+				if(!type)
+				{
+					t.Next();
+					return;
+				}
+				AnalyzeArgs(VarType(result, special), SF_CAST, type, "$opCast");
+			}
+			else
+			{
+				BASIC_SYMBOL symbol = GetSymbol(true);
+				if(symbol == BS_MAX || !CanOverload(symbol))
+				{
+					t.Next();
+					return;
+				}
+				t.Next();
+				if(result == V_SPECIAL)
+				{
+					Type* result_type = AnalyzeAddType(item);
+					result = result_type->index;
+				}
+				AnalyzeArgs(VarType(result, special), SF_NO, type, Format("$%d", (int)symbol));
+			}
+		}
+		else if(t.IsItem())
+		{
+			func_name = t.GetItem();
+			t.Next();
+
+			if(t.IsSymbol('('))
+			{
+				if(result == V_SPECIAL)
+				{
+					Type* result_type = AnalyzeAddType(item);
+					result = result_type->index;
+				}
+				AnalyzeArgs(VarType(result, special), SF_NO, type, func_name.c_str());
+			}
+			else if(type)
+			{
+				// members
+				if(result == V_SPECIAL)
+				{
+					Type* result_type = AnalyzeAddType(item);
+					result = result_type->index;
+				}
+				bool first = true;
+				do
+				{
+					Member* m = new Member;
+					m->type = result;
+					if(first)
+						m->name = func_name;
+					else
+						m->name = t.MustGetItem();
+					int index;
+					if(type->FindMember(m->name, index))
+						t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
+					if(first)
+						first = false;
+					else
+						t.Next();
+					type->members.push_back(m);
+
+					if(t.IsSymbol(';'))
+						break;
+					t.AssertSymbol(',');
+					t.Next();
+				} while(1);
+			}
+		}
+	}
+}
+
+void Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name)
+{
+	Ptr<ParseFunction> func;
+	func->result = result;
+	func->type = (type ? type->index : V_VOID);
+	func->flags = 0;
+	func->name = name;
+	func->index = ufuncs.size();
+	func->required_args = 0;
+	func->special = special;
+	if(special == SF_CTOR)
+		func->arg_infos.push_back(ArgInfo(VarType(type->index, SV_NORMAL), 0, false));
+
+	// (
+	t.Next();
+
+	if(!t.IsSymbol(')'))
+	{
+		while(true)
+		{
+			VarType vartype = AnalyzeVarType();
+			t.AssertItem();
+			t.Next();
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			if(t.IsSymbol('='))
+			{
+				if(!t.SkipTo([](Tokenizer& t) -> bool { return t.IsSymbol(',') || t.IsSymbol(')'); }))
+					t.Throw("Missing end of function '%s' declaration.", func->name.c_str());
+				if(t.IsSymbol(')'))
+					break;
+				t.Next();
+			}
+			else
+			{
+				if(t.IsSymbol(')'))
+					break;
+				t.AssertSymbol(',');
+				t.Next();
+			}
+		}
+	}
+	t.Next();
+
+	t.AssertSymbol('{');
+	if(!t.MoveToClosingSymbol('{', '}'))
+		t.Throw("Missing closing '}' for function '%s' declaration.", func->name.c_str());
+	t.Next();
+
+	if(type)
+		type->ufuncs.push_back(func.Get());
+	ufuncs.push_back(func.Pin());
+}
+
+VarType Parser::AnalyzeVarType()
+{
+	VarType result(V_VOID);
+	if(t.IsKeywordGroup(G_VAR))
+		result.core = t.GetKeywordId(G_VAR);
+	else if(t.IsItem())
+	{
+		Type* type = AnalyzeAddType(t.GetItem());
+		result.core = type->index;
+	}
+	else
+		t.Unexpected();
+	t.Next();
+
+	if(t.IsSymbol('&'))
+	{
+		result.special = SV_REF;
+		t.Next();
+	}
+
+	return result;
+}
+
+Type* Parser::AnalyzeAddType(const string& name) 
+{
+	Type* type = new Type;
+	type->name = name;
+	type->index = (0xFFFF0000 | run_module->types.size());
+	type->declared = false;
+	type->first_line = t.GetLine();
+	type->first_charpos = t.GetCharPos();
+	run_module->types.push_back(type);
+	AddType(type);
 	return type;
 }

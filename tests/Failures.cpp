@@ -378,4 +378,9 @@ TEST_METHOD(CantCast)
 	RunFailureTest("class A{} void f(int x){} A a; f(a as int);", "Can't cast from 'A' to 'int'.");
 }
 
+TEST_METHOD(ClassRedeclaration)
+{
+	RunFailureTest("class A{} class A{}", "da");
+}
+
 CA_TEST_CLASS_END();

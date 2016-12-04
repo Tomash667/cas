@@ -1,3 +1,7 @@
++ checking undeclared types
++ parse args
++ normal parse
+
 ? verify if ParseExpr type is longer used
 ? parse class func checks FindEqualFunction without type
 

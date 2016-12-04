@@ -134,6 +134,7 @@ bool Module::AddType(cstring type_name, int size, int flags)
 	type->size = size;
 	type->flags = flags | Type::Class | Type::Ref;
 	type->index = types.size() | (index << 16);
+	type->declared = true;
 	types.push_back(type);
 	parser->AddType(type);
 	return true;
@@ -210,6 +211,7 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 		type->flags |= Type::Ref;
 	if(hidden)
 		type->flags |= Type::Hidden;
+	type->declared = true;
 	types.push_back(type);
 	parser->AddType(type);
 }
