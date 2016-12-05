@@ -188,4 +188,9 @@ TestMethod(OverloadCast)
 	RunFileTest("overload_cast.txt", "", "");
 }
 
+TestMethod(Forward)
+{
+	RunFileTest("forward.txt", "", "f\nf23\n10\nY::f30\nY::f13\n");
+}
+
 CA_TEST_CLASS_END();

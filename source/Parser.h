@@ -128,6 +128,13 @@ private:
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
 	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type
 
+	void AnalyzeCode();
+	void AnalyzeType(Type* type);
+	ParseFunction* AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name);
+	VarType AnalyzeVarType();
+	Type* AnalyzeAddType(const string& name);
+	void AnalyzeMakeType(VarType& vartype, const string& name);
+
 	Tokenizer t;
 	Module* module;
 	RunModule* run_module;

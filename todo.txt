@@ -123,7 +123,6 @@ noinstance
 + register virtual function or else (sizeof(ptr) != sizeof(void*))
 + checking ref counter on cleanup for string
 + allow vars with same name as function
-+ call function before declaration
 + better Type* handling, not passing magic index
 + remove not required interactions between Module/Parser and Decompile/Parser (for example ParserMethod/FindEqualFunction should be inside RegisterMethod)
 + [VEC3 pos; float rot] GetPos()
@@ -213,6 +212,7 @@ vector functions:
 	+ don't initialize members that won't be used until overwritten
 	+ TryConstExpr for IS
 	+ exclude functions without side effects or empty and don't call them
+	+ first/second pass do same thing twice for parsing func args
 + && || short circuiting
 + remove duplicates in string table
 + shorter class initialization: A b(3,4) ?

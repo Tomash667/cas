@@ -100,6 +100,8 @@ struct Type
 	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
 	int size, index, flags;
+	uint first_line, first_charpos;
+	bool declared;
 
 	~Type();
 	Member* FindMember(const string& name, int& index);

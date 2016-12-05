@@ -61,7 +61,7 @@ TEST_METHOD(MissingConstructor)
 
 TEST_METHOD(MissingDefaultValue)
 {
-	RunFailureTest("void f(int a=0,float b){}", "Missing default value for argument 'b'.");
+	RunFailureTest("void f(int a=0,float b){}", "Missing default value for argument 2 'float b'.");
 }
 
 TEST_METHOD(InvalidAssignType)
@@ -99,7 +99,7 @@ TEST_METHOD(InvalidBreak)
 		
 TEST_METHOD(InvalidReturnType)
 {
-	RunFailureTest("int f() { return \"dodo\";", "Invalid return type 'string', function 'int f()' require 'int' type.");
+	RunFailureTest("int f() { return \"dodo\"; }", "Invalid return type 'string', function 'int f()' require 'int' type.");
 }
 
 TEST_METHOD(InvalidClassDeclaration)
@@ -365,6 +365,21 @@ TEST_METHOD(InvalidImplicitMethod)
 TEST_METHOD(CantCast)
 {
 	RunFailureTest("class A{} void f(int x){} A a; f(a as int);", "Can't cast from 'A' to 'int'.");
+}
+
+TEST_METHOD(ClassRedeclaration)
+{
+	RunFailureTest("class A{} class A{}", "Can't declare class 'A', type is already declared.");
+}
+
+TEST_METHOD(UndeclaredTypeUsed)
+{
+	RunFailureTest("A f(){}", "Undeclared type 'A' used.");
+}
+
+TEST_METHOD(MissingFunctionClosingBrace)
+{
+	RunFailureTest("void f(){", "Missing closing '}' for function 'f' declaration.");
 }
 
 TEST_METHOD(ReferenceAssignToInvalidType)
