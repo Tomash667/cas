@@ -51,6 +51,7 @@ namespace cas
 
 	// Debug functions
 	std::vector<std::string>& GetAsserts();
+	cstring GetCurrentFunction();
 };
 
 // helper

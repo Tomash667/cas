@@ -137,76 +137,81 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddFunction("char getchar()", f_getchar);
 }
 
+static void AddAssert(cstring msg)
+{
+	asserts.push_back(Format("Function: %s. Message: %s", cas::GetCurrentFunction(), msg));
+}
+
 static void Assert_AreEqual(bool expected, bool actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%s>, actual <%s>.", (expected ? "true" : "false"), (actual ? "true" : "false")));
+		AddAssert(Format("Expected <%s>, actual <%s>.", (expected ? "true" : "false"), (actual ? "true" : "false")));
 }
 
 static void Assert_AreNotEqual(bool not_expected, bool actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%s>, actual <%s>.", (not_expected ? "true" : "false"), (actual ? "true" : "false")));
+		AddAssert(Format("Not expected <%s>, actual <%s>.", (not_expected ? "true" : "false"), (actual ? "true" : "false")));
 }
 
 static void Assert_AreEqual(char expected, char actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%s>, actual <%s>.", EscapeChar(expected), EscapeChar(actual)));
+		AddAssert(Format("Expected <%s>, actual <%s>.", EscapeChar(expected), EscapeChar(actual)));
 }
 
 static void Assert_AreNotEqual(char not_expected, char actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%s>, actual <%s>.", EscapeChar(not_expected), EscapeChar(actual)));
+		AddAssert(Format("Not expected <%s>, actual <%s>.", EscapeChar(not_expected), EscapeChar(actual)));
 }
 
 static void Assert_AreEqual(int expected, int actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+		AddAssert(Format("Expected <%d>, actual <%d>.", expected, actual));
 }
 
 static void Assert_AreNotEqual(int not_expected, int actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+		AddAssert(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
 }
 
 static void Assert_AreEqual(float expected, float actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%.2g>, actual <%.2g>.", expected, actual));
+		AddAssert(Format("Expected <%.2g>, actual <%.2g>.", expected, actual));
 }
 
 static void Assert_AreNotEqual(float not_expected, float actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%.2g>, actual <%.2g>.", not_expected, actual));
+		AddAssert(Format("Not expected <%.2g>, actual <%.2g>.", not_expected, actual));
 }
 
 static void Assert_AreEqual(string& expected, string& actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%s>, actual <%s>.", Escape(expected), Escape(actual)));
+		AddAssert(Format("Expected <%s>, actual <%s>.", Escape(expected), Escape(actual)));
 }
 
 static void Assert_AreNotEqual(string& not_expected, string& actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%s>, actual <%s>.", Escape(not_expected), Escape(actual)));
+		AddAssert(Format("Not expected <%s>, actual <%s>.", Escape(not_expected), Escape(actual)));
 }
 
 static void Assert_IsTrue(bool value)
 {
 	if(!value)
-		asserts.push_back("True expected.");
+		AddAssert("True expected.");
 }
 
 static void Assert_IsFalse(bool value)
 {
 	if(value)
-		asserts.push_back("False expected.");
+		AddAssert("False expected.");
 }
 
 static void Assert_Break()

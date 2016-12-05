@@ -128,3 +128,9 @@ TEST_CLASS(Name) 											\
 	Retval retval;                                          \
 
 #define CA_TEST_CLASS_END() }; }
+
+#define TEST_METHOD_IGNORE(x) \
+	BEGIN_TEST_METHOD_ATTRIBUTE(x) \
+		TEST_IGNORE() \
+	END_TEST_METHOD_ATTRIBUTE() \
+	TEST_METHOD(x)

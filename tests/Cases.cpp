@@ -31,6 +31,11 @@ TestMethod(Assign)
 	RunFileTest("assign.txt", "", "5\n1\n8\n4\n2\n7\ntrue\n");
 }
 
+TestMethod(Assign2)
+{
+	RunFileTest("assign2.txt", "", "");
+}
+
 TestMethod(String)
 {
 	RunFileTest("string.txt", "Tomash 1990", "Podaj imie: Podaj rok urodzenia: Witaj Tomash! Masz 26 lat.");

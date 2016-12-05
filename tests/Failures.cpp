@@ -149,8 +149,9 @@ TEST_METHOD(InvalidMemberAccess)
 
 TEST_METHOD(InvalidAssignTypes)
 {
-	RunFailureTest("int a; a=\"dodo\";", "Can't assign 'string' to type 'int'.");
-	RunFailureTest("void f(int& a) {a=\"dodo\";}", "Can't assign 'string' to type 'int&'.");
+	RunFailureTest("int a; a=\"dodo\";", "No matching call to method 'int.operator = ' with arguments (string), could be 'int int.operator = (int)'.");
+	RunFailureTest("void f(int& a) {a=\"dodo\";}",
+		"No matching call to method 'int.operator = ' with arguments (string), could be 'int int.operator = (int)'.");
 }
 
 TEST_METHOD(MixedGlobalReturnType)
@@ -387,7 +388,7 @@ TEST_METHOD(ReferenceAssignToInvalidType)
 	RunFailureTest("int a; 3 -> a;", "Can't assign reference, left value must be reference variable.");
 	RunFailureTest("int a; int& b -> a; b -> 3;", "Can't assign reference, right value must be variable.");
 	RunFailureTest("int a; float b; float& c -> b; c -> a;", "Can't reference assign 'int' to type 'float&'.");
-	RunFailureTest("int& a -> 3;", "Can't reference assign 'int' to type 'int&'.");
+	RunFailureTest("int& a -> 3;", "Can't assign type 'int' to variable 'int& a'.");
 }
 
 CA_TEST_CLASS_END();

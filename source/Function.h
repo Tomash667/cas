@@ -61,6 +61,7 @@ struct Function : CommonFunction
 // script function
 struct UserFunction
 {
+	string name;
 	uint pos;
 	uint locals;
 	VarType result;

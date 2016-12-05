@@ -206,6 +206,7 @@ void Parser::FinishRunModule()
 	{
 		ParseFunction& f = *ufuncs[i];
 		UserFunction& uf = run_module->ufuncs[i];
+		uf.name = GetName(&f);
 		uf.pos = f.pos;
 		uf.locals = f.locals;
 		uf.result = f.result;
@@ -668,50 +669,6 @@ void Parser::ParseClass(bool is_struct)
 			ParseMemberDeclClass(type, pad);
 	}
 	t.Next();
-
-	// create default functions
-	if(is_struct)
-	{
-		// assign
-		AnyFunction f = FindFunction(type, symbols[S_ASSIGN].op_code);
-		if(!f)
-		{
-			VarType vartype(type->index, 0);
-			ParseFunction* func = new ParseFunction;
-			func->name = symbols[S_ASSIGN].op_code;
-			func->result = vartype;
-			func->index = ufuncs.size();
-			func->type = type->index;
-			func->flags = 0;
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-			func->required_args = 2;
-			func->special = SF_NO;
-			ParseNode* group = ParseNode::Get();
-			for(Member* m : type->members)
-			{
-				ParseNode* set = ParseNode::Get();
-				set->op = SET_THIS_MEMBER;
-				set->result = m->vartype;
-				set->value = m->index;
-				set->source = nullptr;
-				set->push(PUSH_ARG, 1);
-				set->push(PUSH_MEMBER, m->index);
-				group->push(set);
-			}
-			ParseNode* ret = ParseNode::Get();
-			ret->pseudo_op = RETURN;
-			ret->source = nullptr;
-			ret->result = V_VOID;
-			ret->push(PUSH_THIS);
-			group->push(ret);
-			group->pseudo_op = GROUP;
-			func->node = group;
-			func->block = nullptr;
-			ufuncs.push_back(func);
-			type->ufuncs.push_back(func);
-		}
-	}
 
 	current_type = nullptr;
 }
@@ -1783,139 +1740,6 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		}
 		else if(si.type == ST_ASSIGN)
 			stack.push_back(ParseAssign(si, left, right));
-		/*else if(si.type == ST_ASSIGN)
-		{
-			// assign to variable
-			if(!CanTakeRef(left))
-				t.Throw("Can't assign, left value must be variable.");
-			if(left->source)
-				left->source->mod = true;
-
-			NodeRef set;
-			set->source = nullptr;
-			if(left->result.type != V_REF)
-			{
-				set->op = PushToSet(left->op);
-				assert(set->op != NOP);
-				set->value = left->value;
-				set->result = left->result;
-
-				if(si.op == NOP)
-				{
-					// assign
-					if(!TryCast(right.Get(), left->result))
-						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
-					if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
-					{
-						set->push(left->childs);
-						left->childs.clear();
-					}
-					set->push(right.Pin());
-					left.Pin()->Free();
-				}
-				else
-				{
-					// compound assign, left op= right
-					OpResult op_result = CanOp((SYMBOL)si.op, si.symbol, left, right);
-					if(op_result.result == OpResult::NO)
-						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
-
-					if(op_result.result == OpResult::OVERLOAD)
-					{
-						left.Pin();
-						right.Pin();
-						set = op_result.over_result;
-					}
-					else
-					{
-						NodeRef op;
-						op->op = (Op)symbols[si.op].op;
-						op->result = op_result.result_var;
-						op->source = nullptr;
-
-						if(left->op == PUSH_MEMBER)
-						{
-							set->push(left->childs);
-							set->push(PUSH);
-							left->childs.clear();
-							Cast(left.Get(), op_result.cast_var);
-							Cast(right.Get(), op_result.cast_var);
-							set->push(left.Pin());
-							set->push(right.Pin());
-							ForceCast(op.Get(), set->result, si.name);
-							set->push(op.Pin());
-						}
-						else if(left->op == PUSH_INDEX)
-						{
-							assert(left->childs.size() == 2u); // push arr, push index
-							ParseNode* push = ParseNode::Get();
-							push->op = PUSH;
-							left->childs.insert(left->childs.begin() + 1, push);
-							left->push(PUSH);
-							left->push(SWAP, 1);
-							Cast(left.Get(), op_result.cast_var);
-							Cast(right.Get(), op_result.cast_var);
-							op->push(left.Pin());
-							op->push(right.Pin());
-							ForceCast(op.Get(), set->result, si.name);
-							set->push(op.Pin());
-						}
-						else
-						{
-							Cast(left.Get(), op_result.cast_var);
-							Cast(right.Get(), op_result.cast_var);
-
-							op->push(left.Pin());
-							op->push(right.Pin());
-
-							ForceCast(op.Get(), set->result, si.name);
-							set->push(op.Pin());
-						}
-					}
-				}
-			}
-			else
-			{
-				set->result = VarType(left->result.subtype, 0);
-
-				if(si.op == NOP)
-				{
-					// assign
-					if(!TryCast(right.Get(), VarType(left->result.subtype, 0)))
-						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(left));
-					set->op = SET_ADR;
-					set->push(left.Pin());
-					set->push(right.Pin());
-				}
-				else
-				{
-					// compound assign
-					OpResult op_result = CanOp((SYMBOL)si.op, si.symbol, left, right);
-					if(op_result.result == OpResult::NO)
-						t.Throw("Invalid types '%s' and '%s' for operation '%s'.", GetTypeName(left), GetTypeName(right), si.name);
-
-					assert(op_result.result == OpResult::YES); // compound assign on reference ???
-
-					NodeRef real_left = left.Get()->copy();
-					Cast(left.Get(), op_result.cast_var);
-					Cast(right.Get(), op_result.cast_var);
-
-					NodeRef op;
-					op->op = (Op)symbols[si.op].op;
-					op->result = op_result.result_var;
-					op->source = nullptr;
-					op->push(left.Pin());
-					op->push(right.Pin());
-
-					ForceCast(op.Get(), set->result, si.name);
-					set->push(real_left.Pin());
-					set->push(op.Pin());
-					set->op = SET_ADR;
-				}
-			}
-
-			stack.push_back(set.Pin());
-		}*/
 		else
 		{
 			// normal operation
@@ -3568,6 +3392,8 @@ void Parser::VerifyFunctionReturnValue(ParseFunction* f)
 				return;
 		}
 	}
+	else if(IS_SET(f->flags, CommonFunction::F_BUILTIN))
+		return;
 
 	t.Throw("%s '%s' not always return value.", f->type == V_VOID ? "Function" : "Method", GetName(f));
 }
@@ -4781,6 +4607,7 @@ void Parser::AnalyzeCode()
 					}
 				}
 			}
+			CreateDefaultFunctions(type);
 		}
 		else if(t.IsSymbol("([{", &c))
 		{
@@ -4912,6 +4739,7 @@ void Parser::AnalyzeType(Type* type)
 						first = false;
 					else
 						t.Next();
+					m->index = type->members.size();
 					type->members.push_back(m);
 
 					if(t.IsSymbol(';'))
@@ -5074,5 +4902,74 @@ void Parser::AnalyzeMakeType(VarType& vartype, const string& name)
 	{
 		Type* result_type = AnalyzeAddType(name);
 		vartype = VarType(V_REF, result_type->index);
+	}
+}
+
+void Parser::CreateDefaultFunctions(Type* type)
+{
+	// create default functions
+	if(type->IsStruct())
+	{
+		// assign
+		AnyFunction f = FindFunction(type, symbols[S_ASSIGN].op_code);
+		if(!f)
+		{
+			VarType vartype(type->index, 0);
+			ParseFunction* func = new ParseFunction;
+			func->name = symbols[S_ASSIGN].op_code;
+			func->result = vartype;
+			func->index = ufuncs.size();
+			func->type = type->index;
+			func->flags = 0;
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->required_args = 2;
+			func->special = SF_NO;
+			ParseNode* group = ParseNode::Get();
+			for(Member* m : type->members)
+			{
+				ParseNode* set = ParseNode::Get();
+				set->op = SET_THIS_MEMBER;
+				set->result = m->vartype;
+				set->value = m->index;
+				set->source = nullptr;
+				set->push(PUSH_ARG, 1);
+				set->push(PUSH_MEMBER, m->index);
+				group->push(set);
+			}
+			ParseNode* ret = ParseNode::Get();
+			ret->pseudo_op = RETURN;
+			ret->source = nullptr;
+			ret->result = V_VOID;
+			ret->push(PUSH_THIS);
+			group->push(ret);
+			group->pseudo_op = GROUP;
+			func->node = group;
+			func->block = nullptr;
+			ufuncs.push_back(func);
+			type->ufuncs.push_back(func);
+		}
+	}
+	else
+	{
+		AnyFunction f = FindFunction(type, symbols[S_ASSIGN].op_code);
+		if(!f)
+		{
+			VarType vartype(type->index, 0);
+			ParseFunction* func = new ParseFunction;
+			func->flags = CommonFunction::F_BUILTIN;
+			func->name = symbols[S_ASSIGN].op_code;
+			func->result = vartype;
+			func->index = ufuncs.size();
+			func->type = type->index;
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->required_args = 2;
+			func->special = SF_NO;
+			func->node = nullptr;
+			func->block = nullptr;
+			ufuncs.push_back(func);
+			type->ufuncs.push_back(func);
+		}
 	}
 }

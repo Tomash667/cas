@@ -1063,14 +1063,14 @@ void RunInternal(ReturnValue& retval)
 						ReleaseRef(left);
 						assert(ref.vartype.type == right.vartype.type);
 						Type* type = run_module->GetType(right.vartype.type);
-						if(!type->IsClass())
-							memcpy(ref.data, &right.value, type->size);
-						else
+						if(type->IsClass())
 						{
-							Class* cleft = (Class*)*ref.data;
-							Class* cright = right.clas;
-							memcpy(cleft->data(), cright->data(), type->size);
+							assert(!type->IsStruct());
+							Class* lclass = (Class*)*ref.data;
+							lclass->Release();
+							right.clas->refs++;
 						}
+						memcpy(ref.data, &right.value, type->size);
 						stack.pop_back();
 						stack.push_back(right);
 					}
@@ -1350,4 +1350,12 @@ void Run(RunModule& _run_module, ReturnValue& _retval)
 		delete c;
 	}
 #endif
+}
+
+cstring cas::GetCurrentFunction()
+{
+	if(current_function == -1)
+		return "(global)";
+	else
+		return run_module->ufuncs[current_function].name.c_str();
 }

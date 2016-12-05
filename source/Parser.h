@@ -134,6 +134,7 @@ private:
 	VarType AnalyzeVarType();
 	Type* AnalyzeAddType(const string& name);
 	void AnalyzeMakeType(VarType& vartype, const string& name);
+	void CreateDefaultFunctions(Type* type);
 
 	Tokenizer t;
 	Module* module;

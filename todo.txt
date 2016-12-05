@@ -1,31 +1,6 @@
-Do I REALLY Need reference to class? When? What can i add to not need them.
++ default assign for code class/struct
 
-TINKERING:
-a -> b   (a&b points to same object)
-push b
-set a
-pop
-
-a -> b&  (a points to same object b reference points to)
-push b
-deref
-set a
-pop
-
-a& -> b  (a points to b)
-a& -> b&
-a --> b invalid
-a --> b& invalid
-a& --> b
-a& --> b&
-
-
-+ assign
-	+ class - allow overload
-	+ test - set, left ref, right ref, both ref, compound
-	+ = - can be overloaded, copy by value for value types, copy address for reference types
-	+ <- can't be overloaded, copy by address, can only be used by reference types
-	+ remove builtin assign for struct in Run.cpp
+--> long assign
 
 + generate default ctor
 + generate default equal
@@ -61,6 +36,8 @@ is - any purpose for it now ?
 2) string is struct + tests
 3) nullable?
 4) script arg/ret ref
+
+- struct_class_ref.txt
 
 + modify string reference (execution error)
 ++-- returns reference

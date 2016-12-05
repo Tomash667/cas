@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "assign2.txt";
+cstring def_filename = "ref2.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 
@@ -147,13 +147,13 @@ int main(int argc, char** argv)
 		}
 		else if(!asserts.empty())
 		{
-			cout << Format("\n\nAsserts failed (%u). ", asserts.size());
+			cout << Format("\n\nAsserts failed (%u):\n", asserts.size());
 			for(string& s : asserts)
 			{
 				cout << s;
-				cout << " ";
+				cout << "\n";
 			}
-			cout << "\n\n(ok)";
+			cout << "\n(ok)";
 			_getch();
 		}
 		asserts.clear();

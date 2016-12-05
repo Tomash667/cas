@@ -99,11 +99,11 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 			if(!asserts.empty())
 			{
 				event_output.clear();
-				event_output = Format("Asserts failed (%u). ", asserts.size());
+				event_output = Format("Asserts failed (%u):\n", asserts.size());
 				for(string& s : asserts)
 				{
 					event_output += s;
-					event_output += " ";
+					event_output += "\n";
 				}
 				result = ASSERT;
 			}

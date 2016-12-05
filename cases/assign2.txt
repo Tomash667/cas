@@ -1,6 +1,6 @@
 //==============================================================================
 // builtin assign
-/*void builtin_assign_test()
+void builtin_assign_test()
 {
 	int x, y = 4, r;
 	r = x = y;
@@ -77,7 +77,7 @@ void builtin_compound_both_ref_test()
 	r = to_ref(x) += to_ref(y);
 	Assert_AreEqual(4, x);
 	Assert_AreEqual(4, r);
-}();*/
+}();
 
 //==============================================================================
 // default assign
@@ -222,14 +222,158 @@ void class_def_assign_test()
 	C b = C(3,5);
 	a = b;
 	Assert_IsTrue(a is b);
-}
-class_def_assign_test();
+}();
 
 //==============================================================================
 // class assign, left ref
+C& to_ref(C& c) { return c; }
+void class_def_assign_left_ref_test()
+{
+	C a = C(0,0);
+	C b = C(3,5);
+	to_ref(a) = b;
+	Assert_IsTrue(a is b);
+}();
 
 //==============================================================================
 // class assign, right ref
+void class_def_assign_right_ref_test()
+{
+	C a = C(0,0);
+	C b = C(3,5);
+	a = to_ref(b);
+	Assert_IsTrue(a is b);
+}();
 
 //==============================================================================
 // class assign, both ref
+void class_def_assign_both_ref_test()
+{
+	C a = C(0,0);
+	C b = C(3,5);
+	to_ref(a) = to_ref(b);
+	Assert_IsTrue(a is b);
+}();
+
+//==============================================================================
+// class overload assign
+class D
+{
+	int x;
+	D(int _x) { x = _x; }
+	
+	void operator = (D d)
+	{
+		x = d.x;
+	}
+	
+	void operator += (D d)
+	{
+		x += d.x;
+	}
+}
+void class_over_assign_test()
+{
+	D a = D(1);
+	D b = D(2);
+	a = b;
+	Assert_AreEqual(2, a.x);
+	Assert_IsFalse(a is b);
+}();
+
+//==============================================================================
+// class overload assign, left ref
+D& to_ref(D& a) { return a; }
+void class_over_assign_left_ref_test()
+{
+	D a = D(1);
+	D b = D(2);
+	to_ref(a) = b;
+	Assert_AreEqual(2, a.x);
+	Assert_IsFalse(a is b);
+}();
+
+//==============================================================================
+// class overload assign, right ref
+void class_over_assign_right_ref_test()
+{
+	D a = D(1);
+	D b = D(2);
+	a = to_ref(b);
+	Assert_AreEqual(2, a.x);
+	Assert_IsFalse(a is b);
+}();
+
+//==============================================================================
+// class overload assign, both ref
+void class_over_assign_both_ref_test()
+{
+	D a = D(1);
+	D b = D(2);
+	to_ref(a) = to_ref(b);
+	Assert_AreEqual(2, a.x);
+	Assert_IsFalse(a is b);
+}();
+
+//==============================================================================
+// class overload compound assign
+void class_over_compound_assign_test()
+{
+	D a = D(3);
+	D b = D(2);
+	a += b;
+	Assert_AreEqual(5, a.x);
+	to_ref(a) += b;
+	Assert_AreEqual(7, a.x);
+	a += to_ref(b);
+	Assert_AreEqual(9, a.x);
+	to_ref(a) += to_ref(b);
+	Assert_AreEqual(11, a.x);
+	Assert_IsFalse(a is b);
+}();
+
+//==============================================================================
+// ref assign simple type
+void ref_assign_simple_type_test()
+{
+	int a = 3, b = 14;
+	int& r = a;
+	r -> a;
+	Assert_AreEqual(3, r);
+	r = 4;
+	Assert_AreEqual(4, a);
+	r -> b;
+	Assert_AreEqual(14, r);
+	r /= 7;
+	Assert_AreEqual(2, b);
+}();
+
+//==============================================================================
+// ref assign struct
+void ref_assign_struct_test()
+{
+	Y a, b;
+	b.x = 7;
+	Y& r -> a;
+	r = b;
+	Assert_AreEqual(-1, a.x);
+	Assert_AreEqual(8, a.y);
+	r -> b;
+	b.y = 3;
+	Assert_AreEqual(3, r.y);
+}();
+
+//==============================================================================
+// ref assign class
+void ref_assign_class_test()
+{
+	D a = D(1), b = D(2);
+	D& r = a;
+	Assert_AreEqual(1, r.x);
+	r = b;
+	Assert_AreEqual(2, r.x);
+	Assert_IsFalse(a is b);
+	r -> b;
+	b.x = 4;
+	Assert_AreEqual(4, r.x);
+}();

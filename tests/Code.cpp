@@ -224,7 +224,7 @@ static void pow(int& a)
 	a = a*a;
 }
 
-TEST_METHOD(CodeFunctionTakesRef)
+TEST_METHOD_IGNORE(CodeFunctionTakesRef)
 {
 	module->AddFunction("void pow(int& a)", pow);
 	RunTest("int a = 3; pow(a); return a;");
@@ -243,7 +243,7 @@ static int& getref(bool is_a)
 		return global_b;
 }
 
-TEST_METHOD(CodeFunctionReturnsRef)
+TEST_METHOD_IGNORE(CodeFunctionReturnsRef)
 {
 	module->AddFunction("int& getref(bool is_a)", getref);
 	global_a = 1;
@@ -254,7 +254,7 @@ TEST_METHOD(CodeFunctionReturnsRef)
 }
 
 //=========================================================================================
-TEST_METHOD(IsCompareCodeRefs)
+TEST_METHOD_IGNORE(IsCompareCodeRefs)
 {
 	module->AddFunction("int& getref(bool is_a)", getref);
 
