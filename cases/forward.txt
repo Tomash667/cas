@@ -18,24 +18,32 @@ x.f(2);
 class X
 {
 	int a, b;
-	void f(int x) { println(a+b+x); }
+	void f(int _x) { println(a+b+_x); }
 }
 
 // forward usage of class func, type
+Y y;
+Y y2 = Y(1);
 class Y
 {
 	Y()
 	{
 		a = 3;
-		f();
+		yf();
 		b = 4;
+	}
+	
+	Y(int _a, int _b = 3)
+	{
+		a = _a;
+		b = _b;
+		yf();
 	}
 	
 	int a, b;
 	
-	void f()
+	void yf()
 	{
 		println("Y::f" + a + b);
 	}
 }
-Y y;

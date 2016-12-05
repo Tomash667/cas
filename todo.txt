@@ -1,6 +1,4 @@
-+ checking undeclared types
-+ parse args
-+ normal parse
++ CheckFindItem(id, false) func/class
 
 ? verify if ParseExpr type is longer used
 ? parse class func checks FindEqualFunction without type
@@ -76,7 +74,6 @@ noinstance
 
 + checking ref counter on cleanup (for class/string)
 + allow vars with same name as function
-+ call function before declaration
 + better Type* handling, not passing magic index
 + remove not required interactions between Module/Parser and Decompile/Parser (for example ParserMethod/FindEqualFunction should be inside RegisterMethod)
 + safer reference returning (incrase ref counter for class if this is member, what with script registered?)
@@ -176,6 +173,7 @@ vector functions:
 	+ don't initialize members that won't be used until overwritten
 	+ TryConstExpr for IS
 	+ exclude functions without side effects or empty and don't call them
+	+ first/second pass do same thing twice for parsing func args
 + && || short circuiting
 + char type
 + remove duplicates in string table

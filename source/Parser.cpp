@@ -541,18 +541,9 @@ ParseNode* Parser::ParseLine()
 
 				// id
 				t.Next();
-				const string& id = t.MustGetItem();
-				CheckFindItem(id, false);
-				Type* type = new Type;
-				type->name = id;
-				type->flags = Type::Class;
-				if(keyword == K_CLASS)
-					type->flags |= Type::Ref;
-				type->index = (0xFFFF0000 | run_module->types.size());
-				type->size = 0;
-				run_module->types.push_back(type);
-				AddType(type);
+				Type* type = GetType(t.MustGetKeywordId(G_VAR));
 				t.Next();
+				type->size = 0;
 
 				// {
 				t.AssertSymbol('{');
@@ -573,17 +564,15 @@ ParseNode* Parser::ParseLine()
 
 						ParseFuncInfo(f, type, false);
 
-						if(FindEqualFunction(type, AnyFunction(f)))
-							t.Throw("Method '%s' already exists.", GetName(f));
+						AnyFunction af = FindEqualFunction(type, AnyFunction(f));
+						assert(af && af.is_parse);
 
 						// block
-						f->node = ParseBlock(f);
+						ParseFunction* func = af.pf;
+						func->flags = f->flags; // copy implicit
+						current_function = func;
+						func->node = ParseBlock(func);
 						current_function = nullptr;
-						if(f->special == SF_CTOR)
-							type->flags |= Type::HaveCtor;
-						f->index = ufuncs.size();
-						ufuncs.push_back(f);
-						type->ufuncs.push_back(f.Pin());
 					}
 					else
 						ParseMemberDeclClass(type, pad);
@@ -636,14 +625,14 @@ ParseNode* Parser::ParseLine()
 				f->flags = 0;
 				current_function = f;
 				ParseFuncInfo(f, nullptr, false);
-				f->index = ufuncs.size();
-				if(FindEqualFunction(f))
-					t.Throw("Function '%s' already exists.", GetName(f));
+				AnyFunction af = FindEqualFunction(f);
+				assert(af && af.is_parse);
 
 				// block
-				f->node = ParseBlock(f);
+				ParseFunction* func = af.pf;
+				current_function = func;
+				func->node = ParseBlock(func);
 				current_function = nullptr;
-				ufuncs.push_back(f.Pin());
 				return nullptr;
 			}
 		case 3:
@@ -886,12 +875,9 @@ void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 
 	do
 	{
-		Member* m = new Member;
-		m->type = var_type;
-		m->name = t.MustGetItem();
 		int index;
-		if(type->FindMember(m->name, index))
-			t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
+		Member* m = type->FindMember(t.MustGetItem(), index);
+		assert(m && m->type == var_type);
 		t.Next();
 
 		if(pad == 0 || var_size == 1)
@@ -907,7 +893,6 @@ void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 			type->size += var_size;
 			pad = 0;
 		}
-		type->members.push_back(m);
 
 		if(t.IsSymbol(';'))
 			break;
@@ -1032,8 +1017,8 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 			{
 				prev_arg_def = true;
 				t.Next();
-				ParseNode* item = ParseConstItem();
-				if(!TryCast(item, type))
+				NodeRef item = ParseConstItem();
+				if(!TryCast(item.Get(), type))
 					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(type));
 				switch(item->op)
 				{
@@ -4524,6 +4509,9 @@ void Parser::AnalyzeCode()
 			else
 				t.Unexpected(tokenizer::T_ITEM);
 			type->declared = true;
+			type->flags = Type::Class;
+			if(is_class)
+				type->flags |= Type::Ref;
 			t.Next();
 			t.AssertSymbol('{');
 			t.Next();
@@ -4560,6 +4548,12 @@ void Parser::AnalyzeCode()
 		}
 		else
 			AnalyzeType(nullptr);
+	}
+
+	for(Type* type : run_module->types)
+	{
+		if(!type->declared)
+			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
 	}
 
 	t.Reset();
@@ -4602,6 +4596,8 @@ void Parser::AnalyzeType(Type* type)
 
 		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 		{
+			if(!type)
+				t.Throw("Operator function can be used only inside class.");
 			t.Next();
 			if(t.IsItem("cast"))
 			{
@@ -4632,7 +4628,9 @@ void Parser::AnalyzeType(Type* type)
 					Type* result_type = AnalyzeAddType(item);
 					result = result_type->index;
 				}
-				AnalyzeArgs(VarType(result, special), SF_NO, type, Format("$%d", (int)symbol));
+				ParseFunction* func = AnalyzeArgs(VarType(result, special), SF_NO, type, "$tmp");
+				if(!FindMatchingOverload(*func, symbol))
+					t.Throw("Invalid overload operator definition '%s'.", GetName(func, true, true, &symbol));
 			}
 		}
 		else if(t.IsItem())
@@ -4685,7 +4683,7 @@ void Parser::AnalyzeType(Type* type)
 	}
 }
 
-void Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name)
+ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name)
 {
 	Ptr<ParseFunction> func;
 	func->result = result;
@@ -4695,35 +4693,71 @@ void Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cs
 	func->index = ufuncs.size();
 	func->required_args = 0;
 	func->special = special;
-	if(special == SF_CTOR)
+	if(type)
+	{
 		func->arg_infos.push_back(ArgInfo(VarType(type->index, SV_NORMAL), 0, false));
+		func->required_args++;
+	}
 
 	// (
 	t.Next();
 
 	if(!t.IsSymbol(')'))
 	{
+		bool prev_def = false;
 		while(true)
 		{
 			VarType vartype = AnalyzeVarType();
-			t.AssertItem();
+
+			ParseVar* arg = ParseVar::Get();
+			arg->name = t.MustGetItem();
+			arg->type = vartype;
+			arg->subtype = ParseVar::ARG;
+			arg->index = func->args.size();
+			arg->mod = false;
+			func->args.push_back(arg);
 			t.Next();
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			
 			if(t.IsSymbol('='))
 			{
-				if(!t.SkipTo([](Tokenizer& t) -> bool { return t.IsSymbol(',') || t.IsSymbol(')'); }))
-					t.Throw("Missing end of function '%s' declaration.", func->name.c_str());
-				if(t.IsSymbol(')'))
-					break;
+				prev_def = true;
 				t.Next();
+				NodeRef item = ParseConstItem();
+				if(!TryCast(item.Get(), vartype))
+					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
+				switch(item->op)
+				{
+				case PUSH_BOOL:
+					func->arg_infos.push_back(ArgInfo(item->bvalue));
+					break;
+				case PUSH_CHAR:
+					func->arg_infos.push_back(ArgInfo(item->cvalue));
+					break;
+				case PUSH_INT:
+					func->arg_infos.push_back(ArgInfo(item->value));
+					break;
+				case PUSH_FLOAT:
+					func->arg_infos.push_back(ArgInfo(item->fvalue));
+					break;
+				case PUSH_STRING:
+					func->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
+					break;
+				default:
+					assert(0);
+					break;
+				}
 			}
 			else
 			{
-				if(t.IsSymbol(')'))
-					break;
-				t.AssertSymbol(',');
-				t.Next();
+				func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+				func->required_args++;
+				if(prev_def)
+					t.Throw("Missing default value for argument %u '%s %s'.", func->arg_infos.size(), GetName(vartype), arg->name.c_str());
 			}
+			if(t.IsSymbol(')'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
 		}
 	}
 	t.Next();
@@ -4734,8 +4768,21 @@ void Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cs
 	t.Next();
 
 	if(type)
-		type->ufuncs.push_back(func.Get());
-	ufuncs.push_back(func.Pin());
+	{
+		if(FindEqualFunction(type, AnyFunction(func)))
+			t.Throw("Method '%s' already exists.", GetName(func));
+		if(func->special == SF_CTOR)
+			type->flags |= Type::HaveCtor;
+		type->ufuncs.push_back(func);
+	}
+	else
+	{
+		if(FindEqualFunction(func))
+			t.Throw("Function '%s' already exists.", GetName(func));
+	}
+
+	ufuncs.push_back(func);
+	return func.Pin();
 }
 
 VarType Parser::AnalyzeVarType()

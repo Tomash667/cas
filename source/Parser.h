@@ -121,7 +121,7 @@ private:
 
 	void AnalyzeCode();
 	void AnalyzeType(Type* type);
-	void AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name);
+	ParseFunction* AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name);
 	VarType AnalyzeVarType();
 	Type* AnalyzeAddType(const string& name);
 
