@@ -8,7 +8,7 @@ vector<Module*> Module::all_modules;
 bool Module::all_modules_shutdown;
 cas::ReturnValue return_value;
 
-Module::Module(int index, Module* parent_module) : inherited(false), parser(nullptr), index(index), refs(1), released(false)
+Module::Module(int index, Module* parent_module) : inherited(false), parser(nullptr), index(index), refs(1), released(false), built(false)
 {
 	modules[index] = this;
 	if(parent_module)
@@ -87,6 +87,7 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 		Event(EventType::Error, Format("Missing type '%s' for AddMethod '%s'.", type_name, decl));
 		return false;
 	}
+	assert(!type->built);
 	Function* f = parser->ParseFuncDecl(decl, type);
 	if(!f)
 	{
@@ -132,11 +133,13 @@ bool Module::AddType(cstring type_name, int size, int flags)
 	Type* type = new Type;
 	type->name = type_name;
 	type->size = size;
-	type->flags = flags | Type::Class | Type::Ref;
+	type->flags = flags | Type::Class | Type::Ref | Type::Code;
 	type->index = types.size() | (index << 16);
 	type->declared = true;
+	type->built = false;
 	types.push_back(type);
 	parser->AddType(type);
+	built = false;
 	return true;
 }
 
@@ -149,6 +152,7 @@ bool Module::AddMember(cstring type_name, cstring decl, int offset)
 		Event(EventType::Error, Format("Missing type '%s' for AddMember '%s'.", type_name, decl));
 		return false;
 	}
+	assert(!type->built);
 	Member* m = parser->ParseMemberDecl(decl);
 	if(!m)
 	{
@@ -175,6 +179,9 @@ ReturnValue Module::GetReturnValue()
 
 bool Module::ParseAndRun(cstring input, bool optimize, bool decompile)
 {
+	// build
+	BuildModule();
+
 	// parse
 	ParseSettings settings;
 	settings.input = input;
@@ -212,9 +219,11 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 	if(hidden)
 		type->flags |= Type::Hidden;
 	type->declared = true;
+	type->built = false;
 	types.push_back(type);
 	if(!hidden)
 		parser->AddType(type);
+	built = false;
 }
 
 Function* Module::FindEqualFunction(Function& fc)
@@ -291,4 +300,24 @@ bool Module::Verify()
 	}
 	return errors == 0;*/
 	return true;
+}
+
+void Module::BuildModule()
+{
+	if(built)
+		return;
+
+	for(Type* type : types)
+	{
+		if(!IS_SET(type->flags, Type::Code) && !type->built)
+			continue;
+
+		Function* f = type->FindCodeFunction("$opAssign");
+		if(!f)
+			AddMethod(type->name.c_str(), Format("%s operator = (%s obj)", type->name.c_str(), type->name.c_str()), nullptr);
+
+		type->built = true;
+	}
+
+	built = true;
 }

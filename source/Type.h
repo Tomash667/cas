@@ -92,7 +92,8 @@ struct Type
 		NoRefCount = 1 << 3,
 		HaveCtor = 1 << 4,
 		Hidden = 1 << 5,
-		Class = 1 << 6
+		Class = 1 << 6,
+		Code = 1 << 7
 	};
 
 	string name;
@@ -101,10 +102,11 @@ struct Type
 	vector<Member*> members;
 	int size, index, flags;
 	uint first_line, first_charpos;
-	bool declared;
+	bool declared, built;
 
 	~Type();
 	Member* FindMember(const string& name, int& index);
+	Function* FindCodeFunction(cstring name);
 
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }

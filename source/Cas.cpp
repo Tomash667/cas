@@ -118,6 +118,16 @@ Member* Type::FindMember(const string& name, int& index)
 	return nullptr;
 }
 
+Function* Type::FindCodeFunction(cstring name)
+{
+	for(Function* f : funcs)
+	{
+		if(f->name == name)
+			return f;
+	}
+	return nullptr;
+}
+
 bool CommonFunction::Equal(CommonFunction& f) const
 {
 	if(f.arg_infos.size() != arg_infos.size())

@@ -1,5 +1,3 @@
-+ default assign for code class/struct
-
 --> long assign
 
 + generate default ctor

@@ -31,6 +31,7 @@ public:
 	Function* FindEqualFunction(Function& fc);
 	Type* FindType(cstring type_name);
 	void AddParentModule(Module* parent_module);
+	void BuildModule();
 
 	std::map<int, Module*> modules;
 	vector<Function*> functions;
@@ -38,7 +39,7 @@ public:
 	ReturnValue return_value;
 	Parser* parser;
 	int index, refs;
-	bool inherited, released;
+	bool inherited, released, built;
 	static vector<Module*> all_modules;
 	static bool all_modules_shutdown;
 };
