@@ -150,4 +150,5 @@ private:
 	CoreVarType global_result;
 	bool optimize;
 	vector<ReturnStructVar*> rsvs;
+	uint prev_line;
 };

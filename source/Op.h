@@ -68,5 +68,6 @@ enum Op
 	COPY, // [] ..., x -> ..., x (x - single instance of struct)
 	COPY_ARG, // [arg_index] - create single instance of struct in arg
 	RELEASE_REF, // [index] - release reference to local/arg variable
+	LINE, // [line number] - debug line numbers
 	MAX_OP
 };

@@ -7,8 +7,8 @@
 
 static vector<Var> stack, global, local;
 static Var tmpv;
-static vector<uint> expected_stack;
-static int current_function, args_offset, locals_offset;
+static vector<StackFrame> stack_frames;
+static int current_function, args_offset, locals_offset, current_line;
 static uint depth;
 static RunModule* run_module;
 static vector<RefVar*> refs;
@@ -876,7 +876,7 @@ void RunInternal(ReturnValue& retval)
 					assert(left.vartype.type == V_INT || left.vartype.type == V_FLOAT || left.vartype.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
 					assert(left.vartype.type == V_BOOL || left.vartype.type == V_CHAR || left.vartype.type == V_INT || left.vartype.type == V_FLOAT
-						|| left.vartype.type == V_STRING);
+						|| left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass());
 				else if(op == AND || op == OR)
 					assert(left.vartype.type == V_BOOL);
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
@@ -965,6 +965,14 @@ void RunInternal(ReturnValue& retval)
 					case V_STRING:
 						left.bvalue = (left.str->s == right.str->s);
 						break;
+					default:
+						{
+							bool result = (left.clas == right.clas);
+							ReleaseRef(left);
+							ReleaseRef(right);
+							left.bvalue = result;
+						}
+						break;
 					}
 					left.vartype.type = V_BOOL;
 					break;
@@ -985,6 +993,14 @@ void RunInternal(ReturnValue& retval)
 						break;
 					case V_STRING:
 						left.bvalue = (left.str->s != right.str->s);
+						break;
+					default:
+						{
+							bool result = (left.clas != right.clas);
+							ReleaseRef(left);
+							ReleaseRef(right);
+							left.bvalue = result;
+						}
 						break;
 					}
 					left.vartype.type = V_BOOL;
@@ -1156,10 +1172,12 @@ void RunInternal(ReturnValue& retval)
 				}
 				if(thi)
 					stack.push_back(Var(thi));
-				assert(expected_stack.back() == stack.size());
+				StackFrame& frame = stack_frames.back();
+				assert(frame.expected_stack == stack.size());
 				if(f.result.type != V_VOID)
 					assert(stack.back().vartype == f.result);
-				expected_stack.pop_back();
+				current_line = frame.current_line;
+				stack_frames.pop_back();
 			}
 			break;
 		case JMP:
@@ -1218,8 +1236,12 @@ void RunInternal(ReturnValue& retval)
 				uint expected = stack.size();
 				if(f.result.type != V_VOID)
 					++expected;
-				expected_stack.push_back(expected);
+				StackFrame frame;
+				frame.expected_stack = expected;
+				frame.current_line = current_line;
+				stack_frames.push_back(frame);
 				current_function = f_idx;
+				current_line = -1;
 				++depth;
 				c = start + f.pos;
 			}
@@ -1250,8 +1272,12 @@ void RunInternal(ReturnValue& retval)
 				local.resize(local.size() + f.locals);
 				// call
 				uint expected = stack.size() + 1;
-				expected_stack.push_back(expected);
+				StackFrame frame;
+				frame.expected_stack = expected;
+				frame.current_line = current_line;
+				stack_frames.push_back(frame);
 				current_function = f_idx;
+				current_line = -1;
 				c = start + f.pos;
 			}
 			break;
@@ -1308,6 +1334,9 @@ void RunInternal(ReturnValue& retval)
 				assert(any);
 			}
 			break;
+		case LINE:
+			current_line = *c++;
+			break;
 		default:
 			assert(0);
 			break;
@@ -1328,6 +1357,8 @@ void Run(RunModule& _run_module, ReturnValue& _retval)
 	local.clear();
 	current_function = -1;
 	depth = 0;
+	current_line = -1;
+	stack_frames.clear();
 #ifdef CHECK_LEAKS
 	all_clases.clear();
 	all_refs.clear();
@@ -1352,10 +1383,12 @@ void Run(RunModule& _run_module, ReturnValue& _retval)
 #endif
 }
 
-cstring cas::GetCurrentFunction()
+std::pair<cstring, int> cas::GetCurrentLocation()
 {
+	cstring func_name;
 	if(current_function == -1)
-		return "(global)";
+		func_name = "<global>";
 	else
-		return run_module->ufuncs[current_function].name.c_str();
+		func_name = run_module->ufuncs[current_function].name.c_str();
+	return std::pair<cstring, uint>(func_name, current_line);
 }

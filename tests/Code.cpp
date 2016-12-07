@@ -446,6 +446,25 @@ TEST_METHOD(CodeOverloadCast)
 	)code");
 }
 
+//=========================================================================================
+struct G
+{
+};
+
+TEST_METHOD(CodeClassDefaultOperators)
+{
+	module->AddType<G>("G");
+	RunTest(R"code(
+		G a, b;
+		Assert_IsTrue(a == a);
+		Assert_IsFalse(a != a);
+		Assert_IsFalse(a == b);
+		Assert_IsTrue(a != b);
+		a = b;
+		Assert_IsTrue(a == b);
+	)code");
+}
+
 CA_TEST_CLASS_END();
 
 int tests::Code::global_a;

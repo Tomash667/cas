@@ -139,7 +139,13 @@ static void InitCoreLib(Module& module, Settings& settings)
 
 static void AddAssert(cstring msg)
 {
-	asserts.push_back(Format("Function: %s. Message: %s", cas::GetCurrentFunction(), msg));
+	auto loc = cas::GetCurrentLocation();
+	cstring formated;
+	if(loc.second != -1)
+		formated = Format("Function: %s(%d). Message: %s", loc.first, loc.second, msg);
+	else
+		formated = Format("Function: %s. Message: %s", loc.first, msg);
+	asserts.push_back(formated);
 }
 
 static void Assert_AreEqual(bool expected, bool actual)

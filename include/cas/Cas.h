@@ -51,7 +51,7 @@ namespace cas
 
 	// Debug functions
 	std::vector<std::string>& GetAsserts();
-	cstring GetCurrentFunction();
+	std::pair<cstring,int> GetCurrentLocation();
 };
 
 // helper

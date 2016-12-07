@@ -58,7 +58,7 @@ TestMethod(Bool)
 
 TestMethod(CompOperators)
 {
-	RunFileTest("comp_operators.txt", "", "true\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\n");
+	RunFileTest("comp_operators.txt", "", "");
 }
 
 TestMethod(IfElse)

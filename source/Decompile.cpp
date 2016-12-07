@@ -85,7 +85,8 @@ OpInfo ops[] = {
 	CTOR, "ctor", V_TYPE,
 	COPY, "copy", V_VOID,
 	COPY_ARG, "copy_arg", V_INT,
-	RELEASE_REF, "release_ref", V_INT
+	RELEASE_REF, "release_ref", V_INT,
+	LINE, "line", V_INT
 };
 static_assert(sizeof(ops) / sizeof(OpInfo) == MAX_OP, "Missing decompile op codes.");
 

@@ -26,7 +26,7 @@ line:
 	class/struct <class_name> { [class_item ...] }
 	func_def [ ( expr ... ] // can only be used in top block
 	if cond line_or_block [ else line_or_block ]
-	do line_or_block while cond ;
+	do line_or_block while cond
 	while cond line_or_block
 	for ( [ var_type_decl / expr ] ; [ expr ] ; [ expr ] ) line_or_block
 	switch ( expr ) { [switch_case ...] }
@@ -156,6 +156,7 @@ override_op:
 	base_op=
 	[]
 	()
+	cast
 
 const:
 	true

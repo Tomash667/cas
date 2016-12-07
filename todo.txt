@@ -1,33 +1,6 @@
 --> long assign
 
 + generate default ctor
-+ generate default equal
-	+ == can be overloaded, compare by value or address by default
-	+ is can't be overloaded only for ref
-		+ failure test
-
-NEW TODO ORDER:
-1) VALUE TYPE
-var a = b; // copy value of b into a (use cast/ctor/assign)
-
-if(a == b) // compare value (by default)
-
-REFERENCE TYPE
-var a = b; // copy address of b into a, both points to same instance
-
-if(a == b) // compare address (by default)
-
-REF VAR
-struct& a = b; // copy value
-
-class& a = ...;
-a = b; // a points to b
-
-class& a;
-if(a == b) // compare address of a with address of b (not ref address)
-
-struct& a;
-if(a == b) // compare value
 
 is - any purpose for it now ?
 
@@ -49,6 +22,8 @@ is - any purpose for it now ?
 + overload pre/post ++ --
 + set_tmp reference (string?), check string references
 + string oper
++ better class/struct offset (push_member type offset)
++ move V_SPECIAL to StackFrame
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 

@@ -160,3 +160,9 @@ struct Var
 	inline explicit Var(Class* clas) : vartype(clas->type->index, 0), clas(clas) {}
 	inline Var(VarType vartype, int value1, int value2) : vartype(vartype), value1(value1), value2(value2) {}
 };
+
+struct StackFrame
+{
+	uint expected_stack;
+	int current_line;
+};

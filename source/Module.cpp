@@ -316,6 +316,14 @@ void Module::BuildModule()
 		if(!f)
 			AddMethod(type->name.c_str(), Format("%s operator = (%s obj)", type->name.c_str(), type->name.c_str()), nullptr);
 
+		f = type->FindCodeFunction("$opEqual");
+		if(!f)
+			AddMethod(type->name.c_str(), Format("bool operator == (%s obj)", type->name.c_str()), nullptr);
+
+		f = type->FindCodeFunction("$opNotEqual");
+		if(!f)
+			AddMethod(type->name.c_str(), Format("bool operator != (%s obj)", type->name.c_str()), nullptr);
+
 		type->built = true;
 	}
 
