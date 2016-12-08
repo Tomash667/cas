@@ -39,7 +39,8 @@ struct CommonFunction
 	{
 		F_THISCALL = 1 << 0,
 		F_IMPLICIT = 1 << 1,
-		F_BUILTIN = 1 << 2
+		F_BUILTIN = 1 << 2,
+		F_DELETE = 1 << 3
 	};
 
 	string name;

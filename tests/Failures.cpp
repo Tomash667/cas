@@ -391,4 +391,11 @@ TEST_METHOD(ReferenceAssignToInvalidType)
 	RunFailureTest("int& a -> 3;", "Can't assign type 'int' to variable 'int& a'.");
 }
 
+TEST_METHOD(CallDeletedFunction)
+{
+	RunFailureTest("delete void f()();", "Can't call 'void f()', function marked as deleted.");
+	RunFailureTest("class X{delete void f()} X x; x.f();", "Can't call 'void X.f()', method marked as deleted.");
+	RunFailureTest("class X{delete bool operator == (X x)} X x; x == x;", "Can't call 'bool X.operator == (X)', method marked as deleted.");
+}
+
 CA_TEST_CLASS_END();

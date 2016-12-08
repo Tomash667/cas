@@ -24,6 +24,7 @@ is - any purpose for it now ?
 + string oper
 + better class/struct offset (push_member type offset)
 + move V_SPECIAL to StackFrame
++ catch all exceptions
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 
@@ -214,6 +215,5 @@ else return in reg
 	+ allow multiple errors, continue parsing after error
 	+ line numbers in debug (for assert)
 	+ deassembly labels
-+ delete default operators
 + ref to thing that needs subtype
 + push_this is like push_arg 0 - maybe move all arguments by 1 (first arg = 0)

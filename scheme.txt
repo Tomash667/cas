@@ -6,11 +6,12 @@ func_decl:
 
 func_def:
 	func_info block
+	func_info // if deleted
 
 func_info:
-	var_type <func_name> arg_decl
-	[implicit] <class_name> arg_decl // ctor
-	[implicit] var_type operator override_op arg_decl
+	[func_modifier...] var_type <func_name> arg_decl
+	[func_modifier...] <class_name> arg_decl // ctor
+	[func_modifier...] var_type operator override_op arg_decl
 
 member_decl:
 	simple_var_type <member_name> EOF
@@ -162,3 +163,7 @@ const:
 	true
 	false
 	this
+
+func_modifier:
+	implicit
+	delete

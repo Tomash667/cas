@@ -63,6 +63,7 @@ private:
 	ParseNode* ParseSwitch();
 	ParseNode* ParseCase(ParseNode* swi);
 	void ParseMemberDeclClass(Type* type, uint& pad);
+	ParseNode* ParseFunc();
 	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
 	ParseNode* ParseVarTypeDecl();
@@ -121,16 +122,18 @@ private:
 	void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs);
 	AnyFunction FindEqualFunction(ParseFunction* pf);
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
+	AnyFunction FindFunction(Type* type, cstring name, delegate<bool(AnyFunction& f)> pred);
 	AnyFunction FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
 	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse);
 	AnyFunction ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
+	void CheckFunctionIsDeleted(CommonFunction& cf);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
 	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type
 
 	void AnalyzeCode();
 	void AnalyzeType(Type* type);
-	ParseFunction* AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name);
+	ParseFunction* AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name, int flags);
 	VarType AnalyzeVarType();
 	Type* AnalyzeAddType(const string& name);
 	void AnalyzeMakeType(VarType& vartype, const string& name);
