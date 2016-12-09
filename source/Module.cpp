@@ -202,7 +202,7 @@ bool Module::ParseAndRun(cstring input, bool optimize, bool decompile)
 	return true;
 }
 
-void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool is_ref, bool hidden)
+void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags)
 {
 	// can only be used in core module
 	assert(index == 0);
@@ -213,15 +213,11 @@ void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, bool
 	type->size = size;
 	type->index = types.size();
 	assert(type->index == (int)var_type);
-	type->flags = 0;
-	if(is_ref)
-		type->flags |= Type::Ref;
-	if(hidden)
-		type->flags |= Type::Hidden;
+	type->flags = flags;
 	type->declared = true;
 	type->built = false;
 	types.push_back(type);
-	if(!hidden)
+	if(!IS_SET(flags, Type::Hidden))
 		parser->AddType(type);
 	built = false;
 }

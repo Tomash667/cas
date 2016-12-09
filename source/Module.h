@@ -27,7 +27,7 @@ public:
 		return IModule::AddType<T>(type_name);
 	}
 
-	void AddCoreType(cstring type_name, int size, CoreVarType var_type, bool is_ref, bool hidden = false);
+	void AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
 	Function* FindEqualFunction(Function& fc);
 	Type* FindType(cstring type_name);
 	void AddParentModule(Module* parent_module);

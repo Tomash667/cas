@@ -1,0 +1,62 @@
+// operator =
+string a = "test";
+a = "test2";
+
+// operator ==
+Assert_IsFalse("abc" == "aaa");
+Assert_IsTrue("abc" != "aaa");
+
+// operator !=
+Assert_IsTrue("abc" == "abc");
+Assert_IsFalse("abc" != "abc");
+
+// operator +
+Assert_AreEqual("test234", a + "34");
+Assert_AreEqual("test2a", a + 'a');
+
+// operator +=
+a += "11";
+a += '2';
+Assert_AreEqual("test2112", a);
+
+//=====================================================
+/*
+string global_str = "global";
+
+// should copy value not assign reference
+string b1 = "b1", b2 = "b2";
+Assert_IsFalse(b1 is b2);
+b1 = b2;
+Assert_IsFalse(b1 is b2);
+Assert_AreEqual("b2", b1);
+
+// should create copy of a before modifing it
+string f(string a)
+{
+	Assert_IsFalse(global_str is a);
+	a = "local";
+	return a;
+}
+
+string a2 = f(global_str);
+Assert_AreEqual("global", global_str);
+Assert_AreEqual("local", a2);
+
+// should not create copy
+char f_nc(string a)
+{
+	Assert_IsTrue(global_str is a);
+	return a[0];
+}
+f_nc(global_str);
+
+// should create copy of return struct before modifing it
+string f2() { return global_str; }
+string s;
+s = f2() += "_mod"; // modifing temporary object value
+Assert_AreEqual("global", global_str);
+Assert_AreEqual("global_mod", s);
+f_nc(f2());
+
+pause();
+*/

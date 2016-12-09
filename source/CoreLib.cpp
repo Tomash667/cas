@@ -61,6 +61,16 @@ static int f_string_length(string& str)
 	return str.length();
 }
 
+static bool f_string_empty(string& str)
+{
+	return str.empty();
+}
+
+static void f_string_clear(string& str)
+{
+	str.clear();
+}
+
 static int f_int_abs(int a)
 {
 	return abs(a);
@@ -87,15 +97,15 @@ static void InitCoreLib(Module& module, Settings& settings)
 	s_use_getch = settings.use_getch;
 
 	// types
-	module.AddCoreType("void", 0, V_VOID, false);
-	module.AddCoreType("bool", sizeof(bool), V_BOOL, false);
-	module.AddCoreType("char", sizeof(char), V_CHAR, false);
-	module.AddCoreType("int", sizeof(int), V_INT, false);
-	module.AddCoreType("float", sizeof(float), V_FLOAT, false);
-	module.AddCoreType("string", sizeof(string), V_STRING, true);
-	module.AddCoreType("ref", 0, V_REF, true, true);
-	module.AddCoreType("special", 0, V_SPECIAL, false, true);
-	module.AddCoreType("type", 0, V_TYPE, false, true);
+	module.AddCoreType("void", 0, V_VOID, 0);
+	module.AddCoreType("bool", sizeof(bool), V_BOOL, 0);
+	module.AddCoreType("char", sizeof(char), V_CHAR, 0);
+	module.AddCoreType("int", sizeof(int), V_INT, 0);
+	module.AddCoreType("float", sizeof(float), V_FLOAT, 0);
+	module.AddCoreType("string", sizeof(string), V_STRING, Type::Class);
+	module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
+	module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
+	module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
 	// bool methods
 	module.AddMethod("bool", "implicit char operator cast()", nullptr);
 	module.AddMethod("bool", "implicit int operator cast()", nullptr);
@@ -123,8 +133,16 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod("float", "float operator = (float f)", nullptr);
 	module.AddMethod("float", "float abs()", f_float_abs);
 	// string methods
-	module.AddMethod("float", "string operator = (string s)", nullptr);
+	module.AddMethod("string", "string operator = (string s)", nullptr);
+	module.AddMethod("string", "bool operator == (string s)", nullptr);
+	module.AddMethod("string", "bool operator != (string s)", nullptr);
+	module.AddMethod("string", "string operator + (string s)", nullptr);
+	module.AddMethod("string", "string operator + (char c)", nullptr);
+	module.AddMethod("string", "string operator += (string s)", nullptr);
+	module.AddMethod("string", "string operator += (char c)", nullptr);
 	module.AddMethod("string", "int length()", f_string_length);
+	module.AddMethod("string", "bool empty()", f_string_empty);
+	module.AddMethod("string", "void clear()", f_string_clear);
 	
 	// functions
 	module.AddFunction("void print(string str)", f_print);

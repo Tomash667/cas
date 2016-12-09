@@ -1868,8 +1868,8 @@ void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 
 ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 {
-	if(!CanTakeRef(left))
-		t.Throw("Can't assign, left value must be variable.");
+	if(!CanTakeRef(left) && !GetType(left->result.type)->IsStruct())
+		t.Throw("Can't assign, left must be assignable.");
 	if(left->source)
 		left->source->mod = true;
 

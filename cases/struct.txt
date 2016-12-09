@@ -1,4 +1,8 @@
-struct A { int x; }
+struct A 
+{
+	int x;
+	int operator += (A a) { x += a.x; return x; }
+}
 A global_a;
 global_a.x = 1;
 
@@ -31,8 +35,11 @@ f_nc(global_a);
 
 // should create copy of return struct before modifing it
 A f2() { return global_a; }
-f2().x++; // modifing temporary object value
+int r = ++f2().x; // modifing temporary object value
+Assert_AreEqual(2, r);
+A a7;
+a7.x = 7;
+r = f2() += a7;
+Assert_AreEqual(8, r);
 Assert_AreEqual(1, global_a.x);
 f_nc(f2());
-
-pause();

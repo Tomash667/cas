@@ -54,7 +54,7 @@ struct Class
 		assert(base);
 		Type* type = base->type;
 		byte* data = new byte[type->size + 8];
-		memcpy(data + 8, base, type->size);
+		memcpy(data + 8, ((byte*)base) + 8, type->size);
 		Class* c = (Class*)data;
 		c->refs = START_REF_COUNT;
 		c->type = type;
