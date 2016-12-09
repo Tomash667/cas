@@ -398,4 +398,11 @@ TEST_METHOD(CallDeletedFunction)
 	RunFailureTest("class X{delete bool operator == (X x)} X x; x == x;", "Can't call 'bool X.operator == (X)', method marked as deleted.");
 }
 
+TEST_METHOD(InvalidLongRefAssign)
+{
+	RunFailureTest("int a, b; a --> b;", "Can't long assign reference, left value must be reference to class.");
+	RunFailureTest("class X{} void f(X& x) { x --> 3; }", "Can't long assign reference, right value must be variable.");
+	RunFailureTest("class X{} class X2{} void f(X& x) { X2 x2; x --> x2; }", "Can't long reference assign 'X2' to type 'X&'.");
+}
+
 CA_TEST_CLASS_END();

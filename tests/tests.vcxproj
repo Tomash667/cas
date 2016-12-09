@@ -132,6 +132,7 @@
     <Text Include="..\cases\if_else.txt" />
     <Text Include="..\cases\inc_dec.txt" />
     <Text Include="..\cases\is.txt" />
+    <Text Include="..\cases\long_ref_assign.txt" />
     <Text Include="..\cases\math.txt" />
     <Text Include="..\cases\nullable.txt" />
     <Text Include="..\cases\overload_cast.txt" />

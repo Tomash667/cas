@@ -4,12 +4,6 @@
 #define CHECK_LEAKS
 #endif
 
-enum SPECIAL_VAR
-{
-	V_FUNCTION,
-	V_CTOR
-};
-
 #ifdef CHECK_LEAKS
 struct Class;
 struct RefVar;
@@ -143,14 +137,10 @@ struct Var
 		Str* str;
 		RefVar* ref;
 		Class* clas;
-		struct
-		{
-			int value1;
-			int value2;
-		};
 	};
 
 	inline explicit Var() : vartype(V_VOID) {}
+	inline explicit Var(CoreVarType type) : vartype(type) {}
 	inline explicit Var(bool bvalue) : vartype(V_BOOL), bvalue(bvalue) {}
 	inline explicit Var(char cvalue) : vartype(V_CHAR), cvalue(cvalue) {}
 	inline explicit Var(int value) : vartype(V_INT), value(value) {}
@@ -158,11 +148,11 @@ struct Var
 	inline explicit Var(Str* str) : vartype(V_STRING), str(str) {}
 	inline Var(RefVar* ref, int subtype) : vartype(VarType(V_REF, subtype)), ref(ref) {}
 	inline explicit Var(Class* clas) : vartype(clas->type->index, 0), clas(clas) {}
-	inline Var(VarType vartype, int value1, int value2) : vartype(vartype), value1(value1), value2(value2) {}
 };
 
 struct StackFrame
 {
-	uint expected_stack;
-	int current_line;
+	uint expected_stack, pos;
+	int current_line, current_function;
+	bool is_ctor;
 };

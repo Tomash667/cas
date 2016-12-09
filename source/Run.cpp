@@ -1079,14 +1079,18 @@ void RunInternal(ReturnValue& retval)
 						ReleaseRef(left);
 						assert(ref.vartype.type == right.vartype.type);
 						Type* type = run_module->GetType(right.vartype.type);
+						uint size;
 						if(type->IsClass())
 						{
 							assert(!type->IsStruct());
 							Class* lclass = (Class*)*ref.data;
 							lclass->Release();
 							right.clas->refs++;
+							size = sizeof(lclass);
 						}
-						memcpy(ref.data, &right.value, type->size);
+						else
+							size = type->size;
+						memcpy(ref.data, &right.value, size);
 						stack.pop_back();
 						stack.push_back(right);
 					}
@@ -1098,6 +1102,7 @@ void RunInternal(ReturnValue& retval)
 			if(current_function == -1)
 			{
 				// set & validate return value
+				assert(depth == 0);
 				assert(local.empty());
 				if(run_module->result == V_VOID)
 				{
@@ -1121,9 +1126,9 @@ void RunInternal(ReturnValue& retval)
 				UserFunction& f = run_module->ufuncs[current_function];
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
+				StackFrame& frame = stack_frames.back();
 				Var& func_mark = *(local.end() - to_pop - 1);
-				assert(func_mark.vartype.type == V_SPECIAL && (func_mark.vartype.subtype == V_FUNCTION || func_mark.vartype.subtype == V_CTOR));
-				bool is_ctor = (func_mark.vartype.subtype == V_CTOR);
+				assert(func_mark.vartype.type == V_SPECIAL);
 				while(!refs.empty())
 				{
 					RefVar* ref = refs.back();
@@ -1140,7 +1145,7 @@ void RunInternal(ReturnValue& retval)
 					refs.pop_back();
 				}
 				--depth;
-				if(is_ctor)
+				if(frame.is_ctor)
 					--to_pop;
 				while(to_pop--)
 				{
@@ -1149,14 +1154,14 @@ void RunInternal(ReturnValue& retval)
 					local.pop_back();
 				}
 				Class* thi = nullptr;
-				if(is_ctor)
+				if(frame.is_ctor)
 				{
 					assert(local.back().vartype.type == f.type);
 					thi = local.back().clas;
 					local.pop_back();
 				}
-				c = start + func_mark.value2;
-				current_function = func_mark.value1;
+				c = start + frame.pos;
+				current_function = frame.current_function;
 				local.pop_back();
 				if(current_function != -1)
 				{
@@ -1166,13 +1171,12 @@ void RunInternal(ReturnValue& retval)
 					uint count = 1 + f.locals + f.args.size();
 					assert(local.size() >= count);
 					Var& d = *(local.end() - count);
-					assert(d.vartype.type == V_SPECIAL && (d.vartype.subtype == V_FUNCTION || d.vartype.subtype == V_CTOR));
+					assert(d.vartype.type == V_SPECIAL);
 					locals_offset = local.size() - f.locals;
 					args_offset = locals_offset - f.args.size();
 				}
 				if(thi)
 					stack.push_back(Var(thi));
-				StackFrame& frame = stack_frames.back();
 				assert(frame.expected_stack == stack.size());
 				if(f.result.type != V_VOID)
 					assert(stack.back().vartype == f.result);
@@ -1218,7 +1222,7 @@ void RunInternal(ReturnValue& retval)
 				UserFunction& f = run_module->ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
-				local.push_back(Var(VarType(V_SPECIAL, V_FUNCTION), current_function, pos));
+				local.push_back(Var(V_SPECIAL));
 				// handle args
 				assert(stack.size() >= f.args.size());
 				args_offset = local.size();
@@ -1232,18 +1236,22 @@ void RunInternal(ReturnValue& retval)
 				// handle locals
 				locals_offset = local.size();
 				local.resize(local.size() + f.locals);
-				// call
+				// push frame
 				uint expected = stack.size();
 				if(f.result.type != V_VOID)
 					++expected;
 				StackFrame frame;
-				frame.expected_stack = expected;
+				frame.pos = pos;
+				frame.current_function = current_function;
 				frame.current_line = current_line;
+				frame.expected_stack = expected;
+				frame.is_ctor = false;
 				stack_frames.push_back(frame);
+				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
-				++depth;
 				c = start + f.pos;
+				++depth;
 			}
 			break;
 		case CALLU_CTOR:
@@ -1253,7 +1261,7 @@ void RunInternal(ReturnValue& retval)
 				UserFunction& f = run_module->ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
-				local.push_back(Var(VarType(V_SPECIAL, V_CTOR), current_function, pos));
+				local.push_back(Var(V_SPECIAL));
 				// push this
 				args_offset = local.size();
 				assert(run_module->GetType(f.type)->IsClass());
@@ -1270,15 +1278,20 @@ void RunInternal(ReturnValue& retval)
 				// handle locals
 				locals_offset = local.size();
 				local.resize(local.size() + f.locals);
-				// call
+				// push frame
 				uint expected = stack.size() + 1;
 				StackFrame frame;
-				frame.expected_stack = expected;
+				frame.pos = pos;
+				frame.current_function = current_function;
 				frame.current_line = current_line;
+				frame.expected_stack = expected;
+				frame.is_ctor = true;
 				stack_frames.push_back(frame);
+				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
 				c = start + f.pos;
+				++depth;
 			}
 			break;
 		case CTOR:

@@ -198,4 +198,9 @@ TestMethod(Forward)
 	RunFileTest("forward.txt", "", "f\nf23\n10\nY::f30\nY::f13\n");
 }
 
+TestMethod(LongRefAssign)
+{
+	RunFileTest("long_ref_assign.txt", "", "");
+}
+
 CA_TEST_CLASS_END();

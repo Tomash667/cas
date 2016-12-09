@@ -125,6 +125,7 @@ enum SYMBOL
 	S_CALL,
 	S_TERNARY,
 	S_SET_REF,
+	S_SET_LONG_REF,
 	S_INVALID,
 	S_MAX
 };
@@ -190,6 +191,7 @@ enum BASIC_SYMBOL
 	BS_CALL, // (
 	BS_TERNARY, // ?
 	BS_SET_REF, // ->
+	BS_SET_LONG_REF, // -->
 	BS_MAX
 };
 

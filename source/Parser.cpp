@@ -52,6 +52,7 @@ SymbolInfo symbols[] = {
 	S_CALL, "function call", 2, true, 1, NOP, ST_CALL, "$opCall", "()",
 	S_TERNARY, "ternary", 15, false, 2, NOP, ST_NONE, nullptr, "?:",
 	S_SET_REF, "assign reference", 15, false, 2, NOP, ST_NONE, nullptr, "->",
+	S_SET_LONG_REF, "assign long reference", 15, false, 2, NOP, ST_NONE, nullptr, "-->",
 	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE, nullptr, ""
 };
 static_assert(sizeof(symbols) / sizeof(SymbolInfo) == S_MAX, "Missing symbols.");
@@ -96,7 +97,8 @@ BasicSymbolInfo basic_symbols[] = {
 	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID, "[]",
 	BS_CALL, "(", S_INVALID, S_CALL, S_INVALID, "()",
 	BS_TERNARY, "?", S_INVALID, S_INVALID, S_INVALID, nullptr,
-	BS_SET_REF, "->", S_INVALID, S_INVALID, S_SET_REF, nullptr
+	BS_SET_REF, "->", S_INVALID, S_INVALID, S_SET_REF, nullptr,
+	BS_SET_LONG_REF, "-->", S_INVALID, S_INVALID, S_SET_LONG_REF, nullptr
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
@@ -1778,6 +1780,23 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			left.Pin()->Free();
 			stack.push_back(set.Pin());
 		}
+		else if(si.symbol == S_SET_LONG_REF)
+		{
+			if(left->result.type != V_REF || !GetType(left->result.subtype)->IsRefClass())
+				t.Throw("Can't long assign reference, left value must be reference to class.");
+			if(!CanTakeRef(right))
+				t.Throw("Can't long assign reference, right value must be variable.");
+
+			NodeRef set;
+			set->source = nullptr;
+			set->op = SET_ADR;
+			set->result = VarType(left->result.subtype, 0);
+			if(!TryCast(right.Get(), set->result))
+				t.Throw("Can't long reference assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(left));
+			set->push(left.Pin());
+			set->push(right.Pin());
+			stack.push_back(set.Pin());
+		}
 		else if(si.type == ST_ASSIGN)
 			stack.push_back(ParseAssign(si, left, right));
 		else
@@ -2351,7 +2370,12 @@ BASIC_SYMBOL Parser::GetSymbol(bool full_over)
 		if(t.PeekSymbol('='))
 			return BS_ASSIGN_SUB;
 		else if(t.PeekSymbol('-'))
-			return BS_DEC;
+		{
+			if(t.PeekSymbol('>'))
+				return BS_SET_LONG_REF;
+			else
+				return BS_DEC;
+		}
 		else if(t.PeekSymbol('>'))
 			return BS_SET_REF;
 		else
