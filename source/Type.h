@@ -93,7 +93,8 @@ struct Type
 		HaveCtor = 1 << 4,
 		Hidden = 1 << 5,
 		Class = 1 << 6,
-		Code = 1 << 7
+		Code = 1 << 7,
+		PassByValue = 1 << 8, // struct/string
 	};
 
 	string name;
@@ -112,6 +113,7 @@ struct Type
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
 	inline bool IsStruct() const { return IsClass() && !IsRef(); }
 	inline bool IsRefClass() const { return IsClass() && IsRef(); }
+	inline bool IsPassByValue() const { return IS_SET(flags, Type::PassByValue); }
 };
 
 struct VarSource

@@ -102,6 +102,8 @@ GetRefData GetRef(Var& v)
 	case RefVar::INDEX:
 		{
 			Str* s = v.ref->str;
+			if(v.ref->index >= s->s.length())
+				throw CasException(Format("Index %u out of range.", v.ref->index));
 			return GetRefData((int*)&s->s[v.ref->index], V_CHAR);
 		}
 	default:
@@ -286,17 +288,28 @@ void SetFromStack(Var& v)
 	assert(!stack.empty());
 	Var& s = stack.back();
 	assert(v.vartype == V_VOID || v.vartype == s.vartype);
-	Type* type = run_module->GetType(v.vartype.type);
-	if(!type->IsStruct())
-	{
-		// free what was in variable previously
-		ReleaseRef(v);
-		// incrase reference for new var
-		AddRef(s);
+	if(s.vartype.type >= V_BOOL && s.vartype.type  <= V_FLOAT)
 		v = s;
+	else if(s.vartype.type == V_STRING)
+	{
+		ReleaseRef(v);
+		v.vartype = s.vartype;
+		v.str = CreateStr(s.str->s.c_str());
 	}
 	else
-		memcpy(v.clas->data(), s.clas->data(), type->size);
+	{
+		Type* type = run_module->GetType(v.vartype.type); // with s.vartype.type it will crash for new variables that have type V_VOID
+		if(!type->IsStruct())
+		{
+			// free what was in variable previously
+			ReleaseRef(v);
+			// incrase reference for new var
+			AddRef(s);
+			v = s;
+		}
+		else
+			memcpy(v.clas->data(), s.clas->data(), type->size);
+	}
 }
 
 void Cast(Var& v, VarType vartype)
@@ -622,7 +635,8 @@ void RunInternal(ReturnValue& retval)
 				stack.pop_back();
 				Var& v = stack.back();
 				assert(v.vartype.type == V_STRING);
-				assert(index < v.str->s.length());
+				if(index >= v.str->s.length())
+					throw CasException(Format("Index %u out of range.", index));
 				RefVar* ref = new RefVar(RefVar::INDEX, index);
 				ref->str = v.str;
 				v.vartype = VarType(V_REF, V_CHAR);
@@ -1358,7 +1372,7 @@ void RunInternal(ReturnValue& retval)
 	}
 }
 
-void Run(RunModule& _run_module, ReturnValue& _retval)
+bool Run(RunModule& _run_module, ReturnValue& _retval, string& _exc)
 {
 	run_module = &_run_module;
 
@@ -1377,23 +1391,37 @@ void Run(RunModule& _run_module, ReturnValue& _retval)
 	all_refs.clear();
 #endif
 
-	RunInternal(_retval);
+	bool result;
+	try
+	{
+		// run
+		RunInternal(_retval);
+		_exc.clear();
+		result = true;
 
-	// cleanup
-	for(Var& v : global)
-		ReleaseRef(v);
+		// cleanup
+		for(Var& v : global)
+			ReleaseRef(v);
 #ifdef CHECK_LEAKS
-	for(RefVar* r : all_refs)
-	{
-		assert(r->refs == 1);
-		delete r;
-	}
-	for(Class* c : all_clases)
-	{
-		assert(c->refs == 1);
-		delete c;
-	}
+		for(RefVar* r : all_refs)
+		{
+			assert(r->refs == 1);
+			delete r;
+		}
+		for(Class* c : all_clases)
+		{
+			assert(c->refs == 1);
+			delete c;
+		}
 #endif
+	}
+	catch(const CasException& ex)
+	{
+		_exc = ex.exc;
+		result = false;
+	}
+
+	return result;
 }
 
 std::pair<cstring, int> cas::GetCurrentLocation()

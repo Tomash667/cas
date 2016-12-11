@@ -18,7 +18,8 @@ public:
 	bool AddType(cstring type_name, int size, int flags) override;
 	bool AddMember(cstring type_name, cstring decl, int offset) override;
 	ReturnValue GetReturnValue() override;
-	bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false) override;
+	cstring GetException() override;
+	ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) override;
 	bool Verify() override;
 
 	template<typename T>
@@ -38,6 +39,7 @@ public:
 	vector<Type*> types;
 	ReturnValue return_value;
 	Parser* parser;
+	string exc;
 	int index, refs;
 	bool inherited, released, built;
 	static vector<Module*> all_modules;

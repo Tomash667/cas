@@ -1,12 +1,10 @@
 + generate default ctor
 
-2) string is struct + tests
 3) nullable?
 4) script arg/ret ref
 
 - struct_class_ref.txt
 
-+ modify string reference (execution error)
 ++-- returns reference
 
 ? verify if ParseExpr type is longer used
@@ -20,6 +18,8 @@
 + string oper
 + better class/struct offset (push_member type offset)
 + catch all exceptions
++ += should call + and = if compound not found
++ optimize string concat (currently a+=b will create new string with a+b, then assign to a)
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 
@@ -32,7 +32,6 @@
 - missing member for type x/func - memory leak of string
 
 NEST A STRING:
-+ raise error
 + */ -> Not opened multiline comment found instead of unexpected *.
 + entry point
 + improvments
@@ -57,7 +56,6 @@ noinstance
 + register member function as member func
 + return new class instance without constructor [class X{} X f() { return ???}] ??? = X
 + allow overload operator for builtin types, currently it only works for class (this will need mixing with existing operator, and checking for builtin)
-+ string operator (+ string,char +=)
 
 - CObj b1, b7(7); not allowed, why? (this syntax is not allowed, require b7 = CObj(7), need fix)
 + AssertException
@@ -117,7 +115,7 @@ vector functions:
 + warn about div by 0 in const
 + opt: print(4) -> converted to string
 + warn: use of unassigned variable
-+ string functions, substr, first(), last(), trim, clear
++ string functions, substr, first(), last(), trim
 + function constexpr (abs,cin,cos)
 + namespace
 + in - if(x in {3,5})

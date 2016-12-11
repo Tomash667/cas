@@ -97,12 +97,20 @@ namespace cas
 	class IModule
 	{
 	public:
+		enum ExecutionResult
+		{
+			ParsingError,
+			Exception,
+			Ok
+		};
+
 		virtual bool AddFunction(cstring decl, const FunctionInfo& func_info) = 0;
 		virtual bool AddMethod(cstring type_name, cstring decl, const FunctionInfo& func_info) = 0;
 		virtual bool AddType(cstring type_name, int size, int flags = 0) = 0;
 		virtual bool AddMember(cstring type_name, cstring decl, int offset) = 0;
 		virtual ReturnValue GetReturnValue() = 0;
-		virtual bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false) = 0;
+		virtual cstring GetException() = 0;
+		virtual ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) = 0;
 		virtual bool Verify() = 0;
 
 		template<typename T>

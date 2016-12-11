@@ -33,12 +33,17 @@ TestMethod(Assign)
 
 TestMethod(Assign2)
 {
-	RunFileTest("assign2.txt", "", "");
+	RunFileTest("assign2.txt");
 }
 
 TestMethod(String)
 {
 	RunFileTest("string.txt", "Tomash 1990", "Podaj imie: Podaj rok urodzenia: Witaj Tomash! Masz 26 lat.");
+}
+
+TestMethod(String2)
+{
+	RunFileTest("string2.txt");
 }
 
 TestMethod(Float)
@@ -58,7 +63,7 @@ TestMethod(Bool)
 
 TestMethod(CompOperators)
 {
-	RunFileTest("comp_operators.txt", "", "");
+	RunFileTest("comp_operators.txt");
 }
 
 TestMethod(IfElse)
@@ -147,7 +152,7 @@ TestMethod(Ref)
 
 TestMethod(Ref2)
 {
-	RunFileTest("ref2.txt", "", "");
+	RunFileTest("ref2.txt");
 }
 
 TestMethod(ClassRef)
@@ -162,7 +167,7 @@ TestMethod(Cast)
 
 TestMethod(Struct)
 {
-	RunFileTest("struct.txt", "", "");
+	RunFileTest("struct.txt");
 }
 
 TestMethod(Char)
@@ -174,23 +179,23 @@ TestMethod(Char)
 
 TestMethod(Subscript)
 {
-	RunFileTest("subscript.txt", "", "");
+	RunFileTest("subscript.txt");
 }
 
 TestMethod(Ternary)
 {
-	RunFileTest("ternary.txt", "", "");
+	RunFileTest("ternary.txt");
 	RunFileTest("ternary.txt", "", "", false);
 }
 
 TestMethod(Switch)
 {
-	RunFileTest("switch.txt", "", "");
+	RunFileTest("switch.txt");
 }
 
 TestMethod(OverloadCast)
 {
-	RunFileTest("overload_cast.txt", "", "");
+	RunFileTest("overload_cast.txt");
 }
 
 TestMethod(Forward)
@@ -200,7 +205,7 @@ TestMethod(Forward)
 
 TestMethod(LongRefAssign)
 {
-	RunFileTest("long_ref_assign.txt", "", "");
+	RunFileTest("long_ref_assign.txt");
 }
 
 CA_TEST_CLASS_END();

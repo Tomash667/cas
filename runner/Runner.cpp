@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "string2.txt";
+cstring def_filename = "struct.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 
@@ -138,10 +138,12 @@ int main(int argc, char** argv)
 			ifs.close();
 		}
 
-		bool result = module->ParseAndRun(content.c_str(), optimize, decompile);
+		IModule::ExecutionResult result = module->ParseAndRun(content.c_str(), optimize, decompile);
 		vector<string>& asserts = GetAsserts();
-		if(!result)
+		if(result != IModule::Ok)
 		{
+			if(result == IModule::Exception)
+				cout << "\n\nException: " << module->GetException();
 			cout << "\n\n(OK)";
 			_getch();
 		}

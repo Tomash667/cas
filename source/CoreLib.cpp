@@ -102,7 +102,7 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddCoreType("char", sizeof(char), V_CHAR, 0);
 	module.AddCoreType("int", sizeof(int), V_INT, 0);
 	module.AddCoreType("float", sizeof(float), V_FLOAT, 0);
-	module.AddCoreType("string", sizeof(string), V_STRING, Type::Class);
+	module.AddCoreType("string", sizeof(string), V_STRING, Type::PassByValue);
 	module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
 	module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
 	module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
@@ -134,12 +134,6 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod("float", "float abs()", f_float_abs);
 	// string methods
 	module.AddMethod("string", "string operator = (string s)", nullptr);
-	module.AddMethod("string", "bool operator == (string s)", nullptr);
-	module.AddMethod("string", "bool operator != (string s)", nullptr);
-	module.AddMethod("string", "string operator + (string s)", nullptr);
-	module.AddMethod("string", "string operator + (char c)", nullptr);
-	module.AddMethod("string", "string operator += (string s)", nullptr);
-	module.AddMethod("string", "string operator += (char c)", nullptr);
 	module.AddMethod("string", "int length()", f_string_length);
 	module.AddMethod("string", "bool empty()", f_string_empty);
 	module.AddMethod("string", "void clear()", f_string_clear);

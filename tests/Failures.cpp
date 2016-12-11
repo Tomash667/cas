@@ -136,7 +136,7 @@ TEST_METHOD(InvalidOperationTypes)
 TEST_METHOD(RequiredVariable)
 {
 	RunFailureTest("++3;", "Operation 'pre increment' require variable.");
-	RunFailureTest("3 = 1;", "Can't assign, left value must be variable.");
+	RunFailureTest("3 = 1;", "Can't assign, left must be assignable.");
 }
 
 TEST_METHOD(InvalidMemberAccess)
@@ -403,6 +403,21 @@ TEST_METHOD(InvalidLongRefAssign)
 	RunFailureTest("int a, b; a --> b;", "Can't long assign reference, left value must be reference to class.");
 	RunFailureTest("class X{} void f(X& x) { x --> 3; }", "Can't long assign reference, right value must be variable.");
 	RunFailureTest("class X{} class X2{} void f(X& x) { X2 x2; x --> x2; }", "Can't long reference assign 'X2' to type 'X&'.");
+}
+
+TEST_METHOD(IndexOutOfRange)
+{
+	RunFailureTest("string s; s[2] = 'c';", "Exception: Index 2 out of range.");
+}
+
+TEST_METHOD(IndexOutOfRangeOnReference)
+{
+	RunFailureTest(R"code(
+		string s = "test";
+		char& c = s[1];
+		s.clear();
+		c = 'd';
+	)code", "Exception: Index 1 out of range.");
 }
 
 CA_TEST_CLASS_END();

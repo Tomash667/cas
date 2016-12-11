@@ -1539,7 +1539,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			ParseNode* op = ParseNode::Get();
 			op->op = PUSH_INDEX;
 			op->result = VarType(V_REF, V_CHAR);
-			op->source = nullptr;
+			op->source = node->source;
 			op->push(node.Pin());
 			op->push(sn.node->childs[0]);
 			stack.push_back(op);
@@ -1868,7 +1868,7 @@ void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 
 ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 {
-	if(!CanTakeRef(left) && !GetType(left->result.type)->IsStruct())
+	if(!CanTakeRef(left) && !GetType(left->result.type)->IsPassByValue())
 		t.Throw("Can't assign, left must be assignable.");
 	if(left->source)
 		left->source->mod = true;
@@ -1900,19 +1900,34 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 			if(left->result.type != V_REF)
 			{
 				set->op = PushToSet(left->op);
-				assert(set->op != NOP);
-				set->value = left->value;
-				set->result = left->result;
-				if(!TryCast(right.Get(), left->result))
-					t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
-				set->childs.clear();
-				if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
+				if(set->op == NOP && left_type->IsPassByValue())
 				{
-					set->push(left->childs);
-					left->childs.clear();
+					// works like struct, it is l-value
+					set->pseudo_op = GROUP;
+					set->result = left->result;
+					if(!TryCast(right.Get(), left->result))
+						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
+					set->childs.clear();
+					set->push(left.Pin());
+					set->push(POP);
+					set->push(right.Pin());
 				}
-				set->push(right.Pin());
-				left.Pin()->Free();
+				else
+				{
+					assert(set->op != NOP);
+					set->value = left->value;
+					set->result = left->result;
+					if(!TryCast(right.Get(), left->result))
+						t.Throw("Can't assign '%s' to type '%s'.", GetTypeName(right), GetTypeName(set));
+					set->childs.clear();
+					if(left->op == PUSH_MEMBER || left->op == PUSH_INDEX)
+					{
+						set->push(left->childs);
+						left->childs.clear();
+					}
+					set->push(right.Pin());
+					left.Pin()->Free();
+				}
 			}
 			else
 			{
@@ -1947,52 +1962,65 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 		else if(left->result.type != V_REF)
 		{
 			set->op = PushToSet(left->op);
-			assert(set->op != NOP);
-			set->value = left->value;
-			set->result = left->result;
-
-			NodeRef op;
-			op->op = (Op)symbols[si.op].op;
-			op->result = op_result.result_var;
-			op->source = nullptr;
-
-			if(left->op == PUSH_MEMBER)
+			if(set->op == NOP && GetType(left->result.type)->IsPassByValue())
 			{
-				set->push(left->childs);
-				set->push(PUSH);
-				left->childs.clear();
-				Cast(left.Get(), op_result.cast_var);
-				Cast(right.Get(), op_result.cast_var);
+				// works like struct, it is l-value
+				set->op = (Op)symbols[si.op].op;
+				set->result = op_result.result_var;
+				set->source = nullptr;
+				set->owned = true;
 				set->push(left.Pin());
 				set->push(right.Pin());
-				ForceCast(op.Get(), set->result, si.name);
-				set->push(op.Pin());
-			}
-			else if(left->op == PUSH_INDEX)
-			{
-				assert(left->childs.size() == 2u); // push arr, push index
-				ParseNode* push = ParseNode::Get();
-				push->op = PUSH;
-				left->childs.insert(left->childs.begin() + 1, push);
-				left->push(PUSH);
-				left->push(SWAP, 1);
-				Cast(left.Get(), op_result.cast_var);
-				Cast(right.Get(), op_result.cast_var);
-				op->push(left.Pin());
-				op->push(right.Pin());
-				ForceCast(op.Get(), set->result, si.name);
-				set->push(op.Pin());
 			}
 			else
 			{
-				Cast(left.Get(), op_result.cast_var);
-				Cast(right.Get(), op_result.cast_var);
+				assert(set->op != NOP);
+				set->value = left->value;
+				set->result = left->result;
 
-				op->push(left.Pin());
-				op->push(right.Pin());
+				NodeRef op;
+				op->op = (Op)symbols[si.op].op;
+				op->result = op_result.result_var;
+				op->source = nullptr;
 
-				ForceCast(op.Get(), set->result, si.name);
-				set->push(op.Pin());
+				if(left->op == PUSH_MEMBER)
+				{
+					set->push(left->childs);
+					set->push(PUSH);
+					left->childs.clear();
+					Cast(left.Get(), op_result.cast_var);
+					Cast(right.Get(), op_result.cast_var);
+					set->push(left.Pin());
+					set->push(right.Pin());
+					ForceCast(op.Get(), set->result, si.name);
+					set->push(op.Pin());
+				}
+				else if(left->op == PUSH_INDEX)
+				{
+					assert(left->childs.size() == 2u); // push arr, push index
+					ParseNode* push = ParseNode::Get();
+					push->op = PUSH;
+					left->childs.insert(left->childs.begin() + 1, push);
+					left->push(PUSH);
+					left->push(SWAP, 1);
+					Cast(left.Get(), op_result.cast_var);
+					Cast(right.Get(), op_result.cast_var);
+					op->push(left.Pin());
+					op->push(right.Pin());
+					ForceCast(op.Get(), set->result, si.name);
+					set->push(op.Pin());
+				}
+				else
+				{
+					Cast(left.Get(), op_result.cast_var);
+					Cast(right.Get(), op_result.cast_var);
+
+					op->push(left.Pin());
+					op->push(right.Pin());
+
+					ForceCast(op.Get(), set->result, si.name);
+					set->push(op.Pin());
+				}
 			}
 		}
 		else
@@ -2525,8 +2553,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 			AnyFunction builtin = ApplyFunctionCall(node, funcs, ltype, false);
 			if(builtin)
 			{
-				assert(symbol == S_EQUAL || symbol == S_NOT_EQUAL);
-				node->result = V_BOOL;
+				node->result = builtin.cf->result;
 				node->op = (Op)si.op;
 				Cast(node->childs[1], builtin.cf->arg_infos[1].vartype);
 			}
@@ -4691,6 +4718,8 @@ void Parser::AnalyzeCode()
 			type->flags = Type::Class;
 			if(is_class)
 				type->flags |= Type::Ref;
+			else
+				type->flags |= Type::PassByValue;
 			t.Next();
 			t.AssertSymbol('{');
 			t.Next();

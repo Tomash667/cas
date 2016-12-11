@@ -177,7 +177,12 @@ ReturnValue Module::GetReturnValue()
 	return return_value;
 }
 
-bool Module::ParseAndRun(cstring input, bool optimize, bool decompile)
+cstring Module::GetException()
+{
+	return exc.c_str();
+}
+
+IModule::ExecutionResult Module::ParseAndRun(cstring input, bool optimize, bool decompile)
 {
 	// build
 	BuildModule();
@@ -188,18 +193,18 @@ bool Module::ParseAndRun(cstring input, bool optimize, bool decompile)
 	settings.optimize = optimize;
 	RunModule* run_module = parser->Parse(settings);
 	if(!run_module)
-		return false;
+		return ExecutionResult::ParsingError;
 
 	// decompile
 	if(decompile)
 		Decompile(*run_module);
 		
 	// run
-	Run(*run_module, return_value);
+	bool ok = Run(*run_module, return_value, exc);
 
 	// cleanup
 	parser->Cleanup();
-	return true;
+	return (ok ? ExecutionResult::Ok : ExecutionResult::Exception);
 }
 
 void Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags)

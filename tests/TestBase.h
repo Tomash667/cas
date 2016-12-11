@@ -35,7 +35,7 @@ const bool CI_MODE = ((_CI_MODE - 1) == 0);
 extern IModule* current_module;
 
 void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize = true);
-inline void RunFileTest(cstring filename, cstring input, cstring output, bool optimize = true)
+inline void RunFileTest(cstring filename, cstring input = "", cstring output = "", bool optimize = true)
 {
 	RunFileTest(current_module, filename, input, output, optimize);
 }

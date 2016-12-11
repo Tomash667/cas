@@ -91,8 +91,13 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 	Result result;
 	try
 	{
-		if(!module->ParseAndRun(input, optimize))
+		IModule::ExecutionResult ex_result = module->ParseAndRun(input, optimize);
+		if(ex_result != IModule::Ok)
+		{
+			if(ex_result == IModule::Exception)
+				event_output = Format("Exception: %s", module->GetException());
 			result = FAILED;
+		}
 		else
 		{
 			vector<string>& asserts = GetAsserts();
