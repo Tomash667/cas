@@ -1239,6 +1239,8 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 			{
 				Type* rtype = GetType(vartype.type);
 				assert(rtype->IsClass());
+				if(IS_SET(rtype->flags, Type::DisallowCreate))
+					t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
 				if(IS_SET(rtype->flags, Type::HaveCtor))
 				{
 					vector<AnyFunction> funcs;
@@ -2072,6 +2074,8 @@ ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
 		{
 			// ctor
 			Type* rtype = GetType(vartype.type);
+			if(IS_SET(rtype->flags, Type::DisallowCreate))
+				t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
 			if(!IS_SET(rtype->flags, Type::HaveCtor))
 				t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 			NodeRef node;

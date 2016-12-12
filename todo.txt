@@ -41,17 +41,6 @@ TODO:
 register class/struct
 verify
 norefcount
-noinstance
-
-+ for struct marking as need copy, push as reference to other function, need testing (and working reference system)
-	struct X{ int a; }
-	void f(X x)
-	{
-		f2(x); // should mark?
-		f3(x.a); // ^
-	}
-	void f2(X& x) {}
-	void f3(int& x) {}
 
 + register member function as member func
 + return new class instance without constructor [class X{} X f() { return ???}] ??? = X
@@ -59,7 +48,6 @@ noinstance
 
 - CObj b1, b7(7); not allowed, why? (this syntax is not allowed, require b7 = CObj(7), need fix)
 + AssertException
-+ non instanceable class
 + register global
 + thiscall ctor
 

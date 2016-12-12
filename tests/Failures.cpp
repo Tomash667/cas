@@ -11,6 +11,12 @@ public:
 	int x, y;
 };
 
+class B
+{
+public:
+	B(int a, int b) {}
+};
+
 static void f() {}
 
 CA_TEST_CLASS(Failures);
@@ -418,6 +424,16 @@ TEST_METHOD(IndexOutOfRangeOnReference)
 		s.clear();
 		c = 'd';
 	)code", "Exception: Index 1 out of range.");
+}
+
+TEST_METHOD(DisallowCreateType)
+{
+	module->AddType<A>("A", cas::DisallowCreate);
+	RunFailureTest("A a;", "Type 'A' cannot be created in script.");
+
+	module->AddType<B>("B", cas::DisallowCreate);
+	module->AddMethod("B", "B(int a, int b)", cas::AsCtor<B, int, int>());
+	RunFailureTest("void f(B b){} f(B(1,2));", "Type 'B' cannot be created in script.");
 }
 
 CA_TEST_CLASS_END();

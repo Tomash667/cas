@@ -83,7 +83,6 @@ struct VarType
 // type
 struct Type
 {
-	// must be compatibile with TypeFlags
 	enum Flags
 	{
 		Ref = 1 << 0,

@@ -125,49 +125,37 @@ TEST_METHOD(ComplexClassResult)
 //=========================================================================================
 struct Vec
 {
-	float x, y, z;
+	int x;
+
+	Vec& operator += (int a)
+	{
+		x += a;
+		return *this;
+	}
 };
 
-static Vec Get1()
+TEST_METHOD_IGNORE(CodeRegisterValueType)
 {
-	Vec v;
-	v.x = 1;
-	v.y = 1;
-	v.z = 1;
-	return v;
+	module->AddType<Vec>("Vec", cas::ValueType);
+	module->AddMember("Vec", "int x", offsetof(Vec, x));
+	module->AddMethod("Vec", "Vec operator += (int a)", &Vec::operator+=);
+	RunTest(R"code(
+		Vec global;
+		global.x = 7;
+		Vec get_global() { return global; }
+		Vec a = get_global();
+		a.x += 1;
+		Assert_AreEqual(7, global.x);
+		Assert_AreEqual(8, a.x);
+		Vec set_to_1(Vec v) { v.x = 1; return v; }
+		Vec b = set_to_1(a);
+		Assert_AreEqual(8, a.x);
+		Assert_AreEqual(1, b.x);
+		Vec c = set_to_1(a) += 4;
+		Assert_AreEqual(8, a.x);
+		Assert_AreEqual(5, a.x);
+	)code");
 }
-
-static void Set123(Vec& v)
-{
-	v.x = 1;
-	v.y = 2;
-	v.z = 3;
-}
-
-static float Sum(const Vec& v)
-{
-	return v.x + v.y + v.z;
-}
-
-static float Sum2(Vec v)
-{
-	v.x *= 2;
-	v.y *= 2;
-	v.z *= 2;
-	return Sum(v);
-}
-
-/*TEST_METHOD(CodeRegisterValueType)
-{
-	ModuleRef module;
-	module->AddType<Vec>("Vec");
-	module->AddFunction("Vec Get1()", Get1);
-	module->AddFunction("void Set123(Vec& v)", Set123);
-	module->AddFunction("float Sum(const Vec& v)", Sum);
-	module->AddFunction("float Sum2()", Sum2);
-	module.RunTest("Vec v = Get1(); v.x = 0; v.y += 1; float sum = Sum(v); Set123(v); sum += Sum2(v); sum += v; return sum;");
-	module.ret().IsInt(21);
-}*/
 
 //=========================================================================================
 struct A : RefCounter

@@ -119,8 +119,8 @@ bool Module::AddType(cstring type_name, int size, int flags)
 {
 	assert(type_name && size > 0);
 	assert(!inherited); // can't add types to inherited module (until fixed)
-	if(IS_SET(flags, DisallowCreate))
-		flags |= NoRefCount;
+	//if(IS_SET(flags, DisallowCreate))
+	//	flags |= NoRefCount;
 	int type_index;
 	if(!parser->VerifyTypeName(type_name, type_index))
 	{
@@ -133,7 +133,15 @@ bool Module::AddType(cstring type_name, int size, int flags)
 	Type* type = new Type;
 	type->name = type_name;
 	type->size = size;
-	type->flags = flags | Type::Class | Type::Ref | Type::Code;
+	type->flags = Type::Class | Type::Code;
+	if(IS_SET(flags, cas::ValueType))
+		type->flags |= Type::PassByValue;
+	else
+		type->flags |= Type::Ref;
+	if(IS_SET(flags, cas::Complex))
+		type->flags |= Type::Complex;
+	if(IS_SET(flags, cas::DisallowCreate))
+		type->flags |= Type::DisallowCreate;
 	type->index = types.size() | (index << 16);
 	type->declared = true;
 	type->built = false;

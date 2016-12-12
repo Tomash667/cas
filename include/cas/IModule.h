@@ -88,9 +88,9 @@ namespace cas
 
 	enum TypeFlags
 	{
-		Ref = 1 << 0, // not implemented
+		ValueType = 1 << 0, // type is struct
 		Complex = 1 << 1, // complex types are returned in memory
-		DisallowCreate = 1 << 2, // not implemented
+		DisallowCreate = 1 << 2, // can't create in script
 		NoRefCount = 1 << 3 // not implemented
 	};
 	
@@ -121,7 +121,7 @@ namespace cas
 			return AddType(type_name, sizeof(T), flags);
 		}
 
-		template<typename T>
+		/*template<typename T>
 		inline bool AddRefType(cstring type_name, int flags = 0)
 		{
 			flags |= Ref;
@@ -133,7 +133,7 @@ namespace cas
 				AddMethod(type_name, "void operator release()", &T::Release);
 			}
 			return ok;
-		}
+		}*/
 
 	protected:
 		virtual ~IModule() {}
