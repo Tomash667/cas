@@ -32,10 +32,18 @@ struct ReturnInfo
 	uint line, charpos;
 };
 
+enum BuiltinFunc
+{
+	BF_ASSIGN = 1<<0,
+	BF_EQUAL = 1<<1,
+	BF_NOT_EQUAL = 1<<2
+};
+
 class Parser
 {
 public:
 	Parser(Module* module);
+	~Parser();
 
 	bool VerifyTypeName(cstring type_name, int& type_index);
 	Function* ParseFuncDecl(cstring decl, Type* type);
@@ -48,6 +56,7 @@ public:
 	RunModule* Parse(ParseSettings& settigns);
 	void Cleanup();
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
+	int CreateDefaultFunctions(Type* type);
 
 private:
 	void FinishRunModule();
@@ -96,7 +105,7 @@ private:
 	CastResult MayCast(ParseNode* node, VarType vartype);
 	void ForceCast(ParseNode*& node, VarType vartype, cstring op);
 	bool CanTakeRef(ParseNode* node, bool allow_ref = true);
-	Op PushToSet(Op op);
+	Op PushToSet(ParseNode* node);
 
 	void Optimize();
 	ParseNode* OptimizeTree(ParseNode* node);
@@ -137,7 +146,7 @@ private:
 	VarType AnalyzeVarType();
 	Type* AnalyzeAddType(const string& name);
 	void AnalyzeMakeType(VarType& vartype, const string& name);
-	void CreateDefaultFunctions(Type* type);
+	void SetParseNodeFromMember(ParseNode* node, Member* m);
 
 	Tokenizer t;
 	Module* module;

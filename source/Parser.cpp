@@ -108,6 +108,11 @@ Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer
 	AddChildModulesKeywords();
 }
 
+Parser::~Parser()
+{
+	DeleteElements(ufuncs);
+}
+
 bool Parser::VerifyTypeName(cstring type_name, int& type_index)
 {
 	assert(type_name);
@@ -232,8 +237,18 @@ void Parser::Cleanup()
 		delete type;
 	}
 
+	
+
 	Str::Free(strs);
-	DeleteElements(ufuncs);
+	LoopAndRemove(ufuncs, [](ParseFunction* f)
+	{
+		if(IS_SET(f->flags, CommonFunction::F_CODE))
+			return false;
+		delete f;
+		return true;
+	});
+	for(uint i = 0; i < ufuncs.size(); ++i)
+		ufuncs[i]->index = i;
 	DeleteElements(rsvs);
 	delete run_module;
 	main_block->Free();
@@ -667,7 +682,42 @@ void Parser::ParseClass(bool is_struct)
 			if(!IS_SET(func->flags, CommonFunction::F_DELETE))
 			{
 				current_function = func;
+				if(current_function->special == SF_CTOR)
+				{
+					for(Member* m : type->members)
+						m->used = Member::No;
+				}
 				func->node = ParseBlock(func);
+				if(current_function->special == SF_CTOR)
+				{
+					bool any = false;
+					for(Member* m : type->members)
+					{
+						if(m->used != Member::Set)
+						{
+							any = true;
+							break;
+						}
+					}
+					if(any)
+					{
+						ParseNode* group = ParseNode::Get();
+						for(Member* m : type->members)
+						{
+							if(m->used != Member::Set)
+							{
+								ParseNode* node = ParseNode::Get();
+								SetParseNodeFromMember(node, m);
+								group->push(node);
+								group->push(SET_THIS_MEMBER, m->index);
+								group->push(POP);
+							}
+						}
+						group->result = V_VOID;
+						group->pseudo_op = INTERNAL_GROUP;
+						func->node->childs.insert(func->node->childs.begin(), group);
+					}
+				}
 			}
 			current_function = nullptr;
 		}
@@ -919,6 +969,12 @@ void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 			pad = 0;
 		}
 
+		if(t.IsSymbol('='))
+		{
+			t.Next();
+			t.SkipTo([](Tokenizer& t) {return t.IsSymbol(',') || t.IsSymbol(';'); });
+		}
+		
 		if(t.IsSymbol(';'))
 			break;
 		t.AssertSymbol(',');
@@ -1020,6 +1076,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 
 	if(type && (f->special != SF_CTOR || !in_cpp))
 	{
+		// pass this for member functions (not for code ctor)
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
 		f->required_args++;
 	}
@@ -1193,6 +1250,7 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 
 	// [=]
 	NodeRef expr(nullptr);
+	bool require_copy = false;
 	if(type == 0)
 	{
 		expr = ParseNode::Get();
@@ -1241,18 +1299,9 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 				assert(rtype->IsClass());
 				if(IS_SET(rtype->flags, Type::DisallowCreate))
 					t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
-				if(IS_SET(rtype->flags, Type::HaveCtor))
-				{
-					vector<AnyFunction> funcs;
-					FindAllCtors(rtype, funcs);
-					ApplyFunctionCall(expr, funcs, rtype, true);
-				}
-				else
-				{
-					expr->result = vartype;
-					expr->op = CTOR;
-					expr->value = vartype.type;
-				}
+				vector<AnyFunction> funcs;
+				FindAllCtors(rtype, funcs);
+				ApplyFunctionCall(expr, funcs, rtype, true);
 			}
 			break;
 		}
@@ -1267,6 +1316,8 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 		expr = ParseExpr(',', ';');
 		if(!TryCast(expr.Get(), vartype))
 			t.Throw("Can't assign type '%s' to variable '%s'.", GetTypeName(expr), GetName(var));
+		if(expr->op != CALLU_CTOR && GetType(expr->result.type)->IsStruct())
+			require_copy = true;
 	}
 
 	ParseNode* node = ParseNode::Get();
@@ -1275,6 +1326,8 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	node->value = var->index;
 	node->source = nullptr;
 	node->push(expr.Pin());
+	if(require_copy)
+		node->push(COPY);
 	return node;
 }
 
@@ -1600,7 +1653,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 
 				if(node->result.type != V_REF)
 				{
-					Op set_op = PushToSet(node->op);
+					Op set_op = PushToSet(node);
 					if(set_op == NOP)
 						t.Throw("Operation '%s' require variable.", si.name);
 
@@ -1765,7 +1818,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				t.Throw("Can't assign reference, right value must be variable.");
 			NodeRef set;
 			set->source = nullptr;
-			set->op = PushToSet(left->op);
+			set->op = PushToSet(left);
 			assert(set->op != NOP);
 			set->value = left->value;
 			set->result = left->result;
@@ -1901,7 +1954,7 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 			set->owned = true;
 			if(left->result.type != V_REF)
 			{
-				set->op = PushToSet(left->op);
+				set->op = PushToSet(left);
 				if(set->op == NOP && left_type->IsPassByValue())
 				{
 					// works like struct, it is l-value
@@ -1963,7 +2016,7 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 		}
 		else if(left->result.type != V_REF)
 		{
-			set->op = PushToSet(left->op);
+			set->op = PushToSet(left);
 			if(set->op == NOP && GetType(left->result.type)->IsPassByValue())
 			{
 				// works like struct, it is l-value
@@ -2076,8 +2129,6 @@ ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
 			Type* rtype = GetType(vartype.type);
 			if(IS_SET(rtype->flags, Type::DisallowCreate))
 				t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
-			if(!IS_SET(rtype->flags, Type::HaveCtor))
-				t.Throw("Type '%s' don't have constructor.", rtype->name.c_str());
 			NodeRef node;
 			node->source = nullptr;
 			ParseArgs(node->childs);
@@ -2161,6 +2212,10 @@ ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
 				node->result = found.member->vartype;
 				node->value = found.member_index;
 				node->source = nullptr;
+				if(found.member->used == Member::No)
+					found.member->used = Member::Used;
+				else
+					found.member->used = Member::UsedBeforeSet;
 				t.Next();
 				return node;
 			}
@@ -2998,8 +3053,15 @@ void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, b
 		// take address
 		assert(node->op == PUSH_LOCAL || node->op == PUSH_GLOBAL || node->op == PUSH_ARG || node->op == PUSH_MEMBER || node->op == PUSH_THIS_MEMBER);
 		node->op = Op(node->op + 1);
+		node->result = VarType(V_REF, node->result.type);
 		if(node->op == PUSH_LOCAL_REF || node->op == PUSH_ARG_REF)
 			GetVar(node)->referenced = true;
+		if(node->op == PUSH_THIS_MEMBER)
+		{
+			Member* m = current_type->members[node->value];
+			if(m->used == Member::Used)
+				m->used = Member::Set;
+		}
 		if(node->source)
 			node->source->mod = true;
 	}
@@ -3213,9 +3275,9 @@ void Parser::ForceCast(ParseNode*& node, VarType vartype, cstring op)
 		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetName(vartype), op);
 }
 
-Op Parser::PushToSet(Op op)
+Op Parser::PushToSet(ParseNode* node)
 {
-	switch(op)
+	switch(node->op)
 	{
 	case PUSH_LOCAL:
 		return SET_LOCAL;
@@ -3226,7 +3288,12 @@ Op Parser::PushToSet(Op op)
 	case PUSH_MEMBER:
 		return SET_MEMBER;
 	case PUSH_THIS_MEMBER:
-		return SET_THIS_MEMBER;
+		{
+			Member* m = current_type->members[node->value];
+			if(m->used == Member::Used)
+				m->used = Member::Set;
+			return SET_THIS_MEMBER;
+		}
 	default:
 		return (Op)NOP;
 	}
@@ -3951,7 +4018,6 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case SET_ARG:
 	case SET_MEMBER:
 	case SET_THIS_MEMBER:
-	case CTOR:
 	case COPY_ARG:
 	case SWAP:
 	case RELEASE_REF:
@@ -4899,6 +4965,18 @@ void Parser::AnalyzeType(Type* type)
 					m->index = type->members.size();
 					type->members.push_back(m);
 
+					if(t.IsSymbol('='))
+					{
+						t.Next();
+						NodeRef item = ParseConstItem();
+						if(!TryCast(item.Get(), vartype))
+							t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
+						m->value = item->value;
+						m->have_def_value = true;
+					}
+					else
+						m->have_def_value = false;
+
 					if(t.IsSymbol(';'))
 						break;
 					t.AssertSymbol(',');
@@ -5000,8 +5078,6 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 	{
 		if(FindEqualFunction(type, AnyFunction(func)))
 			t.Throw("Method '%s' already exists.", GetName(func));
-		if(func->special == SF_CTOR)
-			type->flags |= Type::HaveCtor;
 		type->ufuncs.push_back(func);
 	}
 	else
@@ -5065,55 +5141,100 @@ void Parser::AnalyzeMakeType(VarType& vartype, const string& name)
 	}
 }
 
-void Parser::CreateDefaultFunctions(Type* type)
+// create default functions for type if they are not declared
+// return flags for builtin functions to declare in module (0x01 - 
+int Parser::CreateDefaultFunctions(Type* type)
 {
-	// assign
-	SymbolInfo* info = &symbols[S_ASSIGN];
-	AnyFunction f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.cf->arg_infos[1].vartype.type == type->index; });
+	assert(type);
+	VarType vartype(type->index, 0);
+	int result = 0;
+
+	// ctor
+	AnyFunction f = FindSpecialFunction(type, SF_CTOR, [](AnyFunction& f) { return true; });
 	if(!f)
 	{
-		VarType vartype(type->index, 0);
 		ParseFunction* func = new ParseFunction;
-		func->name = info->op_code;
+		func->name = type->name;
 		func->result = vartype;
+		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+		func->block = nullptr;
+		func->flags = 0;
+		if(IS_SET(type->flags, Type::Code))
+			func->flags |= CommonFunction::F_CODE;
 		func->index = ufuncs.size();
 		func->type = type->index;
-		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-		func->required_args = 2;
-		func->special = SF_NO;
-		if(type->IsStruct())
+		func->required_args = 1;
+		func->special = SF_CTOR;
+		ParseNode* group = ParseNode::Get();
+		group->result = vartype;
+		group->pseudo_op = INTERNAL_GROUP;
+		for(Member* m : type->members)
 		{
-			func->flags = 0;
-			ParseNode* group = ParseNode::Get();
-			for(Member* m : type->members)
-			{
-				ParseNode* set = ParseNode::Get();
-				set->op = SET_THIS_MEMBER;
-				set->result = m->vartype;
-				set->value = m->index;
-				set->source = nullptr;
-				set->push(PUSH_ARG, 1);
-				set->push(PUSH_MEMBER, m->index);
-				group->push(set);
-			}
-			ParseNode* ret = ParseNode::Get();
-			ret->pseudo_op = RETURN;
-			ret->source = nullptr;
-			ret->result = V_VOID;
-			ret->push(PUSH_THIS);
-			group->push(ret);
-			group->pseudo_op = GROUP;
-			func->node = group;
+			ParseNode* node = ParseNode::Get();
+			SetParseNodeFromMember(node, m);
+			group->push(node);
+			group->push(SET_THIS_MEMBER, m->index);
+			group->push(POP);
 		}
-		else
-		{
-			func->flags = CommonFunction::F_BUILTIN;
-			func->node = nullptr;
-		}
-		func->block = nullptr;
+		group->push(RET);
+		func->node = group;
 		ufuncs.push_back(func);
 		type->ufuncs.push_back(func);
+	}
+
+	// assign
+	SymbolInfo* info = &symbols[S_ASSIGN];
+	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.cf->arg_infos[1].vartype.type == type->index; });
+	if(!f)
+	{
+		if(IS_ALL_SET(type->flags, Type::Code | Type::Ref))
+			result |= BF_ASSIGN;
+		else
+		{
+			ParseFunction* func = new ParseFunction;
+			func->name = info->op_code;
+			func->result = vartype;
+			func->index = ufuncs.size();
+			func->type = type->index;
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->required_args = 2;
+			func->special = SF_NO;
+			if(type->IsStruct())
+			{
+				func->flags = 0;
+				if(IS_SET(type->flags, Type::Code))
+					func->flags |= CommonFunction::F_CODE;
+				ParseNode* group = ParseNode::Get();
+				for(Member* m : type->members)
+				{
+					ParseNode* set = ParseNode::Get();
+					set->op = SET_THIS_MEMBER;
+					set->result = m->vartype;
+					set->value = m->index;
+					set->source = nullptr;
+					set->push(PUSH_ARG, 1);
+					set->push(PUSH_MEMBER, m->index);
+					group->push(set);
+				}
+				ParseNode* ret = ParseNode::Get();
+				ret->pseudo_op = RETURN;
+				ret->source = nullptr;
+				ret->result = V_VOID;
+				ret->push(PUSH_THIS);
+				group->push(ret);
+				group->pseudo_op = GROUP;
+				func->node = group;
+			}
+			else
+			{
+				func->flags = CommonFunction::F_BUILTIN;
+				func->node = nullptr;
+			}
+			func->block = nullptr;
+			ufuncs.push_back(func);
+			type->ufuncs.push_back(func);
+		}
 	}
 
 	// equal
@@ -5121,45 +5242,51 @@ void Parser::CreateDefaultFunctions(Type* type)
 	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.cf->arg_infos[1].vartype.type == type->index; });
 	if(!f)
 	{
-		VarType vartype(type->index, 0);
-		ParseFunction* func = new ParseFunction;
-		func->name = info->op_code;
-		func->result = V_BOOL;
-		func->index = ufuncs.size();
-		func->type = type->index;
-		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-		func->required_args = 2;
-		func->special = SF_NO;
-		if(type->IsStruct())
-		{
-			func->flags = 0;
-			ParseNode* group = ParseNode::Get();
-			bool first = true;
-			for(Member* m : type->members)
-			{
-				if(!first)
-					group->push(AND);
-				else
-					first = false;
-				group->push(PUSH_THIS_MEMBER, m->index);
-				group->push(PUSH_ARG, 1);
-				group->push(PUSH_MEMBER, m->index);
-				group->push(EQ);
-			}
-			group->push(RET);
-			group->result = V_BOOL;
-			group->pseudo_op = INTERNAL_GROUP;
-			func->node = group;
-		}
+		if(IS_ALL_SET(type->flags, Type::Code | Type::Ref))
+			result |= BF_EQUAL;
 		else
 		{
-			func->flags = CommonFunction::F_BUILTIN;
-			func->node = nullptr;
+			ParseFunction* func = new ParseFunction;
+			func->name = info->op_code;
+			func->result = V_BOOL;
+			func->index = ufuncs.size();
+			func->type = type->index;
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->required_args = 2;
+			func->special = SF_NO;
+			if(type->IsStruct())
+			{
+				func->flags = 0;
+				if(IS_SET(type->flags, Type::Code))
+					func->flags |= CommonFunction::F_CODE;
+				ParseNode* group = ParseNode::Get();
+				bool first = true;
+				for(Member* m : type->members)
+				{
+					group->push(PUSH_THIS_MEMBER, m->index);
+					group->push(PUSH_ARG, 1);
+					group->push(PUSH_MEMBER, m->index);
+					group->push(EQ);
+					if(!first)
+						group->push(AND);
+					else
+						first = false;
+				}
+				group->push(RET);
+				group->result = V_BOOL;
+				group->pseudo_op = INTERNAL_GROUP;
+				func->node = group;
+			}
+			else
+			{
+				func->flags = CommonFunction::F_BUILTIN;
+				func->node = nullptr;
+			}
+			func->block = nullptr;
+			ufuncs.push_back(func);
+			type->ufuncs.push_back(func);
 		}
-		func->block = nullptr;
-		ufuncs.push_back(func);
-		type->ufuncs.push_back(func);
 	}
 
 	// not equal
@@ -5167,44 +5294,107 @@ void Parser::CreateDefaultFunctions(Type* type)
 	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.cf->arg_infos[1].vartype.type == type->index; });
 	if(!f)
 	{
-		VarType vartype(type->index, 0);
-		ParseFunction* func = new ParseFunction;
-		func->name = info->op_code;
-		func->result = V_BOOL;
-		func->index = ufuncs.size();
-		func->type = type->index;
-		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-		func->required_args = 2;
-		func->special = SF_NO;
-		if(type->IsStruct())
-		{
-			func->flags = 0;
-			ParseNode* group = ParseNode::Get();
-			bool first = true;
-			for(Member* m : type->members)
-			{
-				if(!first)
-					group->push(OR);
-				else
-					first = false;
-				group->push(PUSH_THIS_MEMBER, m->index);
-				group->push(PUSH_ARG, 1);
-				group->push(PUSH_MEMBER, m->index);
-				group->push(NOT_EQ);
-			}
-			group->push(RET);
-			group->result = V_BOOL;
-			group->pseudo_op = INTERNAL_GROUP;
-			func->node = group;
-		}
+		if(IS_ALL_SET(type->flags, Type::Code | Type::Ref))
+			result |= BF_NOT_EQUAL;
 		else
 		{
-			func->flags = CommonFunction::F_BUILTIN;
-			func->node = nullptr;
+			ParseFunction* func = new ParseFunction;
+			func->name = info->op_code;
+			func->result = V_BOOL;
+			func->index = ufuncs.size();
+			func->type = type->index;
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->required_args = 2;
+			func->special = SF_NO;
+			if(type->IsStruct())
+			{
+				func->flags = 0;
+				if(IS_SET(type->flags, Type::Code))
+					func->flags |= CommonFunction::F_CODE;
+				ParseNode* group = ParseNode::Get();
+				bool first = true;
+				for(Member* m : type->members)
+				{
+					group->push(PUSH_THIS_MEMBER, m->index);
+					group->push(PUSH_ARG, 1);
+					group->push(PUSH_MEMBER, m->index);
+					group->push(NOT_EQ);
+					if(!first)
+						group->push(OR);
+					else
+						first = false;
+				}
+				group->push(RET);
+				group->result = V_BOOL;
+				group->pseudo_op = INTERNAL_GROUP;
+				func->node = group;
+			}
+			else
+			{
+				func->flags = CommonFunction::F_BUILTIN;
+				func->node = nullptr;
+			}
+			func->block = nullptr;
+			ufuncs.push_back(func);
+			type->ufuncs.push_back(func);
 		}
-		func->block = nullptr;
-		ufuncs.push_back(func);
-		type->ufuncs.push_back(func);
 	}
+
+	return result;
+}
+
+void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
+{
+	if(m->have_def_value)
+	{
+		switch(m->vartype.type)
+		{
+		case V_BOOL:
+			node->pseudo_op = PUSH_BOOL;
+			node->bvalue = m->bvalue;
+			break;
+		case V_CHAR:
+			node->op = PUSH_CHAR;
+			node->cvalue = m->cvalue;
+			break;
+		case V_INT:
+			node->op = PUSH_INT;
+			node->value = m->value;
+			break;
+		case V_FLOAT:
+			node->op = PUSH_FLOAT;
+			node->fvalue = m->fvalue;
+			break;
+		default:
+			// will write error in parsing phase
+			break;
+		}
+	}
+	else
+	{
+		switch(m->vartype.type)
+		{
+		case V_BOOL:
+			node->pseudo_op = PUSH_BOOL;
+			node->bvalue = false;
+			break;
+		case V_CHAR:
+			node->op = PUSH_CHAR;
+			node->cvalue = 0;
+			break;
+		case V_INT:
+			node->op = PUSH_INT;
+			node->value = 0;
+			break;
+		case V_FLOAT:
+			node->op = PUSH_FLOAT;
+			node->fvalue = 0;
+			break;
+		default:
+			// will write error in parsing phase
+			break;
+		}
+	}
+	node->result = m->vartype;
 }

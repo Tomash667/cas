@@ -20,4 +20,20 @@ TEST_METHOD(OverloadOperatorInScript)
 	)code");
 }
 
+TEST_METHOD(ClassMemberDefaultValue)
+{
+	RunTest(R"code(
+		class X { int a = 4; }
+		X x;
+		Assert_AreEqual(4, x.a);
+	)code");
+
+	RunTest(R"code(
+		class X { int a = 4, b; X() { b = a*2; a = 1; } }
+		X x;
+		Assert_AreEqual(1, x.a);
+		Assert_AreEqual(8, x.b);
+	)code");
+}
+
 CA_TEST_CLASS_END();

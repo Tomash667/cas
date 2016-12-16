@@ -82,7 +82,6 @@ OpInfo ops[] = {
 	CALLU, "callu", V_USER_FUNCTION,
 	CALLU_CTOR, "callu_ctor", V_USER_FUNCTION,
 	RET, "ret", V_VOID,
-	CTOR, "ctor", V_TYPE,
 	COPY, "copy", V_VOID,
 	COPY_ARG, "copy_arg", V_INT,
 	RELEASE_REF, "release_ref", V_INT,

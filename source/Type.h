@@ -89,11 +89,10 @@ struct Type
 		Complex = 1 << 1, // complex types are returned in memory
 		DisallowCreate = 1 << 2,
 		NoRefCount = 1 << 3,
-		HaveCtor = 1 << 4,
-		Hidden = 1 << 5,
-		Class = 1 << 6,
-		Code = 1 << 7,
-		PassByValue = 1 << 8, // struct/string
+		Hidden = 1 << 4,
+		Class = 1 << 5,
+		Code = 1 << 6,
+		PassByValue = 1 << 7 // struct/string
 	};
 
 	string name;
@@ -127,4 +126,20 @@ struct Member : public VarSource
 	string name;
 	VarType vartype;
 	int offset;
+	union
+	{
+		bool bvalue;
+		char cvalue;
+		int value;
+		float fvalue;
+	};
+	enum UsedMode
+	{
+		No,
+		Used,
+		UsedBeforeSet,
+		Set
+	};
+	UsedMode used;
+	bool have_def_value;
 };

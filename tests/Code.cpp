@@ -134,7 +134,7 @@ struct Vec
 	}
 };
 
-TEST_METHOD_IGNORE(CodeRegisterValueType)
+TEST_METHOD(CodeRegisterValueType)
 {
 	module->AddType<Vec>("Vec", cas::ValueType);
 	module->AddMember("Vec", "int x", offsetof(Vec, x));
@@ -153,7 +153,7 @@ TEST_METHOD_IGNORE(CodeRegisterValueType)
 		Assert_AreEqual(1, b.x);
 		Vec c = set_to_1(a) += 4;
 		Assert_AreEqual(8, a.x);
-		Assert_AreEqual(5, a.x);
+		Assert_AreEqual(5, c.x);
 	)code");
 }
 
@@ -450,6 +450,112 @@ TEST_METHOD(CodeClassDefaultOperators)
 		Assert_IsTrue(a != b);
 		a = b;
 		Assert_IsTrue(a == b);
+	)code");
+}
+
+//=========================================================================================
+struct Pod
+{
+	int x;
+	int y;
+};
+
+class Class
+{
+public:
+	Class() { x = 0; y = 0; }
+	Class(Class& c) { x = c.x; y = c.y; }
+	Class(int x, int y) : x(x), y(y) {}
+	void operator = (Class& c) { x = c.x; y = c.y; }
+	int x;
+	int y;
+};
+
+void RegisterPodAndClass()
+{
+	module->AddType<Pod>("Pod");
+	module->AddMember("Pod", "int x", offsetof(Pod, x));
+	module->AddMember("Pod", "int y", offsetof(Pod, y));
+
+	module->AddType<Class>("Class");
+	module->AddMember("Class", "int x", offsetof(Class, x));
+	module->AddMember("Class", "int y", offsetof(Class, y));
+	module->AddMethod("Class", "Class()", AsCtor<Class>());
+	module->AddMethod("Class", "Class(Class& c)", AsCtor<Class, Class&>());
+	module->AddMethod("Class", "Class(int x, int y)", AsCtor<Class, int, int>());
+}
+
+static int get4() { return 4; }
+static Pod getPodValue() { Pod p; p.x = 1; p.y = 2; return p; }
+
+TEST_METHOD(CodeReturnByValue)
+{
+	RegisterPodAndClass();
+	RunTest(R"code(
+
+
+	)code");
+}
+
+TEST_METHOD(CodeReturnByReference)
+{
+
+}
+
+TEST_METHOD(CodeReturnByPointer)
+{
+
+}
+
+TEST_METHOD(CodeTakesByValue)
+{
+
+}
+
+TEST_METHOD(CodeTakesByReference)
+{
+
+}
+
+TEST_METHOD(CodeTakesByPointer)
+{
+
+}
+
+struct H
+{
+	int x, y;
+};
+
+static H globalh;
+
+H createH(int x, int y)
+{
+	H h;
+	h.x = x;
+	h.y = y;
+	return h;
+}
+
+H& getGlobalH()
+{
+	return globalh;
+}
+
+H* getGlobalHPtr()
+{
+	return &globalh;
+}
+
+TEST_METHOD(CodeReturnByValueReferencePointer)
+{
+	globalh.x = 3;
+	globalh.y = 14;
+	module->AddType<H>("H");
+	module->AddMember("H", "int x", offsetof(H, x));
+	module->AddMember("H", "int y", offsetof(H, y));
+	RunTest(R"code(
+		
 	)code");
 }
 

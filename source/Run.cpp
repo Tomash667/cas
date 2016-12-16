@@ -1308,15 +1308,6 @@ void RunInternal(ReturnValue& retval)
 				++depth;
 			}
 			break;
-		case CTOR:
-			{
-				uint type_index = *c++;
-				assert(run_module->GetType(type_index)->IsClass());
-				Type* type = run_module->GetType(type_index);
-				Class* c = Class::Create(type);
-				stack.push_back(Var(c));
-			}
-			break;
 		case COPY:
 			{
 				assert(!stack.empty());

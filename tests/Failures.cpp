@@ -62,7 +62,7 @@ TEST_METHOD(AmbiguousCallToMethod)
 
 TEST_METHOD(MissingConstructor)
 {
-	RunFailureTest("class A {}  A a = A(1,2,3);", "Type 'A' don't have constructor.");
+	RunFailureTest("class A {}  A a = A(1,2,3);", "No matching call to method 'A.A' with arguments (int,int,int), could be 'A.A()'.");
 }
 
 TEST_METHOD(MissingDefaultValue)

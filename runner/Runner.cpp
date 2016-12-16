@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "struct.txt";
+cstring def_filename = "assign2.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

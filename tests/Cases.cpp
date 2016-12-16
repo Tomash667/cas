@@ -208,4 +208,10 @@ TestMethod(LongRefAssign)
 	RunFileTest("long_ref_assign.txt");
 }
 
+TestMethod(VardeclAssign)
+{
+	RunFileTest("vardecl_assign.txt", "", "ctor0\n---\nctor2\n---\nctor2\nassign\n---\nctor2\n---\nctor2\nassign\n---\nctor2\nctor2\n---\nassign\nctor2\n"
+		"ctor2\n");
+}
+
 CA_TEST_CLASS_END();

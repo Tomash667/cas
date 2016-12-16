@@ -72,6 +72,13 @@ return [expr] ;
 
 Operators:
 
+Default value:
+Default value for types:
+	bool - false
+	char - 0
+	int - 0
+	float - 0
+
 
 
 2. C++ integration

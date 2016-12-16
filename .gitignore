@@ -2,6 +2,8 @@
 /ipch
 /lib
 /Output
+/bin
+
 /*.db
 /*.opendb
-/bin
+/*.vcxproj.user

@@ -60,11 +60,10 @@ enum Op
 	JMP, // [address] - jump to address
 	TJMP, // [address] ..., x -> ... - jump to adress if x is true
 	FJMP, // [address] ..., x -> ... - jump to adress if x is false
-	CALL, // [func_index] ..., arg0...argN -> ... - call code function
-	CALLU, // [ufunc_index] ..., arg0...argN -> ... - call script function
-	CALLU_CTOR, // [ufunc_index] ..., arg0...argN -> ... - call script constructor
+	CALL, // [func_index] ..., arg0...argN -> ..., result - call code function
+	CALLU, // [ufunc_index] ..., arg0...argN -> ..., result - call script function
+	CALLU_CTOR, // [ufunc_index] ..., arg0...argN -> ..., result - call script constructor
 	RET, // [] - returns from function/script
-	CTOR, // [type_index] ... -> ..., class
 	COPY, // [] ..., x -> ..., x (x - single instance of struct)
 	COPY_ARG, // [arg_index] - create single instance of struct in arg
 	RELEASE_REF, // [index] - release reference to local/arg variable

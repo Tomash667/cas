@@ -1,4 +1,15 @@
++ tests
+	+ return struct/class by value
+	+ return by reference
+	+ reference types
+		+ temporary
+		+ member
+		+ global
+
++ code return by value,reference,pointer for struct/class/value/string
 + generate default ctor
+	+ remove zero init
+	+ code class/struct
 
 3) nullable?
 4) script arg/ret ref
@@ -20,6 +31,8 @@
 + catch all exceptions
 + += should call + and = if compound not found
 + optimize string concat (currently a+=b will create new string with a+b, then assign to a)
++ member initialization const expr
++ better handling for parse functions for code type
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 
@@ -62,7 +75,6 @@ norefcount
 		return [pos = my_pos, rot = my_rot];
 	}
 	unnamed struct
-+ allow to set member value outside of constructor like in c# [class X {int a = 4;}]
 
 + array
 vector functions:

@@ -42,7 +42,7 @@ switch_case:
 	default : [switch_case] [line_or_block ...]
 
 class_item:
-	simple_var_type <member_name> [, <member_name> ...] ;
+	simple_var_type var_decl [, var_decl ...] ;
 	func_def
 
 arg_decl:

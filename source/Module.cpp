@@ -95,8 +95,6 @@ bool Module::AddMethod(cstring type_name, cstring decl, const FunctionInfo& func
 		return false;
 	}
 	f->type = type->index;
-	if(f->special == SF_CTOR)
-		type->flags |= Type::HaveCtor;
 	if(parser->FindEqualFunction(type, AnyFunction(f)))
 	{
 		Event(EventType::Error, Format("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
@@ -168,6 +166,7 @@ bool Module::AddMember(cstring type_name, cstring decl, int offset)
 		return false;
 	}
 	m->offset = offset;
+	m->have_def_value = false;
 	int m_index;
 	if(type->FindMember(m->name, m_index))
 	{
@@ -176,6 +175,7 @@ bool Module::AddMember(cstring type_name, cstring decl, int offset)
 		return false;
 	}
 	assert(offset + parser->GetType(m->vartype.type)->size <= type->size);
+	m->index = type->members.size();
 	type->members.push_back(m);
 	return true;
 }
@@ -318,21 +318,17 @@ void Module::BuildModule()
 
 	for(Type* type : types)
 	{
-		if(!IS_SET(type->flags, Type::Code) && !type->built)
+		if(!IS_SET(type->flags, Type::Code) || type->built)
 			continue;
+		int result = parser->CreateDefaultFunctions(type);
 
-		Function* f = type->FindCodeFunction("$opAssign");
-		if(!f)
+		if(IS_SET(result, BF_ASSIGN))
 			AddMethod(type->name.c_str(), Format("%s operator = (%s obj)", type->name.c_str(), type->name.c_str()), nullptr);
-
-		f = type->FindCodeFunction("$opEqual");
-		if(!f)
+		if(IS_SET(result, BF_EQUAL))
 			AddMethod(type->name.c_str(), Format("bool operator == (%s obj)", type->name.c_str()), nullptr);
-
-		f = type->FindCodeFunction("$opNotEqual");
-		if(!f)
+		if(IS_SET(result, BF_NOT_EQUAL))
 			AddMethod(type->name.c_str(), Format("bool operator != (%s obj)", type->name.c_str()), nullptr);
-
+			
 		type->built = true;
 	}
 
