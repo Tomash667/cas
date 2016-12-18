@@ -1046,11 +1046,29 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 		{
 			t.Next();
-			if(t.IsItem("cast"))
+			if(t.IsItem())
 			{
-				t.Next();
-				f->special = SF_CAST;
-				f->name = "$opCast";
+				const string& item = t.GetItem();
+				if(item == "cast")
+				{
+					t.Next();
+					f->special = SF_CAST;
+					f->name = "$opCast";
+				}
+				else if(item == "addref")
+				{
+					t.Next();
+					f->special = SF_ADDREF;
+					f->name = "$opAddref";
+				}
+				else if(item == "release")
+				{
+					t.Next();
+					f->special = SF_RELEASE;
+					f->name = "$opRelease";
+				}
+				else
+					t.Unexpected();
 			}
 			else
 			{
@@ -1093,9 +1111,10 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 			t.Throw("Implicit can only be used for constructor and cast operators.");
 	}
 
-	if(f->special == SF_CAST)
+	if(f->special == SF_CAST || f->special == SF_ADDREF || f->special == SF_RELEASE)
 	{
-		if(f->arg_infos.size() != 1u) // first arg is this
+		if(f->arg_infos.size() != 1u // first arg is this
+			&& (f->special == SF_CAST || f->result.type == V_VOID)) // returns void or is cast
 			t.Throw("Invalid cast operator definition '%s'.", GetName(f));
 	}
 
@@ -1118,6 +1137,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 		while(true)
 		{
 			VarType vartype = GetVarType(in_cpp);
+			bool pass_by_ref = false;
 			LocalString id = t.MustGetItem();
 			CheckFindItem(id.get_ref(), false);
 			if(!in_cpp)
@@ -1130,6 +1150,15 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				arg->mod = false;
 				arg->referenced = false;
 				current_function->args.push_back(arg);
+			}
+			else
+			{
+				if(vartype.type == V_REF)
+				{
+					vartype.type = vartype.subtype;
+					vartype.subtype = 0;
+					pass_by_ref = true;
+				}
 			}
 			t.Next();
 			if(t.IsSymbol('='))
@@ -1168,6 +1197,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				f->arg_infos.push_back(ArgInfo(vartype, 0, false));
 				f->required_args++;
 			}
+			f->arg_infos.back().pass_by_ref = pass_by_ref;
 			if(t.IsSymbol(')'))
 				break;
 			t.AssertSymbol(',');
@@ -4154,6 +4184,10 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 		{
 			if(cf->name == "$opCast")
 				s += "operator cast";
+			else if(cf->name == "$opAddref")
+				s += "operator addref";
+			else if(cf->name == "$opRelease")
+				s += "operator release";
 			else
 			{
 				for(int i = 0; i < S_MAX; ++i)
@@ -4904,16 +4938,24 @@ void Parser::AnalyzeType(Type* type)
 			if(!type)
 				t.Throw("Operator function can be used only inside class.");
 			t.Next();
-			if(t.IsItem("cast"))
+			if(t.IsItem())
 			{
-				t.Next();
-				AnalyzeMakeType(vartype, item);
-				if(!type)
+				const string& item = t.GetItem();
+				if(item == "cast")
 				{
 					t.Next();
-					return;
+					AnalyzeMakeType(vartype, item);
+					if(!type)
+					{
+						t.Next();
+						return;
+					}
+					AnalyzeArgs(vartype, SF_CAST, type, "$opCast", flags);
 				}
-				AnalyzeArgs(vartype, SF_CAST, type, "$opCast", flags);
+				else if(item == "addref" || item == "release")
+					t.Throw("Operator function '%s' can only be registered in code.", item.c_str());
+				else
+					t.Unexpected();
 			}
 			else
 			{

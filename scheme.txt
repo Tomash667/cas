@@ -158,6 +158,8 @@ override_op:
 	[]
 	()
 	cast
+	addref // code only
+	release // code only
 
 const:
 	true

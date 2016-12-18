@@ -49,6 +49,7 @@ namespace cas
 		RefCounter() : refs(1) {}
 		inline void AddRef() { ++refs; }
 		inline void Release() { if(--refs == 0) delete this; }
+		inline int GetRefs() const { return refs; }
 	private:
 		int refs;
 	};
@@ -91,7 +92,14 @@ namespace cas
 		ValueType = 1 << 0, // type is struct
 		Complex = 1 << 1, // complex types are returned in memory
 		DisallowCreate = 1 << 2, // can't create in script
-		NoRefCount = 1 << 3 // not implemented
+		RefCount = 1 << 3 // type use addref/release operator
+	};
+
+	class IType
+	{
+	public:
+		virtual bool AddMember(cstring decl, int offset) = 0;
+		virtual bool AddMethod(cstring decl, const FunctionInfo& func_info) = 0;
 	};
 	
 	class IModule
@@ -99,41 +107,39 @@ namespace cas
 	public:
 		enum ExecutionResult
 		{
+			ValidationError,
 			ParsingError,
 			Exception,
 			Ok
 		};
 
 		virtual bool AddFunction(cstring decl, const FunctionInfo& func_info) = 0;
-		virtual bool AddMethod(cstring type_name, cstring decl, const FunctionInfo& func_info) = 0;
-		virtual bool AddType(cstring type_name, int size, int flags = 0) = 0;
-		virtual bool AddMember(cstring type_name, cstring decl, int offset) = 0;
+		virtual IType* AddType(cstring type_name, int size, int flags = 0) = 0;
 		virtual ReturnValue GetReturnValue() = 0;
 		virtual cstring GetException() = 0;
 		virtual ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) = 0;
-		virtual bool Verify() = 0;
 
 		template<typename T>
-		inline bool AddType(cstring type_name, int flags = 0)
+		inline IType* AddType(cstring type_name, int flags = 0)
 		{
 			if(internal::is_complex<T>::value)
 				flags |= Complex;
 			return AddType(type_name, sizeof(T), flags);
 		}
 
-		/*template<typename T>
-		inline bool AddRefType(cstring type_name, int flags = 0)
+		template<typename T>
+		inline IType* AddRefType(cstring type_name, int flags = 0)
 		{
-			flags |= Ref;
+			flags |= RefCount;
 			static_assert(std::is_base_of<RefCounter, T>::value, "AddRefType can only be used for classes derived from RefCounter.");
-			bool ok = AddType<T>(type_name, flags);
-			if(ok)
+			IType* type = AddType<T>(type_name, flags);
+			if(type)
 			{
-				AddMethod(type_name, "void operator addref()", &T::AddRef);
-				AddMethod(type_name, "void operator release()", &T::Release);
+				type->AddMethod("void operator addref()", &T::AddRef);
+				type->AddMethod("void operator release()", &T::Release);
 			}
-			return ok;
-		}*/
+			return type;
+		}
 
 	protected:
 		virtual ~IModule() {}

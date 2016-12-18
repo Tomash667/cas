@@ -97,51 +97,51 @@ static void InitCoreLib(Module& module, Settings& settings)
 	s_use_getch = settings.use_getch;
 
 	// types
-	module.AddCoreType("void", 0, V_VOID, 0);
-	module.AddCoreType("bool", sizeof(bool), V_BOOL, 0);
-	module.AddCoreType("char", sizeof(char), V_CHAR, 0);
-	module.AddCoreType("int", sizeof(int), V_INT, 0);
-	module.AddCoreType("float", sizeof(float), V_FLOAT, 0);
-	module.AddCoreType("string", sizeof(string), V_STRING, Type::PassByValue);
-	module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
-	module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
-	module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
+	Type* _void = module.AddCoreType("void", 0, V_VOID, 0);
+	Type* _bool = module.AddCoreType("bool", sizeof(bool), V_BOOL, 0);
+	Type* _char = module.AddCoreType("char", sizeof(char), V_CHAR, 0);
+	Type* _int = module.AddCoreType("int", sizeof(int), V_INT, 0);
+	Type* _float = module.AddCoreType("float", sizeof(float), V_FLOAT, 0);
+	Type* _string = module.AddCoreType("string", sizeof(string), V_STRING, Type::PassByValue);
+	Type* _ref = module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
+	Type* _special = module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
+	Type* _type = module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
 	// bool methods
-	module.AddMethod("bool", "implicit char operator cast()", nullptr);
-	module.AddMethod("bool", "implicit int operator cast()", nullptr);
-	module.AddMethod("bool", "implicit float operator cast()", nullptr);
-	module.AddMethod("bool", "implicit string operator cast()", nullptr);
-	module.AddMethod("bool", "bool operator = (bool b)", nullptr);
+	module.AddMethod(_bool, "implicit char operator cast()", nullptr);
+	module.AddMethod(_bool, "implicit int operator cast()", nullptr);
+	module.AddMethod(_bool, "implicit float operator cast()", nullptr);
+	module.AddMethod(_bool, "implicit string operator cast()", nullptr);
+	module.AddMethod(_bool, "bool operator = (bool b)", nullptr);
 	// char methods
-	module.AddMethod("char", "implicit bool operator cast()", nullptr);
-	module.AddMethod("char", "implicit int operator cast()", nullptr);
-	module.AddMethod("char", "implicit float operator cast()", nullptr);
-	module.AddMethod("char", "implicit string operator cast()", nullptr);
-	module.AddMethod("char", "char operator = (char c)", nullptr);
+	module.AddMethod(_char, "implicit bool operator cast()", nullptr);
+	module.AddMethod(_char, "implicit int operator cast()", nullptr);
+	module.AddMethod(_char, "implicit float operator cast()", nullptr);
+	module.AddMethod(_char, "implicit string operator cast()", nullptr);
+	module.AddMethod(_char, "char operator = (char c)", nullptr);
 	// int methods
-	module.AddMethod("int", "implicit bool operator cast()", nullptr);
-	module.AddMethod("int", "implicit char operator cast()", nullptr);
-	module.AddMethod("int", "implicit float operator cast()", nullptr);
-	module.AddMethod("int", "implicit string operator cast()", nullptr);
-	module.AddMethod("int", "int operator = (int i)", nullptr);
-	module.AddMethod("int", "int abs()", f_int_abs);
+	module.AddMethod(_int, "implicit bool operator cast()", nullptr);
+	module.AddMethod(_int, "implicit char operator cast()", nullptr);
+	module.AddMethod(_int, "implicit float operator cast()", nullptr);
+	module.AddMethod(_int, "implicit string operator cast()", nullptr);
+	module.AddMethod(_int, "int operator = (int i)", nullptr);
+	module.AddMethod(_int, "int abs()", f_int_abs);
 	// float methods
-	module.AddMethod("float", "implicit bool operator cast()", nullptr);
-	module.AddMethod("float", "implicit char operator cast()", nullptr);
-	module.AddMethod("float", "implicit int operator cast()", nullptr);
-	module.AddMethod("float", "implicit string operator cast()", nullptr);
-	module.AddMethod("float", "float operator = (float f)", nullptr);
-	module.AddMethod("float", "float abs()", f_float_abs);
+	module.AddMethod(_float, "implicit bool operator cast()", nullptr);
+	module.AddMethod(_float, "implicit char operator cast()", nullptr);
+	module.AddMethod(_float, "implicit int operator cast()", nullptr);
+	module.AddMethod(_float, "implicit string operator cast()", nullptr);
+	module.AddMethod(_float, "float operator = (float f)", nullptr);
+	module.AddMethod(_float, "float abs()", f_float_abs);
 	// string methods
-	module.AddMethod("string", "string operator = (string s)", nullptr);
-	module.AddMethod("string", "int length()", f_string_length);
-	module.AddMethod("string", "bool empty()", f_string_empty);
-	module.AddMethod("string", "void clear()", f_string_clear);
+	module.AddMethod(_string, "string operator = (string& s)", nullptr);
+	module.AddMethod(_string, "int length()", f_string_length);
+	module.AddMethod(_string, "bool empty()", f_string_empty);
+	module.AddMethod(_string, "void clear()", f_string_clear);
 	
 	// functions
-	module.AddFunction("void print(string str)", f_print);
+	module.AddFunction("void print(string& str)", f_print);
 	module.AddFunction("void println()", f_println0);
-	module.AddFunction("void println(string str)", f_println);
+	module.AddFunction("void println(string& str)", f_println);
 	module.AddFunction("int getint()", f_getint);
 	module.AddFunction("float getfloat()", f_getfloat);
 	module.AddFunction("string getstr()", f_getstr);

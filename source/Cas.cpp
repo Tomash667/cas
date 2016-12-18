@@ -128,6 +128,16 @@ Function* Type::FindCodeFunction(cstring name)
 	return nullptr;
 }
 
+Function* Type::FindSpecialCodeFunction(SpecialFunction special)
+{
+	for(Function* f : funcs)
+	{
+		if(f->special == special)
+			return f;
+	}
+	return nullptr;
+}
+
 bool CommonFunction::Equal(CommonFunction& f) const
 {
 	if(f.arg_infos.size() != arg_infos.size())

@@ -199,34 +199,27 @@ TEST_METHOD(RegisterSameFunctionTwice)
 
 TEST_METHOD(RegisterTypeIsKeyword)
 {
-	bool r = module->AddType<A>("if");
-	Assert::IsFalse(r);
+	IType* type = module->AddType<A>("if");
+	Assert::IsNull(type);
 	AssertError("Can't declare type 'if', name is keyword.");
 }
 
 TEST_METHOD(RegisterSameTypeTwice)
 {
-	bool r = module->AddType<A>("A");
-	Assert::IsTrue(r);
+	IType* type = module->AddType<A>("A");
+	Assert::IsNotNull(type);
 
-	r = module->AddType<A>("A");
-	Assert::IsFalse(r);
+	type = module->AddType<A>("A");
+	Assert::IsNull(type);
 	AssertError("Type 'A' already declared.");
-}
-
-TEST_METHOD(RegisterMethodMissingType)
-{
-	bool r = module->AddMethod("A", "void f()", &A::f);
-	Assert::IsFalse(r);
-	AssertError("Missing type 'A' for AddMethod 'void f()'.");
 }
 
 TEST_METHOD(RegisterMethodParseError)
 {
-	bool r = module->AddType<A>("A");
-	Assert::IsTrue(r);
+	IType* type = module->AddType<A>("A");
+	Assert::IsNotNull(type);
 
-	r = module->AddMethod("A", "void f;", &A::f);
+	bool r = type->AddMethod("void f;", &A::f);
 	Assert::IsFalse(r);
 	AssertError("Expecting symbol '(', found symbol ';'.");
 	AssertError("Failed to parse function declaration for AddMethod 'void f;'.");
@@ -234,30 +227,23 @@ TEST_METHOD(RegisterMethodParseError)
 
 TEST_METHOD(RegisterSameMethodTwice)
 {
-	bool r = module->AddType<A>("A");
+	IType* type = module->AddType<A>("A");
+	Assert::IsNotNull(type);
+
+	bool r = type->AddMethod("void f()", &A::f);
 	Assert::IsTrue(r);
 
-	r = module->AddMethod("A", "void f()", &A::f);
-	Assert::IsTrue(r);
-
-	r = module->AddMethod("A", "void f()", &A::f);
+	r = type->AddMethod("void f()", &A::f);
 	Assert::IsFalse(r);
 	AssertError("Method 'void f()' for type 'A' already exists.");
 }
 
-TEST_METHOD(RegisterMemberMissingType)
-{
-	bool r = module->AddMember("A", "int x", 0);
-	Assert::IsFalse(r);
-	AssertError("Missing type 'A' for AddMember 'int x'.");
-}
-
 TEST_METHOD(RegisterMemberParseError)
 {
-	bool r = module->AddType<A>("A");
-	Assert::IsTrue(r);
+	IType* type = module->AddType<A>("A");
+	Assert::IsNotNull(type);
 
-	r = module->AddMember("A", "int;", offsetof(A, x));
+	bool r = type->AddMember("int;", offsetof(A, x));
 	Assert::IsFalse(r);
 	AssertError("Expecting item, found symbol ';'.");
 	AssertError("Failed to parse member declaration for type 'A' AddMember 'int;'.");
@@ -357,8 +343,8 @@ TEST_METHOD(ImplicitInvalidArgumentCount)
 {
 	RunFailureTest("class X{implicit X(){}}", "Implicit constructor require single argument.");
 
-	module->AddType<A>("A");
-	bool r = module->AddMethod("A", "implicit A()", AsCtor<A>());
+	IType* type = module->AddType<A>("A");
+	bool r = type->AddMethod("implicit A()", AsCtor<A>());
 	Assert::IsFalse(r);
 	AssertError("Implicit constructor require single argument.");
 }
@@ -431,8 +417,8 @@ TEST_METHOD(DisallowCreateType)
 	module->AddType<A>("A", cas::DisallowCreate);
 	RunFailureTest("A a;", "Type 'A' cannot be created in script.");
 
-	module->AddType<B>("B", cas::DisallowCreate);
-	module->AddMethod("B", "B(int a, int b)", cas::AsCtor<B, int, int>());
+	IType* type = module->AddType<B>("B", cas::DisallowCreate);
+	type->AddMethod("B(int a, int b)", cas::AsCtor<B, int, int>());
 	RunFailureTest("void f(B b){} f(B(1,2));", "Type 'B' cannot be created in script.");
 }
 

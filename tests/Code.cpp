@@ -85,26 +85,27 @@ static void f_wypisz_vec3(Vec3& v)
 
 TEST_METHOD(ComplexClassResult)
 {
+	IType* type;
 	// Vec2
-	module->AddType<Vec2>("Vec2");
-	module->AddMember("Vec2", "float x", offsetof(Vec2, x));
-	module->AddMember("Vec2", "float y", offsetof(Vec2, y));
+	type = module->AddType<Vec2>("Vec2");
+	type->AddMember("float x", offsetof(Vec2, x));
+	type->AddMember("float y", offsetof(Vec2, y));
 	module->AddFunction("Vec2 create_vec2(float x, float y)", f_create_vec2);
 	module->AddFunction("void wypisz_vec2(Vec2 v)", f_wypisz_vec2);
 	// Vec3 (pod > 8 byte)
-	module->AddType<Vec3>("Vec3");
-	module->AddMember("Vec3", "float x", offsetof(Vec3, x));
-	module->AddMember("Vec3", "float y", offsetof(Vec3, y));
-	module->AddMember("Vec3", "float z", offsetof(Vec3, z));
+	type = module->AddType<Vec3>("Vec3");
+	type->AddMember("float x", offsetof(Vec3, x));
+	type->AddMember("float y", offsetof(Vec3, y));
+	type->AddMember("float z", offsetof(Vec3, z));
 	module->AddFunction("Vec3 create_vec3(float x, float y, float z)", f_create_vec3);
 	module->AddFunction("void wypisz_vec3(Vec3 v)", f_wypisz_vec3);
 	// INT2c have ctor
-	module->AddType<INT2>("INT2c");
-	module->AddMember("INT2c", "int x", offsetof(INT2, x));
-	module->AddMember("INT2c", "int y", offsetof(INT2, y));
-	module->AddMethod("INT2c", "INT2c()", f_int2c_ctor0);
-	module->AddMethod("INT2c", "INT2c(int xy)", f_int2c_ctor1);
-	module->AddMethod("INT2c", "INT2c(int x, int y)", f_int2c_ctor2);
+	type = module->AddType<INT2>("INT2c");
+	type->AddMember("int x", offsetof(INT2, x));
+	type->AddMember("int y", offsetof(INT2, y));
+	type->AddMethod("INT2c()", f_int2c_ctor0);
+	type->AddMethod("INT2c(int xy)", f_int2c_ctor1);
+	type->AddMethod("INT2c(int x, int y)", f_int2c_ctor2);
 	module->AddFunction("void wypisz_int2c(INT2c i)", f_wypisz_int2c);
 
 	RunTest(R"CODE(
@@ -134,11 +135,11 @@ struct Vec
 	}
 };
 
-TEST_METHOD(CodeRegisterValueType)
+TEST_METHOD_IGNORE(CodeRegisterValueType)
 {
-	module->AddType<Vec>("Vec", cas::ValueType);
-	module->AddMember("Vec", "int x", offsetof(Vec, x));
-	module->AddMethod("Vec", "Vec operator += (int a)", &Vec::operator+=);
+	IType* type = module->AddType<Vec>("Vec", cas::ValueType);
+	type->AddMember("int x", offsetof(Vec, x));
+	type->AddMethod("Vec operator += (int a)", &Vec::operator+=);
 	RunTest(R"code(
 		Vec global;
 		global.x = 7;
@@ -161,9 +162,34 @@ TEST_METHOD(CodeRegisterValueType)
 struct A : RefCounter
 {
 	int x;
+	static A* global;
 
 	A() : x(4) {}
 };
+
+static A* createA()
+{
+	A* a = new A();
+	return a;
+}
+
+static void checkA(A* a)
+{
+	Assert::AreEqual(2, a->GetRefs());
+	A::global = a;
+	a->AddRef();
+}
+
+TEST_METHOD_IGNORE(RefCountedType)
+{
+	IType* type = module->AddRefType<A>("A");
+	type->AddMethod("A()", AsCtor<A>());
+	type->AddMember("int x", offsetof(A, x));
+	module->AddFunction("void checkA(A@ a)", checkA);
+	RunTest("void f(){A a; a.x += 3; checkA(a);}();");
+	Assert::AreEqual(1, A::global->GetRefs());
+	Assert::AreEqual(7, A::global->x);
+}
 
 /*TEST_METHOD(CodeRegisterType)
 {
@@ -277,9 +303,9 @@ public:
 
 TEST_METHOD(CodeMemberFunction)
 {
-	module->AddType<AObj>("AObj");
-	module->AddMethod("AObj", "int GetX()", &AObj::GetX);
-	module->AddMethod("AObj", "void SetX(int a)", &AObj::SetX);
+	IType* type = module->AddType<AObj>("AObj");
+	type->AddMethod("int GetX()", &AObj::GetX);
+	type->AddMethod("void SetX(int a)", &AObj::SetX);
 	RunTest("AObj a; a.SetX(7); return a.GetX();");
 	retval.IsInt(7);
 }
@@ -296,9 +322,9 @@ public:
 
 TEST_METHOD(CodeMemberFunctionOverload)
 {
-	module->AddType<CObj>("BObj");
-	module->AddMethod("BObj", "int f()", AsMethod(BObj, f, int, ()));
-	module->AddMethod("BObj", "int f(int a)", AsMethod(BObj, f, int, (int)));
+	IType* type = module->AddType<CObj>("BObj");
+	type->AddMethod("int f()", AsMethod(BObj, f, int, ()));
+	type->AddMethod("int f(int a)", AsMethod(BObj, f, int, (int)));
 	RunTest("BObj b; return b.f() + b.f(4);");
 	retval.IsInt(9);
 }
@@ -349,10 +375,10 @@ static void D_sub(D& d, int a)
 
 TEST_METHOD(OverloadClassOperator)
 {
-	module->AddType<D>("D");
-	module->AddMember("D", "int x", offsetof(D, x));
-	module->AddMethod("D", "void operator += (int a)", &D::operator+=);
-	module->AddMethod("D", "void operator -= (int a)", D_sub);
+	IType* type = module->AddType<D>("D");
+	type->AddMember("int x", offsetof(D, x));
+	type->AddMethod("void operator += (int a)", &D::operator+=);
+	type->AddMethod("void operator -= (int a)", D_sub);
 	RunTest("D d; d.x = 10; d -= 4; Assert_AreEqual(6,d.x); d += 11; Assert_AreEqual(17,d.x);");
 }
 
@@ -367,10 +393,10 @@ struct E
 
 TEST_METHOD(Functor)
 {
-	module->AddType<E>("E");
-	module->AddMember("E", "int x", offsetof(E, x));
-	module->AddMethod("E", "int operator () ()", AsMethod(E, f, int, ()));
-	module->AddMethod("E", "int operator () (int a)", AsMethod(E, f, int, (int)));
+	IType* type = module->AddType<E>("E");
+	type->AddMember("int x", offsetof(E, x));
+	type->AddMethod("int operator () ()", AsMethod(E, f, int, ()));
+	type->AddMethod("int operator () (int a)", AsMethod(E, f, int, (int)));
 	RunTest("E e; e.x = 4; Assert_AreEqual(4,e()); Assert_AreEqual(12,e(3));");
 }
 
@@ -406,14 +432,14 @@ struct F
 
 TEST_METHOD(CodeOverloadCast)
 {
-	module->AddType<F>("F");
-	module->AddMember("F", "int x", offsetof(F, x));
-	module->AddMember("F", "int y", offsetof(F, y));
-	module->AddMethod("F", "implicit F(int a)", AsCtor<F, int>());
-	module->AddMethod("F", "F(float a)", AsCtor<F, float>());
-	module->AddMethod("F", "F(int x, int y)", AsCtor<F, int, int>());
-	module->AddMethod("F", "implicit int operator cast()", &F::to_int);
-	module->AddMethod("F", "float operator cast()", &F::to_float);
+	IType* type = module->AddType<F>("F");
+	type->AddMember("int x", offsetof(F, x));
+	type->AddMember("int y", offsetof(F, y));
+	type->AddMethod("implicit F(int a)", AsCtor<F, int>());
+	type->AddMethod("F(float a)", AsCtor<F, float>());
+	type->AddMethod("F(int x, int y)", AsCtor<F, int, int>());
+	type->AddMethod("implicit int operator cast()", &F::to_int);
+	type->AddMethod("float operator cast()", &F::to_float);
 	RunTest(R"code(
 		// implicit cast
 		F a = F(3,14);
@@ -473,22 +499,22 @@ public:
 
 void RegisterPodAndClass()
 {
-	module->AddType<Pod>("Pod");
-	module->AddMember("Pod", "int x", offsetof(Pod, x));
-	module->AddMember("Pod", "int y", offsetof(Pod, y));
+	IType* type = module->AddType<Pod>("Pod");
+	type->AddMember("int x", offsetof(Pod, x));
+	type->AddMember("int y", offsetof(Pod, y));
 
-	module->AddType<Class>("Class");
-	module->AddMember("Class", "int x", offsetof(Class, x));
-	module->AddMember("Class", "int y", offsetof(Class, y));
-	module->AddMethod("Class", "Class()", AsCtor<Class>());
-	module->AddMethod("Class", "Class(Class& c)", AsCtor<Class, Class&>());
-	module->AddMethod("Class", "Class(int x, int y)", AsCtor<Class, int, int>());
+	type = module->AddType<Class>("Class");
+	type->AddMember("int x", offsetof(Class, x));
+	type->AddMember("int y", offsetof(Class, y));
+	type->AddMethod("Class()", AsCtor<Class>());
+	type->AddMethod("Class(Class& c)", AsCtor<Class, Class&>());
+	type->AddMethod("Class(int x, int y)", AsCtor<Class, int, int>());
 }
 
 static int get4() { return 4; }
 static Pod getPodValue() { Pod p; p.x = 1; p.y = 2; return p; }
 
-TEST_METHOD(CodeReturnByValue)
+TEST_METHOD_IGNORE(CodeReturnByValue)
 {
 	RegisterPodAndClass();
 	RunTest(R"code(
@@ -497,27 +523,27 @@ TEST_METHOD(CodeReturnByValue)
 	)code");
 }
 
-TEST_METHOD(CodeReturnByReference)
+TEST_METHOD_IGNORE(CodeReturnByReference)
 {
 
 }
 
-TEST_METHOD(CodeReturnByPointer)
+TEST_METHOD_IGNORE(CodeReturnByPointer)
 {
 
 }
 
-TEST_METHOD(CodeTakesByValue)
+TEST_METHOD_IGNORE(CodeTakesByValue)
 {
 
 }
 
-TEST_METHOD(CodeTakesByReference)
+TEST_METHOD_IGNORE(CodeTakesByReference)
 {
 
 }
 
-TEST_METHOD(CodeTakesByPointer)
+TEST_METHOD_IGNORE(CodeTakesByPointer)
 {
 
 }
@@ -547,15 +573,31 @@ H* getGlobalHPtr()
 	return &globalh;
 }
 
-TEST_METHOD(CodeReturnByValueReferencePointer)
+TEST_METHOD_IGNORE(CodeReturnByValueReferencePointer)
 {
 	globalh.x = 3;
 	globalh.y = 14;
-	module->AddType<H>("H");
-	module->AddMember("H", "int x", offsetof(H, x));
-	module->AddMember("H", "int y", offsetof(H, y));
+	IType* type = module->AddType<H>("H");
+	type->AddMember("int x", offsetof(H, x));
+	type->AddMember("int y", offsetof(H, y));
 	RunTest(R"code(
 		
+	)code");
+}
+
+static void pass_string_by_val(string s)
+{
+	Assert::AreEqual("dodo", s.c_str());
+	s = "123";
+}
+
+TEST_METHOD(CodePassStringByValue)
+{
+	module->AddFunction("void f(string s)", pass_string_by_val);
+	RunTest(R"code(
+		string s = "dodo";
+		f(s);
+		Assert_AreEqual("dodo", s);
 	)code");
 }
 
@@ -563,3 +605,5 @@ CA_TEST_CLASS_END();
 
 int tests::Code::global_a;
 int tests::Code::global_b;
+tests::Code::A* tests::Code::A::global;
+tests::Code::H tests::Code::globalh;

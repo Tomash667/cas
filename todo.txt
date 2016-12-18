@@ -1,3 +1,8 @@
++ pass by val/ref
+	+ string
+	+ struct
+	+ class
+	+ simple
 + tests
 	+ return struct/class by value
 	+ return by reference
@@ -185,9 +190,6 @@ else return in reg
 
 + runner OO
 + less makroed test framework
-+ different syntax
-	var type = module->AddType();
-	type->AddMember();
 + decompile redirect
 + allow same name class X { ErrorCode ErrorCode; } ?
 + exceptions, try catch

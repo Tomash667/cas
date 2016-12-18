@@ -109,6 +109,7 @@ int main(int argc, char** argv)
 	{
 		cout << "Missing input file. Use runner.exe -? for help.\n\n(OK)";
 		_getch();
+		Shutdown();
 		return 0;
 	}
 

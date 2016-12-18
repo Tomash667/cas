@@ -13,13 +13,13 @@ struct ArgInfo
 		int value;
 		float fvalue;
 	};
-	bool have_def_value;
+	bool have_def_value, pass_by_ref;
 
-	ArgInfo(bool bvalue) : vartype(V_BOOL), bvalue(bvalue), have_def_value(true) {}
-	ArgInfo(char cvalue) : vartype(V_CHAR), cvalue(cvalue), have_def_value(true) {}
-	ArgInfo(int value) : vartype(V_INT), value(value), have_def_value(true) {}
-	ArgInfo(float fvalue) : vartype(V_FLOAT), fvalue(fvalue), have_def_value(true) {}
-	ArgInfo(VarType vartype, int value, bool have_def_value) : vartype(vartype), value(value), have_def_value(have_def_value) {}
+	ArgInfo(bool bvalue) : vartype(V_BOOL), bvalue(bvalue), have_def_value(true), pass_by_ref(false) {}
+	ArgInfo(char cvalue) : vartype(V_CHAR), cvalue(cvalue), have_def_value(true), pass_by_ref(false) {}
+	ArgInfo(int value) : vartype(V_INT), value(value), have_def_value(true), pass_by_ref(false) {}
+	ArgInfo(float fvalue) : vartype(V_FLOAT), fvalue(fvalue), have_def_value(true), pass_by_ref(false) {}
+	ArgInfo(VarType vartype, int value, bool have_def_value) : vartype(vartype), value(value), have_def_value(have_def_value), pass_by_ref(false) {}
 };
 
 // special function type
@@ -27,9 +27,9 @@ enum SpecialFunction
 {
 	SF_NO,
 	SF_CTOR,
-	SF_CAST
-	//SF_ADDREF,
-	//SF_RELEASE
+	SF_CAST,
+	SF_ADDREF,
+	SF_RELEASE
 };
 
 // common for parse & code function

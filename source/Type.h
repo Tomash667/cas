@@ -5,6 +5,7 @@ struct CommonFunction;
 struct Member;
 struct ParseFunction;
 struct Type;
+enum SpecialFunction;
 
 // code or script function
 struct AnyFunction
@@ -92,7 +93,8 @@ struct Type
 		Hidden = 1 << 4,
 		Class = 1 << 5,
 		Code = 1 << 6,
-		PassByValue = 1 << 7 // struct/string
+		PassByValue = 1 << 7, // struct/string
+		RefCount = 1 << 8
 	};
 
 	string name;
@@ -106,6 +108,7 @@ struct Type
 	~Type();
 	Member* FindMember(const string& name, int& index);
 	Function* FindCodeFunction(cstring name);
+	Function* FindSpecialCodeFunction(SpecialFunction special);
 
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
