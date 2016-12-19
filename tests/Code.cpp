@@ -248,7 +248,7 @@ TEST_METHOD_IGNORE(CodeFunctionTakesRef)
 //=========================================================================================
 static int global_a;
 static int global_b;
-		
+
 static int& getref(bool is_a)
 {
 	if(is_a)
@@ -330,7 +330,7 @@ TEST_METHOD(CodeMemberFunctionOverload)
 }
 
 //=========================================================================================
-		
+
 
 class CObj : public RefCounter
 {
@@ -585,19 +585,28 @@ TEST_METHOD_IGNORE(CodeReturnByValueReferencePointer)
 	)code");
 }
 
+//=========================================================================================
 static void pass_string_by_val(string s)
 {
 	Assert::AreEqual("dodo", s.c_str());
 	s = "123";
 }
 
+static string pass_string_by_val2(string s1, string s2, string s3)
+{
+	return s1 + s2 + s3;
+}
+
 TEST_METHOD(CodePassStringByValue)
 {
 	module->AddFunction("void f(string s)", pass_string_by_val);
+	module->AddFunction("string f2(string s1, string s2, string s3)", pass_string_by_val2);
 	RunTest(R"code(
 		string s = "dodo";
 		f(s);
 		Assert_AreEqual("dodo", s);
+		s = f2("a", "b", "c");
+		Assert_AreEqual("abc", s);
 	)code");
 }
 

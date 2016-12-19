@@ -112,21 +112,30 @@ GetRefData GetRef(Var& v)
 	}
 }
 
+inline uint alignto(uint size, uint to)
+{
+	uint n = size / to;
+	if(size % to != 0)
+		++n;
+	return n * to;
+}
+
 void ExecuteFunction(Function& f)
 {
 	assert(f.arg_infos.size() < 15u);
-	int packedArgs[16];
-	int packed = 0;
+	vector<int> packed_args;
+	vector<std::pair<uint, Str*>> packed_arg_strs;
 	void* retptr = nullptr;
 	bool in_mem = false;
 
+	// pack return value
 	assert(f.result.type != V_REF);
 	Type* result_type = run_module->GetType(f.result.type);
 	if(f.result.type == V_STRING)
 	{
 		// string return value
 		Str* str = CreateStr();
-		packedArgs[packed++] = (int)(&str->s);
+		packed_args.push_back((int)(&str->s));
 		retptr = str;
 	}
 	else if(result_type->IsClass())
@@ -136,7 +145,7 @@ void ExecuteFunction(Function& f)
 		retptr = c;
 		if(result_type->size > 8 || IS_SET(result_type->flags, Type::Complex))
 		{
-			packedArgs[packed++] = (int)c->data();
+			packed_args.push_back((int)c->data());
 			in_mem = true;
 		}
 	}
@@ -147,45 +156,62 @@ void ExecuteFunction(Function& f)
 	{
 		Var& v = stack.at(stack.size() - f.arg_infos.size() + i);
 		ArgInfo& arg = f.arg_infos[i];
-		int value;
 		assert(v.vartype == arg.vartype);
-		switch(v.vartype.type)
+		if(arg.pass_by_ref || /*run_module->GetType(arg.vartype.type)->IsPassByValue())*/ arg.vartype.type != V_STRING)
 		{
-		case V_BOOL:
-		case V_CHAR:
-		case V_INT:
-		case V_FLOAT:
-			value = v.value;
-			break;
-		case V_STRING:
-			value = (int)&v.str->s;
-			break;
-		default:
-			assert(run_module->GetType(v.vartype.type)->IsClass());
-			value = (int)v.clas->data();
-			break;
-		}		
-		packedArgs[packed++] = value;
+			int value;
+			switch(v.vartype.type)
+			{
+			case V_BOOL:
+			case V_CHAR:
+			case V_INT:
+			case V_FLOAT:
+				value = v.value;
+				break;
+			case V_STRING:
+				value = (int)&v.str->s;
+				break;
+			default:
+				assert(run_module->GetType(v.vartype.type)->IsClass());
+				value = (int)v.clas->data();
+				break;
+			}
+			packed_args.push_back(value);
+		}
+		else
+		{
+			assert(arg.vartype.type == V_STRING);
+			uint size = alignto(sizeof(string), sizeof(int));
+			packed_arg_strs.push_back(std::pair<uint, Str*>(packed_args.size(), v.str));
+			packed_args.resize(packed_args.size() + size/sizeof(int));
+		}
+	}
+
+	// copy strings
+	for(auto& s : packed_arg_strs)
+	{
+		void* adr = (void*)&packed_args[s.first];
+		string* str = new (adr) string(s.second->s);
 	}
 
 	// set this
 	void* _this;
 	int* args;
-	uint packedSize;
-	uint espRestore;
+	uint packed_size;
+	uint esp_restore;
 	if(!IS_SET(f.flags, CommonFunction::F_THISCALL))
 	{
 		_this = nullptr;
-		args = &packedArgs[0];
-		packedSize = packed * 4;
-		espRestore = packedSize;
+		args = packed_args.data();
+		packed_size = packed_args.size() * 4;
+		esp_restore = packed_size;
 	}
 	else
 	{
-		_this = (void*)packedArgs[0];
-		args = &packedArgs[1];
-		packedSize = packed * 4 - 4;
-		espRestore = 0;
+		_this = (void*)packed_args[0];
+		args = packed_args.data() + 1;
+		packed_size = packed_args.size() * 4 - 4;
+		esp_restore = 0;
 	}
 
 	// call
@@ -199,14 +225,14 @@ void ExecuteFunction(Function& f)
 		};
 		__int64 qw;
 	} result;
-	float fresult;	
-	
+	float fresult;
+
 	__asm
 	{
 		push ecx;
 
 		// copy args
-		mov ecx, packedSize;
+		mov ecx, packed_size;
 		mov eax, args;
 		add eax, ecx;
 		cmp ecx, 0;
@@ -223,9 +249,9 @@ void ExecuteFunction(Function& f)
 		call clbk;
 
 		// get result
-		add esp, espRestore;
+		add esp, esp_restore;
 		lea ecx, result;
-		mov [ecx], eax;
+		mov[ecx], eax;
 		mov 4[ecx], edx;
 		fstp fresult;
 		pop ecx;
@@ -288,7 +314,7 @@ void SetFromStack(Var& v)
 	assert(!stack.empty());
 	Var& s = stack.back();
 	assert(v.vartype == V_VOID || v.vartype == s.vartype);
-	if(s.vartype.type >= V_BOOL && s.vartype.type  <= V_FLOAT)
+	if(s.vartype.type >= V_BOOL && s.vartype.type <= V_FLOAT)
 		v = s;
 	else if(s.vartype.type == V_STRING)
 	{
@@ -322,67 +348,67 @@ void Cast(Var& v, VarType vartype)
 
 	switch(COMBINE(v.vartype.type, vartype.type))
 	{
-	case COMBINE(V_BOOL,V_CHAR):
+	case COMBINE(V_BOOL, V_CHAR):
 		v.cvalue = (v.bvalue ? 't' : 'f');
 		v.vartype.type = V_CHAR;
 		break;
-	case COMBINE(V_BOOL,V_INT):
+	case COMBINE(V_BOOL, V_INT):
 		v.value = (v.bvalue ? 1 : 0);
 		v.vartype.type = V_INT;
 		break;
-	case COMBINE(V_BOOL,V_FLOAT):
+	case COMBINE(V_BOOL, V_FLOAT):
 		v.fvalue = (v.bvalue ? 1.f : 0.f);
 		v.vartype.type = V_FLOAT;
 		break;
-	case COMBINE(V_BOOL,V_STRING):
+	case COMBINE(V_BOOL, V_STRING):
 		v.str = CreateStr(v.bvalue ? "true" : "false");
 		v.vartype.type = V_STRING;
 		break;
-	case COMBINE(V_CHAR,V_BOOL):
+	case COMBINE(V_CHAR, V_BOOL):
 		v.bvalue = (v.cvalue != 0);
 		v.vartype.type = V_BOOL;
 		break;
-	case COMBINE(V_CHAR,V_INT):
+	case COMBINE(V_CHAR, V_INT):
 		v.value = (int)v.cvalue;
 		v.vartype.type = V_INT;
 		break;
-	case COMBINE(V_CHAR,V_FLOAT):
+	case COMBINE(V_CHAR, V_FLOAT):
 		v.fvalue = (float)v.cvalue;
 		v.vartype.type = V_FLOAT;
 		break;
-	case COMBINE(V_CHAR,V_STRING):
+	case COMBINE(V_CHAR, V_STRING):
 		v.str = CreateStr(Format("%c", v.cvalue));
 		v.vartype.type = V_STRING;
 		break;
-	case COMBINE(V_INT,V_BOOL):
+	case COMBINE(V_INT, V_BOOL):
 		v.bvalue = (v.value != 0);
 		v.vartype.type = V_BOOL;
 		break;
-	case COMBINE(V_INT,V_CHAR):
+	case COMBINE(V_INT, V_CHAR):
 		v.cvalue = (char)v.value;
 		v.vartype.type = V_CHAR;
 		break;
-	case COMBINE(V_INT,V_FLOAT):
+	case COMBINE(V_INT, V_FLOAT):
 		v.fvalue = (float)v.value;
 		v.vartype.type = V_FLOAT;
 		break;
-	case COMBINE(V_INT,V_STRING):
+	case COMBINE(V_INT, V_STRING):
 		v.str = CreateStr(Format("%d", v.value));
 		v.vartype.type = V_STRING;
 		break;
-	case COMBINE(V_FLOAT,V_BOOL):
+	case COMBINE(V_FLOAT, V_BOOL):
 		v.bvalue = (v.fvalue != 0.f);
 		v.vartype.type = V_BOOL;
 		break;
-	case COMBINE(V_FLOAT,V_CHAR):
+	case COMBINE(V_FLOAT, V_CHAR):
 		v.cvalue = (char)v.fvalue;
 		v.vartype.type = V_CHAR;
 		break;
-	case COMBINE(V_FLOAT,V_INT):
+	case COMBINE(V_FLOAT, V_INT):
 		v.value = (int)v.fvalue;
 		v.vartype.type = V_INT;
 		break;
-	case COMBINE(V_FLOAT,V_STRING):
+	case COMBINE(V_FLOAT, V_STRING):
 		v.str = CreateStr(Format("%g", v.fvalue));
 		v.vartype.type = V_STRING;
 		break;
@@ -704,7 +730,7 @@ void RunInternal(ReturnValue& retval)
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
 				assert(v.vartype.type == m->vartype.type);
-				Class* c = cv.clas;				
+				Class* c = cv.clas;
 
 				switch(m->vartype.type)
 				{
@@ -746,7 +772,7 @@ void RunInternal(ReturnValue& retval)
 				assert(vl.vartype.type == f.type);
 				Class* c = vl.clas;
 				Member* m = type->members[member_index];
-				
+
 				switch(m->vartype.type)
 				{
 				case V_BOOL:

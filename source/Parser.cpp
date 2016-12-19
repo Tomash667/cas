@@ -1097,6 +1097,8 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		// pass this for member functions (not for code ctor)
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
 		f->required_args++;
+		if(in_cpp)
+			f->arg_infos.front().pass_by_ref = true;
 	}
 
 	if(IS_SET(f->flags, CommonFunction::F_IMPLICIT))

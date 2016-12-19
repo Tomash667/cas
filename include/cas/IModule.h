@@ -101,7 +101,7 @@ namespace cas
 		virtual bool AddMember(cstring decl, int offset) = 0;
 		virtual bool AddMethod(cstring decl, const FunctionInfo& func_info) = 0;
 	};
-	
+
 	class IModule
 	{
 	public:

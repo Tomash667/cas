@@ -252,8 +252,8 @@ static void InitDebugLib(Module& module)
 	module.AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", AsFunction(Assert_AreNotEqual, void, (int, int)));
 	module.AddFunction("void Assert_AreEqual(float expected, float actual)", AsFunction(Assert_AreEqual, void, (float, float)));
 	module.AddFunction("void Assert_AreNotEqual(float not_expected, float actual)", AsFunction(Assert_AreNotEqual, void, (float, float)));
-	module.AddFunction("void Assert_AreEqual(string expected, string actual)", AsFunction(Assert_AreEqual, void, (string&, string&)));
-	module.AddFunction("void Assert_AreNotEqual(string not_expected, string actual)", AsFunction(Assert_AreNotEqual, void, (string&, string&)));
+	module.AddFunction("void Assert_AreEqual(string& expected, string& actual)", AsFunction(Assert_AreEqual, void, (string&, string&)));
+	module.AddFunction("void Assert_AreNotEqual(string& not_expected, string& actual)", AsFunction(Assert_AreNotEqual, void, (string&, string&)));
 	module.AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
 	module.AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
 	module.AddFunction("void Assert_Break()", Assert_Break);
