@@ -120,11 +120,24 @@ inline uint alignto(uint size, uint to)
 	return n * to;
 }
 
+struct PackedValue
+{
+	uint offset;
+	Type* type;
+	union
+	{
+		Class* c;
+		Str* s;
+	};
+
+	inline PackedValue(uint offset, Type* type, void* ptr) : offset(offset), type(type), c((Class*)ptr) {}
+};
+
 void ExecuteFunction(Function& f)
 {
 	assert(f.arg_infos.size() < 15u);
 	vector<int> packed_args;
-	vector<std::pair<uint, Str*>> packed_arg_strs;
+	vector<PackedValue> packed_values;
 	void* retptr = nullptr;
 	bool in_mem = false;
 
@@ -157,7 +170,8 @@ void ExecuteFunction(Function& f)
 		Var& v = stack.at(stack.size() - f.arg_infos.size() + i);
 		ArgInfo& arg = f.arg_infos[i];
 		assert(v.vartype == arg.vartype);
-		if(arg.pass_by_ref || /*run_module->GetType(arg.vartype.type)->IsPassByValue())*/ arg.vartype.type != V_STRING)
+		Type* type;
+		if(arg.pass_by_ref || !(type = run_module->GetType(arg.vartype.type))->IsPassByValue())
 		{
 			int value;
 			switch(v.vartype.type)
@@ -180,18 +194,32 @@ void ExecuteFunction(Function& f)
 		}
 		else
 		{
-			assert(arg.vartype.type == V_STRING);
-			uint size = alignto(sizeof(string), sizeof(int));
-			packed_arg_strs.push_back(std::pair<uint, Str*>(packed_args.size(), v.str));
-			packed_args.resize(packed_args.size() + size/sizeof(int));
+			uint size_of;
+			void* ptr;
+			if(arg.vartype.type == V_STRING)
+			{
+				size_of = sizeof(string);
+				ptr = v.str;
+			}
+			else
+			{
+				size_of = type->size;
+				ptr = v.clas;
+			}
+			uint size = alignto(size_of, sizeof(int));
+			packed_values.push_back(PackedValue(packed_args.size(), type, ptr));
+			packed_args.resize(packed_args.size() + size / sizeof(int));
 		}
 	}
 
-	// copy strings
-	for(auto& s : packed_arg_strs)
+	// copy string/struct
+	for(auto& val : packed_values)
 	{
-		void* adr = (void*)&packed_args[s.first];
-		string* str = new (adr) string(s.second->s);
+		void* adr = (void*)&packed_args[val.offset];
+		if(val.type->index == V_STRING)
+			new (adr) string(val.s->s);
+		else
+			memcpy(adr, val.c->data(), val.type->size);
 	}
 
 	// set this

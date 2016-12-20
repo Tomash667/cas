@@ -4,6 +4,6 @@
 /Output
 /bin
 
-/*.db
-/*.opendb
-/*.vcxproj.user
+*.db
+*.opendb
+*.vcxproj.user

@@ -4178,7 +4178,8 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 			s += GetType(cf->type)->name;
 			s += '.';
 		}
-		++var_offset;
+		if(!IS_SET(cf->flags, CommonFunction::F_CODE))
+			++var_offset;
 	}
 	if(!symbol)
 	{
@@ -4614,7 +4615,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		else
 			s += first;
 		s += '\'';
-		uint var_offset = ((type && !ctor) ? 1 : 0);
+		uint var_offset = ((type && !ctor && !IS_SET(type->flags, Type::Code)) ? 1 : 0);
 		if(node->childs.size() > var_offset)
 		{
 			s += " with arguments (";

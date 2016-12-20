@@ -422,4 +422,21 @@ TEST_METHOD(DisallowCreateType)
 	RunFailureTest("void f(B b){} f(B(1,2));", "Type 'B' cannot be created in script.");
 }
 
+struct X
+{
+	X(int x, int y) {}
+	X() {}
+};
+TEST_METHOD(CodeCtorNotMatching)
+{
+	IType* type = module->AddType<X>("A");
+	type->AddMethod("A(int x, int y)", AsCtor<X, int, int>());
+	RunFailureTest("A a = A(3);", "No matching call to method 'A.A' with arguments (int), could be 'A.A(int,int)'.");
+
+	type = module->AddType<X>("B");
+	type->AddMethod("B()", AsCtor<X>());
+	type->AddMethod("B(int x, int y)", AsCtor<X, int, int>());
+	RunFailureTest("B b = B(3);", "Ambiguous call to overloaded method 'B.B' with arguments (int), could be:\n\tB.B()\n\tB.B(int,int)");
+}
+
 CA_TEST_CLASS_END();

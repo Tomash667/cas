@@ -1,6 +1,4 @@
 + pass by val/ref
-	+ string
-	+ struct
 	+ class
 	+ simple
 + tests

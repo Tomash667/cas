@@ -610,6 +610,53 @@ TEST_METHOD(CodePassStringByValue)
 	)code");
 }
 
+//=========================================================================================
+struct I
+{
+	int x, y;
+	I(int x, int y) : x(x), y(y) {}
+	I(const I& i) : x(i.x), y(i.y) {}
+};
+
+static int pass_struct_by_val(I a, I b)
+{
+	++a.x;
+	--a.y;
+	b.x += 2;
+	b.y -= 3;
+	return a.x*b.x + a.y*b.y;
+}
+
+static void pass_struct_by_ref(I& a, I& b)
+{
+	a.x += b.x;
+	a.y -= b.y;
+	b.x *= 2;
+	b.y /= 2;
+}
+
+TEST_METHOD(CodePassStructByValueAndReference)
+{
+	IType* type = module->AddType<I>("I", cas::ValueType);
+	type->AddMethod("I(int x, int y)", AsCtor<I, int, int>());
+	type->AddMethod("I(I& i)", AsCtor<I, const I&>());
+	type->AddMember("int x", offsetof(I, x));
+	type->AddMember("int y", offsetof(I, y));
+	module->AddFunction("int f(I a, I b)", pass_struct_by_val);
+	module->AddFunction("void f2(I& a, I& b)", pass_struct_by_ref);
+	RunTest(R"code(
+		I a = I(1,7), b = I(2, 4), a0 = a, b0 = b;
+		int r = f(a,b);
+		Assert_AreEqual(14,r);
+		Assert_IsTrue(a == a0);
+		Assert_IsTrue(b == b0);
+		f2(a,b);
+		Assert_IsTrue(a == I(3,3));
+		Assert_IsTrue(b == I(4,2));
+	)code");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 int tests::Code::global_a;

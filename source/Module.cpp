@@ -74,6 +74,8 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 	f->clbk = func_info.ptr;
 	if(func_info.builtin)
 		f->flags |= CommonFunction::F_BUILTIN;
+	else
+		f->flags |= CommonFunction::F_CODE;
 	f->index = (index << 16) | functions.size();
 	functions.push_back(f);
 	return true;
@@ -102,6 +104,8 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 		f->flags |= CommonFunction::F_THISCALL;
 	if(func_info.builtin)
 		f->flags |= CommonFunction::F_BUILTIN;
+	else
+		f->flags |= CommonFunction::F_CODE;
 	f->index = (index << 16) | functions.size();
 	type->funcs.push_back(f);
 	functions.push_back(f);
