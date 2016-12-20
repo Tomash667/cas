@@ -439,4 +439,14 @@ TEST_METHOD(CodeCtorNotMatching)
 	RunFailureTest("B b = B(3);", "Ambiguous call to overloaded method 'B.B' with arguments (int), could be:\n\tB.B()\n\tB.B(int,int)");
 }
 
+static void pass_code_class_by_value(X x) {}
+TEST_METHOD(PassCodeClassByValue)
+{
+	module->AddType<X>("X");
+	bool r = module->AddFunction("void f(X x)", pass_code_class_by_value);
+	Assert::IsFalse(r);
+	AssertError("Reference type 'X' must be passed by reference/pointer.");
+	AssertError("Failed to parse function declaration for AddFunction 'void f(X x)'.");
+}
+
 CA_TEST_CLASS_END();

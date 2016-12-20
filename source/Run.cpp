@@ -185,6 +185,13 @@ void ExecuteFunction(Function& f)
 			case V_STRING:
 				value = (int)&v.str->s;
 				break;
+			case V_REF:
+				{
+					assert(In(v.vartype.subtype, { V_BOOL, V_CHAR, V_INT, V_FLOAT }));
+					GetRefData refdata = GetRef(v);
+					value = (int)refdata.data;
+				}
+				break;
 			default:
 				assert(run_module->GetType(v.vartype.type)->IsClass());
 				value = (int)v.clas->data();

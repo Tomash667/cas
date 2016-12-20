@@ -91,14 +91,14 @@ TEST_METHOD(ComplexClassResult)
 	type->AddMember("float x", offsetof(Vec2, x));
 	type->AddMember("float y", offsetof(Vec2, y));
 	module->AddFunction("Vec2 create_vec2(float x, float y)", f_create_vec2);
-	module->AddFunction("void wypisz_vec2(Vec2 v)", f_wypisz_vec2);
+	module->AddFunction("void wypisz_vec2(Vec2& v)", f_wypisz_vec2);
 	// Vec3 (pod > 8 byte)
 	type = module->AddType<Vec3>("Vec3");
 	type->AddMember("float x", offsetof(Vec3, x));
 	type->AddMember("float y", offsetof(Vec3, y));
 	type->AddMember("float z", offsetof(Vec3, z));
 	module->AddFunction("Vec3 create_vec3(float x, float y, float z)", f_create_vec3);
-	module->AddFunction("void wypisz_vec3(Vec3 v)", f_wypisz_vec3);
+	module->AddFunction("void wypisz_vec3(Vec3& v)", f_wypisz_vec3);
 	// INT2c have ctor
 	type = module->AddType<INT2>("INT2c");
 	type->AddMember("int x", offsetof(INT2, x));
@@ -106,7 +106,7 @@ TEST_METHOD(ComplexClassResult)
 	type->AddMethod("INT2c()", f_int2c_ctor0);
 	type->AddMethod("INT2c(int xy)", f_int2c_ctor1);
 	type->AddMethod("INT2c(int x, int y)", f_int2c_ctor2);
-	module->AddFunction("void wypisz_int2c(INT2c i)", f_wypisz_int2c);
+	module->AddFunction("void wypisz_int2c(INT2c& i)", f_wypisz_int2c);
 
 	RunTest(R"CODE(
 		Vec3 v = create_vec3(1.5,2.3,4.1);
@@ -238,7 +238,7 @@ static void pow(int& a)
 	a = a*a;
 }
 
-TEST_METHOD_IGNORE(CodeFunctionTakesRef)
+TEST_METHOD(CodeFunctionTakesRef)
 {
 	module->AddFunction("void pow(int& a)", pow);
 	RunTest("int a = 3; pow(a); return a;");
@@ -529,21 +529,6 @@ TEST_METHOD_IGNORE(CodeReturnByReference)
 }
 
 TEST_METHOD_IGNORE(CodeReturnByPointer)
-{
-
-}
-
-TEST_METHOD_IGNORE(CodeTakesByValue)
-{
-
-}
-
-TEST_METHOD_IGNORE(CodeTakesByReference)
-{
-
-}
-
-TEST_METHOD_IGNORE(CodeTakesByPointer)
 {
 
 }

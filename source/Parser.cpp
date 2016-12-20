@@ -555,7 +555,7 @@ ParseNode* Parser::ParseLine()
 		case 1:
 			{
 				// ctor
-				VarType vartype = GetVarType();
+				VarType vartype = GetVarType(false);
 				t.AssertSymbol('(');
 				t.Next();
 				NodeRef node = ParseExpr(';', 0, &vartype);
@@ -1031,7 +1031,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	}
 
 	BASIC_SYMBOL symbol = BS_MAX;
-	f->result = GetVarType(in_cpp);
+	f->result = GetVarType(false, in_cpp);
 	f->type = (type ? type->index : V_VOID);
 
 	if(type && type->index == f->result.type && t.IsSymbol('('))
@@ -1138,7 +1138,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 	{
 		while(true)
 		{
-			VarType vartype = GetVarType(in_cpp);
+			VarType vartype = GetVarType(true, in_cpp);
 			bool pass_by_ref = false;
 			LocalString id = t.MustGetItem();
 			CheckFindItem(id.get_ref(), false);
@@ -1155,7 +1155,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 			}
 			else
 			{
-				if(vartype.type == V_REF)
+				if(vartype.type == V_REF && IS_SET(GetType(vartype.subtype)->flags, Type::Class | Type::PassByValue))
 				{
 					vartype.type = vartype.subtype;
 					vartype.subtype = 0;
@@ -1212,7 +1212,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 ParseNode* Parser::ParseVarTypeDecl()
 {
 	// var_type
-	VarType vartype = GetVarType(false);
+	VarType vartype = GetVarType(false, false);
 	if(vartype.type == V_VOID)
 		t.Throw("Can't declare void variable.");
 
@@ -2379,7 +2379,7 @@ ParseVar* Parser::GetVar(ParseNode* node)
 	}
 }
 
-VarType Parser::GetVarType(bool in_cpp)
+VarType Parser::GetVarType(bool is_arg, bool in_cpp)
 {
 	VarType vartype(nullptr);
 	if(!t.IsKeywordGroup(G_VAR))
@@ -2389,10 +2389,15 @@ VarType Parser::GetVarType(bool in_cpp)
 
 	if(t.IsSymbol('&'))
 	{
-		Type* ty = GetType(vartype.type);
 		t.Next();
 		vartype.subtype = vartype.type;
 		vartype.type = V_REF;
+	}
+	else if(is_arg && in_cpp)
+	{
+		Type* type = GetType(vartype.type);
+		if(type->IsRef())
+			t.Throw("Reference type '%s' must be passed by reference/pointer.", type->name.c_str());
 	}
 
 	return vartype;
@@ -2400,7 +2405,7 @@ VarType Parser::GetVarType(bool in_cpp)
 
 VarType Parser::GetVarTypeForMember()
 {
-	VarType vartype = GetVarType();
+	VarType vartype = GetVarType(false);
 	if(vartype.type == V_VOID)
 		t.Throw("Member of 'void' type not allowed.");
 	else
@@ -4219,10 +4224,12 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 	for(uint i = var_offset, count = cf->arg_infos.size(); i < count; ++i)
 	{
 		if(i != var_offset)
-			s += ",";
+			s += ',';
 		s += GetName(cf->arg_infos[i].vartype);
+		if(cf->arg_infos[i].pass_by_ref)
+			s += '&';
 	}
-	s += ")";
+	s += ')';
 	return Format("%s", s->c_str());
 }
 
@@ -4780,7 +4787,7 @@ int Parser::GetNextType()
 		return 2; // func
 	int type;
 	tokenizer::Pos pos = t.GetPos();
-	GetVarType();
+	GetVarType(false);
 	if(t.IsSymbol('('))
 		type = 1; // ctor
 	else if(t.IsKeyword(K_OPERATOR, G_KEYWORD))

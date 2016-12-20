@@ -326,11 +326,11 @@ bool Module::BuildModule()
 		// create default functions
 		int result = parser->CreateDefaultFunctions(type);
 		if(IS_SET(result, BF_ASSIGN))
-			AddMethod(type, Format("%s operator = (%s obj)", type->name.c_str(), type->name.c_str()), nullptr);
+			AddMethod(type, Format("%s& operator = (%s& obj)", type->name.c_str(), type->name.c_str()), nullptr);
 		if(IS_SET(result, BF_EQUAL))
-			AddMethod(type, Format("bool operator == (%s obj)", type->name.c_str()), nullptr);
+			AddMethod(type, Format("bool operator == (%s& obj)", type->name.c_str()), nullptr);
 		if(IS_SET(result, BF_NOT_EQUAL))
-			AddMethod(type, Format("bool operator != (%s obj)", type->name.c_str()), nullptr);
+			AddMethod(type, Format("bool operator != (%s& obj)", type->name.c_str()), nullptr);
 			
 		type->built = true;
 	}

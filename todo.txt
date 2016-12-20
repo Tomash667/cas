@@ -1,6 +1,3 @@
-+ pass by val/ref
-	+ class
-	+ simple
 + tests
 	+ return struct/class by value
 	+ return by reference
@@ -15,7 +12,7 @@
 	+ code class/struct
 
 3) nullable?
-4) script arg/ret ref
+4) script ret ref
 
 - struct_class_ref.txt
 
