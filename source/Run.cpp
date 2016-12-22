@@ -63,8 +63,9 @@ struct GetRefData
 {
 	int* data;
 	VarType vartype;
+	bool is_code;
 
-	inline GetRefData(int* data, VarType vartype) : data(data), vartype(vartype) {}
+	inline GetRefData(int* data, VarType vartype, bool is_code = false) : data(data), vartype(vartype), is_code(is_code) {}
 
 	template<typename T>
 	inline T& as()
@@ -106,6 +107,8 @@ GetRefData GetRef(Var& v)
 				throw CasException(Format("Index %u out of range.", v.ref->index));
 			return GetRefData((int*)&s->s[v.ref->index], V_CHAR);
 		}
+	case RefVar::CODE:
+		return GetRefData(v.ref->adr, VarType(v.vartype.subtype, 0), true);
 	default:
 		assert(0);
 		return GetRefData(nullptr, 0);
@@ -142,7 +145,6 @@ void ExecuteFunction(Function& f)
 	bool in_mem = false;
 
 	// pack return value
-	assert(f.result.type != V_REF);
 	Type* result_type = run_module->GetType(f.result.type);
 	if(f.result.type == V_STRING)
 	{
@@ -169,9 +171,11 @@ void ExecuteFunction(Function& f)
 	{
 		Var& v = stack.at(stack.size() - f.arg_infos.size() + i);
 		ArgInfo& arg = f.arg_infos[i];
-		assert(v.vartype == arg.vartype);
+		assert(v.vartype == arg.vartype
+			|| (arg.pass_by_ref && v.vartype.type == V_REF && v.vartype.subtype == arg.vartype.type && v.ref->type == RefVar::CODE));
 		Type* type;
-		if(arg.pass_by_ref || !(type = run_module->GetType(arg.vartype.type))->IsPassByValue())
+		bool code_ref = (v.vartype != arg.vartype);
+		if(code_ref || arg.pass_by_ref || !(type = run_module->GetType(arg.vartype.type))->IsPassByValue())
 		{
 			int value;
 			switch(v.vartype.type)
@@ -187,9 +191,20 @@ void ExecuteFunction(Function& f)
 				break;
 			case V_REF:
 				{
-					assert(In(v.vartype.subtype, { V_BOOL, V_CHAR, V_INT, V_FLOAT }));
 					GetRefData refdata = GetRef(v);
-					value = (int)refdata.data;
+					if(code_ref)
+					{
+						assert(refdata.is_code);
+						assert(v.vartype.subtype == V_STRING);
+						string* s = (string*)refdata.data;
+						value = (int)s;
+					}
+					else
+					{
+						assert(!refdata.is_code);
+						assert(In(v.vartype.subtype, { V_BOOL, V_CHAR, V_INT, V_FLOAT }));						
+						value = (int)refdata.data;
+					}
 				}
 				break;
 			default:
@@ -319,6 +334,13 @@ void ExecuteFunction(Function& f)
 		break;
 	case V_STRING:
 		stack.push_back(Var((Str*)retptr));
+		break;
+	case V_REF:
+		{
+			RefVar* ref = new RefVar(RefVar::CODE, 0);
+			ref->adr = (int*)result.low;
+			stack.push_back(Var(ref, f.result.subtype));
+		}
 		break;
 	default:
 		{
@@ -526,7 +548,7 @@ void RunInternal(ReturnValue& retval)
 				assert(run_module->ufuncs[current_function].locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
-				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING);
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
 				RefVar* ref = new RefVar(RefVar::LOCAL, index, local_index, depth);
 				ref->refs++;
 				refs.push_back(ref);
@@ -547,7 +569,7 @@ void RunInternal(ReturnValue& retval)
 				uint global_index = *c++;
 				assert(global_index < global.size());
 				Var& v = global[global_index];
-				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING);
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
 				stack.push_back(Var(new RefVar(RefVar::GLOBAL, global_index), v.vartype.type));
 			}
 			break;
@@ -568,7 +590,7 @@ void RunInternal(ReturnValue& retval)
 				assert(run_module->ufuncs[current_function].args.size() > arg_index);
 				uint index = args_offset + arg_index;
 				Var& v = local[index];
-				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF && v.vartype.type != V_STRING);
+				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
 				RefVar* ref = new RefVar(RefVar::LOCAL, index, ((int)arg_index) - 1, depth);
 				ref->refs++;
 				refs.push_back(ref);
@@ -617,7 +639,7 @@ void RunInternal(ReturnValue& retval)
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
 				Member* m = type->members[member_index];
-				assert(m->vartype.type == V_BOOL || m->vartype.type == V_CHAR || m->vartype.type == V_INT || m->vartype.type == V_FLOAT);
+				assert(m->vartype.type != V_REF);
 				Class* c = v.clas;
 				stack.pop_back();
 				RefVar* ref = new RefVar(RefVar::MEMBER, member_index);
@@ -678,7 +700,7 @@ void RunInternal(ReturnValue& retval)
 				Member* m = type->members[member_index];
 
 				// push reference
-				assert(m->vartype.type == V_BOOL || m->vartype.type == V_CHAR || m->vartype.type == V_INT || m->vartype.type == V_FLOAT);
+				assert(m->vartype.type != V_REF);
 				RefVar* ref = new RefVar(RefVar::MEMBER, member_index);
 				ref->clas = c;
 				stack.push_back(Var(ref, m->vartype.type));
@@ -880,8 +902,14 @@ void RunInternal(ReturnValue& retval)
 				{
 					auto data = GetRef(v);
 					ReleaseRef(v);
+					if(data.is_code)
+					{
+						assert(data.vartype.type == V_STRING);
+						v.str = CreateStr(((string*)data.data)->c_str());
+					}
+					else
+						v.value = *data.data;
 					v.vartype = data.vartype;
-					v.value = *data.data;
 					AddRef(v);
 				}
 				else
@@ -1153,19 +1181,33 @@ void RunInternal(ReturnValue& retval)
 						GetRefData ref = GetRef(left);
 						ReleaseRef(left);
 						assert(ref.vartype.type == right.vartype.type);
-						Type* type = run_module->GetType(right.vartype.type);
-						uint size;
-						if(type->IsClass())
+						if(ref.is_code)
 						{
-							assert(!type->IsStruct());
-							Class* lclass = (Class*)*ref.data;
-							lclass->Release();
-							right.clas->refs++;
-							size = sizeof(lclass);
+							assert(ref.vartype.type == V_STRING);
+							string& s = *(string*)ref.data;
+							s = right.str->s;
+						}
+						else if(ref.vartype.type == V_STRING)
+						{
+							Str* str = *(Str**)ref.data;
+							str->s = right.str->s;
 						}
 						else
-							size = type->size;
-						memcpy(ref.data, &right.value, size);
+						{
+							Type* type = run_module->GetType(right.vartype.type);
+							uint size;
+							if(type->IsClass())
+							{
+								assert(!type->IsStruct());
+								Class* lclass = (Class*)*ref.data;
+								lclass->Release();
+								right.clas->refs++;
+								size = sizeof(lclass);
+							}
+							else
+								size = type->size;
+							memcpy(ref.data, &right.value, size);
+						}
 						stack.pop_back();
 						stack.push_back(right);
 					}

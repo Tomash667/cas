@@ -83,7 +83,8 @@ struct RefVar
 		LOCAL,
 		GLOBAL,
 		MEMBER,
-		INDEX
+		INDEX,
+		CODE
 	};
 
 	Type type;
@@ -93,6 +94,7 @@ struct RefVar
 	{
 		Class* clas;
 		Str* str;
+		int* adr;
 	};
 	bool is_valid;
 

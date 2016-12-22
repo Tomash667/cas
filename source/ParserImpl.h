@@ -215,6 +215,7 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 struct ReturnStructVar : VarSource
 {
 	ParseNode* node;
+	bool code_result;
 };
 
 struct ParseNode : ObjectPoolProxy<ParseNode>

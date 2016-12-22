@@ -9,7 +9,7 @@
 using namespace std;
 using namespace cas;
 
-cstring def_filename = "type_func.txt";
+cstring def_filename = "test.txt";
 const bool def_optimize = true;
 const bool def_decompile = false;
 

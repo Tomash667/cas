@@ -2612,7 +2612,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 		if(symbol != S_AS)
 			return op_result;
 		VarType vartype(rnode->value, 0);
-		op_result.cast_result = MayCast(lnode, vartype);
+		op_result.cast_result = MayCast(lnode, vartype, false);
 		if(op_result.cast_result.CantCast())
 			t.Throw("Can't cast from '%s' to '%s'.", GetTypeName(lnode), GetName(vartype));
 		op_result.result = OpResult::CAST;
@@ -2774,12 +2774,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 		op_result.result = OpResult::YES;
 		break;
 	case S_IS:
-		if(left == V_STRING && right == V_STRING)
-		{
-			op_result.cast_var = V_STRING;
-			op_result.result = OpResult::YES;
-		}
-		else if(ltype->IsClass() && left == right)
+		if(ltype->IsClass() && left == right)
 		{
 			op_result.cast_var = VarType(left, 0);
 			op_result.result = OpResult::YES;
@@ -2787,6 +2782,11 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 		else if(leftvar.type == V_REF && rightvar.type == V_REF && leftvar.subtype == rightvar.subtype)
 		{
 			op_result.cast_var = leftvar;
+			op_result.result = OpResult::YES;
+		}
+		else if(left == V_STRING && right == V_STRING)
+		{
+			op_result.cast_var = V_STRING;
 			op_result.result = OpResult::YES;
 		}
 		op_result.result_var = V_BOOL;
@@ -3056,13 +3056,13 @@ bool Parser::TryConstExpr1(ParseNode* node, SYMBOL symbol)
 	return false;
 }
 
-void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, bool implici)
+void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, bool implici, bool pass_by_ref)
 {
 	CastResult cast_result;
 	if(_cast_result)
 		cast_result = *_cast_result;
 	else
-		cast_result = MayCast(node, vartype);
+		cast_result = MayCast(node, vartype, pass_by_ref);
 	assert(!cast_result.CantCast());
 
 	// no cast required?
@@ -3141,9 +3141,9 @@ void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, b
 }
 
 // used in var assignment, passing argument to function
-bool Parser::TryCast(ParseNode*& node, VarType vartype, bool implici)
+bool Parser::TryCast(ParseNode*& node, VarType vartype, bool implici, bool pass_by_ref)
 {
-	CastResult c = MayCast(node, vartype);
+	CastResult c = MayCast(node, vartype, pass_by_ref);
 	if(c.CantCast())
 		return false;
 	else if(c.NeedCast())
@@ -3231,7 +3231,7 @@ bool Parser::TryConstCast(ParseNode* node, VarType vartype)
 	}
 }
 
-CastResult Parser::MayCast(ParseNode* node, VarType vartype)
+CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 {
 	CastResult result;
 
@@ -3286,7 +3286,7 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype)
 	if(vartype.type != V_REF)
 	{
 		// require value type
-		if(node->result.type == V_REF)
+		if(node->result.type == V_REF && !(pass_by_ref && node->source && node->source->index == -1 && ((ReturnStructVar*)node->source)->code_result))
 			result.ref_type = CastResult::DEREF; // dereference
 	}
 	else
@@ -4033,7 +4033,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case CALLU:
 		code.push_back(node->op);
 		code.push_back(node->value);
-		if(node->source && node->source->mod && node->source->index == -1)
+		if(node->source && node->source->mod && node->source->index == -1 && !((ReturnStructVar*)node->source)->code_result)
 			code.push_back(COPY);
 		break;
 	case PUSH_INT:
@@ -4551,7 +4551,8 @@ int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse)
 	bool require_ref = false;
 	for(uint i = 0; i < node->childs.size(); ++i)
 	{
-		CastResult c = MayCast(node->childs[i], f.arg_infos[i + offset].vartype);
+		ArgInfo& a = f.arg_infos[i + offset];
+		CastResult c = MayCast(node->childs[i], a.vartype, a.pass_by_ref);
 		if(c.CantCast())
 			return 0;
 		else
@@ -4679,7 +4680,10 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		if(match_level != 3)
 		{
 			for(uint i = 0; i < node->childs.size(); ++i)
-				Cast(node->childs[i], cf.arg_infos[i].vartype);
+			{
+				ArgInfo& a = cf.arg_infos[i];
+				Cast(node->childs[i], a.vartype, nullptr, true, a.pass_by_ref);
+			}
 		}
 
 		// fill default params
@@ -4729,6 +4733,17 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			rsv->index = -1;
 			rsv->node = node;
 			rsv->mod = false;
+			rsv->code_result = false;
+			rsvs.push_back(rsv);
+			node->source = rsv;
+		}
+		else if(node->result == VarType(V_REF, V_STRING))
+		{
+			ReturnStructVar* rsv = new ReturnStructVar;
+			rsv->index = -1;
+			rsv->node = node;
+			rsv->mod = false;
+			rsv->code_result = true;
 			rsvs.push_back(rsv);
 			node->source = rsv;
 		}

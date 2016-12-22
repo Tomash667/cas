@@ -1,3 +1,11 @@
+CODE:
++ deref on code struct/simple
++ set_adr on struct/simple
++ pass code struct/simple to code func
++ return struct by value/ref
++ return class by value (disallow)
++ return simple by ref
+
 + tests
 	+ return struct/class by value
 	+ return by reference
@@ -36,6 +44,7 @@
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 
+- index operator don't work for string& (and possibly struct/class) CODE/SCRIPT, and for functor, possibly other operators too (class ref += ?)
 - c++ function returning string cause 1 byte memory leak (string.txt)
 - many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct, subscript
 - ParseExpr end/end2 is unused
@@ -43,6 +52,8 @@
 - class A { void int; } cause Member of 'void' type not allowed.
 - code constructor create copy two instance and then copy value from one to another
 - missing member for type x/func - memory leak of string
+- lines in debug don't work for tabbed file:
+string global_s;		string& f() { return global_s; }		global_s = "123";		f() += "456";		Assert_AreEqual("123456", global_s);
 
 NEST A STRING:
 + */ -> Not opened multiline comment found instead of unexpected *.
@@ -209,3 +220,7 @@ else return in reg
 	+ include code in decompile
 + ref to thing that needs subtype
 + push_this is like push_arg 0 - maybe move all arguments by 1 (first arg = 0)
++ allow var decl in switch case without braces
+
+SYNTAX SUGAR:
++ named parameters

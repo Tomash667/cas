@@ -36,4 +36,32 @@ TEST_METHOD(ClassMemberDefaultValue)
 	)code");
 }
 
+TEST_METHOD(PassStringByRef)
+{
+	RunTest(R"code(
+		void f(string& s)
+		{
+			s += "da";
+		}		void f2(string& s)		{			s = "elo";		}		string str = "do";		f(str);		Assert_AreEqual("doda", str);		f2(str);
+		Assert_AreEqual("elo", str);
+	)code");
+}
+
+TEST_METHOD(ReturnStringByReference)
+{
+	RunTest(R"code(
+		string global_s;		string& f() { return global_s; }		global_s = "123";		f() += "456";		Assert_AreEqual("123456", global_s);
+	)code");
+}
+
+TEST_METHOD(StringReferenceVar)
+{
+	RunTest(R"code(
+		string global_s;		global_s = "123";		void f()
+		{
+			string& s = global_s;			s += "456";
+		}		f();		Assert_AreEqual("123456", global_s);
+	)code");
+}
+
 CA_TEST_CLASS_END();

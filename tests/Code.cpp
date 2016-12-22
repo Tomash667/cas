@@ -191,15 +191,6 @@ TEST_METHOD_IGNORE(RefCountedType)
 	Assert::AreEqual(7, A::global->x);
 }
 
-/*TEST_METHOD(CodeRegisterType)
-{
-	ModuleRef module;
-	module->AddRefType<A>("A");
-	module->AddMethod("A", "A()", AsCtor<A>());
-	module.RunTest("A a; return a.x += 2;");
-	module.ret().IsInt(6);
-}*/
-
 //=========================================================================================
 TEST_METHOD(ReturnValueToCode)
 {
@@ -265,18 +256,6 @@ TEST_METHOD_IGNORE(CodeFunctionReturnsRef)
 	RunTest("getref(true) = 7; getref(false) *= 3;");
 	Assert::AreEqual(7, global_a);
 	Assert::AreEqual(6, global_b);
-}
-
-//=========================================================================================
-TEST_METHOD_IGNORE(IsCompareCodeRefs)
-{
-	module->AddFunction("int& getref(bool is_a)", getref);
-
-	RunTest("return getref(true) is getref(true);");
-	retval.IsBool(true);
-
-	RunTest("return getref(true) is getref(false);");
-	retval.IsBool(false);
 }
 
 //=========================================================================================
@@ -514,24 +493,6 @@ void RegisterPodAndClass()
 static int get4() { return 4; }
 static Pod getPodValue() { Pod p; p.x = 1; p.y = 2; return p; }
 
-TEST_METHOD_IGNORE(CodeReturnByValue)
-{
-	RegisterPodAndClass();
-	RunTest(R"code(
-
-
-	)code");
-}
-
-TEST_METHOD_IGNORE(CodeReturnByReference)
-{
-
-}
-
-TEST_METHOD_IGNORE(CodeReturnByPointer)
-{
-
-}
 
 struct H
 {
@@ -642,9 +603,80 @@ TEST_METHOD(CodePassStructByValueAndReference)
 }
 
 //=========================================================================================
+static string global_str;
+static string& return_string_by_ref()
+{
+	return global_str;
+}
+TEST_METHOD(CodeReturnStringByReference)
+{
+	module->AddFunction("string& f()", return_string_by_ref);
+	global_str = "123";
+	RunTest(R"code(
+		string& s = f();
+		Assert_AreEqual("123", s);
+		s += "456";
+		Assert_AreEqual("123456", s);
+		string s2 = f();
+		s2 += "789";
+		Assert_AreEqual("123456", s);
+	)code");
+	Assert::AreEqual("123456", global_str.c_str());
+}
+
+//=========================================================================================
+TEST_METHOD(PassCodeRefToScriptFunc)
+{
+	global_str.clear();
+	module->AddFunction("string& f()", return_string_by_ref);
+	RunTest(R"code(
+		void f2(string& s) { s = "test"; }
+		f2(f());
+	)code");
+	Assert::AreEqual("test", global_str.c_str());
+}
+
+//=========================================================================================
+static void func_taking_str(string& s)
+{
+	s = "test";
+}
+TEST_METHOD(PassCodeRefToCodeFunc)
+{
+	global_str.clear();
+	module->AddFunction("string& f()", return_string_by_ref);
+	module->AddFunction("void f2(string& s)", func_taking_str);
+	RunTest("f2(f());");
+	Assert::AreEqual("test", global_str.c_str());
+}
+
+//=========================================================================================
+static string global_str2;
+static string& return_string_by_ref2(int index)
+{
+	if(index == 0)
+		return global_str;
+	else
+		return global_str2;
+}
+TEST_METHOD(CompareCodeRefs)
+{
+	module->AddFunction("string& f(int index)", return_string_by_ref2);
+	RunTest(R"code(
+		Assert_IsTrue(f(0) is f(0));
+		Assert_IsTrue(f(1) is f(1));
+		Assert_IsFalse(f(0) is f(1));
+		Assert_IsFalse(f(1) is f(0));
+	)code");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
-int tests::Code::global_a;
-int tests::Code::global_b;
-tests::Code::A* tests::Code::A::global;
-tests::Code::H tests::Code::globalh;
+namespace tests
+{
+	int Code::global_a, Code::global_b;
+	Code::A* Code::A::global;
+	Code::H Code::globalh;
+	string Code::global_str, Code::global_str2;
+};

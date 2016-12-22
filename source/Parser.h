@@ -99,10 +99,10 @@ private:
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
-	void Cast(ParseNode*& node, VarType vartype, CastResult* cast_result = nullptr, bool implici = true);
-	bool TryCast(ParseNode*& node, VarType vartype, bool implici = true);
+	void Cast(ParseNode*& node, VarType vartype, CastResult* cast_result = nullptr, bool implici = true, bool pass_by_ref = false);
+	bool TryCast(ParseNode*& node, VarType vartype, bool implici = true, bool pass_by_ref = false);
 	bool TryConstCast(ParseNode* node, VarType vartype);
-	CastResult MayCast(ParseNode* node, VarType vartype);
+	CastResult MayCast(ParseNode* node, VarType vartype, bool pass_by_ref);
 	void ForceCast(ParseNode*& node, VarType vartype, cstring op);
 	bool CanTakeRef(ParseNode* node, bool allow_ref = true);
 	Op PushToSet(ParseNode* node);
