@@ -53,6 +53,8 @@ enum CoreVarType
 	V_MAX
 };
 
+inline bool IsSimple(int type) { return type == V_BOOL || type == V_CHAR || type == V_INT || type == V_FLOAT; }
+
 struct VarType
 {
 	int type, subtype;
@@ -115,6 +117,7 @@ struct Type
 	inline bool IsStruct() const { return IsClass() && !IsRef(); }
 	inline bool IsRefClass() const { return IsClass() && IsRef(); }
 	inline bool IsPassByValue() const { return IS_SET(flags, Type::PassByValue); }
+	inline bool IsSimple() const { return ::IsSimple(index); }
 };
 
 struct VarSource

@@ -33,6 +33,12 @@ namespace cas
 			static const bool value = !(std::is_trivially_default_constructible<T>::value && std::is_trivially_destructible<T>::value);
 		};
 
+		template<typename T>
+		struct is_pointer_or_reference
+		{
+			static const bool value = (std::is_pointer<T>::value || std::is_reference<T>::value);
+		};
+
 		struct AsCtorHelper
 		{
 			template<typename T, typename... Args>
@@ -40,6 +46,32 @@ namespace cas
 			{
 				return T(args...);
 			}
+
+			template<typename T, typename... Args>
+			static T* CreateNew(Args... args)
+			{
+				return new T(args...);
+			}
+		};
+
+		template<typename T>
+		struct function_traits
+		{
+		private:
+			template<typename R, typename... A>
+			static R ret(R(*)(A...))
+			{
+				return R();
+			}
+
+			template<typename C, typename R, typename... A>
+			static R ret(R(C::*)(A...))
+			{
+				return R();
+			}
+
+		public:
+			typedef typename decltype(ret(T())) result;
 		};
 	}
 
@@ -57,7 +89,7 @@ namespace cas
 	struct FunctionInfo
 	{
 		void* ptr;
-		bool thiscall, builtin;
+		bool thiscall, builtin, return_pointer_or_reference;
 
 		template<typename T>
 		inline FunctionInfo(T f)
@@ -69,6 +101,7 @@ namespace cas
 			ptr = internal::union_cast<void*>(f);
 			thiscall = std::is_member_function_pointer<T>::value;
 			builtin = false;
+			return_pointer_or_reference = internal::is_pointer_or_reference<internal::function_traits<T>::result>::value;
 		}
 
 		template<>
@@ -80,12 +113,6 @@ namespace cas
 
 #define AsFunction(name, result, args) FunctionInfo(static_cast<result (*) args>(name))
 #define AsMethod(type, name, result, args) FunctionInfo(static_cast<result (type::*) args>(&type::name))
-
-	template<typename T, typename... Args>
-	inline FunctionInfo AsCtor()
-	{
-		return FunctionInfo(internal::AsCtorHelper::Create<T, Args...>);
-	}
 
 	enum TypeFlags
 	{
@@ -100,6 +127,28 @@ namespace cas
 	public:
 		virtual bool AddMember(cstring decl, int offset) = 0;
 		virtual bool AddMethod(cstring decl, const FunctionInfo& func_info) = 0;
+
+		template<typename T, typename... Args>
+		inline bool AddCtor(cstring decl)
+		{
+			FunctionInfo info = is_struct ?
+				FunctionInfo(internal::AsCtorHelper::Create<T, Args...>) : FunctionInfo(internal::AsCtorHelper::CreateNew<T, Args...>);
+			return AddMethod(decl, info);
+		}
+
+	protected:
+		bool is_struct;
+	};
+
+	template<typename T>
+	class ISpecificType : public IType
+	{
+	public:
+		template<typename... Args>
+		inline bool AddCtor(cstring decl)
+		{
+			return IType::AddCtor<T, Args...>(decl);
+		}
 	};
 
 	class IModule
@@ -120,15 +169,15 @@ namespace cas
 		virtual ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) = 0;
 
 		template<typename T>
-		inline IType* AddType(cstring type_name, int flags = 0)
+		inline ISpecificType<T>* AddType(cstring type_name, int flags = 0)
 		{
 			if(internal::is_complex<T>::value)
 				flags |= Complex;
-			return AddType(type_name, sizeof(T), flags);
+			return (ISpecificType<T>*)AddType(type_name, sizeof(T), flags);
 		}
 
 		template<typename T>
-		inline IType* AddRefType(cstring type_name, int flags = 0)
+		inline ISpecificType<T>* AddRefType(cstring type_name, int flags = 0)
 		{
 			flags |= RefCount;
 			static_assert(std::is_base_of<RefCounter, T>::value, "AddRefType can only be used for classes derived from RefCounter.");
@@ -138,7 +187,7 @@ namespace cas
 				type->AddMethod("void operator addref()", &T::AddRef);
 				type->AddMethod("void operator release()", &T::Release);
 			}
-			return type;
+			return (ISpecificType<T>*)type;
 		}
 
 	protected:

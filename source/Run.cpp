@@ -142,7 +142,7 @@ void ExecuteFunction(Function& f)
 	vector<int> packed_args;
 	vector<PackedValue> packed_values;
 	void* retptr = nullptr;
-	bool in_mem = false;
+	bool in_mem = false, ret_by_ref = false;
 
 	// pack return value
 	Type* result_type = run_module->GetType(f.result.type);
@@ -156,12 +156,17 @@ void ExecuteFunction(Function& f)
 	else if(result_type->IsClass())
 	{
 		// class return value
-		Class* c = Class::Create(result_type);
-		retptr = c;
-		if(result_type->size > 8 || IS_SET(result_type->flags, Type::Complex))
+		if(result_type->IsRefClass() && f.special == SF_CTOR)
+			ret_by_ref = true;
+		else
 		{
-			packed_args.push_back((int)c->data());
-			in_mem = true;
+			Class* c = Class::Create(result_type);
+			retptr = c;
+			if(result_type->size > 8 || IS_SET(result_type->flags, Type::Complex))
+			{
+				packed_args.push_back((int)c->data());
+				in_mem = true;
+			}
 		}
 	}
 
@@ -174,8 +179,8 @@ void ExecuteFunction(Function& f)
 		assert(v.vartype == arg.vartype
 			|| (arg.pass_by_ref && v.vartype.type == V_REF && v.vartype.subtype == arg.vartype.type && v.ref->type == RefVar::CODE));
 		Type* type;
-		bool code_ref = (v.vartype != arg.vartype);
-		if(code_ref || arg.pass_by_ref || !(type = run_module->GetType(arg.vartype.type))->IsPassByValue())
+		bool code_fake_val = (v.vartype != arg.vartype);
+		if(code_fake_val || arg.pass_by_ref || !(type = run_module->GetType(arg.vartype.type))->IsPassByValue())
 		{
 			int value;
 			switch(v.vartype.type)
@@ -192,19 +197,19 @@ void ExecuteFunction(Function& f)
 			case V_REF:
 				{
 					GetRefData refdata = GetRef(v);
-					if(code_ref)
+					if(refdata.is_code)
 					{
-						assert(refdata.is_code);
-						assert(v.vartype.subtype == V_STRING);
-						string* s = (string*)refdata.data;
-						value = (int)s;
+						if(code_fake_val)
+							assert(v.vartype.subtype == V_STRING);
+						else
+							assert(IsSimple(v.vartype.subtype));
 					}
 					else
 					{
-						assert(!refdata.is_code);
-						assert(In(v.vartype.subtype, { V_BOOL, V_CHAR, V_INT, V_FLOAT }));						
-						value = (int)refdata.data;
+						assert(!code_fake_val);
+						assert(IsSimple(v.vartype.subtype));
 					}
+					value = (int)refdata.data;
 				}
 				break;
 			default:
@@ -345,9 +350,15 @@ void ExecuteFunction(Function& f)
 	default:
 		{
 			assert(result_type->IsClass());
-			Class* c = (Class*)retptr;
-			if(!in_mem)
-				memcpy(c->data(), &result, c->type->size);
+			Class* c;
+			if(ret_by_ref)
+				c = Class::CreateCode(result_type, (int*)result.low);
+			else
+			{
+				c = (Class*)retptr;
+				if(!in_mem)
+					memcpy(c->data(), &result, c->type->size);
+			}
 			stack.push_back(Var(c));
 		}
 		break;
@@ -904,8 +915,14 @@ void RunInternal(ReturnValue& retval)
 					ReleaseRef(v);
 					if(data.is_code)
 					{
-						assert(data.vartype.type == V_STRING);
-						v.str = CreateStr(((string*)data.data)->c_str());
+						if(data.vartype.type == V_STRING)
+							v.str = CreateStr(((string*)data.data)->c_str());
+						else
+						{
+							Type* type = run_module->GetType(data.vartype.type);
+							assert(type->IsSimple());
+							v.value = *data.data;
+						}
 					}
 					else
 						v.value = *data.data;
@@ -1183,9 +1200,17 @@ void RunInternal(ReturnValue& retval)
 						assert(ref.vartype.type == right.vartype.type);
 						if(ref.is_code)
 						{
-							assert(ref.vartype.type == V_STRING);
-							string& s = *(string*)ref.data;
-							s = right.str->s;
+							if(ref.vartype.type == V_STRING)
+							{
+								string& s = *(string*)ref.data;
+								s = right.str->s;
+							}
+							else
+							{
+								Type* type = run_module->GetType(right.vartype.type);
+								assert(type->IsSimple());
+								memcpy(ref.data, &right.value, type->size);
+							}							
 						}
 						else if(ref.vartype.type == V_STRING)
 						{
@@ -1505,7 +1530,7 @@ bool Run(RunModule& _run_module, ReturnValue& _retval, string& _exc)
 		for(Class* c : all_clases)
 		{
 			assert(c->refs == 1);
-			delete c;
+			c->Delete();
 		}
 #endif
 	}

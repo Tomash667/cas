@@ -4737,7 +4737,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			rsvs.push_back(rsv);
 			node->source = rsv;
 		}
-		else if(node->result == VarType(V_REF, V_STRING))
+		else if(node->result.type == V_REF && IS_SET(cf.flags, CommonFunction::F_CODE))
 		{
 			ReturnStructVar* rsv = new ReturnStructVar;
 			rsv->index = -1;

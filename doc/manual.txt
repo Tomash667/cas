@@ -81,7 +81,7 @@ Default value for types:
 
 
 
-2. C++ integration
+2. C++ integrationRegister constructorConstructor for struct must return by value, constructor for class must return reference/pointer.
 Register global function:
 void f();
 module->AddFunction("void f()", f);

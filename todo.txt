@@ -1,10 +1,12 @@
+- CodeRegisterValueType should work
++ ReturnCodeStructByValue, ReturnCodeStructByRef
+
 CODE:
-+ deref on code struct/simple
-+ set_adr on struct/simple
-+ pass code struct/simple to code func
++ deref on code struct/class
++ set_adr on struct/class
++ pass code struct/class to code func
 + return struct by value/ref
 + return class by value (disallow)
-+ return simple by ref
 
 + tests
 	+ return struct/class by value
@@ -53,7 +55,11 @@ CODE:
 - code constructor create copy two instance and then copy value from one to another
 - missing member for type x/func - memory leak of string
 - lines in debug don't work for tabbed file:
-string global_s;		string& f() { return global_s; }		global_s = "123";		f() += "456";		Assert_AreEqual("123456", global_s);
+string global_s;
+		string& f() { return global_s; }
+		global_s = "123";
+		f() += "456";
+		Assert_AreEqual("123456", global_s);
 
 NEST A STRING:
 + */ -> Not opened multiline comment found instead of unexpected *.

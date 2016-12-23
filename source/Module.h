@@ -8,6 +8,11 @@ class Parser;
 class ScriptType : public IType
 {
 public:
+	inline ScriptType(Module* module, Type* type, bool _is_struct) : module(module), type(type)
+	{
+		is_struct = _is_struct;
+	}
+
 	bool AddMember(cstring decl, int offset) override;
 	bool AddMethod(cstring decl, const FunctionInfo& func_info) override;
 

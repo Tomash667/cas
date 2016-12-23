@@ -343,8 +343,8 @@ TEST_METHOD(ImplicitInvalidArgumentCount)
 {
 	RunFailureTest("class X{implicit X(){}}", "Implicit constructor require single argument.");
 
-	IType* type = module->AddType<A>("A");
-	bool r = type->AddMethod("implicit A()", AsCtor<A>());
+	auto type = module->AddType<A>("A");
+	bool r = type->AddCtor("implicit A()");
 	Assert::IsFalse(r);
 	AssertError("Implicit constructor require single argument.");
 }
@@ -417,8 +417,8 @@ TEST_METHOD(DisallowCreateType)
 	module->AddType<A>("A", cas::DisallowCreate);
 	RunFailureTest("A a;", "Type 'A' cannot be created in script.");
 
-	IType* type = module->AddType<B>("B", cas::DisallowCreate);
-	type->AddMethod("B(int a, int b)", cas::AsCtor<B, int, int>());
+	auto type = module->AddType<B>("B", cas::DisallowCreate);
+	type->AddCtor<int, int>("B(int a, int b)");
 	RunFailureTest("void f(B b){} f(B(1,2));", "Type 'B' cannot be created in script.");
 }
 
@@ -429,13 +429,13 @@ struct X
 };
 TEST_METHOD(CodeCtorNotMatching)
 {
-	IType* type = module->AddType<X>("A");
-	type->AddMethod("A(int x, int y)", AsCtor<X, int, int>());
+	auto type = module->AddType<X>("A");
+	type->AddCtor<int, int>("A(int x, int y)");
 	RunFailureTest("A a = A(3);", "No matching call to method 'A.A' with arguments (int), could be 'A.A(int,int)'.");
 
 	type = module->AddType<X>("B");
-	type->AddMethod("B()", AsCtor<X>());
-	type->AddMethod("B(int x, int y)", AsCtor<X, int, int>());
+	type->AddCtor("B()");
+	type->AddCtor<int, int>("B(int x, int y)");
 	RunFailureTest("B b = B(3);", "Ambiguous call to overloaded method 'B.B' with arguments (int), could be:\n\tB.B()\n\tB.B(int,int)");
 }
 
@@ -447,6 +447,22 @@ TEST_METHOD(PassCodeClassByValue)
 	Assert::IsFalse(r);
 	AssertError("Reference type 'X' must be passed by reference/pointer.");
 	AssertError("Failed to parse function declaration for AddFunction 'void f(X x)'.");
+}
+
+static X create_x_by_value() { X x; return x; }
+static X* create_x_by_pointer() { static X x; return &x; }
+TEST_METHOD(CodeCtorInvalidReturnType)
+{
+	IType* type = module->AddType<X>("X");
+	bool r = type->AddMethod("X()", create_x_by_value);
+	Assert::IsFalse(r);
+	AssertError("Class constructor 'X()' must return type by reference/pointer.");
+	CleanupErrors();
+
+	type = module->AddType<X>("X2", cas::ValueType);
+	r = type->AddMethod("X2()", create_x_by_pointer);
+	Assert::IsFalse(r);
+	AssertError("Struct constructor 'X2()' must return type by value.");
 }
 
 CA_TEST_CLASS_END();

@@ -105,7 +105,30 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 	if(func_info.builtin)
 		f->flags |= CommonFunction::F_BUILTIN;
 	else
+	{
 		f->flags |= CommonFunction::F_CODE;
+		if(f->special == SF_CTOR)
+		{
+			if(IS_SET(type->flags, Type::PassByValue))
+			{
+				if(func_info.return_pointer_or_reference)
+				{
+					Event(EventType::Error, Format("Struct constructor '%s' must return type by value.", decl));
+					delete f;
+					return false;
+				}
+			}
+			else
+			{
+				if(!func_info.return_pointer_or_reference)
+				{
+					Event(EventType::Error, Format("Class constructor '%s' must return type by reference/pointer.", decl));
+					delete f;
+					return false;
+				}
+			}
+		}
+	}
 	f->index = (index << 16) | functions.size();
 	type->funcs.push_back(f);
 	functions.push_back(f);
@@ -158,9 +181,7 @@ cas::IType* Module::AddType(cstring type_name, int size, int flags)
 	types.push_back(type);
 	parser->AddType(type);
 
-	ScriptType* script_type = new ScriptType;
-	script_type->module = this;
-	script_type->type = type;
+	ScriptType* script_type = new ScriptType(this, type, IS_SET(flags, cas::ValueType));
 	script_types.push_back(script_type);
 
 	built = false;

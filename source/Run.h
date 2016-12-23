@@ -14,14 +14,18 @@ static const int START_REF_COUNT = 2;
 static const int START_REF_COUNT = 1;
 #endif
 
+// For class created in script this Class have larger size and class data is stored in it, starting at adr
+// for code class, adr points to class created in code
 struct Class
 {
 	int refs;
 	Type* type;
+	bool is_code;
+	int* adr;
 
 	inline int* data()
 	{
-		return ((int*)this) + 2;
+		return adr;
 	}
 
 	inline byte* at_data(uint offset)
@@ -38,11 +42,27 @@ struct Class
 	inline static Class* Create(Type* type)
 	{
 		assert(type);
-		byte* data = new byte[type->size + 8];
-		memset(data + 8, 0, type->size);
+		byte* data = new byte[type->size + sizeof(Class)];
 		Class* c = (Class*)data;
 		c->refs = START_REF_COUNT;
 		c->type = type;
+		c->is_code = false;
+		c->adr = ((int*)&c->adr) + 1;
+		memset(c->adr, 0, type->size);
+#ifdef CHECK_LEAKS
+		all_clases.push_back(c);
+#endif
+		return c;
+	}
+
+	inline static Class* CreateCode(Type* type, int* real_class)
+	{
+		assert(type);
+		Class* c = new Class;
+		c->refs = START_REF_COUNT;
+		c->type = type;
+		c->is_code = true;
+		c->adr = real_class;
 #ifdef CHECK_LEAKS
 		all_clases.push_back(c);
 #endif
@@ -53,11 +73,13 @@ struct Class
 	{
 		assert(base);
 		Type* type = base->type;
-		byte* data = new byte[type->size + 8];
-		memcpy(data + 8, ((byte*)base) + 8, type->size);
+		byte* data = new byte[type->size + sizeof(Class)];
 		Class* c = (Class*)data;
-		c->refs = START_REF_COUNT;
 		c->type = type;
+		c->refs = START_REF_COUNT;
+		c->is_code = false;
+		c->adr = ((int*)&c->adr) + 1;
+		memcpy(c->adr, base->adr, type->size);
 #ifdef CHECK_LEAKS
 		all_clases.push_back(c);
 #endif
@@ -71,7 +93,18 @@ struct Class
 #ifdef CHECK_LEAKS
 			assert(0); // there should be at last 1 reference
 #endif
+			Delete();
+		}
+	}
+
+	inline void Delete()
+	{
+		if(is_code)
 			delete this;
+		else
+		{
+			byte* data = (byte*)this;
+			delete[] data;
 		}
 	}
 };

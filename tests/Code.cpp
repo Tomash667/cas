@@ -26,19 +26,19 @@ struct INT2
 	}
 };
 
-static INT2 f_int2c_ctor0()
+static INT2* f_int2c_ctor0()
 {
-	return INT2(0, 0);
+	return new INT2(0, 0);
 }
 
-static INT2 f_int2c_ctor1(int xy)
+static INT2* f_int2c_ctor1(int xy)
 {
-	return INT2(xy);
+	return new INT2(xy);
 }
 
-static INT2 f_int2c_ctor2(int x, int y)
+static INT2* f_int2c_ctor2(int x, int y)
 {
-	return INT2(x, y);
+	return new INT2(x, y);
 }
 
 static void f_wypisz_int2c(INT2& i)
@@ -182,8 +182,8 @@ static void checkA(A* a)
 
 TEST_METHOD_IGNORE(RefCountedType)
 {
-	IType* type = module->AddRefType<A>("A");
-	type->AddMethod("A()", AsCtor<A>());
+	auto type = module->AddRefType<A>("A");
+	type->AddCtor("A()");
 	type->AddMember("int x", offsetof(A, x));
 	module->AddFunction("void checkA(A@ a)", checkA);
 	RunTest("void f(){A a; a.x += 3; checkA(a);}();");
@@ -248,7 +248,7 @@ static int& getref(bool is_a)
 		return global_b;
 }
 
-TEST_METHOD_IGNORE(CodeFunctionReturnsRef)
+TEST_METHOD(CodeFunctionReturnsRef)
 {
 	module->AddFunction("int& getref(bool is_a)", getref);
 	global_a = 1;
@@ -411,12 +411,12 @@ struct F
 
 TEST_METHOD(CodeOverloadCast)
 {
-	IType* type = module->AddType<F>("F");
+	auto type = module->AddType<F>("F");
 	type->AddMember("int x", offsetof(F, x));
 	type->AddMember("int y", offsetof(F, y));
-	type->AddMethod("implicit F(int a)", AsCtor<F, int>());
-	type->AddMethod("F(float a)", AsCtor<F, float>());
-	type->AddMethod("F(int x, int y)", AsCtor<F, int, int>());
+	type->AddCtor<int>("implicit F(int a)");
+	type->AddCtor<float>("F(float a)");
+	type->AddCtor<int, int>("F(int x, int y)");
 	type->AddMethod("implicit int operator cast()", &F::to_int);
 	type->AddMethod("float operator cast()", &F::to_float);
 	RunTest(R"code(
@@ -478,16 +478,16 @@ public:
 
 void RegisterPodAndClass()
 {
-	IType* type = module->AddType<Pod>("Pod");
-	type->AddMember("int x", offsetof(Pod, x));
-	type->AddMember("int y", offsetof(Pod, y));
+	auto pod = module->AddType<Pod>("Pod");
+	pod->AddMember("int x", offsetof(Pod, x));
+	pod->AddMember("int y", offsetof(Pod, y));
 
-	type = module->AddType<Class>("Class");
-	type->AddMember("int x", offsetof(Class, x));
-	type->AddMember("int y", offsetof(Class, y));
-	type->AddMethod("Class()", AsCtor<Class>());
-	type->AddMethod("Class(Class& c)", AsCtor<Class, Class&>());
-	type->AddMethod("Class(int x, int y)", AsCtor<Class, int, int>());
+	auto clas = module->AddType<Class>("Class");
+	clas->AddMember("int x", offsetof(Class, x));
+	clas->AddMember("int y", offsetof(Class, y));
+	clas->AddCtor("Class()");
+	clas->AddCtor<Class&>("Class(Class& c)");
+	clas->AddCtor<int, int>("Class(int x, int y)");
 }
 
 static int get4() { return 4; }
@@ -583,9 +583,9 @@ static void pass_struct_by_ref(I& a, I& b)
 
 TEST_METHOD(CodePassStructByValueAndReference)
 {
-	IType* type = module->AddType<I>("I", cas::ValueType);
-	type->AddMethod("I(int x, int y)", AsCtor<I, int, int>());
-	type->AddMethod("I(I& i)", AsCtor<I, const I&>());
+	auto type = module->AddType<I>("I", cas::ValueType);
+	type->AddCtor<int, int>("I(int x, int y)");
+	type->AddCtor<const I&>("I(I& i)");
 	type->AddMember("int x", offsetof(I, x));
 	type->AddMember("int y", offsetof(I, y));
 	module->AddFunction("int f(I a, I b)", pass_struct_by_val);
@@ -600,6 +600,22 @@ TEST_METHOD(CodePassStructByValueAndReference)
 		Assert_IsTrue(a == I(3,3));
 		Assert_IsTrue(b == I(4,2));
 	)code");
+}
+
+//=========================================================================================
+TEST_METHOD(ReturnCodeStructByValue)
+{
+	auto type = module->AddType<I>("I", cas::ValueType);
+	type->AddCtor<int, int>("I(int x, int y)");
+	type->AddCtor<const I&>("I(I& i)");
+	type->AddMember("int x", offsetof(I, x));
+	type->AddMember("int y", offsetof(I, y));
+}
+
+//=========================================================================================
+TEST_METHOD(ReturnCodeStructByRef)
+{
+
 }
 
 //=========================================================================================
@@ -648,6 +664,24 @@ TEST_METHOD(PassCodeRefToCodeFunc)
 	module->AddFunction("void f2(string& s)", func_taking_str);
 	RunTest("f2(f());");
 	Assert::AreEqual("test", global_str.c_str());
+}
+
+//=========================================================================================
+static int& get_simple_ref()
+{
+	return global_a;
+}
+static void mod_simple_ref(int& a)
+{
+	a = 7;
+}
+TEST_METHOD(PassSimpleCodeRefToCodeFunc)
+{
+	global_a = 0;
+	module->AddFunction("int& f()", get_simple_ref);
+	module->AddFunction("void f2(int& a)", mod_simple_ref);
+	RunTest("f2(f());");
+	Assert::AreEqual(7, global_a);
 }
 
 //=========================================================================================
