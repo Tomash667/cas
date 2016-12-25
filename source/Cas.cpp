@@ -55,6 +55,8 @@ bool cas::Initialize(Settings* settings)
 		return false;
 	}
 
+	InitDecompile(_settings);
+
 	initialized = true;
 	return true;
 }

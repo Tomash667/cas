@@ -55,6 +55,7 @@ inline void RunFailureTest(cstring code, cstring error)
 void CleanupErrors();
 void CleanupAsserts();
 void AssertError(cstring error);
+void SetDecompile(bool decompile);
 
 struct Retval
 {
@@ -122,6 +123,7 @@ TEST_CLASS(Name) 											\
 		CleanupAsserts(); 									\
 		DestroyModule(module);								\
 		current_module = nullptr;                           \
+		SetDecompile(false);								\
 	}														\
 															\
 	IModule* module;										\

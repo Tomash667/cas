@@ -12,6 +12,7 @@ class Module;
 class Parser;
 
 void InitLib(Module& module, Settings& settings);
+void InitDecompile(Settings& settings);
 void Decompile(RunModule& run_module);
 bool Run(RunModule& run_module, ReturnValue& retval, string& exc);
 void Event(EventType event_type, cstring msg);

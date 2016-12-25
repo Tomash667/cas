@@ -1,12 +1,6 @@
-- CodeRegisterValueType should work
-+ ReturnCodeStructByValue, ReturnCodeStructByRef
-
 CODE:
-+ deref on code struct/class
-+ set_adr on struct/class
-+ pass code struct/class to code func
-+ return struct by value/ref
-+ return class by value (disallow)
++ pass code class to code func
++ return class by value (disallow), check FuncInfo pass_by_ref_or_pointer
 
 + tests
 	+ return struct/class by value
@@ -43,6 +37,7 @@ CODE:
 + optimize string concat (currently a+=b will create new string with a+b, then assign to a)
 + member initialization const expr
 + better handling for parse functions for code type
++ optimize operations on reference to struct, currently it will use deref on every usage
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 

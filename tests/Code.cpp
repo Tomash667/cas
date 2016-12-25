@@ -135,11 +135,11 @@ struct Vec
 	}
 };
 
-TEST_METHOD_IGNORE(CodeRegisterValueType)
+TEST_METHOD(CodeRegisterValueType)
 {
 	IType* type = module->AddType<Vec>("Vec", cas::ValueType);
 	type->AddMember("int x", offsetof(Vec, x));
-	type->AddMethod("Vec operator += (int a)", &Vec::operator+=);
+	type->AddMethod("Vec& operator += (int a)", &Vec::operator+=);
 	RunTest(R"code(
 		Vec global;
 		global.x = 7;
@@ -603,19 +603,69 @@ TEST_METHOD(CodePassStructByValueAndReference)
 }
 
 //=========================================================================================
+static I get_struct_by_val(int x, int y)
+{
+	return I(x, y);
+}
 TEST_METHOD(ReturnCodeStructByValue)
 {
 	auto type = module->AddType<I>("I", cas::ValueType);
-	type->AddCtor<int, int>("I(int x, int y)");
-	type->AddCtor<const I&>("I(I& i)");
 	type->AddMember("int x", offsetof(I, x));
 	type->AddMember("int y", offsetof(I, y));
+	module->AddFunction("I f(int x, int y)", get_struct_by_val);
+	RunTest(R"code(
+		I i = f(3,14);
+		Assert_AreEqual(3,i.x);
+		Assert_AreEqual(14,i.y);
+	)code");
 }
 
 //=========================================================================================
+static I global_i;
+static I& get_struct_by_ref(int x, int y)
+{
+	global_i.x = x;
+	global_i.y = y;
+	return global_i;
+}
 TEST_METHOD(ReturnCodeStructByRef)
 {
+	auto type = module->AddType<I>("I", cas::ValueType);
+	type->AddMember("int x", offsetof(I, x));
+	type->AddMember("int y", offsetof(I, y));
+	module->AddFunction("I& f(int x, int y)", get_struct_by_ref);
+	RunTest(R"code(
+		I& i = f(3,14);
+		i.x += 2;
+		i.y -= 3;
+		Assert_AreEqual(5,i.x);
+		Assert_AreEqual(11,i.y);
+	)code");
+	Assert::AreEqual(5, global_i.x);
+	Assert::AreEqual(11, global_i.y);
+}
 
+//=========================================================================================
+static void get_code_struct(I& i)
+{
+	Assert::AreEqual(7, i.x);
+	Assert::AreEqual(9, i.y);
+	--i.x;
+	++i.y;
+}
+TEST_METHOD(PassCodeStructToCodeFunc)
+{
+	auto type = module->AddType<I>("I", cas::ValueType);
+	type->AddMember("int x", offsetof(I, x));
+	type->AddMember("int y", offsetof(I, y));
+	module->AddFunction("I& f(int x, int y)", get_struct_by_ref);
+	module->AddFunction("void f2(I& i)", get_code_struct);
+	RunTest(R"code(
+		I& i = f(7,9);
+		f2(i);
+		Assert_AreEqual(6,i.x);
+		Assert_AreEqual(10,i.y);
+	)code");
 }
 
 //=========================================================================================
@@ -712,5 +762,6 @@ namespace tests
 	int Code::global_a, Code::global_b;
 	Code::A* Code::A::global;
 	Code::H Code::globalh;
+	Code::I Code::global_i(0,0);
 	string Code::global_str, Code::global_str2;
 };

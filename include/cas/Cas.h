@@ -27,8 +27,12 @@ namespace cas
 		bool use_debuglib;
 		bool use_getch;
 		bool use_assert_handler;
+		bool decompile_marker;
 
-		Settings() : input(nullptr), output(nullptr), use_getch(true), use_corelib(true), use_debuglib(true), use_assert_handler(true) {}
+		Settings() : input(nullptr), output(nullptr), use_getch(true), use_corelib(true), use_debuglib(true), use_assert_handler(true), decompile_marker(false)
+		{
+
+		}
 
 		inline void operator = (const Settings& s)
 		{
@@ -40,6 +44,7 @@ namespace cas
 			use_debuglib = s.use_debuglib;
 			use_getch = s.use_getch;
 			use_assert_handler = s.use_assert_handler;
+			decompile_marker = s.decompile_marker;
 		}
 	};
 

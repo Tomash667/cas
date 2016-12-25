@@ -81,7 +81,14 @@ Default value for types:
 
 
 
-2. C++ integrationRegister constructorConstructor for struct must return by value, constructor for class must return reference/pointer.
+2. C++ integration
+
+Register constructor
+Constructor for struct must return by value, constructor for class must return reference/pointer.
+
+References passed to code functions are unsafe to store. It's very unsafe to return by reference object that was passed by argument from script. Returned
+references are unsafe too.
+
 Register global function:
 void f();
 module->AddFunction("void f()", f);

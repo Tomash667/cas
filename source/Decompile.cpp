@@ -6,6 +6,9 @@
 #include "Parser.h"
 #include "Module.h"
 
+static std::ostream* s_output;
+static bool decompile_marker;
+
 enum EXT_VAR_TYPE
 {
 	V_FUNCTION = V_MAX,
@@ -89,14 +92,24 @@ OpInfo ops[] = {
 };
 static_assert(sizeof(ops) / sizeof(OpInfo) == MAX_OP, "Missing decompile op codes.");
 
+void InitDecompile(Settings& settings)
+{
+	s_output = (std::ostream*)settings.output;
+	decompile_marker = settings.decompile_marker;
+}
+
 void Decompile(RunModule& module)
 {
+	std::ostream& out = *s_output;
 	Parser& parser = *module.parent->parser;
 	int* c = module.code.data();
 	int* end = c + module.code.size();
 	int cf = -2;
 
-	cout << "DECOMPILE:\n";
+	if(decompile_marker)
+		out << "***DCMP***";
+
+	out << "DECOMPILE:\n";
 	while(c != end)
 	{
 		if(cf == -2)
@@ -104,12 +117,12 @@ void Decompile(RunModule& module)
 			if(module.ufuncs.empty())
 			{
 				cf = -1;
-				cout << "Main:\n";
+				out << "Main:\n";
 			}
 			else
 			{
 				cf = 0;
-				cout << "Function " << parser.GetParserFunctionName(0) << ":\n";
+				out << "Function " << parser.GetParserFunctionName(0) << ":\n";
 			}
 		}
 		else if(cf != -1)
@@ -118,75 +131,77 @@ void Decompile(RunModule& module)
 			if(offset >= module.entry_point)
 			{
 				cf = -1;
-				cout << "Main:\n";
+				out << "Main:\n";
 			}
 			else if(cf + 1 < (int)module.ufuncs.size())
 			{
 				if(offset >= module.ufuncs[cf + 1].pos)
 				{
 					++cf;
-					cout << "Function " << parser.GetParserFunctionName(cf) << ":\n";
+					out << "Function " << parser.GetParserFunctionName(cf) << ":\n";
 				}
 			}
 		}
 
 		Op op = (Op)*c++;
 		if(op >= MAX_OP)
-			cout << "\tMISSING (" << op << ")\n";
+			out << "\tMISSING (" << op << ")\n";
 		else
 		{
 			OpInfo& opi = ops[op];
 			switch(opi.arg1)
 			{
 			case V_VOID:
-				cout << Format("\t[%d] %s\n", (int)op, opi.name);
+				out << Format("\t[%d] %s\n", (int)op, opi.name);
 				break;
 			case V_CHAR:
 				{
 					int val = *c++;
 					char value = union_cast<char>(val);
-					cout << Format("\t[%d %d] %s '%s'\n", (int)op, (int)value, opi.name, EscapeChar(value));
+					out << Format("\t[%d %d] %s '%s'\n", (int)op, (int)value, opi.name, EscapeChar(value));
 				}
 				break;
 			case V_INT:
 				{
 					int value = *c++;
-					cout << Format("\t[%d %d] %s %d\n", (int)op, value, opi.name, value);
+					out << Format("\t[%d %d] %s %d\n", (int)op, value, opi.name, value);
 				}
 				break;
 			case V_FLOAT:
 				{
 					int val = *c++;
 					float value = union_cast<float>(val);
-					cout << Format("\t[%d %d] %s %.2g\n", (int)op, val, opi.name, value);
+					out << Format("\t[%d %d] %s %.2g\n", (int)op, val, opi.name, value);
 				}
 				break;
 			case V_STRING:
 				{
 					int str_idx = *c++;
-					cout << Format("\t[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, Escape(module.strs[str_idx]->s.c_str()));
+					out << Format("\t[%d %d] %s \"%s\"\n", (int)op, str_idx, opi.name, Escape(module.strs[str_idx]->s.c_str()));
 				}
 				break;
 			case V_FUNCTION:
 				{
 					int f_idx = *c++;
-					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, parser.GetName(parser.GetFunction(f_idx)));
+					out << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, parser.GetName(parser.GetFunction(f_idx)));
 				}
 				break;
 			case V_USER_FUNCTION:
 				{
 					int f_idx = *c++;
-					cout << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, parser.GetParserFunctionName(f_idx));
+					out << Format("\t[%d %d] %s %s\n", (int)op, f_idx, opi.name, parser.GetParserFunctionName(f_idx));
 				}
 				break;
 			case V_TYPE:
 				{
 					int type = *c++;
-					cout << Format("\t[%d %d] %s %s\n", (int)op, type, opi.name, parser.GetType(type)->name.c_str());
+					out << Format("\t[%d %d] %s %s\n", (int)op, type, opi.name, parser.GetType(type)->name.c_str());
 				}
 				break;
 			}
 		}
 	}
-	cout << "\n";
+	out << "\n";
+	if(decompile_marker)
+		out << "***DCMP_END***";
 }

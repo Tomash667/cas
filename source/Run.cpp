@@ -344,6 +344,13 @@ void ExecuteFunction(Function& f)
 		{
 			RefVar* ref = new RefVar(RefVar::CODE, 0);
 			ref->adr = (int*)result.low;
+			Type* real_type = run_module->GetType(f.result.subtype);
+			if(real_type->IsStruct())
+			{
+				Class* c = Class::CreateCode(real_type, ref->adr);
+				ref->adr = (int*)c;
+				ref->to_release = true;
+			}
 			stack.push_back(Var(ref, f.result.subtype));
 		}
 		break;
@@ -370,7 +377,7 @@ void MakeSingleInstance(Var& v)
 	Type* type = run_module->GetType(v.vartype.type);
 	assert(type && type->IsStruct());
 	assert(v.clas->refs >= START_REF_COUNT);
-	if(v.clas->refs <= START_REF_COUNT)
+	if(v.clas->refs <= START_REF_COUNT && !v.clas->is_code)
 		return;
 	Class* copy = Class::Copy(v.clas);
 	ReleaseRef(v);
@@ -920,8 +927,13 @@ void RunInternal(ReturnValue& retval)
 						else
 						{
 							Type* type = run_module->GetType(data.vartype.type);
-							assert(type->IsSimple());
-							v.value = *data.data;
+							if(type->IsStruct())
+								v.clas = (Class*)data.data;
+							else
+							{
+								assert(type->IsSimple());
+								v.value = *data.data;
+							}
 						}
 					}
 					else

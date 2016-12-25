@@ -10,6 +10,7 @@ ostringstream s_output;
 string event_output;
 IModule* current_module;
 int reg_errors;
+bool decompile;
 
 enum Result
 {
@@ -72,6 +73,7 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 	s.use_getch = false;
 	s.use_assert_handler = !IsDebuggerPresent();
 	s.use_debuglib = true;
+	s.decompile_marker = true;
 	if(!Initialize(&s))
 		Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 
@@ -86,12 +88,42 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 	Shutdown();
 }
 
+void WriteDecompileOutput()
+{
+	if(!decompile)
+		return;
+	cstring mark = "***DCMP***";
+	cstring mark_end = "***DCMP_END***";
+	string s = s_output.str();
+	size_t pos = s.find(mark, 0);
+	if(pos != string::npos)
+	{
+		size_t end = s.find(mark_end, pos);
+		size_t len = strlen(mark);
+		string decomp;
+		if(end != string::npos)
+		{
+			decomp = s.substr(pos + len, end - pos - len);
+			s.erase(pos, end - pos + strlen(mark_end));
+		}
+		else
+		{
+			decomp = s.substr(pos + len);
+			s.erase(pos, s.size() - pos);
+		}
+		Logger::WriteMessage(decomp.c_str());
+		s_output.clear();
+		s_output.str(s);
+	}
+}
+
 Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 {
 	Result result;
 	try
 	{
-		IModule::ExecutionResult ex_result = module->ParseAndRun(input, optimize);
+		IModule::ExecutionResult ex_result = module->ParseAndRun(input, optimize, decompile);
+		WriteDecompileOutput();
 		if(ex_result != IModule::Ok)
 		{
 			if(ex_result == IModule::Exception)
@@ -118,6 +150,7 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 	}
 	catch(cstring)
 	{
+		WriteDecompileOutput();
 		result = ASSERT;
 	}
 	return result;
@@ -295,4 +328,9 @@ void AssertError(cstring error)
 	cstring r = strstr(event_output.c_str(), error);
 	if(!r)
 		Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
+}
+
+void SetDecompile(bool _decompile)
+{
+	decompile = _decompile;
 }
