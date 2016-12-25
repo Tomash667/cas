@@ -51,11 +51,11 @@ struct Vec2
 	float x, y;
 };
 
-static Vec2 f_create_vec2(float x, float y)
+static Vec2* f_create_vec2(float x, float y)
 {
-	Vec2 v;
-	v.x = x;
-	v.y = y;
+	Vec2* v = new Vec2;
+	v->x = x;
+	v->y = y;
 	return v;
 }
 
@@ -69,12 +69,12 @@ struct Vec3
 	float x, y, z;
 };
 
-static Vec3 f_create_vec3(float x, float y, float z)
+static Vec3* f_create_vec3(float x, float y, float z)
 {
-	Vec3 v;
-	v.x = x;
-	v.y = y;
-	v.z = z;
+	Vec3* v = new Vec3;
+	v->x = x;
+	v->y = y;
+	v->z = z;
 	return v;
 }
 
@@ -90,14 +90,14 @@ TEST_METHOD(ComplexClassResult)
 	type = module->AddType<Vec2>("Vec2");
 	type->AddMember("float x", offsetof(Vec2, x));
 	type->AddMember("float y", offsetof(Vec2, y));
-	module->AddFunction("Vec2 create_vec2(float x, float y)", f_create_vec2);
+	module->AddFunction("Vec2& create_vec2(float x, float y)", f_create_vec2);
 	module->AddFunction("void wypisz_vec2(Vec2& v)", f_wypisz_vec2);
 	// Vec3 (pod > 8 byte)
 	type = module->AddType<Vec3>("Vec3");
 	type->AddMember("float x", offsetof(Vec3, x));
 	type->AddMember("float y", offsetof(Vec3, y));
 	type->AddMember("float z", offsetof(Vec3, z));
-	module->AddFunction("Vec3 create_vec3(float x, float y, float z)", f_create_vec3);
+	module->AddFunction("Vec3& create_vec3(float x, float y, float z)", f_create_vec3);
 	module->AddFunction("void wypisz_vec3(Vec3& v)", f_wypisz_vec3);
 	// INT2c have ctor
 	type = module->AddType<INT2>("INT2c");
@@ -301,39 +301,12 @@ public:
 
 TEST_METHOD(CodeMemberFunctionOverload)
 {
-	IType* type = module->AddType<CObj>("BObj");
+	IType* type = module->AddType<BObj>("BObj");
 	type->AddMethod("int f()", AsMethod(BObj, f, int, ()));
 	type->AddMethod("int f(int a)", AsMethod(BObj, f, int, (int)));
 	RunTest("BObj b; return b.f() + b.f(4);");
 	retval.IsInt(9);
 }
-
-//=========================================================================================
-
-
-class CObj : public RefCounter
-{
-public:
-	int x;
-
-	inline CObj() : x(1) {}
-	inline CObj(int x) : x(x) {}
-	inline int GetX() { return x; }
-};
-
-/*TEST_METHOD(CodeCtorMemberFunction)
-{
-	ModuleRef module;
-	module->AddType<CObj>("CObj");
-	module->AddMethod("CObj", "CObj()", AsCtor<CObj>());
-	module->AddMethod("CObj", "CObj(int a)", AsCtor<CObj, int>());
-	module->AddMethod("CObj", "int GetX()", &CObj::GetX);
-	module.RunTest("CObj c1; CObj c7 = CObj(7); return c1.GetX() + c7.GetX();");
-	module.ret().IsInt(8);
-}*/
-
-
-// CodeCtorMemberFunctionOverload
 
 //=========================================================================================
 class D
@@ -751,6 +724,43 @@ TEST_METHOD(CompareCodeRefs)
 		Assert_IsTrue(f(1) is f(1));
 		Assert_IsFalse(f(0) is f(1));
 		Assert_IsFalse(f(1) is f(0));
+	)code");
+}
+
+//=========================================================================================
+class J
+{
+public:
+	int x, y, z;
+};
+static J* create_class(int x, int y, int z)
+{
+	J* j = new J;
+	j->x = x;
+	j->y = y;
+	j->z = z;
+	return j;
+}
+static void func_taking_class(J& j)
+{
+	j.x += 1;
+	j.y += 2;
+	j.z += 3;
+}
+TEST_METHOD(PassCodeClassToCodeFunc)
+{
+	auto type = module->AddType<J>("J");
+	type->AddMember("int x", offsetof(J, x));
+	type->AddMember("int y", offsetof(J, y));
+	type->AddMember("int z", offsetof(J, z));
+	module->AddFunction("J& f(int x, int y, int z)", create_class);
+	module->AddFunction("void f2(J& j)", func_taking_class);
+	RunTest(R"code(
+		J j = f(9,8,7);
+		f2(j);
+		Assert_AreEqual(10, j.x);
+		Assert_AreEqual(10, j.y);
+		Assert_AreEqual(10, j.z);
 	)code");
 }
 

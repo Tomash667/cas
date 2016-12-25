@@ -1,26 +1,7 @@
-CODE:
-+ pass code class to code func
-+ return class by value (disallow), check FuncInfo pass_by_ref_or_pointer
-
-+ tests
-	+ return struct/class by value
-	+ return by reference
-	+ reference types
-		+ temporary
-		+ member
-		+ global
-
-+ code return by value,reference,pointer for struct/class/value/string
 + generate default ctor
 	+ remove zero init
 	+ code class/struct
-
-3) nullable?
-4) script ret ref
-
-- struct_class_ref.txt
-
-++-- returns reference
++ ref counter
 
 ? verify if ParseExpr type is longer used
 ? parse class func checks FindEqualFunction without type
@@ -38,6 +19,9 @@ CODE:
 + member initialization const expr
 + better handling for parse functions for code type
 + optimize operations on reference to struct, currently it will use deref on every usage
++ reference types (temporary, member, global)
++ nullable?
++ ++-- returns reference
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 
@@ -61,11 +45,6 @@ NEST A STRING:
 + entry point
 + improvments
 + array
-
-TODO:
-register class/struct
-verify
-norefcount
 
 + register member function as member func
 + return new class instance without constructor [class X{} X f() { return ???}] ??? = X

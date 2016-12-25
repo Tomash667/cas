@@ -1042,6 +1042,25 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	}
 	else
 	{
+		if(in_cpp)
+		{
+			if(f->result.type == V_REF)
+			{
+				Type* result_type = GetType(f->result.subtype);
+				if(result_type->IsRefClass())
+				{
+					f->result.type = f->result.subtype;
+					f->result.subtype = 0;
+				}
+			}
+			else
+			{
+				Type* result_type = GetType(f->result.type);
+				if(result_type->IsRefClass())
+					t.Throw("Class in code %s must be returned by reference/pointer.", type ? "method" : "function");
+			}
+		}
+
 		f->special = SF_NO;
 		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 		{

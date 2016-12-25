@@ -156,7 +156,7 @@ void ExecuteFunction(Function& f)
 	else if(result_type->IsClass())
 	{
 		// class return value
-		if(result_type->IsRefClass() && f.special == SF_CTOR)
+		if(result_type->IsRefClass())
 			ret_by_ref = true;
 		else
 		{

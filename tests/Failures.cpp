@@ -465,4 +465,13 @@ TEST_METHOD(CodeCtorInvalidReturnType)
 	AssertError("Struct constructor 'X2()' must return type by value.");
 }
 
+TEST_METHOD(ReturnCodeClassByValue)
+{
+	IType* type = module->AddType<X>("X");
+	bool r = type->AddMethod("X f()", create_x_by_value);
+	Assert::IsFalse(r);
+	AssertError("Class in code method must be returned by reference/pointer.");
+	AssertError("Failed to parse function declaration for AddMethod 'X f()'.");
+}
+
 CA_TEST_CLASS_END();
