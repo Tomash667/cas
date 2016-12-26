@@ -4,8 +4,9 @@
 #define CHECK_LEAKS
 #endif
 
-#ifdef CHECK_LEAKS
 struct Class;
+
+#ifdef CHECK_LEAKS
 struct RefVar;
 static vector<Class*> all_clases;
 static vector<RefVar*> all_refs;
@@ -13,6 +14,8 @@ static const int START_REF_COUNT = 2;
 #else
 static const int START_REF_COUNT = 1;
 #endif
+
+void ReleaseClass(Class* c);
 
 // For class created in script this Class have larger size and class data is stored in it, starting at adr
 // for code class, adr points to class created in code
@@ -100,7 +103,11 @@ struct Class
 	inline void Delete()
 	{
 		if(is_code)
+		{
+			if(IS_SET(type->flags, Type::RefCount))
+				ReleaseClass(this);
 			delete this;
+		}
 		else
 		{
 			byte* data = (byte*)this;

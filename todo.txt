@@ -1,11 +1,3 @@
-+ generate default ctor
-	+ remove zero init
-	+ code class/struct
-+ ref counter
-
-? verify if ParseExpr type is longer used
-? parse class func checks FindEqualFunction without type
-
 + ParseFunctionArgs -> ParseConstExpr
 + subscript
 + subscript with multiple items
@@ -24,6 +16,8 @@
 + ++-- returns reference
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
+? verify if ParseExpr type is longer used
+? parse class func checks FindEqualFunction without type
 
 - index operator don't work for string& (and possibly struct/class) CODE/SCRIPT, and for functor, possibly other operators too (class ref += ?)
 - c++ function returning string cause 1 byte memory leak (string.txt)

@@ -160,9 +160,6 @@
     <Text Include="..\cases\forward.txt">
       <Filter>Cases</Filter>
     </Text>
-    <Text Include="..\cases\struct_class_ref.txt">
-      <Filter>Cases</Filter>
-    </Text>
     <Text Include="..\cases\long_ref_assign.txt">
       <Filter>Cases</Filter>
     </Text>

@@ -1564,3 +1564,29 @@ std::pair<cstring, int> cas::GetCurrentLocation()
 		func_name = run_module->ufuncs[current_function].name.c_str();
 	return std::pair<cstring, uint>(func_name, current_line);
 }
+
+void ReleaseClass(Class* c)
+{
+	Function* f = c->type->FindSpecialCodeFunction(SF_RELEASE);
+	void* clbk = f->clbk;
+	void* _this = c->adr;
+	int to_push = IS_SET(f->flags, CommonFunction::F_THISCALL) ? 4 : 0;
+
+	__asm
+	{
+		// copy old ecx
+		push ecx;
+		// prepare args
+		mov ecx, _this;
+		mov eax, to_push;
+		cmp eax, 0;
+		je end;
+		push ecx;
+	end:
+		// call
+		call clbk;
+		// restore
+		add esp, to_push;
+		pop ecx;
+	};
+}

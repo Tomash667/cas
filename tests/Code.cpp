@@ -175,20 +175,21 @@ static A* createA()
 
 static void checkA(A* a)
 {
-	Assert::AreEqual(2, a->GetRefs());
+	Assert::AreEqual(1, a->GetRefs()); // 1 refernce in script
 	A::global = a;
-	a->AddRef();
+	a->AddRef(); // now two references
 }
 
-TEST_METHOD_IGNORE(RefCountedType)
+TEST_METHOD(RefCountedType)
 {
 	auto type = module->AddRefType<A>("A");
 	type->AddCtor("A()");
 	type->AddMember("int x", offsetof(A, x));
-	module->AddFunction("void checkA(A@ a)", checkA);
+	module->AddFunction("void checkA(A& a)", checkA);
 	RunTest("void f(){A a; a.x += 3; checkA(a);}();");
 	Assert::AreEqual(1, A::global->GetRefs());
 	Assert::AreEqual(7, A::global->x);
+	A::global->Release();
 }
 
 //=========================================================================================
@@ -428,79 +429,6 @@ TEST_METHOD(CodeClassDefaultOperators)
 		Assert_IsTrue(a != b);
 		a = b;
 		Assert_IsTrue(a == b);
-	)code");
-}
-
-//=========================================================================================
-struct Pod
-{
-	int x;
-	int y;
-};
-
-class Class
-{
-public:
-	Class() { x = 0; y = 0; }
-	Class(Class& c) { x = c.x; y = c.y; }
-	Class(int x, int y) : x(x), y(y) {}
-	void operator = (Class& c) { x = c.x; y = c.y; }
-	int x;
-	int y;
-};
-
-void RegisterPodAndClass()
-{
-	auto pod = module->AddType<Pod>("Pod");
-	pod->AddMember("int x", offsetof(Pod, x));
-	pod->AddMember("int y", offsetof(Pod, y));
-
-	auto clas = module->AddType<Class>("Class");
-	clas->AddMember("int x", offsetof(Class, x));
-	clas->AddMember("int y", offsetof(Class, y));
-	clas->AddCtor("Class()");
-	clas->AddCtor<Class&>("Class(Class& c)");
-	clas->AddCtor<int, int>("Class(int x, int y)");
-}
-
-static int get4() { return 4; }
-static Pod getPodValue() { Pod p; p.x = 1; p.y = 2; return p; }
-
-
-struct H
-{
-	int x, y;
-};
-
-static H globalh;
-
-H createH(int x, int y)
-{
-	H h;
-	h.x = x;
-	h.y = y;
-	return h;
-}
-
-H& getGlobalH()
-{
-	return globalh;
-}
-
-H* getGlobalHPtr()
-{
-	return &globalh;
-}
-
-TEST_METHOD_IGNORE(CodeReturnByValueReferencePointer)
-{
-	globalh.x = 3;
-	globalh.y = 14;
-	IType* type = module->AddType<H>("H");
-	type->AddMember("int x", offsetof(H, x));
-	type->AddMember("int y", offsetof(H, y));
-	RunTest(R"code(
-		
 	)code");
 }
 
@@ -765,13 +693,30 @@ TEST_METHOD(PassCodeClassToCodeFunc)
 }
 
 //=========================================================================================
+struct K
+{
+	int x;
+	float y;
+};
+TEST_METHOD(CodeClassDefaultCtor)
+{
+	auto type = module->AddType<K>("K");
+	type->AddMember("int x", offsetof(K, x));
+	type->AddMember("float y", offsetof(K, y));
+	RunTest(R"code(
+		K k;
+		Assert_AreEqual(0, k.x);
+		Assert_AreEqual(0.0, k.y);
+	)code");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests
 {
 	int Code::global_a, Code::global_b;
 	Code::A* Code::A::global;
-	Code::H Code::globalh;
 	Code::I Code::global_i(0,0);
 	string Code::global_str, Code::global_str2;
 };

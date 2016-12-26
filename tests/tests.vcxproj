@@ -145,7 +145,6 @@
     <Text Include="..\cases\string.txt" />
     <Text Include="..\cases\string2.txt" />
     <Text Include="..\cases\struct.txt" />
-    <Text Include="..\cases\struct_class_ref.txt" />
     <Text Include="..\cases\subscript.txt" />
     <Text Include="..\cases\switch.txt" />
     <Text Include="..\cases\ternary.txt" />
