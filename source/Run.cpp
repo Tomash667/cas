@@ -311,11 +311,22 @@ void ExecuteFunction(Function& f)
 		fstp fresult;
 		pop ecx;
 	};
-
+	
 	// update stack
-	for(uint i = 0; i < f.arg_infos.size(); ++i)
+	Class* passed_result = nullptr;
+	for(int i = f.arg_infos.size() - 1; i >= 0; --i)
 	{
 		Var& v = stack.back();
+		// handle return reference is to passed argument
+		if(!passed_result && f.result.type == V_REF && f.arg_infos[i].pass_by_ref && f.result.subtype == f.arg_infos[i].vartype.type)
+		{
+			assert(run_module->GetType(f.result.subtype)->IsStruct());
+			if((int*)result.low == v.clas->adr)
+			{
+				passed_result = v.clas;
+				passed_result->refs++;
+			}
+		}
 		ReleaseRef(v);
 		stack.pop_back();
 	}
@@ -343,13 +354,18 @@ void ExecuteFunction(Function& f)
 	case V_REF:
 		{
 			RefVar* ref = new RefVar(RefVar::CODE, 0);
-			ref->adr = (int*)result.low;
-			Type* real_type = run_module->GetType(f.result.subtype);
-			if(real_type->IsStruct())
+			if(passed_result)
+				ref->adr = (int*)passed_result;
+			else
 			{
-				Class* c = Class::CreateCode(real_type, ref->adr);
-				ref->adr = (int*)c;
-				ref->to_release = true;
+				ref->adr = (int*)result.low;
+				Type* real_type = run_module->GetType(f.result.subtype);
+				if(real_type->IsStruct())
+				{
+					Class* c = Class::CreateCode(real_type, ref->adr);
+					ref->adr = (int*)c;
+					ref->to_release = true;
+				}
 			}
 			stack.push_back(Var(ref, f.result.subtype));
 		}
@@ -1518,7 +1534,7 @@ bool Run(RunModule& _run_module, ReturnValue& _retval, string& _exc)
 	current_line = -1;
 	stack_frames.clear();
 #ifdef CHECK_LEAKS
-	all_clases.clear();
+	all_classes.clear();
 	all_refs.clear();
 #endif
 
@@ -1539,7 +1555,7 @@ bool Run(RunModule& _run_module, ReturnValue& _retval, string& _exc)
 			assert(r->refs == 1);
 			delete r;
 		}
-		for(Class* c : all_clases)
+		for(Class* c : all_classes)
 		{
 			assert(c->refs == 1);
 			c->Delete();

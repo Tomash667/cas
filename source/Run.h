@@ -8,7 +8,7 @@ struct Class;
 
 #ifdef CHECK_LEAKS
 struct RefVar;
-static vector<Class*> all_clases;
+static vector<Class*> all_classes;
 static vector<RefVar*> all_refs;
 static const int START_REF_COUNT = 2;
 #else
@@ -53,7 +53,7 @@ struct Class
 		c->adr = ((int*)&c->adr) + 1;
 		memset(c->adr, 0, type->size);
 #ifdef CHECK_LEAKS
-		all_clases.push_back(c);
+		all_classes.push_back(c);
 #endif
 		return c;
 	}
@@ -67,7 +67,7 @@ struct Class
 		c->is_code = true;
 		c->adr = real_class;
 #ifdef CHECK_LEAKS
-		all_clases.push_back(c);
+		all_classes.push_back(c);
 #endif
 		return c;
 	}
@@ -84,7 +84,7 @@ struct Class
 		c->adr = ((int*)&c->adr) + 1;
 		memcpy(c->adr, base->adr, type->size);
 #ifdef CHECK_LEAKS
-		all_clases.push_back(c);
+		all_classes.push_back(c);
 #endif
 		return c;
 	}

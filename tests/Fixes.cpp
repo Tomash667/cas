@@ -72,4 +72,31 @@ TEST_METHOD(StringEqualOperator)
 	retval.IsInt(1);
 }
 
+struct INT2
+{
+	int x, y;
+	inline INT2(int x, int y) : x(x), y(y) {}
+	inline INT2& operator += (const INT2& i)
+	{
+		x += i.x;
+		y += i.y;
+		return *this;
+	}
+};
+TEST_METHOD(ReturnReferenceToPassedStruct)
+{
+	auto type = module->AddType<INT2>("INT2", cas::ValueType);
+	type->AddMember("int x", offsetof(INT2, x));
+	type->AddMember("int y", offsetof(INT2, y));
+	type->AddCtor<int, int>("INT2(int x, int y)");
+	type->AddMethod("INT2& operator += (INT2& i)", &INT2::operator+=);
+	RunTest(R"code(
+		INT2 a = INT2(1,2);
+		INT2& b = a;
+		INT2& r = b += INT2(3,4);
+		Assert_IsTrue(b is r);
+		Assert_IsTrue(a == b && b == r);
+	)code");
+}
+
 CA_TEST_CLASS_END();
