@@ -1,10 +1,26 @@
-println(1 == 1 && 1 != 2);
-println(1 == 2 || 3 == 3);
-println(!(2 == 3));
-println(!0);
-println(!0.0);
-println(!1);
-println(!3.14);
-println(!!true);
-println(!!false);
-pause();
+Assert_IsTrue(1 == 1 && 1 != 2);
+Assert_IsTrue(1 == 2 || 3 == 3);
+Assert_IsTrue(!(2 == 3));
+Assert_IsTrue(!0);
+Assert_IsTrue(!0.0);
+Assert_IsFalse(!1);
+Assert_IsFalse(!3.14);
+Assert_IsTrue(!!true);
+Assert_IsFalse(!!false);
+
+class X {}
+X a, b;
+Assert_IsTrue(a == a);
+Assert_IsFalse(a != a);
+Assert_IsFalse(a == b);
+Assert_IsTrue(a != b);
+
+struct S { int s; }
+S c, d, e;
+c.s = 3;
+d.s = 4;
+e.s = 4;
+Assert_IsFalse(c == d);
+Assert_IsTrue(c != d);
+Assert_IsTrue(d == e);
+Assert_IsFalse(d != e);

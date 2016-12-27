@@ -6,16 +6,20 @@
 struct Block;
 struct CastResult;
 struct Enum;
+struct OpResult;
 struct ParseFunction;
 struct ParseNode;
 struct ParseVar;
 struct SymbolNode;
 struct ReturnStructVar;
+struct SymbolInfo;
 union Found;
 enum BASIC_SYMBOL;
 enum FOUND;
+enum Op;
 enum RETURN_INFO;
 enum SYMBOL;
+typedef ObjectPoolRef<ParseNode> NodeRef;
 
 struct ParseSettings
 {
@@ -29,10 +33,18 @@ struct ReturnInfo
 	uint line, charpos;
 };
 
+enum BuiltinFunc
+{
+	BF_ASSIGN = 1<<0,
+	BF_EQUAL = 1<<1,
+	BF_NOT_EQUAL = 1<<2
+};
+
 class Parser
 {
 public:
 	Parser(Module* module);
+	~Parser();
 
 	bool VerifyTypeName(cstring type_name, int& type_index);
 	Function* ParseFuncDecl(cstring decl, Type* type);
@@ -45,6 +57,7 @@ public:
 	RunModule* Parse(ParseSettings& settigns);
 	void Cleanup();
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
+	int CreateDefaultFunctions(Type* type);
 
 private:
 	void FinishRunModule();
@@ -55,43 +68,47 @@ private:
 	ParseNode* ParseLineOrBlock();
 	ParseNode* ParseBlock(ParseFunction* f = nullptr);
 	ParseNode* ParseLine();
+	ParseNode* ParseReturn();
 	void ParseClass(bool is_struct);
 	ParseNode* ParseSwitch();
 	ParseNode* ParseCase(ParseNode* swi);
 	void ParseEnum();
 	void ParseMemberDeclClass(Type* type, uint& pad);
+	ParseNode* ParseFunc();
 	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
 	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
-	ParseNode* ParseVarDecl(VarType type);
-	ParseNode* ParseExpr(char end, char end2 = 0, int* type = nullptr);
-	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
-	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, int* type);
+	ParseNode* ParseVarDecl(VarType vartype);
+	ParseNode* ParseExpr(char end, char end2 = 0, VarType* vartype = nullptr, ParseFunction* func = nullptr);
+	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
+	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
 	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);
 	void ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn);
+	ParseNode* ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right);
 	ParseNode* ParseConstExpr();
 	void ParseArgs(vector<ParseNode*>& nodes, char open = '(', char close = ')');
-	ParseNode* ParseItem(int* type = nullptr);
+	ParseNode* ParseItem(VarType* vartype = nullptr, ParseFunction* func = nullptr);
 	ParseNode* ParseConstItem();
 
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);
-	VarType GetVarType(bool in_cpp = false);
+	VarType GetVarType(bool is_arg, bool in_cpp = false);
 	VarType GetVarTypeForMember();
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
 	BASIC_SYMBOL GetSymbol(bool full_over = false);
-	bool CanOp(SYMBOL symbol, ParseNode* lnode, ParseNode* rnode, VarType& cast, int& result, ParseNode*& over_result, SYMBOL real_symbol);
+	OpResult CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, ParseNode* rnode);
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
-	bool Cast(ParseNode*& node, VarType type, CastResult* cast_result = nullptr, bool implici = true, bool require_const = false);
-	bool TryCast(ParseNode*& node, VarType type, bool implici = true);
-	bool TryConstCast(ParseNode* node, int type);
-	CastResult MayCast(ParseNode* node, VarType type);
-	void ForceCast(ParseNode*& node, ParseNode* type, cstring op);
-	bool TryConstCast(ParseNode*& node, VarType type);
+	bool Cast(ParseNode*& node, VarType vartype, CastResult* cast_result = nullptr, bool implici = true, bool pass_by_ref = false, bool require_const = false);
+	bool TryCast(ParseNode*& node, VarType vartype, bool implici = true, bool pass_by_ref = false);
+	bool TryConstCast(ParseNode* node, VarType vartype);
+	CastResult MayCast(ParseNode* node, VarType vartype, bool pass_by_ref);
+	void ForceCast(ParseNode*& node, VarType vartype, cstring op);
+	bool CanTakeRef(ParseNode* node, bool allow_ref = true);
+	Op PushToSet(ParseNode* node);
 
 	void Optimize();
 	ParseNode* OptimizeTree(ParseNode* node);
@@ -105,11 +122,11 @@ private:
 	void ConvertToBytecode();
 	void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos);
 
-	int GetReturnType(ParseNode* node);
+	VarType GetReturnType(ParseNode* node);
 	cstring GetName(ParseVar* var);
-	cstring GetName(VarType type);
+	cstring GetName(VarType vartype);
 	cstring GetTypeName(ParseNode* node);
-	int CommonType(int a, int b);
+	VarType CommonType(VarType a, VarType b);
 	FOUND FindItem(const string& id, Found& found);
 	Enum* FindEnum(const string& id);
 	Function* FindFunction(const string& name);
@@ -118,12 +135,22 @@ private:
 	void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs);
 	AnyFunction FindEqualFunction(ParseFunction* pf);
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
+	AnyFunction FindFunction(Type* type, cstring name, delegate<bool(AnyFunction& f)> pred);
 	AnyFunction FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
 	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse);
-	void ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
+	AnyFunction ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
+	void CheckFunctionIsDeleted(CommonFunction& cf);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
 	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type
+
+	void AnalyzeCode();
+	void AnalyzeType(Type* type);
+	ParseFunction* AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name, int flags);
+	VarType AnalyzeVarType();
+	Type* AnalyzeAddType(const string& name);
+	void AnalyzeMakeType(VarType& vartype, const string& name);
+	void SetParseNodeFromMember(ParseNode* node, Member* m);
 
 	Tokenizer t;
 	Module* module;
@@ -139,6 +166,7 @@ private:
 	CoreVarType global_result;
 	bool optimize;
 	vector<ReturnStructVar*> rsvs;
+	uint prev_line;
 	vector<Enum*> enums;
 	Enum* active_enum;
 };

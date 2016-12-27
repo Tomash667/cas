@@ -109,6 +109,7 @@ int main(int argc, char** argv)
 	{
 		cout << "Missing input file. Use runner.exe -? for help.\n\n(OK)";
 		_getch();
+		Shutdown();
 		return 0;
 	}
 
@@ -138,22 +139,24 @@ int main(int argc, char** argv)
 			ifs.close();
 		}
 
-		bool result = module->ParseAndRun(content.c_str(), optimize, decompile);
+		IModule::ExecutionResult result = module->ParseAndRun(content.c_str(), optimize, decompile);
 		vector<string>& asserts = GetAsserts();
-		if(!result)
+		if(result != IModule::Ok)
 		{
+			if(result == IModule::Exception)
+				cout << "\n\nException: " << module->GetException();
 			cout << "\n\n(OK)";
 			_getch();
 		}
 		else if(!asserts.empty())
 		{
-			cout << Format("\n\nAsserts failed (%u). ", asserts.size());
+			cout << Format("\n\nAsserts failed (%u):\n", asserts.size());
 			for(string& s : asserts)
 			{
 				cout << s;
-				cout << " ";
+				cout << "\n";
 			}
-			cout << "\n\n(ok)";
+			cout << "\n(ok)";
 			_getch();
 		}
 		asserts.clear();

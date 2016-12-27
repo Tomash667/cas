@@ -1,0 +1,49 @@
+// forward usage of function
+f();
+void f()
+{
+	println("f");
+}
+f2();
+void f2(int a=3)
+{
+	println("f2" + a);
+}
+
+// forward usage of type
+X x;
+x.a = 3;
+x.b = 5;
+x.f(2);
+class X
+{
+	int a, b;
+	void f(int _x) { println(a+b+_x); }
+}
+
+// forward usage of class func, type
+Y y;
+Y y2 = Y(1);
+class Y
+{
+	Y()
+	{
+		a = 3;
+		yf();
+		b = 4;
+	}
+	
+	Y(int _a, int _b = 3)
+	{
+		a = _a;
+		b = _b;
+		yf();
+	}
+	
+	int a, b;
+	
+	void yf()
+	{
+		println("Y::f" + a + b);
+	}
+}

@@ -1,0 +1,55 @@
+// operator =
+string aa = "test";
+aa = "test2";
+
+// operator ==
+Assert_IsFalse("abc" == "aaa");
+Assert_IsTrue("abc" != "aaa");
+
+// operator !=
+Assert_IsTrue("abc" == "abc");
+Assert_IsFalse("abc" != "abc");
+
+// operator +
+Assert_AreEqual("test234", aa + "34");
+Assert_AreEqual("test2a", aa + 'a');
+
+// operator +=
+aa += "11";
+aa += '2';
+Assert_AreEqual("test2112", aa);
+
+//=====================================================
+string global_str = "global";
+
+// should copy value not assign reference
+string b1 = "b1", b2 = "b2";
+b1 = b2;
+b2 = "b2new";
+Assert_AreEqual("b2", b1);
+Assert_AreEqual("b2new", b2);
+
+// modify argument should not modify passed string
+string f(string a)
+{
+	a = "local";
+	return a;
+}
+string a2 = f(global_str);
+Assert_AreEqual("global", global_str);
+Assert_AreEqual("local", a2);
+
+// modifing return value should not modify base string
+string f2() { return global_str; }
+string s = f2() += "_mod"; // modifing temporary object value
+Assert_AreEqual("global", global_str);
+Assert_AreEqual("global_mod", s);
+
+void mod_string_index_test()
+{
+	string s1 = "test";
+	string s2 = s1;
+	s1[2] = 'x';
+	Assert_AreEqual("test", s2);
+	Assert_AreEqual("text", s1);
+}();

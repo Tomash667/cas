@@ -1,3 +1,94 @@
+1. Cas syntax
+
+Builtin types:
+void
+bool
+char
+int
+float
+string
+
+
+Variable declaration:
+<var type> <var name> [= default value] [,...] ;
+int a, b = 3;
+
+Function declaration:
+<return type> <function name>(<argument type> <argument_name> [= default value] [,...] )
+{
+	<function body>
+}
+int function(int a, int b = 3) { return a + b*2; }
+
+Class/struct declaration:
+class <class name>
+{
+	<functions/members ...>
+}
+class TestX
+{
+	void f() {}
+	int a, b;
+}
+
+If/else:
+if(<condition>) <line or block> [else <line or block>]
+if(x == 3) do_smth(); else { x = 3; do_smth_else(); }
+
+Do/while:
+do <line or block> while (<condition>)
+while(<condition>) <line or block>
+do x++; while(x < 10)
+while(x < 10) ++x;
+
+For:
+for( [var declarations / expr] ; [expr] ; [expr] ) <line or block>
+for(int i=0; i<10; ++i) println(i);
+
+Switch:
+switch(<expr>) { 
+	case <const expr>: [line or block ...]
+	default: [line or block ...]
+}
+switch(x)
+{
+case 1:
+	y = 3;
+	break;
+case 2:
+case 3:
+	y = 7
+	break;
+default:
+	y = -1;
+	break;
+}
+
+Break: escape from loop (do/while/for) or switch
+break ;
+
+Return: return from function or global block, can return value.
+return [expr] ;
+
+Operators:
+
+Default value:
+Default value for types:
+	bool - false
+	char - 0
+	int - 0
+	float - 0
+
+
+
+2. C++ integration
+
+Register constructor
+Constructor for struct must return by value, constructor for class must return reference/pointer.
+
+References passed to code functions are unsafe to store. It's very unsafe to return by reference object that was passed by argument from script. Returned
+references are unsafe too.
+
 Register global function:
 void f();
 module->AddFunction("void f()", f);

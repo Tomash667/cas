@@ -93,6 +93,8 @@ bool cas::Initialize(Settings* settings)
 		return false;
 	}
 
+	InitDecompile(_settings);
+
 	initialized = true;
 	return true;
 }
@@ -158,13 +160,33 @@ Member* Type::FindMember(const string& name, int& index)
 	return nullptr;
 }
 
+Function* Type::FindCodeFunction(cstring name)
+{
+	for(Function* f : funcs)
+	{
+		if(f->name == name)
+			return f;
+	}
+	return nullptr;
+}
+
+Function* Type::FindSpecialCodeFunction(SpecialFunction special)
+{
+	for(Function* f : funcs)
+	{
+		if(f->special == special)
+			return f;
+	}
+	return nullptr;
+}
+
 bool CommonFunction::Equal(CommonFunction& f) const
 {
 	if(f.arg_infos.size() != arg_infos.size())
 		return false;
 	for(uint i = 0, count = arg_infos.size(); i < count; ++i)
 	{
-		if(arg_infos[i].type != f.arg_infos[i].type)
+		if(arg_infos[i].vartype != f.arg_infos[i].vartype)
 			return false;
 	}
 	return true;

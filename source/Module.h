@@ -5,6 +5,21 @@
 
 class Parser;
 
+class ScriptType : public IType
+{
+public:
+	inline ScriptType(Module* module, Type* type, bool _is_struct) : module(module), type(type)
+	{
+		is_struct = _is_struct;
+	}
+
+	bool AddMember(cstring decl, int offset) override;
+	bool AddMethod(cstring decl, const FunctionInfo& func_info) override;
+
+	Module* module;
+	Type* type;
+};
+
 class Module : public IModule
 {
 public:
@@ -14,31 +29,34 @@ public:
 
 	// from IModule
 	bool AddFunction(cstring decl, const FunctionInfo& func_info) override;
-	bool AddMethod(cstring type_name, cstring decl, const FunctionInfo& func_info) override;
-	bool AddType(cstring type_name, int size, int flags) override;
-	bool AddMember(cstring type_name, cstring decl, int offset) override;
+	IType* AddType(cstring type_name, int size, int flags) override;
 	ReturnValue GetReturnValue() override;
-	bool ParseAndRun(cstring input, bool optimize = true, bool decompile = false) override;
-	bool Verify() override;
+	cstring GetException() override;
+	ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) override;
 
-	template<typename T>
+	/*template<typename T>
 	inline bool AddType(cstring type_name)
 	{
 		return IModule::AddType<T>(type_name);
-	}
+	}*/
 
-	void AddCoreType(cstring type_name, int size, CoreVarType var_type, bool is_ref, bool hidden = false);
+	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
+	bool AddMember(Type* type, cstring decl, int offset);
+	bool AddMethod(Type* type, cstring decl, const FunctionInfo& func_info);
 	Function* FindEqualFunction(Function& fc);
 	Type* FindType(cstring type_name);
 	void AddParentModule(Module* parent_module);
+	bool BuildModule();
 
 	std::map<int, Module*> modules;
 	vector<Function*> functions;
 	vector<Type*> types;
+	vector<ScriptType*> script_types;
 	ReturnValue return_value;
 	Parser* parser;
+	string exc;
 	int index, refs;
-	bool inherited, released;
+	bool inherited, released, built;
 	static vector<Module*> all_modules;
 	static bool all_modules_shutdown;
 };

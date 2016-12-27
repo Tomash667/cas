@@ -27,13 +27,15 @@ enum KEYWORD
 	K_CASE,
 	K_DEFAULT,
 	K_IMPLICIT,
+	K_DELETE,
 	K_ENUM
 };
 
 enum CONST
 {
 	C_TRUE,
-	C_FALSE
+	C_FALSE,
+	C_THIS
 };
 
 enum FOUND
@@ -78,13 +80,6 @@ enum PseudoOpValue
 	DO_WHILE_NORMAL = 0,
 	DO_WHILE_ONCE = 1,
 	DO_WHILE_INF = 2
-};
-
-enum RefType
-{
-	REF_NO,
-	REF_MAY,
-	REF_YES
 };
 
 enum SYMBOL
@@ -132,6 +127,8 @@ enum SYMBOL
 	S_SUBSCRIPT,
 	S_CALL,
 	S_TERNARY,
+	S_SET_REF,
+	S_SET_LONG_REF,
 	S_INVALID,
 	S_MAX
 };
@@ -196,13 +193,9 @@ enum BASIC_SYMBOL
 	BS_SUBSCRIPT, // [
 	BS_CALL, // (
 	BS_TERNARY, // ?
+	BS_SET_REF, // ->
+	BS_SET_LONG_REF, // -->
 	BS_MAX
-};
-
-struct VarSource
-{
-	int index;
-	bool mod;
 };
 
 struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
@@ -216,13 +209,16 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 	};
 
 	string name;
-	VarType type;
+	VarType vartype;
 	Type subtype;
+	int local_index;
+	bool referenced;
 };
 
 struct ReturnStructVar : VarSource
 {
 	ParseNode* node;
+	bool code_result;
 };
 
 struct ParseNode : ObjectPoolProxy<ParseNode>
@@ -240,24 +236,24 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		float fvalue;
 		string* str;
 	};
-	VarType type;
+	VarType result;
 	union
 	{
 		ParseNode* linked;
 		Enum* enu;
 	};
 	vector<ParseNode*> childs;
-	RefType ref;
 	VarSource* source;
+	bool owned;
 
 	inline ParseNode* copy()
 	{
 		ParseNode* p = Get();
 		p->op = op;
 		p->value = value;
-		p->type = type;
-		p->ref = ref;
+		p->result = result;
 		p->source = source;
+		p->owned = owned;
 		if(!childs.empty())
 		{
 			p->childs.reserve(childs.size());
@@ -267,7 +263,14 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		return p;
 	}
 
-	inline void OnFree() { SafeFree(childs); }
+	inline void OnGet() { owned = true; }
+	inline void OnFree()
+	{
+		if(owned)
+			SafeFree(childs);
+		else
+			childs.clear();
+	}
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void push(vector<ParseNode*>& ps)
@@ -294,12 +297,6 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		node->op = op;
 		node->value = value;
 		push(node);
-	}
-	inline VarType GetVarType()
-	{
-		if(ref != REF_YES)
-
-		return VarType(type, ref == REF_YES ? SV_REF : SV_NORMAL);
 	}
 };
 
@@ -563,4 +560,24 @@ struct CastResult
 	{
 		return type != NOT_REQUIRED || ref_type != NO;
 	}
+};
+
+struct OpResult
+{
+	enum Result
+	{
+		NO,
+		YES,
+		CAST,
+		OVERLOAD,
+		FALLBACK
+	};
+
+	CastResult cast_result;
+	VarType cast_var;
+	VarType result_var;
+	ParseNode* over_result;
+	Result result;
+
+	OpResult() : cast_var(V_VOID), result_var(V_VOID), over_result(nullptr), result(NO) {}
 };

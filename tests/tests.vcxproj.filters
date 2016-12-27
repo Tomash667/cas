@@ -151,6 +151,21 @@
     <Text Include="..\cases\overload_cast.txt">
       <Filter>Cases</Filter>
     </Text>
+    <Text Include="..\cases\ref2.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\assign2.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\forward.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\long_ref_assign.txt">
+      <Filter>Cases</Filter>
+    </Text>
+    <Text Include="..\cases\string2.txt">
+      <Filter>Cases</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint">
