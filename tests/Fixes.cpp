@@ -94,8 +94,74 @@ TEST_METHOD(ReturnReferenceToPassedStruct)
 		INT2 a = INT2(1,2);
 		INT2& b = a;
 		INT2& r = b += INT2(3,4);
-		Assert_IsTrue(b is r);
+		INT2& s = r += INT2(5,6);
+		Assert_IsTrue(b is r && r is s);
 		Assert_IsTrue(a == b && b == r);
+	)code");
+}
+
+static int& return_ref_to_passed_ref(int& a)
+{
+	return a;
+}
+TEST_METHOD(ReturnReferenceToPassedSimpleRef)
+{
+	module->AddFunction("int& f(int& a)", return_ref_to_passed_ref);
+	RunTest(R"code(
+		int a = 3;
+		int& b = a;
+		int& r = f(b);
+		r += 2;
+		int& s = f(r);
+		s += 3;
+		Assert_IsTrue(b is r && r is s);
+		Assert_IsTrue(a == b && b == r);
+		Assert_AreEqual(8, a);
+	)code");
+}
+
+static string& return_ref_to_passed_str(string& s)
+{
+	s += "34";
+	return s;
+}
+TEST_METHOD(ReturnReferenceToPassedString)
+{
+	module->AddFunction("string& f(string& s)", return_ref_to_passed_str);
+	RunTest(R"code(
+		string a = "12";
+		string& b = a;
+		string& r = f(b);
+		r += "56";
+		string& s = f(r);
+		s += "78";
+		Assert_IsTrue(b is r && r is s);
+		Assert_IsTrue(a == b && b == r);
+		Assert_AreEqual("1234563478", a);
+	)code");
+}
+
+class A
+{
+public:
+	int x;
+};
+static A& ret_passed_class(A& a)
+{
+	a.x += 1;
+	return a;
+}
+TEST_METHOD(VerifyClassReturnIsSameAsPassed)
+{
+	auto type = module->AddType<A>("A");
+	type->AddMember("int x", offsetof(A, x));
+	module->AddFunction("A& f(A& a)", ret_passed_class);
+	RunTest(R"code(
+		A a;
+		a.x = 1;
+		A b = f(a);
+		Assert_IsTrue(a is b);
+		Assert_AreEqual(2, b.x);
 	)code");
 }
 

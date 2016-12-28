@@ -2,8 +2,6 @@ FIX:
 - Forward (stupid error message)
 	Invalid default value of type 'int', required 'int'.
 
-Output:
-
 
 
 TESTS:
@@ -23,10 +21,6 @@ ENUM TODO:
 
 ? verify if ParseExpr type is longer used
 ? parse class func checks FindEqualFunction without type
-+ ret_by_ref
-	+ simple
-	+ string
-	+ class ?
 
 + ParseFunctionArgs -> ParseConstExpr
 + subscript
@@ -46,6 +40,8 @@ ENUM TODO:
 + ++-- returns reference
 + better line markers, option in settings
 + Assert_AreEqual(T,T)
++ return reference to passed class/struct/string member/index
++ type_index - bit for class/struct
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 ? verify if ParseExpr type is longer used
@@ -173,6 +169,7 @@ vector functions:
 	+ exclude functions without side effects or empty and don't call them
 	+ first/second pass do same thing twice for parsing func args
 	+ get rid of many GetType...
+	+ operator += cause [push_global 0, push_global 0] instead of [push_global 0, push]
 + && || short circuiting
 + remove duplicates in string table
 + shorter class initialization: A b(3,4) ?
