@@ -157,7 +157,11 @@ TEST_METHOD(VerifyClassReturnIsSameAsPassed)
 	type->AddMember("int x", offsetof(A, x));
 	module->AddFunction("A& f(A& a)", ret_passed_class);
 	RunTest(R"code(
-		A a;		a.x = 1;		A b = f(a);		Assert_IsTrue(a is b);		Assert_AreEqual(2, b.x);
+		A a;
+		a.x = 1;
+		A b = f(a);
+		Assert_IsTrue(a is b);
+		Assert_AreEqual(2, b.x);
 	)code");
 }
 
