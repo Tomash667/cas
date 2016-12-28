@@ -61,11 +61,18 @@ void ReleaseRef(Var& v)
 
 struct GetRefData
 {
-	int* data;
+	int* data, *real_data;
 	VarType vartype;
-	bool is_code;
+	bool is_code, ref_to_class;
 
-	inline GetRefData(int* data, VarType vartype, bool is_code = false) : data(data), vartype(vartype), is_code(is_code) {}
+	inline GetRefData(int* data, VarType vartype, bool is_code = false, bool ref_to_class = false) : data(data), vartype(vartype), is_code(is_code),
+		ref_to_class(ref_to_class)
+	{
+		if(vartype.type == V_STRING && !is_code)
+			real_data = (int*)*(Str**)data; // dereference Str** to Str*
+		else
+			real_data = data;
+	}
 
 	template<typename T>
 	inline T& as()
@@ -108,7 +115,7 @@ GetRefData GetRef(Var& v)
 			return GetRefData((int*)&s->s[v.ref->index], V_CHAR);
 		}
 	case RefVar::CODE:
-		return GetRefData(v.ref->adr, VarType(v.vartype.subtype, 0), true);
+		return GetRefData(v.ref->adr, VarType(v.vartype.subtype, 0), true, v.ref->ref_to_class);
 	default:
 		assert(0);
 		return GetRefData(nullptr, 0);
@@ -209,7 +216,13 @@ void ExecuteFunction(Function& f)
 						assert(!code_fake_val);
 						assert(IsSimple(v.vartype.subtype));
 					}
-					value = (int)refdata.data;
+					if(refdata.ref_to_class && refdata.vartype.type == V_STRING)
+					{
+						Str* s = (Str*)refdata.data;
+						value = (int)&s->s;
+					}
+					else
+						value = (int)refdata.data;
 				}
 				break;
 			default:
@@ -313,18 +326,34 @@ void ExecuteFunction(Function& f)
 	};
 	
 	// update stack
-	Class* passed_result = nullptr;
+	void* passed_result = nullptr;
 	for(int i = f.arg_infos.size() - 1; i >= 0; --i)
 	{
 		Var& v = stack.back();
-		// handle return reference is to passed argument
-		if(!passed_result && f.result.type == V_REF && f.arg_infos[i].pass_by_ref && f.result.subtype == f.arg_infos[i].vartype.type)
+		ArgInfo& arg = f.arg_infos[i];
+		// handle return reference is passed argument
+		if(!passed_result && arg.pass_by_ref
+			&& ((f.result.type == V_REF && f.result.subtype == arg.vartype.type) || (f.result == arg.vartype && result_type->IsRefClass())))
 		{
-			assert(run_module->GetType(f.result.subtype)->IsStruct());
-			if((int*)result.low == v.clas->adr)
+			if(f.result.subtype == V_STRING)
 			{
-				passed_result = v.clas;
-				passed_result->refs++;
+				if((string*)result.low == &v.str->s)
+				{
+					v.str->refs++;
+					passed_result = v.str;
+				}
+			}
+			else
+			{
+				if(f.result.type == V_REF)
+					assert(run_module->GetType(f.result.subtype)->IsStruct());
+				else
+					assert(run_module->GetType(f.result.type)->IsRefClass());
+				if((int*)result.low == v.clas->adr)
+				{
+					v.clas->refs++;
+					passed_result = v.clas;
+				}
 			}
 		}
 		ReleaseRef(v);
@@ -355,7 +384,10 @@ void ExecuteFunction(Function& f)
 		{
 			RefVar* ref = new RefVar(RefVar::CODE, 0);
 			if(passed_result)
+			{
 				ref->adr = (int*)passed_result;
+				ref->ref_to_class = true;
+			}
 			else
 			{
 				ref->adr = (int*)result.low;
@@ -374,7 +406,9 @@ void ExecuteFunction(Function& f)
 		{
 			assert(result_type->IsClass());
 			Class* c;
-			if(ret_by_ref)
+			if(passed_result)
+				c = (Class*)passed_result;
+			else if(ret_by_ref)
 				c = Class::CreateCode(result_type, (int*)result.low);
 			else
 			{
@@ -935,27 +969,36 @@ void RunInternal(ReturnValue& retval)
 				else if(op == DEREF)
 				{
 					auto data = GetRef(v);
-					ReleaseRef(v);
+					int value;
 					if(data.is_code)
 					{
 						if(data.vartype.type == V_STRING)
-							v.str = CreateStr(((string*)data.data)->c_str());
+						{
+							if(data.ref_to_class)
+								value = (int)(Str*)data.data;
+							else
+								value = (int)CreateStr(((string*)data.data)->c_str());
+						}
 						else
 						{
 							Type* type = run_module->GetType(data.vartype.type);
 							if(type->IsStruct())
-								v.clas = (Class*)data.data;
+								value = (int)(Class*)data.data;
 							else
 							{
 								assert(type->IsSimple());
-								v.value = *data.data;
+								value = *data.data;
 							}
 						}
 					}
 					else
-						v.value = *data.data;
-					v.vartype = data.vartype;
-					AddRef(v);
+						value = *data.data;
+					Var nv;
+					nv.value = value;
+					nv.vartype = data.vartype;
+					AddRef(nv);
+					ReleaseRef(v);
+					v = nv;
 				}
 				else
 				{
@@ -1211,7 +1254,7 @@ void RunInternal(ReturnValue& retval)
 						{
 							GetRefData refl = GetRef(left);
 							GetRefData refr = GetRef(right);
-							result = (refl.data == refr.data);
+							result = (refl.real_data == refr.real_data);
 						}
 						else
 							result = (left.clas == right.clas);
@@ -1224,14 +1267,21 @@ void RunInternal(ReturnValue& retval)
 				case SET_ADR:
 					{
 						GetRefData ref = GetRef(left);
-						ReleaseRef(left);
 						assert(ref.vartype.type == right.vartype.type);
 						if(ref.is_code)
 						{
 							if(ref.vartype.type == V_STRING)
 							{
-								string& s = *(string*)ref.data;
-								s = right.str->s;
+								if(ref.ref_to_class)
+								{
+									Str* s = (Str*)ref.data;
+									s->s = right.str->s;
+								}
+								else
+								{
+									string& s = *(string*)ref.data;
+									s = right.str->s;
+								}
 							}
 							else
 							{
@@ -1261,6 +1311,7 @@ void RunInternal(ReturnValue& retval)
 								size = type->size;
 							memcpy(ref.data, &right.value, size);
 						}
+						ReleaseRef(left);
 						stack.pop_back();
 						stack.push_back(right);
 					}

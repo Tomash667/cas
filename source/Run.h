@@ -136,11 +136,11 @@ struct RefVar
 		Str* str;
 		int* adr;
 	};
-	bool is_valid, to_release;
+	bool is_valid, to_release, ref_to_class;
 
 	// hopefuly noone will use function with 999 args
 	inline RefVar(Type type, uint index, int var_index = -999, uint depth = 0) : type(type), refs(START_REF_COUNT), index(index), var_index(var_index),
-		depth(depth), is_valid(true), to_release(false)
+		depth(depth), is_valid(true), to_release(false), ref_to_class(false)
 	{
 #ifdef CHECK_LEAKS
 		all_refs.push_back(this);
@@ -149,7 +149,7 @@ struct RefVar
 
 	inline ~RefVar()
 	{
-		if(type == MEMBER)
+		if(type == MEMBER || ref_to_class)
 			clas->Release();
 		else if(type == INDEX)
 			str->Release();
