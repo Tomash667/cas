@@ -150,6 +150,7 @@
     <Text Include="..\cases\ternary.txt" />
     <Text Include="..\cases\type_func.txt" />
     <Text Include="..\cases\user_func.txt" />
+    <Text Include="..\cases\vardecl_assign.txt" />
     <Text Include="..\cases\while.txt" />
   </ItemGroup>
   <ItemGroup>

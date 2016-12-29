@@ -76,6 +76,32 @@ static int f_int_abs(int a)
 	return abs(a);
 }
 
+static int f_int_parse(string& s)
+{
+	int i;
+	if(!TextHelper::ToInt(s.c_str(), i))
+		throw CasException(Format("Invalid int format '%s'.", s.c_str()));
+	return i;
+}
+
+static bool f_int_try_parse(string& s, int& i)
+{
+	return TextHelper::ToInt(s.c_str(), i);
+}
+
+static float f_float_parse(string& s)
+{
+	float f;
+	if(!TextHelper::ToFloat(s.c_str(), f))
+		throw CasException(Format("Invalid float format '%s'.", s.c_str()));
+	return f;
+}
+
+static bool f_float_try_parse(string& s, float& f)
+{
+	return TextHelper::ToFloat(s.c_str(), f);
+}
+
 static float f_float_abs(float a)
 {
 	return abs(a);
@@ -86,6 +112,35 @@ static char f_getchar()
 	char val;
 	(*s_input) >> val;
 	return val;
+}
+
+static bool f_bool_parse(string& s)
+{
+	bool b;
+	if(!TextHelper::ToBool(s.c_str(), b))
+		throw CasException(Format("Invalid bool format '%s'.", s.c_str()));
+	return b;
+}
+
+static bool f_bool_try_parse(string& s, bool& b)
+{
+	return TextHelper::ToBool(s.c_str(), b);
+}
+
+static bool f_char_try_parse(string& s, char& c)
+{
+	if(s.length() != 1u)
+		return false;
+	c = s[0];
+	return true;
+}
+
+static char f_char_parse(string& s)
+{
+	char c;
+	if(!f_char_try_parse(s, c))
+		throw CasException(Format("Invalid char format '%s'.", s.c_str()));
+	return c;
 }
 
 static void InitCoreLib(Module& module, Settings& settings)
@@ -112,12 +167,16 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod(_bool, "implicit float operator cast()", nullptr);
 	module.AddMethod(_bool, "implicit string operator cast()", nullptr);
 	module.AddMethod(_bool, "bool operator = (bool b)", nullptr);
+	module.AddMethod(_bool, "static bool Parse(string& s)", f_bool_parse);
+	module.AddMethod(_bool, "static bool TryParse(string& s, bool& b)", f_bool_try_parse);
 	// char methods
 	module.AddMethod(_char, "implicit bool operator cast()", nullptr);
 	module.AddMethod(_char, "implicit int operator cast()", nullptr);
 	module.AddMethod(_char, "implicit float operator cast()", nullptr);
 	module.AddMethod(_char, "implicit string operator cast()", nullptr);
 	module.AddMethod(_char, "char operator = (char c)", nullptr);
+	module.AddMethod(_char, "static char Parse(string& s)", f_char_parse);
+	module.AddMethod(_char, "static bool TryParse(string& s, char& c)", f_char_try_parse);
 	// int methods
 	module.AddMethod(_int, "implicit bool operator cast()", nullptr);
 	module.AddMethod(_int, "implicit char operator cast()", nullptr);
@@ -125,6 +184,8 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod(_int, "implicit string operator cast()", nullptr);
 	module.AddMethod(_int, "int operator = (int i)", nullptr);
 	module.AddMethod(_int, "int abs()", f_int_abs);
+	module.AddMethod(_int, "static int Parse(string& s)", f_int_parse);
+	module.AddMethod(_int, "static bool TryParse(string& s, int& i)", f_int_try_parse);
 	// float methods
 	module.AddMethod(_float, "implicit bool operator cast()", nullptr);
 	module.AddMethod(_float, "implicit char operator cast()", nullptr);
@@ -132,6 +193,8 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod(_float, "implicit string operator cast()", nullptr);
 	module.AddMethod(_float, "float operator = (float f)", nullptr);
 	module.AddMethod(_float, "float abs()", f_float_abs);
+	module.AddMethod(_float, "static float Parse(string& s)", f_float_parse);
+	module.AddMethod(_float, "static bool TryParse(string& s, float& f)", f_float_try_parse);
 	// string methods
 	module.AddMethod(_string, "string operator = (string& s)", nullptr);
 	module.AddMethod(_string, "int length()", f_string_length);

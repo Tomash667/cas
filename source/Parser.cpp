@@ -155,7 +155,8 @@ void Parser::AddKeywords()
 		{ "case", K_CASE },
 		{ "default", K_DEFAULT },
 		{ "implicit", K_IMPLICIT },
-		{ "delete", K_DELETE }
+		{ "delete", K_DELETE },
+		{ "static", K_STATIC }
 	}, "keywords");
 
 	// const
@@ -534,6 +535,7 @@ ParseNode* Parser::ParseLine()
 			return ParseSwitch();
 		case K_IMPLICIT:
 		case K_DELETE:
+		case K_STATIC:
 			return ParseFunc();
 		default:
 			t.Unexpected();
@@ -1012,23 +1014,52 @@ ParseNode* Parser::ParseFunc()
 		return nullptr;
 }
 
-void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
+void Parser::ParseFuncModifiers(bool have_type, int& flags)
 {
 	while(true)
 	{
-		if(t.IsKeyword(K_IMPLICIT, G_KEYWORD))
+		if(t.IsKeywordGroup(G_KEYWORD))
 		{
-			f->flags |= CommonFunction::F_IMPLICIT;
-			t.Next();
-		}
-		else if(t.IsKeyword(K_DELETE, G_KEYWORD))
-		{
-			f->flags |= CommonFunction::F_DELETE;
-			t.Next();
+			int id = t.GetKeywordId(G_KEYWORD);
+			bool ok = true;
+			switch(id)
+			{
+			case K_IMPLICIT:
+				if(!have_type)
+					t.Throw("Implicit can only be used for methods.");
+				if(IS_SET(flags, CommonFunction::F_IMPLICIT))
+					t.Throw("Implicit already declared for this method.");
+				flags |= CommonFunction::F_IMPLICIT;
+				break;
+			case K_DELETE:
+				if(IS_SET(flags, CommonFunction::F_DELETE))
+					t.Throw("Delete already declared for this %s.", have_type ? "method" : "function");
+				flags |= CommonFunction::F_DELETE;
+				break;
+			case K_STATIC:
+				if(!have_type)
+					t.Throw("Static can only be used for methods.");
+				if(IS_SET(flags, CommonFunction::F_STATIC))
+					t.Throw("Static already declared for this method.");
+				flags |= CommonFunction::F_STATIC;
+				break;
+			default:
+				ok = false;
+				break;
+			}
+			if(ok)
+				t.Next();
+			else
+				break;
 		}
 		else
 			break;
 	}
+}
+
+void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
+{
+	ParseFuncModifiers(type != nullptr, f->flags);
 
 	BASIC_SYMBOL symbol = BS_MAX;
 	f->result = GetVarType(false, in_cpp);
@@ -1111,7 +1142,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 
 	ParseFunctionArgs(f, in_cpp);
 
-	if(type && (f->special != SF_CTOR || !in_cpp))
+	if(type && (f->special != SF_CTOR || !in_cpp) && !IS_SET(f->flags, CommonFunction::F_STATIC))
 	{
 		// pass this for member functions (not for code ctor)
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
@@ -1793,8 +1824,18 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			{
 				vector<AnyFunction> funcs;
 				FindAllFunctionOverloads(type, *right->str, funcs);
+				if(type->index == V_TYPE)
+					FindAllStaticFunctionOverloads(GetType(left->value), *right->str, funcs);
 				if(funcs.empty())
-					t.Throw("Missing method '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+				{
+					cstring err;
+					if(type->index == V_TYPE)
+						err = Format("Missing static method '%s' for type '%s'.", right->str->c_str(), GetType(left->value)->name.c_str());
+					else
+						err = Format("Missing method '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+					StringPool.Free(right->str);
+					t.Throw(err);
+				}
 				StringPool.Free(right->str);
 
 				NodeRef node = ParseNode::Get();
@@ -1813,7 +1854,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 					node->push(n);
 				right->childs.clear();
 
-				ApplyFunctionCall(node, funcs, type, false);
+				ApplyFunctionCall(node, funcs, type, false, true);
 
 				right.Pin()->Free();
 				stack.push_back(node.Pin());
@@ -2229,7 +2270,7 @@ ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
 					break;
 				case ParseVar::ARG:
 					node->op = PUSH_ARG;
-					if(current_type)
+					if(current_type && !IS_SET(current_function->flags, CommonFunction::F_STATIC))
 						node->value++;
 					break;
 				}
@@ -4202,7 +4243,7 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 			s += GetType(cf->type)->name;
 			s += '.';
 		}
-		if(!IS_SET(cf->flags, CommonFunction::F_CODE))
+		if(!IS_SET(cf->flags, CommonFunction::F_CODE | CommonFunction::F_STATIC))
 			++var_offset;
 	}
 	if(!symbol)
@@ -4435,6 +4476,21 @@ void Parser::FindAllFunctionOverloads(Type* type, const string& name, vector<Any
 	}
 }
 
+void Parser::FindAllStaticFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs)
+{
+	for(Function* f : type->funcs)
+	{
+		if(f->name == name && IS_SET(f->flags, CommonFunction::F_STATIC))
+			funcs.push_back(f);
+	}
+
+	for(ParseFunction* pf : type->ufuncs)
+	{
+		if(pf->name == name && IS_SET(pf->flags, CommonFunction::F_STATIC))
+			funcs.push_back(pf);
+	}
+}
+
 void Parser::FindAllCtors(Type* type, vector<AnyFunction>& funcs)
 {
 	for(Function* f : type->funcs)
@@ -4557,20 +4613,24 @@ AnyFunction Parser::FindEqualFunction(Type* type, AnyFunction _f)
 }
 
 // 0 - don't match, 1 - require cast, 2 - require deref/take address, 3 - match
-int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse)
+int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse, bool obj_call)
 {
-	uint offset = 0;
-	if((current_type && f.type == current_type->index) || (f.special == SF_CTOR && is_parse))
+	bool is_static = IS_SET(f.flags, CommonFunction::F_STATIC);
+	uint offset = 0, node_offset = 0;
+	if((current_type && f.type == current_type->index && !is_static) // this call
+		|| (f.special == SF_CTOR && is_parse)) // ctor
 		++offset;
+	else if(is_static && obj_call) // static call on type
+		++node_offset;
 
-	if(node->childs.size() + offset > f.arg_infos.size() || node->childs.size() + offset < f.required_args)
+	if(node->childs.size() + offset - node_offset > f.arg_infos.size() || node->childs.size() + offset < f.required_args)
 		return 0;
 
 	bool require_cast = false;
 	bool require_ref = false;
-	for(uint i = 0; i < node->childs.size(); ++i)
+	for(uint i = node_offset; i < node->childs.size(); ++i)
 	{
-		ArgInfo& a = f.arg_infos[i + offset];
+		ArgInfo& a = f.arg_infos[i + offset - node_offset];
 		CastResult c = MayCast(node->childs[i], a.vartype, a.pass_by_ref);
 		if(c.CantCast())
 			return 0;
@@ -4592,7 +4652,7 @@ int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse)
 }
 
 // return function if it's builtin
-AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor)
+AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor, bool obj_call)
 {
 	assert(!funcs.empty());
 
@@ -4601,7 +4661,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 
 	for(AnyFunction& f : funcs)
 	{
-		int m = MatchFunctionCall(node, *f.f, f.is_parse);
+		int m = MatchFunctionCall(node, *f.f, f.is_parse, obj_call);
 		if(m == match_level)
 			match.push_back(f);
 		else if(m > match_level)
@@ -4621,7 +4681,14 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		else
 			s = "No matching call to ";
 		if(type)
-			s += Format("method '%s.", type->name.c_str());
+		{
+			cstring type_name;
+			if(type->index == V_TYPE && node->childs.front()->pseudo_op == PUSH_TYPE)
+				type_name = GetType(node->childs.front()->value)->name.c_str();
+			else
+				type_name = type->name.c_str();
+			s += Format("method '%s.", type_name);
+		}
 		else
 			s += "function '";
 		cstring first = match.front().f->name.c_str();
@@ -4679,7 +4746,28 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			return f;
 		bool callu_ctor = false;
 
-		if(current_type && cf.type == current_type->index)
+		// remove push type from static method call or add pop
+		if(IS_SET(cf.flags, CommonFunction::F_STATIC) && obj_call)
+		{
+			if(!HasSideEffects(node->childs.front()))
+			{
+				node->childs.front()->Free();
+				node->childs.erase(node->childs.begin());
+			}
+			else
+			{
+				ParseNode* pop = ParseNode::Get();
+				pop->op = POP;
+				node->childs.insert(node->childs.begin() + 1, pop);
+			}
+		}
+
+		if(cf.special == SF_CTOR && f.is_parse)
+		{
+			// user constructor call
+			callu_ctor = true;
+		}
+		else if(current_type && cf.type == current_type->index && !IS_SET(cf.flags, CommonFunction::F_STATIC))
 		{
 			// push this
 			ParseNode* thi = ParseNode::Get();
@@ -4688,11 +4776,6 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			thi->value = 0;
 			thi->source = nullptr;
 			node->childs.insert(node->childs.begin(), thi);
-		}
-		else if(cf.special == SF_CTOR && f.is_parse)
-		{
-			// user constructor call
-			callu_ctor = true;
 		}
 
 		// cast params
@@ -4817,8 +4900,12 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 int Parser::GetNextType()
 {
 	// member, method or ctor
-	if(t.IsKeyword(K_IMPLICIT, G_KEYWORD) || t.IsKeyword(K_DELETE, G_KEYWORD))
-		return 2; // func
+	if(t.IsKeywordGroup(G_KEYWORD))
+	{
+		int id = t.GetKeywordId(G_KEYWORD);
+		if(id == K_IMPLICIT || id == K_DELETE || id == K_STATIC)
+			return 2; // func
+	}
 	int type;
 	tokenizer::Pos pos = t.GetPos();
 	GetVarType(false);
@@ -4922,28 +5009,10 @@ void Parser::AnalyzeType(Type* type)
 	int result = V_SPECIAL;
 	int flags = 0;
 
-	while(true)
-	{
-		if(t.IsKeyword(K_IMPLICIT, G_KEYWORD))
-		{
-			if(!type)
-				t.Throw("Implicit can only be used for methods.");
-			if(IS_SET(flags, CommonFunction::F_IMPLICIT))
-				t.Throw("Implicit already declared for this function.");
-			flags |= CommonFunction::F_IMPLICIT;
-			t.Next();
-		}
-		else if(t.IsKeyword(K_DELETE, G_KEYWORD))
-		{
-			if(IS_SET(flags, CommonFunction::F_DELETE))
-				t.Throw("Delete already declared for this function.");
-			flags |= CommonFunction::F_DELETE;
-			t.Next();
-		}
-		else
-			break;
-	}
+	// function modifiers
+	ParseFuncModifiers(type != nullptr, flags);
 
+	// return type
 	if(t.IsKeywordGroup(G_VAR))
 		result = t.GetKeywordId(G_VAR);
 	else if(t.IsItem())
@@ -4963,6 +5032,8 @@ void Parser::AnalyzeType(Type* type)
 			t.Next();
 			return;
 		}
+		if(IS_SET(flags, CommonFunction::F_STATIC))
+			t.Throw("Static constructor not allowed.");
 		AnalyzeArgs(VarType(result, 0), SF_CTOR, type, type->name.c_str(), flags);
 	}
 	else
@@ -4981,6 +5052,8 @@ void Parser::AnalyzeType(Type* type)
 		{
 			if(!type)
 				t.Throw("Operator function can be used only inside class.");
+			if(IS_SET(flags, CommonFunction::F_STATIC))
+				t.Throw("Static operator not allowed.");
 			t.Next();
 			if(t.IsItem())
 			{
@@ -5083,7 +5156,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 	func->index = ufuncs.size();
 	func->required_args = 0;
 	func->special = special;
-	if(type)
+	if(type && !IS_SET(flags, CommonFunction::F_STATIC))
 	{
 		func->arg_infos.push_back(ArgInfo(VarType(type->index, 0), 0, false));
 		func->required_args++;
@@ -5483,4 +5556,38 @@ void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
 		}
 	}
 	node->result = m->vartype;
+}
+
+bool Parser::HasSideEffects(ParseNode* node)
+{
+	switch(node->op)
+	{
+	case PUSH:
+	case PUSH_TRUE:
+	case PUSH_FALSE:
+	case PUSH_TMP:
+		// not allowed in ParseNode, only part of GROUP/INTERNAL_GROUP
+		assert(0);
+		return true;
+	case PUSH_CHAR:
+	case PUSH_INT:
+	case PUSH_FLOAT:
+	case PUSH_STRING:
+	case PUSH_LOCAL:
+	case PUSH_LOCAL_REF:
+	case PUSH_GLOBAL:
+	case PUSH_GLOBAL_REF:
+	case PUSH_ARG:
+	case PUSH_ARG_REF:
+	case PUSH_MEMBER:
+	case PUSH_MEMBER_REF:
+	case PUSH_THIS_MEMBER:
+	case PUSH_THIS_MEMBER_REF:
+	case PUSH_INDEX:
+	case PUSH_BOOL:
+	case PUSH_TYPE:
+		return false;
+	default:
+		return true;
+	}
 }

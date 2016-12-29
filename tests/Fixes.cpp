@@ -165,4 +165,25 @@ TEST_METHOD(VerifyClassReturnIsSameAsPassed)
 	)code");
 }
 
+TEST_METHOD(CallCtorInsideMethod)
+{
+	RunTest(R"code(
+		class A
+		{
+			int x;
+	
+			A clone_me()
+			{
+				A clone;
+				clone.x = x;
+				return clone;
+			}
+		}
+		A a;
+		a.x = 1;
+		A b = a.clone_me();
+		Assert_AreEqual(1, b.x);
+	)code");
+}
+
 CA_TEST_CLASS_END();

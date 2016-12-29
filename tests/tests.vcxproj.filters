@@ -166,6 +166,9 @@
     <Text Include="..\cases\string2.txt">
       <Filter>Cases</Filter>
     </Text>
+    <Text Include="..\cases\vardecl_assign.txt">
+      <Filter>Cases</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint">

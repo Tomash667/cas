@@ -83,4 +83,53 @@ TEST_METHOD(StringReferenceVar)
 	)code");
 }
 
+TEST_METHOD(StaticMethods)
+{
+	RunTest(R"code(
+		int side_effect = 0;
+
+		class A
+		{
+			int f(int a, int b)
+			{
+				return sum(a,b);
+			}
+
+			static int sum(int a, int b)
+			{
+				return a+b;
+			}
+
+			static void other()
+			{
+				int ga = sum(1,3);
+				Assert_AreEqual(4, ga);
+			}
+	
+			A side_effect_func()
+			{
+				side_effect = 1;
+				A a;
+				return a;
+			}
+		}
+
+		int r = A.sum(1,2);
+		Assert_AreEqual(3, r);
+
+		A a;
+		r = a.sum(2,4);
+		Assert_AreEqual(6, r);
+
+		r = a.side_effect_func().sum(3,5);
+		Assert_AreEqual(8, r);
+		Assert_AreEqual(1, side_effect);
+
+		r = a.f(3,7);
+		Assert_AreEqual(10, r);
+		
+		A.other();
+	)code");
+}
+
 CA_TEST_CLASS_END();

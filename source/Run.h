@@ -200,9 +200,3 @@ struct StackFrame
 	int current_line, current_function;
 	bool is_ctor;
 };
-
-struct CasException
-{
-	cstring exc;
-	CasException(cstring exc) : exc(exc) {}
-};
