@@ -711,6 +711,21 @@ TEST_METHOD(CodeClassDefaultCtor)
 }
 
 //=========================================================================================
+TEST_METHOD(StaticMethodInCode)
+{
+	RunTest(R"code(
+		string s = "123";
+		int a = int.Parse(s);
+		Assert_AreEqual(123, a);
+	)code");
+
+	RunFailureTest(R"code(
+		string s = "dupa";
+		int a = int.Parse(s);
+	)code", "Exception: Invalid int format 'dupa'.");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

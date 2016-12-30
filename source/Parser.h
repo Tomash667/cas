@@ -82,6 +82,7 @@ private:
 	void ParseEnum();
 	void ParseMemberDeclClass(Type* type, uint& pad);
 	ParseNode* ParseFunc();
+	void ParseFuncModifiers(bool have_type, int& flags);
 	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
 	ParseNode* ParseVarTypeDecl();
@@ -141,12 +142,13 @@ private:
 	AnyFunction FindFunction(Type* type, const string& name);
 	void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items);
 	void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs);
+	void FindAllStaticFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs);
 	AnyFunction FindEqualFunction(ParseFunction* pf);
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
 	AnyFunction FindFunction(Type* type, cstring name, delegate<bool(AnyFunction& f)> pred);
 	AnyFunction FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
-	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse);
-	AnyFunction ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor);
+	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse, bool obj_call);
+	AnyFunction ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor, bool obj_call = false);
 	void CheckFunctionIsDeleted(CommonFunction& cf);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
@@ -159,6 +161,7 @@ private:
 	Type* AnalyzeAddType(const string& name);
 	void AnalyzeMakeType(VarType& vartype, const string& name);
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
+	bool HasSideEffects(ParseNode* node);
 
 	Tokenizer t;
 	Module* module;

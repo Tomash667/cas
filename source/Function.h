@@ -41,7 +41,8 @@ struct CommonFunction
 		F_IMPLICIT = 1 << 1,
 		F_BUILTIN = 1 << 2,
 		F_DELETE = 1 << 3,
-		F_CODE = 1 << 4
+		F_CODE = 1 << 4,
+		F_STATIC = 1 << 5
 	};
 
 	string name;

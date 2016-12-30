@@ -40,6 +40,7 @@ ENUM TODO:
 + return reference to passed class/struct/string member/index
 + type_index - bit for class/struct
 + extension methods
++ static ctor (like in c#)
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 ? verify if ParseExpr type is longer used
@@ -149,7 +150,6 @@ vector functions:
 	+ type var, get_type()
 + register function thiscall
 + typeid
-+ static type functions
 + register c++ global
 + multiple files/modules (sharing classes, globals - current globals-> 0 level locals)
 + types

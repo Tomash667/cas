@@ -474,4 +474,63 @@ TEST_METHOD(ReturnCodeClassByValue)
 	AssertError("Failed to parse function declaration for AddMethod 'X f()'.");
 }
 
+TEST_METHOD(StaticOnFunction)
+{
+	RunFailureTest("static void f(){}", "Static can only be used for methods.");
+}
+
+TEST_METHOD(MultipleSameFunctionModifiers)
+{
+	RunFailureTest("delete delete void f(){}", "Delete already declared for this function.");
+	RunFailureTest("class X{delete delete void f(){}}", "Delete already declared for this method.");
+	RunFailureTest("class X{implicit implicit X(){}}", "Implicit already declared for this method.");
+	RunFailureTest("class X{static static void f(){}}", "Static already declared for this method.");
+
+	auto type = module->AddType<A>("A");
+	bool r = type->AddMethod("static static void f()", f);
+	Assert::IsFalse(r);
+	AssertError("Static already declared for this method.");
+	AssertError("Failed to parse function declaration for AddMethod 'static static void f()'.");
+	CleanupErrors();
+
+	r = type->AddMethod("delete delete void f()", f);
+	Assert::IsFalse(r);
+	AssertError("Delete already declared for this method.");
+	AssertError("Failed to parse function declaration for AddMethod 'delete delete void f()'.");
+	CleanupErrors();
+
+	r = type->AddMethod("implicit implicit int operator cast()", f);
+	Assert::IsFalse(r);
+	AssertError("Implicit already declared for this method.");
+	AssertError("Failed to parse function declaration for AddMethod 'implicit implicit int operator cast()'.");
+}
+
+TEST_METHOD(StaticCtor)
+{
+	RunFailureTest("class A{static A(){}}", "Static constructor not allowed.");
+
+	auto type = module->AddType<A>("A");
+	bool r = type->AddMethod("static A()", f);
+	Assert::IsFalse(r);
+	AssertError("Static constructor not allowed.");
+}
+
+TEST_METHOD(StaticOperator)
+{
+	RunFailureTest("class A{static bool operator == (int x){return false;}}", "Static operator not allowed.");
+
+	auto type = module->AddType<A>("A");
+	bool r = type->AddMethod("static bool operator == (int x)", f);
+	Assert::IsFalse(r);
+	AssertError("Static operator not allowed.");
+}
+
+TEST_METHOD(MismatchedStaticMethod)
+{
+	RunFailureTest("class A{static int sum(int x, int y){return x+y;}}A.sum(1,2,3);",
+		"No matching call to method 'A.sum' with arguments (int,int,int), could be 'int A.sum(int,int)'.");
+
+	RunFailureTest("class A{} A.sum(1,2,3);", "Missing static method 'sum' for type 'A'.");
+}
+
 CA_TEST_CLASS_END();
