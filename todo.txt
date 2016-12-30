@@ -1,8 +1,4 @@
-FIX:
-- Forward (stupid error message)
-	Invalid default value of type 'int', required 'int'.
-
-
++ AnalyzeArgs use TryCast a ParseFunctionArgs TryConstCast2
 
 TESTS:
 + invalid enum to function
@@ -17,6 +13,7 @@ ENUM TODO:
 + ParseFunctionArgs PUSH_ENUM todo
 + ParseItem todo
 
++ reorganize todo
 + ParseConstExpr in switch, default arg value
 
 ? verify if ParseExpr type is longer used
@@ -42,6 +39,7 @@ ENUM TODO:
 + Assert_AreEqual(T,T)
 + return reference to passed class/struct/string member/index
 + type_index - bit for class/struct
++ extension methods
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 ? verify if ParseExpr type is longer used

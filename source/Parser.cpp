@@ -1253,7 +1253,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				prev_arg_def = true;
 				t.Next();
 				NodeRef item = ParseConstExpr();
-				if(!TryConstCast(item.Get(), vartype))
+				if(!TryConstCast2(item.Get(), vartype))
 					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
 				switch(item->op)
 				{
@@ -2012,7 +2012,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				stack.push_back(op_result.over_result);
 				break;
 			case OpResult::CAST:
-				Cast(left.Get(), VarType(right->value, 0), &op_result.cast_result, false);
+				Cast(left.Get(), VarType(right->value, 0), CF_EXPLICIT, &op_result.cast_result);
 				stack.push_back(left.Pin());
 				break;
 			}
@@ -3215,25 +3215,26 @@ bool Parser::TryConstExpr1(ParseNode* node, SYMBOL symbol)
 	return false;
 }
 
-bool Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, bool implici, bool pass_by_ref, bool require_const)
+bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult* _cast_result)
 {
 	CastResult cast_result;
 	if(_cast_result)
 		cast_result = *_cast_result;
 	else
-		cast_result = MayCast(node, vartype, pass_by_ref);
+		cast_result = MayCast(node, vartype, IS_SET(cast_flags, CF_PASS_BY_REF));
 	assert(!cast_result.CantCast());
 
 	// no cast required?
 	if(!cast_result.NeedCast())
 		return true;
 
+	bool implici = !IS_SET(cast_flags, CF_EXPLICIT);
 	assert(!implici || IS_SET(cast_result.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) || cast_result.type == CastResult::NOT_REQUIRED);
 
 	// can const cast?
 	if(TryConstCast(node, vartype))
 		return true;
-	else if(require_const)
+	else if(IS_SET(cast_flags, CF_REQUIRE_CONST))
 		return false;
 
 	if(cast_result.ref_type == CastResult::DEREF)
@@ -3316,7 +3317,7 @@ bool Parser::TryCast(ParseNode*& node, VarType vartype, bool implici, bool pass_
 			if(!IS_SET(c.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) && c.type != CastResult::NOT_REQUIRED)
 				return false;
 		}
-		Cast(node, vartype, &c, implici);
+		Cast(node, vartype, implici ? 0 : CF_EXPLICIT, &c);
 	}
 	return true;
 }
@@ -3473,6 +3474,17 @@ void Parser::ForceCast(ParseNode*& node, VarType vartype, cstring op)
 {
 	if(!TryCast(node, vartype))
 		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetName(vartype), op);
+}
+
+bool Parser::TryConstCast2(ParseNode*& node, VarType type)
+{
+	CastResult c = MayCast(node, type, false);
+	if(c.CantCast())
+		return false;
+	else if(c.NeedCast())
+		return Cast(node, type, CF_REQUIRE_CONST);
+	else
+		return true;
 }
 
 Op Parser::PushToSet(ParseNode* node)
@@ -4863,7 +4875,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			for(uint i = 0; i < node->childs.size(); ++i)
 			{
 				ArgInfo& a = cf.arg_infos[i];
-				Cast(node->childs[i], a.vartype, nullptr, true, a.pass_by_ref);
+				Cast(node->childs[i], a.vartype, a.pass_by_ref ? CF_PASS_BY_REF : 0);
 			}
 		}
 

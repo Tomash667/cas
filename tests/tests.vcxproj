@@ -124,6 +124,7 @@
     <Text Include="..\cases\class_ref.txt" />
     <Text Include="..\cases\comp_operators.txt" />
     <Text Include="..\cases\def_value.txt" />
+    <Text Include="..\cases\enum.txt" />
     <Text Include="..\cases\float.txt" />
     <Text Include="..\cases\for.txt" />
     <Text Include="..\cases\forward.txt" />
@@ -150,6 +151,7 @@
     <Text Include="..\cases\ternary.txt" />
     <Text Include="..\cases\type_func.txt" />
     <Text Include="..\cases\user_func.txt" />
+    <Text Include="..\cases\vardecl_assign.txt" />
     <Text Include="..\cases\while.txt" />
   </ItemGroup>
   <ItemGroup>

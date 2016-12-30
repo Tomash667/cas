@@ -40,6 +40,13 @@ enum BuiltinFunc
 	BF_NOT_EQUAL = 1<<2
 };
 
+enum CastFlags
+{
+	CF_EXPLICIT = 1<<0,
+	CF_PASS_BY_REF = 1<<1,
+	CF_REQUIRE_CONST = 1<<2
+};
+
 class Parser
 {
 public:
@@ -102,11 +109,12 @@ private:
 	bool TryConstExpr(ParseNode* left, ParseNode* right, ParseNode* op, SYMBOL symbol);
 	bool TryConstExpr1(ParseNode* node, SYMBOL symbol);
 
-	bool Cast(ParseNode*& node, VarType vartype, CastResult* cast_result = nullptr, bool implici = true, bool pass_by_ref = false, bool require_const = false);
+	bool Cast(ParseNode*& node, VarType vartype, int cast_flags = 0, CastResult* cast_result = nullptr);
 	bool TryCast(ParseNode*& node, VarType vartype, bool implici = true, bool pass_by_ref = false);
 	bool TryConstCast(ParseNode* node, VarType vartype);
 	CastResult MayCast(ParseNode* node, VarType vartype, bool pass_by_ref);
 	void ForceCast(ParseNode*& node, VarType vartype, cstring op);
+	bool TryConstCast2(ParseNode*& node, VarType type);
 	bool CanTakeRef(ParseNode* node, bool allow_ref = true);
 	Op PushToSet(ParseNode* node);
 
