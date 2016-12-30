@@ -582,3 +582,8 @@ struct OpResult
 
 	OpResult() : cast_var(V_VOID), result_var(V_VOID), over_result(nullptr), result(NO) {}
 };
+
+struct ParserException
+{
+
+};

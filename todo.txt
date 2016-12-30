@@ -1,3 +1,54 @@
+diff --git a/Core/Tokenizer.h b/Core/Tokenizer.h
+index c570b21..49177a9 100644
+--- a/Core/Tokenizer.h
++++ b/Core/Tokenizer.h
+@@ -153,6 +153,12 @@ namespace tokenizer
+ 				return Format("(%d:%d) %s", e.line, e.charpos, s.c_str());
+ 			}
+ 
++			inline const string& GetNoLineNumber()
++			{
++				End();
++				return s;
++			}
++
+ 		private:
+ 			explicit inline Formatter(Tokenizer* t) : t(t)
+ 			{
+@@ -295,6 +301,12 @@ namespace tokenizer
+ 		void DisableKeywordGroup(int group);
+ 
+ 		inline Formatter& StartUnexpected() const { formatter.Start(); return formatter; }
++		inline Formatter& SeekStartUnexpected() const
++		{
++			formatter.sd = seek;
++			formatter.Start();
++			return formatter;
++		}
+ 		inline __declspec(noreturn) void Unexpected(const SeekData& seek_data) const
+ 		{
+ 			formatter.sd = &seek_data;
+@@ -342,6 +354,10 @@ namespace tokenizer
+ 			cstring err = FormatList(msg, (va_list)&arg);
+ 			formatter.ThrowAt(line, charpos, err);
+ 		}
++		inline cstring Expecting(cstring what)
++		{
++			return Format("Expecting %s, found %s.", what, GetTokenValue(normal_seek));
++		}
+ 
+ 		//===========================================================================================================================
+ 		inline bool IsToken(TOKEN _tt) const { return normal_seek.token == _tt; }
+
+BETTER FIRST PASS
++ forward static func usage
++ forward nested class usage
++ forward (nested) enum usage
++ forward inherted class usage
++ forward enum default value usage
++ forward function call in arg default
+
+
 + AnalyzeArgs use TryCast a ParseFunctionArgs TryConstCast2
 
 TESTS:
@@ -41,6 +92,7 @@ ENUM TODO:
 + type_index - bit for class/struct
 + extension methods
 + static ctor (like in c#)
++ static member
 
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 ? verify if ParseExpr type is longer used

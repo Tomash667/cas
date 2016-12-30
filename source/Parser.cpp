@@ -5,6 +5,7 @@
 #include "Module.h"
 
 #define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
+static const uint MAX_ERRORS = 100u;
 
 // http://en.cppreference.com/w/cpp/language/operator_precedence
 SymbolInfo symbols[] = {
@@ -5146,6 +5147,8 @@ void Parser::AnalyzeCode()
 			}
 			CreateDefaultFunctions(type);
 		}
+		//else if(t.IsKeyword(K_ENUM, G_KEYWORD))
+		//	ParseEnum();
 		else if(t.IsSymbol("([{", &c))
 		{
 			char closing;
@@ -5763,5 +5766,247 @@ bool Parser::HasSideEffects(ParseNode* node)
 		return false;
 	default:
 		return true;
+	}
+}
+
+void Parser::FirstPass()
+{
+	/*
+	[func_modifier...] type/identifier identifier (    -> func_decl
+	type/identifier identifier {,;=}                   -> global_decl
+	class/struct/enum
+	*/
+	while(!t.IsEof())
+	{
+		if(t.IsKeywordGroup(G_KEYWORD))
+		{
+			KEYWORD k = (KEYWORD)t.GetKeywordId(G_KEYWORD);
+			switch(k)
+			{
+			case K_CLASS:
+			case K_STRUCT:
+				FirstPass_Class(k == K_STRUCT);
+				break;
+				//case K_ENUM:
+				//	FirstPass_Enum();
+				//	break;
+			case K_IMPLICIT:
+			case K_DELETE:
+			case K_STATIC:
+				FirstPass_Function();
+				break;
+			}
+		}
+		else if(t.IsKeywordGroup(G_VAR) || t.IsItem())
+			FirstPass_VarOrIdentifier();
+		else if(t.IsSymbol('{'))
+		{
+			uint pos = t.GetLine(),
+				charpos = t.GetCharPos();
+			if(!t.MoveToClosingSymbol('{', '}'))
+				AddError("Missing closing '}'.", pos, charpos);
+		}
+		else
+			t.Next();
+	}
+}
+
+void Parser::FirstPass_VarOrIdentifier()
+{
+	t.SeekStart();
+
+	if(!t.SeekItem() && !t.SeekKeyword())
+	{
+		AddError(t.SeekStartUnexpected().Add(tokenizer::T_ITEM).GetNoLineNumber());
+		t.Next();
+		return;
+	}
+
+	t.SeekNext();
+	if(t.SeekSymbol('&'))
+		t.SeekNext();
+	if(t.SeekSymbol('('))
+		FirstPass_Function();
+	else
+		FirstPass_Global();
+}
+
+void Parser::FirstPass_Class(bool is_struct)
+{
+	t.Next();
+
+}
+
+void Parser::FirstPass_Function(Type* type)
+{
+	// modifiers
+	int flags = 0;
+	while(true)
+	{
+		if(t.IsKeywordGroup(G_KEYWORD))
+		{
+			int id = t.GetKeywordId(G_KEYWORD);
+			bool ok = true;
+			switch(id)
+			{
+			case K_IMPLICIT:
+				if(!type)
+					AddError("Implicit can only be used for methods.");
+				else
+				{
+					if(IS_SET(flags, CommonFunction::F_IMPLICIT))
+						AddError("Implicit already declared for this method.");
+					flags |= CommonFunction::F_IMPLICIT;
+				}
+				break;
+			case K_DELETE:
+				if(IS_SET(flags, CommonFunction::F_DELETE))
+					AddError(Format("Delete already declared for this %s.", have_type ? "method" : "function"));
+				flags |= CommonFunction::F_DELETE;
+				break;
+			case K_STATIC:
+				if(!type)
+					AddError("Static can only be used for methods.");
+				else
+				{
+					if(IS_SET(flags, CommonFunction::F_STATIC))
+						AddError("Static already declared for this method.");
+					flags |= CommonFunction::F_STATIC;
+				}
+				break;
+			default:
+				ok = false;
+				break;
+			}
+			if(ok)
+				t.Next();
+			else
+				break;
+		}
+		else
+			break;
+	}
+
+	// return type
+	VarType result_type = FirstPass_Type();
+
+	// name
+	if(!t.IsKeyword() && !t.IsItem())
+	{
+		AddError(t.Expecting(Format("%s name", type ? "method" : "function")));
+		t.Next();
+		return;
+	}
+	ParseFunction* f = new ParseFunction;
+	f->flags = 0;
+	if(t.IsKeyword())
+	{
+		const string& name = t.GetTokenString();
+		AddError(Format("Cannot use keyword '%s' as %s name.", name.c_str(), type ? "method" : "funciton"));
+		f->name = name;
+	}
+	else
+	{
+		const string& name = t.GetItem();
+		FirstPass_CheckFindItem(name, true);
+		f->name = name;
+	}
+
+	// args
+}
+
+void Parser::FirstPass_Global()
+{
+}
+
+VarType Parser::FirstPass_Type()
+{
+	Type* type;
+	if(t.IsKeywordGroup(G_VAR))
+		type = GetType(t.GetKeywordId(G_VAR));
+	else
+	{
+		type = new Type;
+		type->name = t.MustGetItem();
+		type->index = (0xFFFF0000 | run_module->types.size());
+		type->declared = false;
+		type->first_line = t.GetLine();
+		type->first_charpos = t.GetCharPos();
+		run_module->types.push_back(type);
+		AddType(type);
+	}
+	t.Next();
+
+	VarType vartype(type->index, 0);
+	if(t.IsSymbol('&'))
+	{
+		vartype.subtype = vartype.type;
+		vartype.type = V_REF;
+		t.Next();
+	}
+
+	return vartype;
+}
+
+/*
+	uint line = t.GetPos(),
+		charpos = t.GetCharPos();
+	bool ok = true;
+	int keyword_group, keyword;
+	if(t.IsKeyword())
+	{
+		keyword_group = t.GetKeywordGroup();
+		keyword = t.GetKeywordId();
+		tmp_str2 = t.GetTokenString();
+	}
+	else if(t.IsItem())
+	{
+		keyword = -1;
+		tmp_str2 = t.GetItem();
+	}
+	else
+	{
+		AddError(t.StartUnexpected().Add(tokenizer::T_ITEM).GetNoLineNumber());
+		t.Next();
+	}
+
+	if(ok)
+	{
+		t.Next();
+
+		if(t.IsSymbol('('))
+		{
+			// func
+			if(keyword != -1)
+				AddError(Format("Cannot use keyword '%s' as function name.", tmp_str2.c_str()), line, charpos);
+
+			if(var == -1)
+		}
+		else
+		{
+			// var
+			if(keyword != -1)
+				AddError(Format("Cannot use keyword '%s' as global variable name.", tmp_str2.c_str()), line, charpos);
+		}
+	}
+}*/
+
+void Parser::FirstPass_CheckFindItem(const string& id, bool is_func)
+{
+	Found found;
+	FOUND found_type = FindItem(id, found);
+	if(found_type != F_NONE && !(is_func && (found_type == F_FUNC || found_type == F_USER_FUNC)))
+		AddError("Name '%s' already used as %s.", id.c_str(), found.ToString(found_type));
+}
+
+void Parser::AddError(cstring err, uint line, uint charpos)
+{
+	Error e = { err, line, charpos };
+	errors.push_back(e);
+	if(errors.size() >= MAX_ERRORS)
+	{
+		Error e = { Format("Too many errors %u. Canceling parsing.", MAX_ERRORS), -1, -1 };
+		errors.push_back(e);
+		throw ParserException;
 	}
 }

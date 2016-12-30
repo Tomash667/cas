@@ -47,6 +47,12 @@ enum CastFlags
 	CF_REQUIRE_CONST = 1<<2
 };
 
+struct Error
+{
+	string msg;
+	uint line, charpos;
+};
+
 class Parser
 {
 public:
@@ -163,6 +169,17 @@ private:
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
 	bool HasSideEffects(ParseNode* node);
 
+	// first pass
+	void FirstPass();
+	void FirstPass_Class(bool is_struct);
+	void FirstPass_Enum();
+	void FirstPass_Function(Type* type);
+	void FirstPass_Global();
+	void FirstPass_VarOrIdentifier();
+	VarType FirstPass_Type();
+	void FirstPass_CheckFindItem(const string& id, bool is_func);
+	void AddError(cstring err, uint line, uint charpos);
+
 	Tokenizer t;
 	Module* module;
 	RunModule* run_module;
@@ -180,4 +197,6 @@ private:
 	uint prev_line;
 	vector<Enum*> enums;
 	Enum* active_enum;
+	string tmp_str, tmp_str2;
+	vector<Error> errors;
 };

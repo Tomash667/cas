@@ -26,7 +26,7 @@ block:
 line:
 	// only top block
 	class/struct <class_name> { [class_item ...] }
-	func_def [ ( expr ... ] // can only be used in top block
+	func_def [ ( expr ... ]
 	enum <enum_name> { [<enum_val_name> [= const_expr] ,...] }
 	// anywhere
 	if cond line_or_block [ else line_or_block ]
