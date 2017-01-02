@@ -1618,7 +1618,7 @@ int main()
 {
 	srand((uint)time(0));
 	register_functions();
-	if(!parse("script/7.txt"))
+	if(!parse("script/-1.txt"))
 		return 1;
 	try
 	{
@@ -1636,7 +1636,6 @@ int main()
 }
 
 /*
-+ multiline comment at end of file cause error (need fix in carpg too)
 + strict mode: warn about cast ?
 + functions
 + object

@@ -1,0 +1,62 @@
+#pragma once
+
+enum class Op
+{
+	// arithmetic
+	add,
+	sub,
+	mul,
+	div,
+	mod,
+	neg,
+	inc_pre,
+	inc_post,
+	dec_pre,
+	dec_post,
+
+	// logical
+	equal,
+	not_equal,
+	greater,
+	greater_equal,
+	less,
+	less_equal,
+	and,
+	or,
+	not,
+
+	// bitwise
+	not_b,
+	shift_left,
+	shift_right,
+	and_b,
+	or_b,
+	xor_b,
+
+	cast,
+
+	init_array,
+	set_local,
+	set_local_index,
+	set_local_indexvar,
+
+	// stack
+	push_local,
+	push_local_ref,
+	push_arg,
+	push_arg_ref,
+	push_global,
+	push_global_ref,
+	push_cstr,
+	push_int,
+	push_float,
+	dup,
+	pop,
+
+	call,
+	jmp,
+	jmp_if,
+
+	ret,
+	retv
+};

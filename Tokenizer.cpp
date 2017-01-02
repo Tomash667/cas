@@ -317,10 +317,10 @@ uint Tokenizer::FindFirstOfStr(cstring _str, uint _start)
 				++charpos;
 				++i;
 				++_s;
-				if(i == end)
-					return string::npos;
 				if(*_s == NULL)
 					return i;
+				if(i == end)
+					return string::npos;				
 				if(*_s != str->at(i))
 					break;
 			}

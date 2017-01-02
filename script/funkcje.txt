@@ -6,9 +6,11 @@ int add(int a, int b)
 
 int main(int args)
 {
+	print("Podaj a: ");
 	int a, b;
 	a = getint();
+	print("Podaj c: ");
 	b = getint();
-	print(add(a,b));
+	print(a+"+"+b+"="+add(a,b));
 	return 0;
 }
