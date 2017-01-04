@@ -47,3 +47,29 @@ class Y
 		println("Y::f" + a + b);
 	}
 }
+
+// static forward usage
+Z.f();
+Z z;
+z.f();
+class Z
+{
+	static void f()
+	{
+		println("Z::f");
+	}
+}
+
+// forward enum
+f_enum(Enum.E1);
+void f_enum(Enum e, Enum e2 = Enum.EE2+1)
+{
+	println("f_enum "+e+","+e2);
+}
+
+enum Enum
+{
+	E1,
+	E2,
+	E3
+}

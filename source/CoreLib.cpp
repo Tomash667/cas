@@ -161,37 +161,20 @@ static void InitCoreLib(Module& module, Settings& settings)
 	Type* _ref = module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
 	Type* _special = module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
 	Type* _type = module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
-	Type* _enum = module.AddCoreType("enum", sizeof(int), V_ENUM, Type::Hidden);
 	// bool methods
-	module.AddMethod(_bool, "implicit char operator cast()", nullptr);
-	module.AddMethod(_bool, "implicit int operator cast()", nullptr);
-	module.AddMethod(_bool, "implicit float operator cast()", nullptr);
-	module.AddMethod(_bool, "implicit string operator cast()", nullptr);
 	module.AddMethod(_bool, "bool operator = (bool b)", nullptr);
 	module.AddMethod(_bool, "static bool Parse(string& s)", f_bool_parse);
 	module.AddMethod(_bool, "static bool TryParse(string& s, bool& b)", f_bool_try_parse);
 	// char methods
-	module.AddMethod(_char, "implicit bool operator cast()", nullptr);
-	module.AddMethod(_char, "implicit int operator cast()", nullptr);
-	module.AddMethod(_char, "implicit float operator cast()", nullptr);
-	module.AddMethod(_char, "implicit string operator cast()", nullptr);
 	module.AddMethod(_char, "char operator = (char c)", nullptr);
 	module.AddMethod(_char, "static char Parse(string& s)", f_char_parse);
 	module.AddMethod(_char, "static bool TryParse(string& s, char& c)", f_char_try_parse);
 	// int methods
-	module.AddMethod(_int, "implicit bool operator cast()", nullptr);
-	module.AddMethod(_int, "implicit char operator cast()", nullptr);
-	module.AddMethod(_int, "implicit float operator cast()", nullptr);
-	module.AddMethod(_int, "implicit string operator cast()", nullptr);
 	module.AddMethod(_int, "int operator = (int i)", nullptr);
 	module.AddMethod(_int, "int abs()", f_int_abs);
 	module.AddMethod(_int, "static int Parse(string& s)", f_int_parse);
 	module.AddMethod(_int, "static bool TryParse(string& s, int& i)", f_int_try_parse);
 	// float methods
-	module.AddMethod(_float, "implicit bool operator cast()", nullptr);
-	module.AddMethod(_float, "implicit char operator cast()", nullptr);
-	module.AddMethod(_float, "implicit int operator cast()", nullptr);
-	module.AddMethod(_float, "implicit string operator cast()", nullptr);
 	module.AddMethod(_float, "float operator = (float f)", nullptr);
 	module.AddMethod(_float, "float abs()", f_float_abs);
 	module.AddMethod(_float, "static float Parse(string& s)", f_float_parse);

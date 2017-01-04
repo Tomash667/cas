@@ -277,12 +277,12 @@ TEST_METHOD(InvalidOperatorOverloadDefinition)
 TEST_METHOD(AmbiguousCallToOverloadedOperator)
 {
 	RunFailureTest(R"code(
-	class A{
-		void operator += (int a) {}
-		void operator += (string s) {}
-	}
-	A a;
-	a += 1.13;
+		class A{
+			void operator += (int a) {}
+			void operator += (string s) {}
+		}
+		A a;
+		a += 1.13;
 	)code",
 		"Ambiguous call to overloaded method 'A.operator += ' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
 }

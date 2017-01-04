@@ -66,6 +66,9 @@
     <ClInclude Include="source\Run.h">
       <Filter>Source</Filter>
     </ClInclude>
+    <ClInclude Include="source\Decompiler.h">
+      <Filter>Source</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Doc">

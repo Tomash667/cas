@@ -1,5 +1,6 @@
 #pragma once
 
+struct Enum;
 struct Function;
 struct CommonFunction;
 struct Member;
@@ -50,7 +51,6 @@ enum CoreVarType
 	V_REF,
 	V_SPECIAL,
 	V_TYPE,
-	V_ENUM,
 	V_MAX
 };
 
@@ -104,10 +104,12 @@ struct Type
 	vector<Function*> funcs;
 	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
+	Enum* enu;
 	int size, index, flags;
 	uint first_line, first_charpos;
 	bool declared, built;
 
+	inline Type() : enu(nullptr) {}
 	~Type();
 	Member* FindMember(const string& name, int& index);
 	Function* FindCodeFunction(cstring name);
@@ -119,6 +121,8 @@ struct Type
 	inline bool IsRefClass() const { return IsClass() && IsRef(); }
 	inline bool IsPassByValue() const { return IS_SET(flags, Type::PassByValue); }
 	inline bool IsSimple() const { return ::IsSimple(index); }
+	inline bool IsEnum() const { return enu != nullptr; }
+	inline bool IsBuiltin() const { return IsSimple() || index == V_STRING || IsEnum(); }
 };
 
 struct VarSource
@@ -149,4 +153,20 @@ struct Member : public VarSource
 	};
 	UsedMode used;
 	bool have_def_value;
+};
+
+struct Enum
+{
+	Type* type;
+	vector<std::pair<string, int>> values;
+
+	std::pair<string, int>* Find(const string& id)
+	{
+		for(auto& val : values)
+		{
+			if(val.first == id)
+				return &val;
+		}
+		return nullptr;
+	}
 };

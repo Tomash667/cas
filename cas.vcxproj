@@ -107,6 +107,7 @@
     <ClInclude Include="include/cas/ReturnValue.h" />
     <ClInclude Include="source/RunModule.h" />
     <ClInclude Include="source/Type.h" />
+    <ClInclude Include="source\Decompiler.h" />
     <ClInclude Include="source\Run.h" />
   </ItemGroup>
   <ItemGroup>

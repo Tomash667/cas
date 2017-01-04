@@ -93,7 +93,7 @@ bool cas::Initialize(Settings* settings)
 		return false;
 	}
 
-	InitDecompile(_settings);
+	Decompiler::Get().Init(_settings);
 
 	initialized = true;
 	return true;
@@ -145,6 +145,7 @@ void cas::DestroyModule(IModule* _module)
 
 Type::~Type()
 {
+	delete enu;
 	DeleteElements(members);
 }
 

@@ -239,7 +239,7 @@ IModule::ExecutionResult Module::ParseAndRun(cstring input, bool optimize, bool 
 
 	// decompile
 	if(decompile)
-		Decompile(*run_module);
+		Decompiler::Get().Decompile(*run_module);
 		
 	// run
 	bool ok = Run(*run_module, return_value, exc);

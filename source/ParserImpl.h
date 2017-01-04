@@ -45,15 +45,13 @@ enum FOUND
 	F_VAR,
 	F_FUNC,
 	F_USER_FUNC,
-	F_MEMBER,
-	F_ENUM
+	F_MEMBER
 };
 
 enum PseudoOp
 {
 	PUSH_BOOL = MAX_OP,
 	PUSH_TYPE,
-	PUSH_ENUM,
 	NOP,
 	OBJ_MEMBER,
 	OBJ_FUNC,
@@ -238,11 +236,7 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		string* str;
 	};
 	VarType result;
-	union
-	{
-		ParseNode* linked;
-		Enum* enu;
-	};
+	ParseNode* linked;
 	vector<ParseNode*> childs;
 	VarSource* source;
 	bool owned;
@@ -399,23 +393,6 @@ struct ParseFunction : CommonFunction
 	}
 };
 
-struct Enum
-{
-	string name;
-	vector<std::pair<string, int>> values;
-	int index;
-
-	std::pair<string, int>* Find(const string& id)
-	{
-		for(auto& val : values)
-		{
-			if(val.first == id)
-				return &val;
-		}
-		return nullptr;
-	}
-};
-
 union Found
 {
 	ParseVar* var;
@@ -426,7 +403,6 @@ union Found
 		Member* member;
 		int member_index;
 	};
-	Enum* enu;
 
 	inline cstring ToString(FOUND type)
 	{
@@ -451,8 +427,6 @@ union Found
 			return "script function";
 		case F_MEMBER:
 			return "member";
-		case F_ENUM:
-			return "enum";
 		default:
 			assert(0);
 			return "undefined";
@@ -581,9 +555,4 @@ struct OpResult
 	Result result;
 
 	OpResult() : cast_var(V_VOID), result_var(V_VOID), over_result(nullptr), result(NO) {}
-};
-
-struct ParserException
-{
-
 };

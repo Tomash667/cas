@@ -47,12 +47,6 @@ enum CastFlags
 	CF_REQUIRE_CONST = 1<<2
 };
 
-struct Error
-{
-	string msg;
-	uint line, charpos;
-};
-
 class Parser
 {
 public:
@@ -85,7 +79,7 @@ private:
 	void ParseClass(bool is_struct);
 	ParseNode* ParseSwitch();
 	ParseNode* ParseCase(ParseNode* swi);
-	void ParseEnum();
+	void ParseEnum(bool forward);
 	void ParseMemberDeclClass(Type* type, uint& pad);
 	ParseNode* ParseFunc();
 	void ParseFuncModifiers(bool have_type, int& flags);
@@ -118,10 +112,10 @@ private:
 
 	bool Cast(ParseNode*& node, VarType vartype, int cast_flags = 0, CastResult* cast_result = nullptr);
 	bool TryCast(ParseNode*& node, VarType vartype, bool implici = true, bool pass_by_ref = false);
-	bool TryConstCast(ParseNode* node, VarType vartype);
+	bool DoConstCast(ParseNode* node, VarType vartype);
 	CastResult MayCast(ParseNode* node, VarType vartype, bool pass_by_ref);
 	void ForceCast(ParseNode*& node, VarType vartype, cstring op);
-	bool TryConstCast2(ParseNode*& node, VarType type);
+	bool TryConstCast(ParseNode*& node, VarType type);
 	bool CanTakeRef(ParseNode* node, bool allow_ref = true);
 	Op PushToSet(ParseNode* node);
 
@@ -143,7 +137,6 @@ private:
 	cstring GetTypeName(ParseNode* node);
 	VarType CommonType(VarType a, VarType b);
 	FOUND FindItem(const string& id, Found& found);
-	Enum* FindEnum(const string& id);
 	Function* FindFunction(const string& name);
 	AnyFunction FindFunction(Type* type, const string& name);
 	void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items);
@@ -168,18 +161,7 @@ private:
 	void AnalyzeMakeType(VarType& vartype, const string& name);
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
 	bool HasSideEffects(ParseNode* node);
-
-	// first pass
-	void FirstPass();
-	void FirstPass_Class(bool is_struct);
-	void FirstPass_Enum();
-	void FirstPass_Function(Type* type);
-	void FirstPass_Global();
-	void FirstPass_VarOrIdentifier();
-	VarType FirstPass_Type();
-	void FirstPass_CheckFindItem(const string& id, bool is_func);
-	void AddError(cstring err, uint line, uint charpos);
-
+	
 	Tokenizer t;
 	Module* module;
 	RunModule* run_module;
@@ -195,8 +177,5 @@ private:
 	bool optimize;
 	vector<ReturnStructVar*> rsvs;
 	uint prev_line;
-	vector<Enum*> enums;
 	Enum* active_enum;
-	string tmp_str, tmp_str2;
-	vector<Error> errors;
 };

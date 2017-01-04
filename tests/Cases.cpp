@@ -200,7 +200,7 @@ TestMethod(OverloadCast)
 
 TestMethod(Forward)
 {
-	RunFileTest("forward.txt", "", "f\nf23\n10\nY::f30\nY::f13\n");
+	RunFileTest("forward.txt", "", "f\nf23\n10\nY::f30\nY::f13\nZ::f\nZ::f\n");
 }
 
 TestMethod(LongRefAssign)
@@ -212,6 +212,11 @@ TestMethod(VardeclAssign)
 {
 	RunFileTest("vardecl_assign.txt", "", "ctor0\n---\nctor2\n---\nctor2\nassign\n---\nctor2\n---\nctor2\nassign\n---\nctor2\nctor2\n---\nassign\nctor2\n"
 		"ctor2\n");
+}
+
+TestMethod(Enum)
+{
+	RunFileTest("enum.txt");
 }
 
 CA_TEST_CLASS_END();
