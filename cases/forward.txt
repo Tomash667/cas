@@ -62,7 +62,7 @@ class Z
 
 // forward enum
 f_enum(Enum.E1);
-void f_enum(Enum e, Enum e2 = Enum.EE2+1)
+void f_enum(Enum e, Enum e2 = Enum.E2+1)
 {
 	println("f_enum "+e+","+e2);
 }

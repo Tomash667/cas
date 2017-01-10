@@ -1342,9 +1342,9 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				case PUSH_STRING:
 					f->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
 					break;
-				// todo
-				//case PUSH_ENUM:
-				//	f->arg_infos.push_back(ArgInfo())
+				case PUSH_ENUM:
+					f->arg_infos.push_back(ArgInfo(VarType(item->result.type, 0), item->value, true));
+					break;
 				default:
 					assert(0);
 					break;
@@ -5064,7 +5064,9 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 				n->value = arg.value;
 				break;
 			default:
-				assert(0);
+				assert(GetType(arg.vartype.type)->IsEnum());
+				n->op = PUSH_ENUM;
+				n->value = arg.value;
 				break;
 			}
 			node->push(n);
@@ -5242,10 +5244,19 @@ void Parser::AnalyzeCode()
 			AnalyzeType(nullptr);
 	}
 
+	// verify all types are declared
 	for(Type* type : run_module->types)
 	{
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
+	}
+
+	// function default values
+	for(ParseFunction* f : ufuncs)
+	{
+		if(f->required_args == f->arg_infos.size() || IS_SET(f->flags, CommonFunction::F_DEFAULT))
+			continue;
+		AnalyzeArgsDefaultValues(f);
 	}
 
 	t.Reset();
@@ -5412,6 +5423,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 
 	// (
 	t.Next();
+	func->start_pos = t.GetPos();
 
 	if(!t.IsSymbol(')'))
 	{
@@ -5433,30 +5445,8 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 			{
 				prev_def = true;
 				t.Next();
-				NodeRef item = ParseConstItem();
-				if(!TryCast(item.Get(), vartype))
-					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
-				switch(item->op)
-				{
-				case PUSH_BOOL:
-					func->arg_infos.push_back(ArgInfo(item->bvalue));
-					break;
-				case PUSH_CHAR:
-					func->arg_infos.push_back(ArgInfo(item->cvalue));
-					break;
-				case PUSH_INT:
-					func->arg_infos.push_back(ArgInfo(item->value));
-					break;
-				case PUSH_FLOAT:
-					func->arg_infos.push_back(ArgInfo(item->fvalue));
-					break;
-				case PUSH_STRING:
-					func->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
-					break;
-				default:
-					assert(0);
-					break;
-				}
+				func->arg_infos.push_back(ArgInfo(vartype, 0, true));
+				t.SkipToSymbol("),");
 			}
 			else
 			{
@@ -5565,7 +5555,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 		func->result = vartype;
 		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 		func->block = nullptr;
-		func->flags = 0;
+		func->flags = CommonFunction::F_DEFAULT;
 		if(IS_SET(type->flags, Type::Code))
 			func->flags |= CommonFunction::F_CODE;
 		func->index = ufuncs.size();
@@ -5607,9 +5597,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
+			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				func->flags = 0;
 				if(IS_SET(type->flags, Type::Code))
 					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
@@ -5635,7 +5625,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 			}
 			else
 			{
-				func->flags = CommonFunction::F_BUILTIN;
+				func->flags |= CommonFunction::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
@@ -5662,9 +5652,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
+			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				func->flags = 0;
 				if(IS_SET(type->flags, Type::Code))
 					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
@@ -5687,7 +5677,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 			}
 			else
 			{
-				func->flags = CommonFunction::F_BUILTIN;
+				func->flags |= CommonFunction::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
@@ -5714,9 +5704,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
+			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				func->flags = 0;
 				if(IS_SET(type->flags, Type::Code))
 					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
@@ -5739,7 +5729,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 			}
 			else
 			{
-				func->flags = CommonFunction::F_BUILTIN;
+				func->flags |= CommonFunction::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
@@ -5837,5 +5827,51 @@ bool Parser::HasSideEffects(ParseNode* node)
 		return false;
 	default:
 		return true;
+	}
+}
+
+void Parser::AnalyzeArgsDefaultValues(ParseFunction* f)
+{
+	t.MoveTo(f->start_pos);
+	uint offset = (f->special == SF_CTOR ? 1u : 0u);
+	
+	for(uint i=offset, count = f->arg_infos.size(); i <= count; ++i)
+	{
+		VarType vartype = AnalyzeVarType();
+		t.AssertItem();
+		t.Next();
+
+		if(t.IsSymbol('='))
+		{
+			t.Next();
+			NodeRef item = ParseConstExpr();
+			if(!TryConstCast(item.Get(), vartype))
+				t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
+			ArgInfo& arg = f->arg_infos[i];
+			switch(item->op)
+			{
+			case PUSH_BOOL:
+				arg.bvalue = item->bvalue;
+				break;
+			case PUSH_CHAR:
+				arg.cvalue = item->cvalue;
+				break;
+			case PUSH_INT:
+			case PUSH_STRING:
+			case PUSH_ENUM:
+				arg.value = item->value;
+				break;
+			case PUSH_FLOAT:
+				arg.fvalue = item->fvalue;
+				break;
+			default:
+				assert(0);
+				break;
+			}
+		}
+		if(t.IsSymbol(')'))
+			break;
+		t.AssertSymbol(',');
+		t.Next();
 	}
 }

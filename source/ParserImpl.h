@@ -364,6 +364,7 @@ struct ParseFunction : CommonFunction
 {
 	uint pos;
 	uint locals;
+	tokenizer::Pos start_pos;
 	ParseNode* node;
 	Block* block;
 	vector<ParseVar*> args;

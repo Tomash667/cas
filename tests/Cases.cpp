@@ -200,7 +200,7 @@ TestMethod(OverloadCast)
 
 TestMethod(Forward)
 {
-	RunFileTest("forward.txt", "", "f\nf23\n10\nY::f30\nY::f13\nZ::f\nZ::f\n");
+	RunFileTest("forward.txt", "", "f\nf23\n10\nY::f30\nY::f13\nZ::f\nZ::f\nf_enum 0,2\n");
 }
 
 TestMethod(LongRefAssign)

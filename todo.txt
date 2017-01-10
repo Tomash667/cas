@@ -1,16 +1,4 @@
-TESTS:
-+ invalid enum to function
-
-ENUM TODO:
-+ enum ops
-	+ single op
-	+ two op
-	+ cast
-	+ switch enum
-+ add enum type
 + register enum
-+ ParseFunctionArgs PUSH_ENUM todo
-+ ParseItem todo
 
 + reorganize todo
 + ParseConstExpr in switch, default arg value

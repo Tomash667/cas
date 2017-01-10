@@ -161,6 +161,7 @@ private:
 	void AnalyzeMakeType(VarType& vartype, const string& name);
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
 	bool HasSideEffects(ParseNode* node);
+	void AnalyzeArgsDefaultValues(ParseFunction* f);
 	
 	Tokenizer t;
 	Module* module;
