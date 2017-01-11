@@ -12,6 +12,47 @@ static Module* core_module;
 static int module_index;
 static bool initialized;
 static bool have_errors;
+static bool using_event_logger;
+
+void Event(EventType event_type, cstring msg)
+{
+	if(event_type == EventType::Error)
+		have_errors = true;
+	if(handler)
+		handler(event_type, msg);
+}
+
+struct EventLogger : Logger
+{
+	void Log(cstring text, LOG_LEVEL level) override
+	{
+		EventType type;
+		switch(level)
+		{
+		case L_INFO:
+			type = EventType::Info;
+			break;
+		case L_WARN:
+			type = EventType::Warning;
+			break;
+		case L_ERROR:
+		default:
+			type = EventType::Error;
+			break;
+		}
+		Event(type, text);
+	}
+	
+	void Log(cstring text, LOG_LEVEL level, const tm& time) override
+	{
+		Log(text, level);
+	}
+
+	void Flush() override
+	{
+
+	}
+};
 
 void AssertEventHandler(cstring msg, cstring file, uint line)
 { 
@@ -20,14 +61,6 @@ void AssertEventHandler(cstring msg, cstring file, uint line)
 		DebugBreak();
 #endif
 	handler(EventType::Assert, Format("Assert failed in '%s(%u)', expression '%s'.", file, line, msg));
-}
-
-void Event(EventType event_type, cstring msg)
-{
-	if(event_type == EventType::Error)
-		have_errors = true;
-	if(handler)
-		handler(event_type, msg);
 }
 
 bool cas::Initialize(Settings* settings)
@@ -43,6 +76,11 @@ bool cas::Initialize(Settings* settings)
 		_settings = *settings;
 	if(_settings.use_assert_handler)
 		set_assert_handler(AssertEventHandler);
+	if(_settings.use_logger_handler)
+	{
+		logger = new EventLogger;
+		using_event_logger = true;
+	}
 
 	module_index = 1;
 	core_module = new Module(0, nullptr);
@@ -54,6 +92,8 @@ bool cas::Initialize(Settings* settings)
 		delete core_module;
 		return false;
 	}
+
+	Decompiler::Get().Init(_settings);
 
 	initialized = true;
 	return true;
@@ -70,6 +110,8 @@ void cas::Shutdown()
 	for(Module* m : Module::all_modules)
 		delete m;
 	Module::all_modules.clear();
+	if(using_event_logger)
+		delete logger;
 }
 
 void cas::SetHandler(EventHandler _handler)
@@ -103,6 +145,7 @@ void cas::DestroyModule(IModule* _module)
 
 Type::~Type()
 {
+	delete enu;
 	DeleteElements(members);
 }
 
@@ -118,11 +161,21 @@ Member* Type::FindMember(const string& name, int& index)
 	return nullptr;
 }
 
-Function* Type::FindSpecialFunction(int type)
+Function* Type::FindCodeFunction(cstring name)
 {
 	for(Function* f : funcs)
 	{
-		if(f->special == type)
+		if(f->name == name)
+			return f;
+	}
+	return nullptr;
+}
+
+Function* Type::FindSpecialCodeFunction(SpecialFunction special)
+{
+	for(Function* f : funcs)
+	{
+		if(f->special == special)
 			return f;
 	}
 	return nullptr;
@@ -134,7 +187,7 @@ bool CommonFunction::Equal(CommonFunction& f) const
 		return false;
 	for(uint i = 0, count = arg_infos.size(); i < count; ++i)
 	{
-		if(arg_infos[i].type != f.arg_infos[i].type)
+		if(arg_infos[i].vartype != f.arg_infos[i].vartype)
 			return false;
 	}
 	return true;

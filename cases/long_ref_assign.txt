@@ -1,0 +1,31 @@
+class C
+{
+	int x;
+
+	void operator = (C c)
+	{
+		x = c.x;
+	}
+}
+
+C a, b;
+a.x = 1;
+b.x = 2;
+C& r = a;
+
+// copy value
+r = b;
+Assert_IsFalse(a is b);
+Assert_AreEqual(2, a.x);
+
+// reference points to b
+r -> b;
+Assert_IsTrue(r is b);
+
+// copy address
+r -> a;
+r --> b;
+r.x = 3;
+Assert_IsTrue(a is b);
+Assert_IsTrue(r is b);
+Assert_AreEqual(3, b.x);

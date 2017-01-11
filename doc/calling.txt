@@ -12,3 +12,19 @@ CALLING CONVENTIONS
 Like cdecl except:
 	+ this pointer is passed in ecx
 	+ esp is restored by callee
+
+
+
+calling conventions
+http://www.angelcode.com/dev/callconv/callconv.html
+return value
+	+ bool, int, float, string
+	+ by ref
+	+ by pointer
+	+ array
+	+ with constr
+	+ with assignment
+	+ with destructor
+	
+array, ctor, dtor, assign, > 2 (>4 x64) - return in memory
+else return in reg

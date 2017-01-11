@@ -64,6 +64,7 @@
       <AdditionalIncludeDirectories>..\include;$(VCInstallDir)UnitTest\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_CI_MODE=$(ciMode);_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
+      <AdditionalOptions>/std:c++latest %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -83,6 +84,7 @@
       <PreprocessorDefinitions>WIN32;_CI_MODE=$(ciMode);NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalOptions>/std:c++latest %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -112,6 +114,7 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\cases\assign.txt" />
+    <Text Include="..\cases\assign2.txt" />
     <Text Include="..\cases\bit_op.txt" />
     <Text Include="..\cases\block.txt" />
     <Text Include="..\cases\bool.txt" />
@@ -121,25 +124,34 @@
     <Text Include="..\cases\class_ref.txt" />
     <Text Include="..\cases\comp_operators.txt" />
     <Text Include="..\cases\def_value.txt" />
+    <Text Include="..\cases\enum.txt" />
     <Text Include="..\cases\float.txt" />
     <Text Include="..\cases\for.txt" />
+    <Text Include="..\cases\forward.txt" />
     <Text Include="..\cases\func_def_params.txt" />
     <Text Include="..\cases\func_overload.txt" />
     <Text Include="..\cases\if_else.txt" />
     <Text Include="..\cases\inc_dec.txt" />
     <Text Include="..\cases\is.txt" />
+    <Text Include="..\cases\long_ref_assign.txt" />
     <Text Include="..\cases\math.txt" />
     <Text Include="..\cases\nullable.txt" />
+    <Text Include="..\cases\overload_cast.txt" />
     <Text Include="..\cases\parentheses.txt" />
     <Text Include="..\cases\ref.txt" />
+    <Text Include="..\cases\ref2.txt" />
     <Text Include="..\cases\script_class.txt" />
     <Text Include="..\cases\script_class_func.txt" />
     <Text Include="..\cases\simple.txt" />
     <Text Include="..\cases\string.txt" />
+    <Text Include="..\cases\string2.txt" />
     <Text Include="..\cases\struct.txt" />
     <Text Include="..\cases\subscript.txt" />
+    <Text Include="..\cases\switch.txt" />
+    <Text Include="..\cases\ternary.txt" />
     <Text Include="..\cases\type_func.txt" />
     <Text Include="..\cases\user_func.txt" />
+    <Text Include="..\cases\vardecl_assign.txt" />
     <Text Include="..\cases\while.txt" />
   </ItemGroup>
   <ItemGroup>

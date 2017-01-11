@@ -2,13 +2,16 @@ code:
 	[ line_or_block ... ] EOF
 
 func_decl:
-	var_type <func_name> arg_decl EOF
-	<class_name> arg_decl EOF // ctor
-	operator addref/release () // special function
+	func_info EOF
 
 func_def:
-	var_type <func_name> arg_decl block
-	<class_name> arg_decl block // ctor
+	func_info block
+	func_info // if deleted
+
+func_info:
+	[func_modifier...] var_type <func_name> arg_decl
+	[func_modifier...] <class_name> arg_decl // ctor
+	[func_modifier...] var_type operator override_op arg_decl
 
 member_decl:
 	simple_var_type <member_name> EOF
@@ -21,20 +24,28 @@ block:
 	{ [ line_or_block ...] }
 	
 line:
+	// only top block
 	class/struct <class_name> { [class_item ...] }
-	func_def // can only be used in top block
+	func_def [ ( expr ... ]
+	enum <enum_name> { [<enum_val_name> [= const_expr] ,...] }
+	// anywhere
 	if cond line_or_block [ else line_or_block ]
-	do line_or_block while cond ;
+	do line_or_block while cond
 	while cond line_or_block
 	for ( [ var_type_decl / expr ] ; [ expr ] ; [ expr ] ) line_or_block
+	switch ( expr ) { [switch_case ...] }
 	var_type_decl ;
-	break ;  // must be inside loop block
+	break ;  // must be inside loop/switch block
 	return [expr] ;
 	expr ;
 	;
 
+switch_case:
+	case const_item : [switch_case] [line_or_block ...]
+	default : [switch_case] [line_or_block ...]
+
 class_item:
-	simple_var_type <member_name> [, <member_name> ...] ;
+	simple_var_type var_decl [, var_decl ...] ;
 	func_def
 
 arg_decl:
@@ -60,6 +71,7 @@ simple_var_type:
 
 var_decl:
 	<var_name> [ = expr ]
+	<var_name> [ -> expr ]
 
 expr<END>:
 	expr_part [op expr_part ...] <END>
@@ -72,6 +84,11 @@ item:
 	<var_name>
 	<func> args
 	<class_name> args
+	enum_item
+	<enum_val_name> // only in enum_val const_expr
+	
+enum_item:
+	<enum_name>.<enum_val_name>
 
 const_item:
 	<int>
@@ -79,6 +96,7 @@ const_item:
 	<char>
 	<string>
 	const
+	<var_type>
 
 args:
 	( expr [, expr ...] )
@@ -94,12 +112,8 @@ post_op:
 op:
 	base_op
 	is
-	==
-	!=
-	>
-	>=
-	<
-	<=
+	as
+	compare_op
 	&&
 	||
 	!
@@ -108,8 +122,15 @@ op:
 	. <obj_member>
 	[base_op]=
 	=
-	++
-	--
+	inc_dec_op
+
+compare_op:
+	==
+	!=
+	>
+	>=
+	<
+	<=
 
 base_op:
 	+
@@ -135,7 +156,24 @@ inc_dec_op:
 
 index_op:
 	[ expr ]
+	args // functor
+
+override_op:
+	compare_op
+	base_op
+	unary_op
+	base_op=
+	[]
+	()
+	cast
+	addref // code only
+	release // code only
 
 const:
 	true
 	false
+	this
+
+func_modifier:
+	implicit
+	delete

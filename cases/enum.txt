@@ -1,0 +1,43 @@
+enum Type
+{
+	Dot, // 0
+	Circle, // 1
+	Square = 3, // 3
+	Triangle = Circle + 2, // 3
+	Cube, // 4
+	Line = Type.Square * 2 + 1, // 7
+	Loop // 8
+}
+
+Assert_AreEqual(0, Type.Dot as int);
+Assert_AreEqual(1, Type.Circle as int);
+Assert_AreEqual(3, Type.Square as int);
+Assert_AreEqual(3, Type.Triangle as int);
+Assert_AreEqual(4, Type.Cube as int);
+Assert_AreEqual(7, Type.Line as int);
+Assert_AreEqual(8, Type.Loop as int);
+
+class A
+{
+	Type type;
+}
+
+enum Other
+{
+	X
+}
+
+void f(Type type)
+{
+	Assert_AreEqual(3, type as int);
+}
+
+void f2(Type& type)
+{
+	type = Type.Line;
+}
+
+f(Type.Square);
+Type t;
+f2(t);
+Assert_AreEqual(7, t as int);

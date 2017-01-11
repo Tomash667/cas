@@ -35,7 +35,7 @@ const bool CI_MODE = ((_CI_MODE - 1) == 0);
 extern IModule* current_module;
 
 void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize = true);
-inline void RunFileTest(cstring filename, cstring input, cstring output, bool optimize = true)
+inline void RunFileTest(cstring filename, cstring input = "", cstring output = "", bool optimize = true)
 {
 	RunFileTest(current_module, filename, input, output, optimize);
 }
@@ -55,6 +55,7 @@ inline void RunFailureTest(cstring code, cstring error)
 void CleanupErrors();
 void CleanupAsserts();
 void AssertError(cstring error);
+void SetDecompile(bool decompile);
 
 struct Retval
 {
@@ -74,6 +75,13 @@ struct Retval
 		ReturnValue ret = module->GetReturnValue();
 		Assert::AreEqual(ReturnValue::Bool, ret.type);
 		Assert::AreEqual(expected, ret.bool_value);
+	}
+
+	void IsChar(char expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(ReturnValue::Char, ret.type);
+		Assert::AreEqual(expected, ret.char_value);
 	}
 
 	void IsInt(int expected)
@@ -115,9 +123,16 @@ TEST_CLASS(Name) 											\
 		CleanupAsserts(); 									\
 		DestroyModule(module);								\
 		current_module = nullptr;                           \
+		SetDecompile(false);								\
 	}														\
 															\
 	IModule* module;										\
 	Retval retval;                                          \
 
 #define CA_TEST_CLASS_END() }; }
+
+#define TEST_METHOD_IGNORE(x) \
+	BEGIN_TEST_METHOD_ATTRIBUTE(x) \
+		TEST_IGNORE() \
+	END_TEST_METHOD_ATTRIBUTE() \
+	TEST_METHOD(x)

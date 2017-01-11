@@ -21,14 +21,22 @@ enum KEYWORD
 	K_CLASS,
 	K_STRUCT,
 	K_IS,
-	//K_OPERATOR,
-	//K_CONST
+	K_AS,
+	K_OPERATOR,
+	K_SWITCH,
+	K_CASE,
+	K_DEFAULT,
+	K_IMPLICIT,
+	K_DELETE,
+	K_STATIC,
+	K_ENUM
 };
 
 enum CONST
 {
 	C_TRUE,
-	C_FALSE
+	C_FALSE,
+	C_THIS
 };
 
 enum FOUND
@@ -43,10 +51,12 @@ enum FOUND
 enum PseudoOp
 {
 	PUSH_BOOL = MAX_OP,
+	PUSH_TYPE,
 	NOP,
 	OBJ_MEMBER,
 	OBJ_FUNC,
 	SUBSCRIPT,
+	CALL_FUNCTOR,
 	BREAK,
 	RETURN,
 	INTERNAL_GROUP,
@@ -55,7 +65,13 @@ enum PseudoOp
 	DO_WHILE,
 	WHILE,
 	FOR,
-	GROUP
+	GROUP,
+	TERNARY_PART,
+	TERNARY,
+	SWITCH,
+	CASE,
+	DEFAULT_CASE,
+	CASE_BLOCK
 };
 
 enum PseudoOpValue
@@ -63,13 +79,6 @@ enum PseudoOpValue
 	DO_WHILE_NORMAL = 0,
 	DO_WHILE_ONCE = 1,
 	DO_WHILE_INF = 2
-};
-
-enum RefType
-{
-	REF_NO,
-	REF_MAY,
-	REF_YES
 };
 
 enum SYMBOL
@@ -113,7 +122,12 @@ enum SYMBOL
 	S_POST_INC,
 	S_POST_DEC,
 	S_IS,
+	S_AS,
 	S_SUBSCRIPT,
+	S_CALL,
+	S_TERNARY,
+	S_SET_REF,
+	S_SET_LONG_REF,
 	S_INVALID,
 	S_MAX
 };
@@ -123,7 +137,8 @@ enum SYMBOL_TYPE
 	ST_NONE,
 	ST_ASSIGN,
 	ST_INC_DEC,
-	ST_SUBSCRIPT
+	ST_SUBSCRIPT,
+	ST_CALL
 };
 
 enum LEFT
@@ -173,14 +188,13 @@ enum BASIC_SYMBOL
 	BS_INC, // ++
 	BS_DEC, // --
 	BS_IS, // is
+	BS_AS, // as
 	BS_SUBSCRIPT, // [
+	BS_CALL, // (
+	BS_TERNARY, // ?
+	BS_SET_REF, // ->
+	BS_SET_LONG_REF, // -->
 	BS_MAX
-};
-
-struct VarSource
-{
-	int index;
-	bool mod;
 };
 
 struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
@@ -194,13 +208,16 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 	};
 
 	string name;
-	VarType type;
+	VarType vartype;
 	Type subtype;
+	int local_index;
+	bool referenced;
 };
 
 struct ReturnStructVar : VarSource
 {
 	ParseNode* node;
+	bool code_result;
 };
 
 struct ParseNode : ObjectPoolProxy<ParseNode>
@@ -218,19 +235,20 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		float fvalue;
 		string* str;
 	};
-	int type;
+	VarType result;
+	ParseNode* linked;
 	vector<ParseNode*> childs;
-	RefType ref;
 	VarSource* source;
+	bool owned;
 
 	inline ParseNode* copy()
 	{
 		ParseNode* p = Get();
 		p->op = op;
 		p->value = value;
-		p->type = type;
-		p->ref = ref;
+		p->result = result;
 		p->source = source;
+		p->owned = owned;
 		if(!childs.empty())
 		{
 			p->childs.reserve(childs.size());
@@ -240,7 +258,14 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		return p;
 	}
 
-	inline void OnFree() { SafeFree(childs); }
+	inline void OnGet() { owned = true; }
+	inline void OnFree()
+	{
+		if(owned)
+			SafeFree(childs);
+		else
+			childs.clear();
+	}
 
 	inline void push(ParseNode* p) { childs.push_back(p); }
 	inline void push(vector<ParseNode*>& ps)
@@ -267,10 +292,6 @@ struct ParseNode : ObjectPoolProxy<ParseNode>
 		node->op = op;
 		node->value = value;
 		push(node);
-	}
-	inline VarType GetVarType()
-	{
-		return VarType(type, ref == REF_YES ? SV_REF : SV_NORMAL);
 	}
 };
 
@@ -343,9 +364,15 @@ struct ParseFunction : CommonFunction
 {
 	uint pos;
 	uint locals;
+	tokenizer::Pos start_pos;
 	ParseNode* node;
 	Block* block;
 	vector<ParseVar*> args;
+
+	ParseFunction() : node(nullptr), block(nullptr)
+	{
+
+	}
 
 	~ParseFunction()
 	{
@@ -416,6 +443,8 @@ struct SymbolInfo
 	bool left_associativity;
 	int args, op;
 	SYMBOL_TYPE type;
+	cstring op_code;
+	cstring oper;
 };
 
 struct SymbolNode
@@ -435,65 +464,96 @@ struct BasicSymbolInfo
 	SYMBOL pre_symbol;
 	SYMBOL post_symbol;
 	SYMBOL op_symbol;
+	cstring full_over_text;
+
+	inline SYMBOL operator [](int index)
+	{
+		switch(index)
+		{
+		default:
+		case 0:
+			return pre_symbol;
+		case 1:
+			return post_symbol;
+		case 2:
+			return op_symbol;
+		}
+	}
+
+	inline cstring GetOverloadText()
+	{
+		return full_over_text ? full_over_text : text;
+	}
 };
 
-template<typename T>
-struct ObjectPoolRef
-{
-	inline ObjectPoolRef(nullptr_t)
-	{
-		item = nullptr;
-	}
-
-	inline ObjectPoolRef()
-	{
-		item = T::Get();
-	}
-
-	inline ObjectPoolRef(T* item) : item(item)
-	{
-
-	}
-
-	inline ~ObjectPoolRef()
-	{
-		if(item)
-			T::Free(item);
-	}
-
-	inline void operator = (T* new_item)
-	{
-		if(item)
-			T::Free(item);
-		item = new_item;
-	}
-
-	inline operator T* ()
-	{
-		return item;
-	}
-
-	inline T* operator -> ()
-	{
-		return item;
-	}
-
-	inline T* Pin()
-	{
-		T* tmp = item;
-		item = nullptr;
-		return tmp;
-	}
-
-	inline T*& Get()
-	{
-		return item;
-	}
-
-private:
-	T* item;
-};
 
 typedef ObjectPoolRef<Block> BlockRef;
 typedef ObjectPoolRef<ParseNode> NodeRef;
 typedef ObjectPoolRef<ParseVar> VarRef;
+
+enum RETURN_INFO
+{
+	RI_NO,
+	RI_YES,
+	RI_BREAK
+};
+
+struct CastResult
+{
+	enum TYPE
+	{
+		CANT = 0,
+		NOT_REQUIRED = 1,
+		IMPLICIT_CAST = 2,
+		EXPLICIT_CAST = 4,
+		BUILTIN_CAST = 8,
+		IMPLICIT_CTOR = 16
+	};
+
+	enum REF_TYPE
+	{
+		NO,
+		DEREF,
+		TAKE_REF
+	};
+
+	int type;
+	REF_TYPE ref_type;
+	AnyFunction cast_func;
+	AnyFunction ctor_func;
+
+	inline CastResult() : type(CANT), ref_type(NO), cast_func(nullptr), ctor_func(nullptr)
+	{
+
+	}
+
+	inline bool CantCast()
+	{
+		return type == CANT;
+	}
+
+	inline bool NeedCast()
+	{
+		return type != NOT_REQUIRED || ref_type != NO;
+	}
+};
+
+struct OpResult
+{
+	enum Result
+	{
+		NO,
+		YES,
+		CAST,
+		OVERLOAD,
+		FALLBACK
+	};
+
+	CastResult cast_result;
+	VarType cast_var;
+	VarType result_var;
+	ParseNode* over_result;
+	Result result;
+
+	OpResult() : cast_var(V_VOID), result_var(V_VOID), over_result(nullptr), result(NO) {}
+};

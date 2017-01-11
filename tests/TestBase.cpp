@@ -9,6 +9,8 @@ istringstream s_input;
 ostringstream s_output;
 string event_output;
 IModule* current_module;
+int reg_errors;
+bool decompile;
 
 enum Result
 {
@@ -48,9 +50,11 @@ void TestEventHandler(EventType event_type, cstring msg)
 	case EventType::Error:
 	default:
 		type = "ERROR";
+		++reg_errors;
 		break;
 	case EventType::Assert:
 		type = "ASSERT";
+		++reg_errors;
 		break;
 	}
 	cstring m = Format("%s: %s\n", type, msg);
@@ -69,6 +73,7 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 	s.use_getch = false;
 	s.use_assert_handler = !IsDebuggerPresent();
 	s.use_debuglib = true;
+	s.decompile_marker = true;
 	if(!Initialize(&s))
 		Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 
@@ -83,24 +88,59 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 	Shutdown();
 }
 
+void WriteDecompileOutput()
+{
+	if(!decompile)
+		return;
+	cstring mark = "***DCMP***";
+	cstring mark_end = "***DCMP_END***";
+	string s = s_output.str();
+	size_t pos = s.find(mark, 0);
+	if(pos != string::npos)
+	{
+		size_t end = s.find(mark_end, pos);
+		size_t len = strlen(mark);
+		string decomp;
+		if(end != string::npos)
+		{
+			decomp = s.substr(pos + len, end - pos - len);
+			s.erase(pos, end - pos + strlen(mark_end));
+		}
+		else
+		{
+			decomp = s.substr(pos + len);
+			s.erase(pos, s.size() - pos);
+		}
+		Logger::WriteMessage(decomp.c_str());
+		s_output.clear();
+		s_output.str(s);
+	}
+}
+
 Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 {
 	Result result;
 	try
 	{
-		if(!module->ParseAndRun(input, optimize))
+		IModule::ExecutionResult ex_result = module->ParseAndRun(input, optimize, decompile);
+		WriteDecompileOutput();
+		if(ex_result != IModule::Ok)
+		{
+			if(ex_result == IModule::Exception)
+				event_output = Format("Exception: %s", module->GetException());
 			result = FAILED;
+		}
 		else
 		{
 			vector<string>& asserts = GetAsserts();
 			if(!asserts.empty())
 			{
 				event_output.clear();
-				event_output = Format("Asserts failed (%u). ", asserts.size());
+				event_output = Format("Asserts failed (%u):\n", asserts.size());
 				for(string& s : asserts)
 				{
 					event_output += s;
-					event_output += " ";
+					event_output += "\n";
 				}
 				result = ASSERT;
 			}
@@ -110,6 +150,7 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 	}
 	catch(cstring)
 	{
+		WriteDecompileOutput();
 		result = ASSERT;
 	}
 	return result;
@@ -147,6 +188,8 @@ Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, i
 
 void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize)
 {
+	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
+
 	event_output.clear();
 
 	if(!CI_MODE && input[0] != 0)
@@ -197,10 +240,14 @@ void RunFileTest(IModule* module, cstring filename, cstring input, cstring outpu
 	}
 
 	Assert::AreEqual(output, ss, "Invalid output.");
+
+	reg_errors = 0;
 }
 
 void RunTest(IModule* module, cstring code)
 {
+	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
+
 	event_output.clear();
 
 	s_input.clear();
@@ -227,10 +274,14 @@ void RunTest(IModule* module, cstring code)
 		}
 		break;
 	}
+
+	reg_errors = 0;
 }
 
 void RunFailureTest(IModule* module, cstring code, cstring error)
 {
+	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
+
 	event_output.clear();
 	
 	s_input.clear();
@@ -257,11 +308,14 @@ void RunFailureTest(IModule* module, cstring code, cstring error)
 		AssertError(error);
 		break;
 	}
+
+	reg_errors = 0;
 }
 
 void CleanupErrors()
 {
 	event_output.clear();
+	reg_errors = 0;
 }
 
 void CleanupAsserts()
@@ -274,4 +328,9 @@ void AssertError(cstring error)
 	cstring r = strstr(event_output.c_str(), error);
 	if(!r)
 		Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
+}
+
+void SetDecompile(bool _decompile)
+{
+	decompile = _decompile;
 }

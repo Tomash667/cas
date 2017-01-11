@@ -31,9 +31,19 @@ TestMethod(Assign)
 	RunFileTest("assign.txt", "", "5\n1\n8\n4\n2\n7\ntrue\n");
 }
 
+TestMethod(Assign2)
+{
+	RunFileTest("assign2.txt");
+}
+
 TestMethod(String)
 {
 	RunFileTest("string.txt", "Tomash 1990", "Podaj imie: Podaj rok urodzenia: Witaj Tomash! Masz 26 lat.");
+}
+
+TestMethod(String2)
+{
+	RunFileTest("string2.txt");
 }
 
 TestMethod(Float)
@@ -53,7 +63,7 @@ TestMethod(Bool)
 
 TestMethod(CompOperators)
 {
-	RunFileTest("comp_operators.txt", "", "true\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\nfalse\n");
+	RunFileTest("comp_operators.txt");
 }
 
 TestMethod(IfElse)
@@ -140,6 +150,11 @@ TestMethod(Ref)
 	RunFileTest("ref.txt", "11 13", "12\n12\n26,4\n4,999\n999,4\n");
 }
 
+TestMethod(Ref2)
+{
+	RunFileTest("ref2.txt");
+}
+
 TestMethod(ClassRef)
 {
 	RunFileTest("class_ref.txt", "", "20\n4\n11,22\n12\n");
@@ -152,7 +167,7 @@ TestMethod(Cast)
 
 TestMethod(Struct)
 {
-	RunFileTest("struct.txt", "", "");
+	RunFileTest("struct.txt");
 }
 
 TestMethod(Char)
@@ -164,7 +179,44 @@ TestMethod(Char)
 
 TestMethod(Subscript)
 {
-	RunFileTest("subscript.txt", "", "");
+	RunFileTest("subscript.txt");
+}
+
+TestMethod(Ternary)
+{
+	RunFileTest("ternary.txt");
+	RunFileTest("ternary.txt", "", "", false);
+}
+
+TestMethod(Switch)
+{
+	RunFileTest("switch.txt");
+}
+
+TestMethod(OverloadCast)
+{
+	RunFileTest("overload_cast.txt");
+}
+
+TestMethod(Forward)
+{
+	RunFileTest("forward.txt", "", "f\nf23\n10\nY::f30\nY::f13\nZ::f\nZ::f\nf_enum 0,2\n");
+}
+
+TestMethod(LongRefAssign)
+{
+	RunFileTest("long_ref_assign.txt");
+}
+
+TestMethod(VardeclAssign)
+{
+	RunFileTest("vardecl_assign.txt", "", "ctor0\n---\nctor2\n---\nctor2\nassign\n---\nctor2\n---\nctor2\nassign\n---\nctor2\nctor2\n---\nassign\nctor2\n"
+		"ctor2\n");
+}
+
+TestMethod(Enum)
+{
+	RunFileTest("enum.txt");
 }
 
 CA_TEST_CLASS_END();

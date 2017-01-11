@@ -1,0 +1,557 @@
+int ga;
+int& get_global() { return ga; }
+
+//==============================================================================
+// ref ops get (deref)
+int ref_get(int& a)
+{
+	return a;
+	// push_arg 0
+	// deref
+	// ret
+}
+void ref_get_test()
+{
+	int a = 3;
+	int r = ref_get(a);
+	Assert_AreEqual(3, r);
+}
+ref_get_test();
+
+//==============================================================================
+// ref ops get from ret
+int ref_ret_get()
+{
+	return get_global();
+}
+void ref_ret_get_test()
+{
+	ga = 7;
+	int r = ref_ret_get();
+	Assert_AreEqual(7, r);
+}
+ref_ret_get_test();
+
+//==============================================================================
+// ref ops set (set_adr)
+int ref_set(int& a)
+{
+	return a = 4;
+	// push_arg 0
+	// push_int 4
+	// set_adr
+	// ret
+}
+void ref_set_test()
+{
+	int a = 3;
+	int r = ref_set(a);
+	Assert_AreEqual(4, a);
+	Assert_AreEqual(4, r);
+}
+ref_set_test();
+
+//==============================================================================
+// ref ops set from ret
+int ref_ret_set()
+{
+	return get_global() = 5;
+}
+void ref_ret_set_test()
+{
+	int r = ref_ret_set();
+	Assert_AreEqual(5, r);
+	Assert_AreEqual(5, ga);
+}
+ref_ret_set_test();
+
+//==============================================================================
+// ref ops set from ref (set_adr deref)
+int ref_set_from_ref(int& a, int& b)
+{
+	return a = b;
+	// push_arg 0
+	// push_arg 1
+	// deref
+	// set_adr
+	// ret
+}
+void ref_set_from_ref_test()
+{
+	int a = 5;
+	int b = 7;
+	int r = ref_set_from_ref(a, b);
+	Assert_AreEqual(7, a);
+	Assert_AreEqual(7, r);
+}
+ref_set_from_ref_test();
+
+//==============================================================================
+// ref ops set from ref from ret
+int ref_ret_set_from_ref(int& a)
+{
+	return get_global() = a;
+}
+void ref_ret_set_from_ref_test()
+{
+	int a = 11;
+	int r = ref_ret_set_from_ref(a);
+	Assert_AreEqual(11, ga);
+	Assert_AreEqual(11, r);
+}
+ref_ret_set_from_ref_test();
+
+//==============================================================================
+// ref ops compound
+int ref_compound(int& a)
+{
+	return a += 2;
+	// push_arg 0
+	// push
+	// deref
+	// push_int 2
+	// add
+	// set_adr
+	// ret
+}
+void ref_compound_test()
+{
+	int a = 3;
+	int r = ref_compound(a);
+	Assert_AreEqual(5, a);
+	Assert_AreEqual(5, a);
+}
+ref_compound_test();
+
+//==============================================================================
+// ref ops compound from ret
+int ref_ret_compound()
+{
+	return get_global() += 3;
+}
+void ref_ret_compound_test()
+{
+	ga = 4;
+	int r = ref_ret_compound();
+	Assert_AreEqual(7, ga);
+	Assert_AreEqual(7, r);
+}
+ref_ret_compound_test();
+
+//==============================================================================
+// ref ops pre inc
+int ref_pre_inc(int& a)
+{
+	return ++a;
+	// push_arg 0
+	// push
+	// deref
+	// inc
+	// set_adr
+	// ret
+}
+void ref_pre_inc_test()
+{
+	int a = 7;
+	int r = ref_pre_inc(a);
+	Assert_AreEqual(8, a);
+	Assert_AreEqual(8, r);
+}
+ref_pre_inc_test();
+
+//==============================================================================
+// ref ops pre inc from ret
+int ref_ret_pre_inc()
+{
+	return ++get_global();
+}
+void ref_ret_pre_inc_test()
+{
+	ga = -4;
+	int r = ref_ret_pre_inc();
+	Assert_AreEqual(-3, ga);
+	Assert_AreEqual(-3, r);
+}
+ref_ret_pre_inc_test();
+
+//==============================================================================
+// ref ops post inc
+int ref_post_inc(int& a)
+{
+	return a++;
+	// push_arg 0
+	// push
+	// deref
+	// inc
+	// set_adr
+	// ret
+}
+void ref_post_inc_test()
+{
+	int a = 7;
+	int r = ref_post_inc(a);
+	Assert_AreEqual(8, a);
+	Assert_AreEqual(7, r);
+}
+ref_post_inc_test();
+
+//==============================================================================
+// ret ops post inc from ret
+int ref_ret_post_inc()
+{
+	return get_global()++;
+}
+void ref_ret_post_inc_test()
+{
+	ga = 0;
+	int r = ref_ret_post_inc();
+	Assert_AreEqual(0, r);
+	Assert_AreEqual(1, ga);
+}
+ref_ret_post_inc_test();
+
+//==============================================================================
+// ref init
+void ref_init_test()
+{
+	int a = 4;
+	int& r -> a;
+	Assert_AreEqual(4, r);
+	r = 3;
+	Assert_AreEqual(3, a);
+}
+ref_init_test();
+
+//==============================================================================
+// ref ops change ref
+void ref_change(int& a)
+{
+	int b;
+	a -> b;
+	a = 7;
+	Assert_AreEqual(7, a);
+	Assert_AreEqual(7, b);
+}
+void ref_change_test()
+{
+	int a = 4;
+	ref_change(a);
+	Assert_AreEqual(4, a);
+}
+ref_change_test();
+
+//==============================================================================
+// arg ref to global
+void arg_test(int& a)
+{
+	a = 4;
+}
+ga = 1;
+arg_test(ga);
+Assert_AreEqual(4, ga);
+
+//==============================================================================
+// arg ref to local
+void arg_to_local_test()
+{
+	int a = 2;
+	arg_test(a);
+	Assert_AreEqual(4, a);
+}
+arg_to_local_test();
+
+//==============================================================================
+// arg ref to arg
+void arg_to_arg_test(int a)
+{
+	arg_test(a);
+	Assert_AreEqual(4, a);
+}
+arg_to_arg_test(7);
+
+//==============================================================================
+// arg ref to member
+class X
+{
+	int a;
+}
+void arg_to_member_test()
+{
+	X x;
+	x.a = 3;
+	arg_test(x.a);
+	Assert_AreEqual(4, x.a);
+}
+arg_to_member_test();
+
+//==============================================================================
+// arg ref to this member
+class X2
+{
+	int a;
+	
+	void test()
+	{
+		a = 5;
+		arg_test(a);
+		Assert_AreEqual(4, a);
+	}
+	
+	int& ret()
+	{
+		return a;
+	}
+}
+X2 x2;
+x2.test();
+
+//==============================================================================
+// arg ref to index
+void str_f(char& c)
+{
+	c = 'b';
+}
+void arg_ref_to_index_test()
+{
+	string a = "aaa";
+	str_f(a[1]);
+	Assert_AreEqual("aba", a);
+}
+arg_ref_to_index_test();
+
+//==============================================================================
+// return ref to global
+void ret_ref_global_test()
+{
+	ga = 3;
+	int r = get_global() = 5;
+	Assert_AreEqual(5, r);
+	Assert_AreEqual(5, ga);
+}
+ret_ref_global_test();
+
+//==============================================================================
+// return ref to local
+int& ret_ref_to_local()
+{
+	int a = 4;
+	return a;
+	// push_local_ref a
+	// release_ref a
+	// ret
+}
+void ret_ref_to_local_test()
+{
+	int& r = ret_ref_to_local();
+	Assert_AreEqual(4, r);
+	r = 5;
+	Assert_AreEqual(5, r);
+}
+ret_ref_to_local_test();
+
+//==============================================================================
+// ref to local out of scope
+void ref_to_local_out_of_scope()
+{
+	int a = 2;
+	int& r = a;
+	// push_local_ref a
+	// set_local r
+	{
+		int b;
+		r -> b;
+		// push_local_ref b
+		// set_local r
+		// release_ref b
+	}
+	{
+		int c = 3;
+		r = 4;
+		Assert_AreEqual(2, a);
+		Assert_AreEqual(3, c);
+		Assert_AreEqual(4, r);
+	}
+}
+ref_to_local_out_of_scope();
+
+//==============================================================================
+// ret ref to arg
+int& ret_ref_to_arg(int a)
+{
+	return a;
+}
+void ret_ref_to_arg_test()
+{
+	int& r = ret_ref_to_arg(7);
+	Assert_AreEqual(7, r);
+	r = 5;
+	Assert_AreEqual(5, r);
+}
+ret_ref_to_arg_test();
+
+//==============================================================================
+// ret ref to member
+int& ret_ref_to_member(X x)
+{
+	return x.a;
+}
+void ret_ref_to_member_test()
+{
+	X x;
+	x.a = 4;
+	int& r = ret_ref_to_member(x);
+	Assert_AreEqual(4, r);
+	r = 13;
+	Assert_AreEqual(13, x.a);
+}
+ret_ref_to_member_test();
+
+//==============================================================================
+// ret ref to member out of scope
+int& ret_ref_to_member_out_of_scope()
+{
+	X x;
+	x.a = 2;
+	return x.a;
+}
+void ret_ref_to_member_out_of_scope_test()
+{
+	int& r = ret_ref_to_member_out_of_scope();
+	Assert_AreEqual(2, r);
+	r = 5;
+	Assert_AreEqual(5, r);
+}
+ret_ref_to_member_out_of_scope_test();
+
+//==============================================================================
+// ret ref to this member
+void ret_ref_to_this_member_test()
+{
+	X2 xx;
+	xx.a = 3;
+	int& r = xx.ret();
+	Assert_AreEqual(3, r);
+	r = 8;
+	Assert_AreEqual(8, xx.a);
+}
+ret_ref_to_this_member_test();
+
+//==============================================================================
+// ret ref to index
+char& ret_ref_to_index(string s)
+{
+	return s[3];
+}
+void ret_ref_to_index_test()
+{
+	string s = "test";
+	char& c = ret_ref_to_index(s);
+	Assert_AreEqual('t', c);
+	c = 'y';
+	Assert_AreEqual("tesy", s);
+}
+ret_ref_to_index_test();
+
+//==============================================================================
+// ref to struct, return ref to member
+struct S
+{
+	int a;
+}
+int& ref_to_struct_ref_member(S& s)
+{
+	return s.a;
+	// push_arg 0
+	// deref
+	// push_member_ref 0
+	// ret
+}
+void ref_to_struct_ref_member_test()
+{
+	S s;
+	s.a = 3;
+	int& r = ref_to_struct_ref_member(s);
+	Assert_AreEqual(3, r);
+	++r;
+	Assert_AreEqual(4, s.a);
+}
+ref_to_struct_ref_member_test();
+
+//==============================================================================
+// struct, return ref to member
+int& ref_to_struct_member(S s)
+{
+	return s.a;
+}
+void ref_to_struct_member_test()
+{
+	S s;
+	s.a = 3;
+	int& r = ref_to_struct_member(s);
+	Assert_AreEqual(3, r);
+	r = 5;
+	Assert_AreEqual(3, s.a);
+}
+ref_to_struct_member_test();
+
+//==============================================================================
+// ref to struct modify
+void ref_to_struct_modify_member(S& s)
+{
+	s.a = 1;
+}
+void ref_to_struct_modify_ref(S& s)
+{
+	S s2;
+	s2.a = 2;
+	s = s2;
+}
+void ref_to_struct_modify_test()
+{
+	S s;
+	s.a = 0;
+	ref_to_struct_modify_member(s);
+	Assert_AreEqual(1, s.a);
+	ref_to_struct_modify_ref(s);
+	Assert_AreEqual(2, s.a);
+}
+ref_to_struct_modify_test();
+
+//==============================================================================
+// ref to class overwrite
+class C
+{
+	int x,y;
+	C(int _x, int _y)
+	{
+		x = _x;
+		y = _y;
+	}
+}
+void ref_to_class_overwrite(C& c)
+{
+	C c2 = C(3,14);
+	c = c2;
+}
+void ref_to_class_overwrite_test()
+{
+	C c = C(1,11);
+	ref_to_class_overwrite(c);
+	Assert_AreEqual(3, c.x);
+	Assert_AreEqual(14, c.y);
+}
+ref_to_class_overwrite_test();
+
+/*
+
+*** script arg ref
+*** script return ref
+
+string
+array
+
+modify string array
+
+*/
+
+pause();

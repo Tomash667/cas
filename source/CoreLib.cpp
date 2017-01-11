@@ -61,9 +61,45 @@ static int f_string_length(string& str)
 	return str.length();
 }
 
+static bool f_string_empty(string& str)
+{
+	return str.empty();
+}
+
+static void f_string_clear(string& str)
+{
+	str.clear();
+}
+
 static int f_int_abs(int a)
 {
 	return abs(a);
+}
+
+static int f_int_parse(string& s)
+{
+	int i;
+	if(!TextHelper::ToInt(s.c_str(), i))
+		throw CasException(Format("Invalid int format '%s'.", s.c_str()));
+	return i;
+}
+
+static bool f_int_try_parse(string& s, int& i)
+{
+	return TextHelper::ToInt(s.c_str(), i);
+}
+
+static float f_float_parse(string& s)
+{
+	float f;
+	if(!TextHelper::ToFloat(s.c_str(), f))
+		throw CasException(Format("Invalid float format '%s'.", s.c_str()));
+	return f;
+}
+
+static bool f_float_try_parse(string& s, float& f)
+{
+	return TextHelper::ToFloat(s.c_str(), f);
 }
 
 static float f_float_abs(float a)
@@ -76,6 +112,35 @@ static char f_getchar()
 	char val;
 	(*s_input) >> val;
 	return val;
+}
+
+static bool f_bool_parse(string& s)
+{
+	bool b;
+	if(!TextHelper::ToBool(s.c_str(), b))
+		throw CasException(Format("Invalid bool format '%s'.", s.c_str()));
+	return b;
+}
+
+static bool f_bool_try_parse(string& s, bool& b)
+{
+	return TextHelper::ToBool(s.c_str(), b);
+}
+
+static bool f_char_try_parse(string& s, char& c)
+{
+	if(s.length() != 1u)
+		return false;
+	c = s[0];
+	return true;
+}
+
+static char f_char_parse(string& s)
+{
+	char c;
+	if(!f_char_try_parse(s, c))
+		throw CasException(Format("Invalid char format '%s'.", s.c_str()));
+	return c;
 }
 
 static int f_array_count(BaseArray* ar)
@@ -112,30 +177,49 @@ static void InitCoreLib(Module& module, Settings& settings)
 	s_use_getch = settings.use_getch;
 
 	// types
-	module.AddCoreType("void", 0, V_VOID, false);
-	module.AddCoreType("bool", sizeof(bool), V_BOOL, false);
-	module.AddCoreType("char", sizeof(char), V_CHAR, false);
-	module.AddCoreType("int", sizeof(int), V_INT, false);
-	module.AddCoreType("float", sizeof(float), V_FLOAT, false);
-	module.AddCoreType("string", sizeof(string), V_STRING, true);
-	module.AddCoreType("array", 0, V_ARRAY, true, true);
-	module.AddCoreType("ref", 0, V_REF, true, true);
-	module.AddCoreType("special", 0, V_SPECIAL, false, true);
-
-	// type functions
-	module.AddMethod("string", "int length()", f_string_length);
-	module.AddMethod("int", "int abs()", f_int_abs);
-	module.AddMethod("float", "float abs()", f_float_abs);
-	module.AddMethod("array", "int count()", f_array_count);
-	module.AddMethod("array", "void add(? item)", f_array_add);
-	module.AddMethod("array", "void insert(int index, ? item)", f_array_insert);
-	module.AddMethod("array", "void remove(int index)", f_array_remove);
-	module.AddMethod("array", "void clear()", f_array_clear);
-
+	Type* _void = module.AddCoreType("void", 0, V_VOID, 0);
+	Type* _bool = module.AddCoreType("bool", sizeof(bool), V_BOOL, 0);
+	Type* _char = module.AddCoreType("char", sizeof(char), V_CHAR, 0);
+	Type* _int = module.AddCoreType("int", sizeof(int), V_INT, 0);
+	Type* _float = module.AddCoreType("float", sizeof(float), V_FLOAT, 0);
+	Type* _string = module.AddCoreType("string", sizeof(string), V_STRING, Type::PassByValue);
+	Type* _ref = module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
+	Type* _special = module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
+	Type* _type = module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
+	Type* _array = module.AddCoreType("array", 0, V_ARRAY, Type::Ref | Type::Hidden);
+	// bool methods
+	module.AddMethod(_bool, "bool operator = (bool b)", nullptr);
+	module.AddMethod(_bool, "static bool Parse(string& s)", f_bool_parse);
+	module.AddMethod(_bool, "static bool TryParse(string& s, bool& b)", f_bool_try_parse);
+	// char methods
+	module.AddMethod(_char, "char operator = (char c)", nullptr);
+	module.AddMethod(_char, "static char Parse(string& s)", f_char_parse);
+	module.AddMethod(_char, "static bool TryParse(string& s, char& c)", f_char_try_parse);
+	// int methods
+	module.AddMethod(_int, "int operator = (int i)", nullptr);
+	module.AddMethod(_int, "int abs()", f_int_abs);
+	module.AddMethod(_int, "static int Parse(string& s)", f_int_parse);
+	module.AddMethod(_int, "static bool TryParse(string& s, int& i)", f_int_try_parse);
+	// float methods
+	module.AddMethod(_float, "float operator = (float f)", nullptr);
+	module.AddMethod(_float, "float abs()", f_float_abs);
+	module.AddMethod(_float, "static float Parse(string& s)", f_float_parse);
+	module.AddMethod(_float, "static bool TryParse(string& s, float& f)", f_float_try_parse);
+	// string methods
+	module.AddMethod(_string, "string operator = (string& s)", nullptr);
+	module.AddMethod(_string, "int length()", f_string_length);
+	module.AddMethod(_string, "bool empty()", f_string_empty);
+	module.AddMethod(_string, "void clear()", f_string_clear);
+	// array methods
+	module.AddMethod(_array, "int count()", f_array_count);
+	module.AddMethod(_array, "void add(? item)", f_array_add);
+	module.AddMethod(_array, "void insert(int index, ? item)", f_array_insert);
+	module.AddMethod(_array, "void remove(int index)", f_array_remove);
+	module.AddMethod(_array, "void clear()", f_array_clear);
 	// functions
-	module.AddFunction("void print(string str)", f_print);
+	module.AddFunction("void print(string& str)", f_print);
 	module.AddFunction("void println()", f_println0);
-	module.AddFunction("void println(string str)", f_println);
+	module.AddFunction("void println(string& str)", f_println);
 	module.AddFunction("int getint()", f_getint);
 	module.AddFunction("float getfloat()", f_getfloat);
 	module.AddFunction("string getstr()", f_getstr);
@@ -143,76 +227,87 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddFunction("char getchar()", f_getchar);
 }
 
+static void AddAssert(cstring msg)
+{
+	auto loc = cas::GetCurrentLocation();
+	cstring formated;
+	if(loc.second != -1)
+		formated = Format("Function: %s(%d). Message: %s", loc.first, loc.second, msg);
+	else
+		formated = Format("Function: %s. Message: %s", loc.first, msg);
+	asserts.push_back(formated);
+}
+
 static void Assert_AreEqual(bool expected, bool actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%s>, actual <%s>.", (expected ? "true" : "false"), (actual ? "true" : "false")));
+		AddAssert(Format("Expected <%s>, actual <%s>.", (expected ? "true" : "false"), (actual ? "true" : "false")));
 }
 
 static void Assert_AreNotEqual(bool not_expected, bool actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%s>, actual <%s>.", (not_expected ? "true" : "false"), (actual ? "true" : "false")));
+		AddAssert(Format("Not expected <%s>, actual <%s>.", (not_expected ? "true" : "false"), (actual ? "true" : "false")));
 }
 
 static void Assert_AreEqual(char expected, char actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%s>, actual <%s>.", EscapeChar(expected), EscapeChar(actual)));
+		AddAssert(Format("Expected <%s>, actual <%s>.", EscapeChar(expected), EscapeChar(actual)));
 }
 
 static void Assert_AreNotEqual(char not_expected, char actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%s>, actual <%s>.", EscapeChar(not_expected), EscapeChar(actual)));
+		AddAssert(Format("Not expected <%s>, actual <%s>.", EscapeChar(not_expected), EscapeChar(actual)));
 }
 
 static void Assert_AreEqual(int expected, int actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%d>, actual <%d>.", expected, actual));
+		AddAssert(Format("Expected <%d>, actual <%d>.", expected, actual));
 }
 
 static void Assert_AreNotEqual(int not_expected, int actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
+		AddAssert(Format("Not expected <%d>, actual <%d>.", not_expected, actual));
 }
 
 static void Assert_AreEqual(float expected, float actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%.2g>, actual <%.2g>.", expected, actual));
+		AddAssert(Format("Expected <%.2g>, actual <%.2g>.", expected, actual));
 }
 
 static void Assert_AreNotEqual(float not_expected, float actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%.2g>, actual <%.2g>.", not_expected, actual));
+		AddAssert(Format("Not expected <%.2g>, actual <%.2g>.", not_expected, actual));
 }
 
 static void Assert_AreEqual(string& expected, string& actual)
 {
 	if(expected != actual)
-		asserts.push_back(Format("Expected <%s>, actual <%s>.", Escape(expected), Escape(actual)));
+		AddAssert(Format("Expected <%s>, actual <%s>.", Escape(expected), Escape(actual)));
 }
 
 static void Assert_AreNotEqual(string& not_expected, string& actual)
 {
 	if(not_expected == actual)
-		asserts.push_back(Format("Not expected <%s>, actual <%s>.", Escape(not_expected), Escape(actual)));
+		AddAssert(Format("Not expected <%s>, actual <%s>.", Escape(not_expected), Escape(actual)));
 }
 
 static void Assert_IsTrue(bool value)
 {
 	if(!value)
-		asserts.push_back("True expected.");
+		AddAssert("True expected.");
 }
 
 static void Assert_IsFalse(bool value)
 {
 	if(value)
-		asserts.push_back("False expected.");
+		AddAssert("False expected.");
 }
 
 static void Assert_Break()
@@ -235,8 +330,8 @@ static void InitDebugLib(Module& module)
 	module.AddFunction("void Assert_AreNotEqual(int not_expected, int actual)", AsFunction(Assert_AreNotEqual, void, (int, int)));
 	module.AddFunction("void Assert_AreEqual(float expected, float actual)", AsFunction(Assert_AreEqual, void, (float, float)));
 	module.AddFunction("void Assert_AreNotEqual(float not_expected, float actual)", AsFunction(Assert_AreNotEqual, void, (float, float)));
-	module.AddFunction("void Assert_AreEqual(string expected, string actual)", AsFunction(Assert_AreEqual, void, (string&, string&)));
-	module.AddFunction("void Assert_AreNotEqual(string not_expected, string actual)", AsFunction(Assert_AreNotEqual, void, (string&, string&)));
+	module.AddFunction("void Assert_AreEqual(string& expected, string& actual)", AsFunction(Assert_AreEqual, void, (string&, string&)));
+	module.AddFunction("void Assert_AreNotEqual(string& not_expected, string& actual)", AsFunction(Assert_AreNotEqual, void, (string&, string&)));
 	module.AddFunction("void Assert_IsTrue(bool value)", Assert_IsTrue);
 	module.AddFunction("void Assert_IsFalse(bool value)", Assert_IsFalse);
 	module.AddFunction("void Assert_Break()", Assert_Break);

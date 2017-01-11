@@ -63,6 +63,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <PreprocessToFile>false</PreprocessToFile>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <AdditionalOptions>/std:c++latest %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -79,6 +80,7 @@
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <PreprocessToFile>false</PreprocessToFile>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalOptions>/std:c++latest %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -87,6 +89,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <Text Include="doc\calling.txt" />
+    <Text Include="doc\manual.txt" />
     <Text Include="scheme.txt" />
     <Text Include="todo.txt" />
     <Text Include="unlicense.txt" />
@@ -104,6 +107,7 @@
     <ClInclude Include="include/cas/ReturnValue.h" />
     <ClInclude Include="source/RunModule.h" />
     <ClInclude Include="source/Type.h" />
+    <ClInclude Include="source\Decompiler.h" />
     <ClInclude Include="source\Run.h" />
   </ItemGroup>
   <ItemGroup>
