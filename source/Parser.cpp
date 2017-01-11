@@ -5522,6 +5522,7 @@ Type* Parser::AnalyzeAddType(const string& name)
 	type->declared = false;
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();
+	type->flags = 0;
 	run_module->types.push_back(type);
 	AddType(type);
 	return type;
