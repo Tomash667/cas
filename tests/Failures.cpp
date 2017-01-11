@@ -102,7 +102,7 @@ TEST_METHOD(InvalidBreak)
 {
 	RunFailureTest("break;", "Not in breakable block.");
 }
-		
+
 TEST_METHOD(InvalidReturnType)
 {
 	RunFailureTest("int f() { return \"dodo\"; }", "Invalid return type 'string', function 'int f()' require 'int' type.");
@@ -277,12 +277,12 @@ TEST_METHOD(InvalidOperatorOverloadDefinition)
 TEST_METHOD(AmbiguousCallToOverloadedOperator)
 {
 	RunFailureTest(R"code(
-	class A{
-		void operator += (int a) {}
-		void operator += (string s) {}
-	}
-	A a;
-	a += 1.13;
+		class A{
+			void operator += (int a) {}
+			void operator += (string s) {}
+		}
+		A a;
+		a += 1.13;
 	)code",
 		"Ambiguous call to overloaded method 'A.operator += ' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
 }
@@ -531,6 +531,40 @@ TEST_METHOD(MismatchedStaticMethod)
 		"No matching call to method 'A.sum' with arguments (int,int,int), could be 'int A.sum(int,int)'.");
 
 	RunFailureTest("class A{} A.sum(1,2,3);", "Missing static method 'sum' for type 'A'.");
+}
+
+TEST_METHOD(RegisterEnumWithSameEnumerator)
+{
+	RunFailureTest("enum E{A,A}", "Enumerator 'E.A' already defined.");
+	CleanupErrors();
+
+	IEnum* enu = module->AddEnum("F");
+	bool r = enu->AddValue("A");
+	Assert::IsTrue(r);
+	r = enu->AddValue("A", 1);
+	Assert::IsFalse(r);
+	AssertError("Enumerator 'F.A' already defined.");
+	CleanupErrors();
+
+	r = enu->AddValues({ "B", "B" });
+	Assert::IsFalse(r);
+	AssertError("Enumerator 'F.B' already defined.");
+	CleanupErrors();
+
+	r = enu->AddValues({ {"C", 2}, {"C", 4} });
+	AssertError("Enumerator 'F.C' already defined.");
+	Assert::IsFalse(r);
+}
+
+TEST_METHOD(KeywordAsEnumerator)
+{
+	RunFailureTest("enum E{A,int}", "Expecting item, found keyword 'int' from group 'var'.");
+	CleanupErrors();
+
+	IEnum* enu = module->AddEnum("F");
+	bool r = enu->AddValue("int");
+	Assert::IsFalse(r);
+	AssertError("Enumerator name 'int' already used as type.");
 }
 
 CA_TEST_CLASS_END();

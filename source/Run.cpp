@@ -465,8 +465,8 @@ void SetFromStack(Var& v)
 
 void Cast(Var& v, VarType vartype)
 {
-	assert(In((CoreVarType)v.vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }));
-	assert(In((CoreVarType)vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }));
+	assert(In((CoreVarType)v.vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || run_module->GetType(v.vartype.type)->IsEnum());
+	assert(In((CoreVarType)vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || run_module->GetType(vartype.type)->IsEnum());
 	assert(v.vartype != vartype);
 
 #define COMBINE(x,y) ((x & 0xFF) | ((y & 0xFF) << 8))
@@ -538,7 +538,30 @@ void Cast(Var& v, VarType vartype)
 		v.vartype.type = V_STRING;
 		break;
 	default:
-		assert(0);
+		{
+			bool left_enum = run_module->GetType(v.vartype.type)->IsEnum(),
+				right_enum = run_module->GetType(vartype.type)->IsEnum();
+			if(left_enum)
+			{
+				if(right_enum)
+					v.vartype.type = vartype.type;
+				else
+				{
+					v.vartype.type = V_INT;
+					if(vartype.type != V_INT)
+						Cast(v, vartype);
+				}
+			}
+			else
+			{
+				if(v.vartype.type != V_INT)
+				{
+					v.vartype.type = V_INT;
+					Cast(v, vartype);
+				}
+				v.vartype.type = vartype.type;
+			}
+		}
 		break;
 	}
 
@@ -806,6 +829,14 @@ void RunInternal(ReturnValue& retval)
 				stack.push_back(v);
 			}
 			break;
+		case PUSH_ENUM:
+			{
+				int type_idx = *c++;
+				int value = *c++;
+				assert(run_module->GetType(type_idx)->IsEnum());
+				stack.push_back(Var(VarType(type_idx, 0), value));
+			}
+			break;
 		case POP:
 			{
 				assert(!stack.empty());
@@ -1067,7 +1098,8 @@ void RunInternal(ReturnValue& retval)
 					assert(left.vartype.type == V_INT || left.vartype.type == V_FLOAT || left.vartype.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
 					assert(left.vartype.type == V_BOOL || left.vartype.type == V_CHAR || left.vartype.type == V_INT || left.vartype.type == V_FLOAT
-						|| left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass());
+						|| left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass()
+						|| run_module->GetType(left.vartype.type)->IsEnum());
 				else if(op == AND || op == OR)
 					assert(left.vartype.type == V_BOOL);
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)

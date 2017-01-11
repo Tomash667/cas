@@ -156,7 +156,8 @@ void Parser::AddKeywords()
 		{ "default", K_DEFAULT },
 		{ "implicit", K_IMPLICIT },
 		{ "delete", K_DELETE },
-		{ "static", K_STATIC }
+		{ "static", K_STATIC },
+		{ "enum", K_ENUM }
 	}, "keywords");
 
 	// const
@@ -238,8 +239,6 @@ void Parser::Cleanup()
 		delete type;
 	}
 
-	
-
 	Str::Free(strs);
 	LoopAndRemove(ufuncs, [](ParseFunction* f)
 	{
@@ -274,6 +273,7 @@ void Parser::ParseCode()
 	current_type = nullptr;
 	global_node = nullptr;
 	global_returns.clear();
+	active_enum = nullptr;
 
 	NodeRef node;
 	node->pseudo_op = GROUP;
@@ -537,6 +537,9 @@ ParseNode* Parser::ParseLine()
 		case K_DELETE:
 		case K_STATIC:
 			return ParseFunc();
+		case K_ENUM:
+			ParseEnum(false);
+			return nullptr;
 		default:
 			t.Unexpected();
 		}
@@ -741,7 +744,7 @@ ParseNode* Parser::ParseSwitch()
 	t.Next();
 	swi->push(ParseExpr(')'));
 	int type = swi->childs[0]->result.type;
-	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING)
+	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING && !GetType(type)->IsEnum())
 		t.Throw("Invalid switch type '%s'.", GetName(swi->childs[0]->result));
 	t.AssertSymbol(')');
 	t.Next();
@@ -798,11 +801,12 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 	if(t.IsKeyword(K_CASE, G_KEYWORD))
 	{
 		t.Next();
-		NodeRef val = ParseConstItem();
-		if(val->result.type != V_BOOL && val->result.type != V_CHAR && val->result.type != V_INT && val->result.type != V_FLOAT
-			&& val->result.type != V_STRING)
+		NodeRef val = ParseConstExpr();
+		Type* type = GetType(val->result.type);
+		if(val->result != V_BOOL && val->result != V_CHAR && val->result != V_INT && val->result != V_FLOAT && val->result != V_STRING
+			&& !type->IsEnum())
 			t.Throw("Invalid case type '%s'.", GetName(val->result));
-		if(!TryCast(val.Get(), swi->childs[0]->result))
+		if(!TryConstCast(val.Get(), swi->childs[0]->result))
 			t.Throw("Can't cast case value from '%s' to '%s'.", GetTypeName(val), GetTypeName(swi->childs[0]));
 		assert(val->op != CAST);
 		for(uint i = 1, count = swi->childs.size(); i < count; ++i)
@@ -835,7 +839,9 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 					dup = strs[val->value]->s.c_str();
 				break;
 			default:
-				assert(0);
+				assert(type->IsEnum());
+				if(val->value == chi->value)
+					dup = Format("%d", val->value);
 				break;
 			}
 			if(dup)
@@ -859,7 +865,8 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 			cas->value = val->value;
 			break;
 		default:
-			assert(0);
+			assert(type->IsEnum());
+			cas->value = val->value;
 			break;
 		}
 		cas->pseudo_op = CASE;
@@ -889,6 +896,104 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 
 	cas->linked = nullptr;
 	return cas.Pin();
+}
+
+void Parser::ParseEnum(bool forward)
+{
+	if(current_block != main_block)
+		t.Throw("Enum can't be declared inside block.");
+	t.Next();
+
+	if(!forward)
+	{
+		t.SkipToSymbol('}');
+		t.Next();
+		return;
+	}
+
+	// name
+	bool ok = true;
+	Type* type = nullptr;
+	if(t.IsKeywordGroup(G_VAR))
+	{
+		type = GetType(t.GetKeywordId(G_VAR));
+		if(type->declared)
+			ok = false;
+	}
+	else if(t.IsItem())
+	{
+		const string& name = t.MustGetItem();
+		CheckFindItem(name, false);
+		type = AnalyzeAddType(name);
+	}
+	else
+		ok = false;
+	if(!ok)
+		t.ThrowExpecting("enum name");
+	type->declared = true;
+	Enum* enu = new Enum;
+	enu->type = type;
+	type->size = 4;
+	type->enu = enu;
+	active_enum = enu;
+	t.Next();
+
+	// {
+	t.AssertSymbol('{');
+	t.Next();
+
+	// enum values
+	if(!t.IsSymbol('}'))
+	{
+		while(true)
+		{
+			// name
+			const string& enum_value = t.MustGetItem();
+			if(enu->Find(enum_value))
+				t.Throw("Enumerator '%s.%s' already defined.", type->name.c_str(), enum_value.c_str());
+			enu->values.push_back(std::pair<string, int>(enum_value, 0));
+			t.Next();
+
+			// [= value]
+			auto& entry = enu->values.back();
+			if(t.IsSymbol('='))
+			{
+				t.Next();
+				NodeRef expr = ParseConstExpr();
+				if(!TryConstCast(expr.Get(), VarType(V_INT)))
+					t.Throw("Enumerator require 'int' value, have '%s'.", GetTypeName(expr));
+				entry.second = expr->value;
+			}
+			else if(enu->values.size() >= 2u)
+				entry.second = enu->values[enu->values.size() - 2].second + 1;
+
+			// , or }
+			if(t.IsSymbol('}'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		}
+	}
+
+	// }
+	t.Next();
+	active_enum = nullptr;
+
+	// add compare operator
+	ParseFunction* f = new ParseFunction;
+	f->arg_infos.push_back(ArgInfo(VarType(type->index, 0), 0, false));
+	f->arg_infos.push_back(ArgInfo(VarType(type->index, 0), 0, false));
+	f->block = nullptr;
+	f->flags = CommonFunction::F_BUILTIN;
+	f->index = ufuncs.size();
+	f->name = "$opAssign";
+	f->node = nullptr;
+	f->required_args = 2;
+	f->result = V_BOOL;
+	f->special = SF_NO;
+	f->type = type->index;
+	type->ufuncs.push_back(f);
+	ufuncs.push_back(f);
 }
 
 // func_decl
@@ -974,7 +1079,7 @@ void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 		if(t.IsSymbol('='))
 		{
 			t.Next();
-			t.SkipTo([](Tokenizer& t) {return t.IsSymbol(',') || t.IsSymbol(';'); });
+			t.SkipTo([](Tokenizer& t) { return t.IsSymbol(',') || t.IsSymbol(';'); });
 		}
 		
 		if(t.IsSymbol(';'))
@@ -1217,8 +1322,8 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 			{
 				prev_arg_def = true;
 				t.Next();
-				NodeRef item = ParseConstItem();
-				if(!TryCast(item.Get(), vartype))
+				NodeRef item = ParseConstExpr();
+				if(!TryConstCast(item.Get(), vartype))
 					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
 				switch(item->op)
 				{
@@ -1236,6 +1341,9 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 					break;
 				case PUSH_STRING:
 					f->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
+					break;
+				case PUSH_ENUM:
+					f->arg_infos.push_back(ArgInfo(VarType(item->result.type, 0), item->value, true));
 					break;
 				default:
 					assert(0);
@@ -1378,12 +1486,21 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 		default: // class
 			{
 				Type* rtype = GetType(vartype.type);
-				assert(rtype->IsClass());
-				if(IS_SET(rtype->flags, Type::DisallowCreate))
-					t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
-				vector<AnyFunction> funcs;
-				FindAllCtors(rtype, funcs);
-				ApplyFunctionCall(expr, funcs, rtype, true);
+				if(rtype->IsClass())
+				{
+					if(IS_SET(rtype->flags, Type::DisallowCreate))
+						t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
+					vector<AnyFunction> funcs;
+					FindAllCtors(rtype, funcs);
+					ApplyFunctionCall(expr, funcs, rtype, true);
+				}
+				else
+				{
+					assert(rtype->IsEnum());
+					expr->result = vartype;
+					expr->op = PUSH_ENUM;
+					expr->value = 0;
+				}
 			}
 			break;
 		}
@@ -1862,28 +1979,56 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			else
 			{
 				assert(right->pseudo_op == OBJ_MEMBER);
-				int m_index;
-				Member* m = type->FindMember(*right->str, m_index);
-				if(!m)
-					t.Throw("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
-				StringPool.Free(right->str);
-				ParseNode* node = ParseNode::Get();
-				node->op = PUSH_MEMBER;
-				node->result = m->vartype;
-				node->value = m_index;
-				node->source = left->source;
-				if(!deref)
-					node->push(left.Pin());
+				Type* real_type = type;
+				if(type->index == V_TYPE)
+					real_type = GetType(left->value);
+				if(real_type->IsEnum())
+				{
+					auto e = real_type->enu->Find(*right->str);
+					if(!e)
+					{
+						cstring err = Format("Invalid enumerator '%s.%s'.", real_type->name.c_str(), right->str->c_str());
+						StringPool.Free(right->str);
+						t.Throw(err);
+					}
+					StringPool.Free(right->str);
+					ParseNode* enu = ParseNode::Get();
+					enu->op = PUSH_ENUM;
+					enu->result = VarType(real_type->index, 0);
+					enu->source = nullptr;
+					enu->value = e->second;
+					right.Pin()->Free();
+					stack.push_back(enu);
+				}
 				else
 				{
-					ParseNode* d = ParseNode::Get();
-					d->push(left.Pin());
-					d->result = VarType(type->index, 0);
-					d->op = DEREF;
-					node->push(d);
+					int m_index;
+					Member* m = type->FindMember(*right->str, m_index);
+					if(!m)
+					{
+						cstring err = Format("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+						StringPool.Free(right->str);
+						t.Throw(err);
+					}
+					StringPool.Free(right->str);
+					ParseNode* node = ParseNode::Get();
+					node->op = PUSH_MEMBER;
+					node->result = m->vartype;
+					node->value = m_index;
+					node->source = left->source;
+					if(!deref)
+						node->push(left.Pin());
+					else
+					{
+						ParseNode* d = ParseNode::Get();
+						d->push(left.Pin());
+						d->result = VarType(type->index, 0);
+						d->op = DEREF;
+						node->push(d);
+					}
+					right.Pin()->Free();
+					stack.push_back(node);
 				}
-				right.Pin()->Free();
-				stack.push_back(node);
 			}
 		}
 		else if(si.symbol == S_TERNARY)
@@ -1984,33 +2129,12 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				stack.push_back(op_result.over_result);
 				break;
 			case OpResult::CAST:
-				Cast(left.Get(), VarType(right->value, 0), &op_result.cast_result, false);
+				Cast(left.Get(), VarType(right->value, 0), CF_EXPLICIT, &op_result.cast_result);
 				stack.push_back(left.Pin());
 				break;
 			}
 		}
 	}
-}
-
-void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
-{
-	// (
-	t.AssertSymbol(open);
-	t.Next();
-
-	// arguments
-	if(!t.IsSymbol(close))
-	{
-		while(true)
-		{
-			nodes.push_back(ParseExpr(',', close));
-			if(t.IsSymbol(close))
-				break;
-			t.AssertSymbol(',');
-			t.Next();
-		}
-	}
-	t.Next();
 }
 
 ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
@@ -2202,6 +2326,47 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 	return set.Pin();
 }
 
+ParseNode* Parser::ParseConstExpr()
+{
+	NodeRef expr = ParseExpr(';');
+	bool is_const = false;
+	switch(expr->op)
+	{
+	case PUSH_BOOL:
+	case PUSH_CHAR:
+	case PUSH_INT:
+	case PUSH_FLOAT:
+	case PUSH_STRING:
+	case PUSH_ENUM:
+		is_const = true;
+		break;
+	}
+	if(!is_const)
+		t.Throw("Const expression required.");
+	return expr.Pin();
+}
+
+void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
+{
+	// (
+	t.AssertSymbol(open);
+	t.Next();
+
+	// arguments
+	if(!t.IsSymbol(close))
+	{
+		while(true)
+		{
+			nodes.push_back(ParseExpr(',', close));
+			if(t.IsSymbol(close))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		}
+	}
+	t.Next();
+}
+
 ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
 {
 	if(t.IsKeywordGroup(G_VAR) || _vartype)
@@ -2313,8 +2478,26 @@ ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
 			}
 		default:
 			assert(0);
-		case F_NONE:
 			t.Unexpected();
+			break;
+		case F_NONE:
+			if(active_enum)
+			{
+				const string& name = t.MustGetItem();
+				auto e = active_enum->Find(name);
+				if(e)
+				{
+					ParseNode* enu = ParseNode::Get();
+					enu->op = PUSH_ENUM;
+					enu->value = e->second;
+					enu->source = nullptr;
+					enu->result = VarType(active_enum->type->index, 0);
+					t.Next();
+					return enu;
+				}
+			}
+			t.Unexpected();
+			break;
 		}
 	}
 	else
@@ -2442,9 +2625,14 @@ ParseVar* Parser::GetVar(ParseNode* node)
 VarType Parser::GetVarType(bool is_arg, bool in_cpp)
 {
 	VarType vartype(nullptr);
-	if(!t.IsKeywordGroup(G_VAR))
+	bool ok = false;
+	if(t.IsKeywordGroup(G_VAR))
+	{
+		vartype.type = t.GetKeywordId(G_VAR);
+		ok = true;
+	}
+	if(!ok)
 		t.Unexpected("Expecting var type.");
-	vartype.type = t.GetKeywordId(G_VAR);
 	t.Next();
 
 	if(t.IsSymbol('&'))
@@ -2473,8 +2661,6 @@ VarType Parser::GetVarTypeForMember()
 		cstring name = nullptr;
 		if(vartype.type == V_REF)
 			name = "reference";
-		//else if(type.special == SV_ARRAY)
-		//	name = "array";
 		else if(vartype.type == V_STRING)
 			name = "string";
 		else
@@ -2732,7 +2918,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 			vartype = V_STRING;
 		else if(left == V_FLOAT || right == V_FLOAT)
 			vartype = V_FLOAT;
-		else // int or char or bool
+		else // int or char or bool or enum
 			vartype = V_INT;
 		op_result.cast_var = vartype;
 		op_result.result_var = vartype;
@@ -2746,7 +2932,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 			break; // can't do with string
 		if(left == V_FLOAT || right == V_FLOAT)
 			vartype = V_FLOAT;
-		else // int or char or bool
+		else // int or char or bool or enum
 			vartype = V_INT;
 		op_result.cast_var = vartype;
 		op_result.result_var = vartype;
@@ -2756,7 +2942,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 	case S_MINUS:
 		if(left == V_INT || left == V_FLOAT)
 			vartype = (CoreVarType)left;
-		else if(left == V_BOOL || left == V_CHAR)
+		else if(left == V_BOOL || left == V_CHAR || ltype->IsEnum())
 			vartype = V_INT;
 		else
 			break;
@@ -2778,7 +2964,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 		}
 		else if(left == V_FLOAT || right == V_FLOAT)
 			vartype = V_FLOAT;
-		else if(left == V_INT || right == V_INT)
+		else if(left == V_INT || right == V_INT || ltype->IsEnum() || rtype->IsEnum())
 			vartype = V_INT;
 		else if(symbol == S_EQUAL || symbol == S_NOT_EQUAL)
 		{
@@ -3116,24 +3302,27 @@ bool Parser::TryConstExpr1(ParseNode* node, SYMBOL symbol)
 	return false;
 }
 
-void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, bool implici, bool pass_by_ref)
+bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult* _cast_result)
 {
 	CastResult cast_result;
 	if(_cast_result)
 		cast_result = *_cast_result;
 	else
-		cast_result = MayCast(node, vartype, pass_by_ref);
+		cast_result = MayCast(node, vartype, IS_SET(cast_flags, CF_PASS_BY_REF));
 	assert(!cast_result.CantCast());
 
 	// no cast required?
 	if(!cast_result.NeedCast())
-		return;
+		return true;
 
+	bool implici = !IS_SET(cast_flags, CF_EXPLICIT);
 	assert(!implici || IS_SET(cast_result.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) || cast_result.type == CastResult::NOT_REQUIRED);
 
 	// can const cast?
-	if(TryConstCast(node, vartype))
-		return;
+	if(DoConstCast(node, vartype))
+		return true;
+	else if(IS_SET(cast_flags, CF_REQUIRE_CONST))
+		return false;
 
 	if(cast_result.ref_type == CastResult::DEREF)
 	{
@@ -3166,7 +3355,6 @@ void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, b
 	// cast?
 	if(IS_SET(cast_result.type, CastResult::IMPLICIT_CAST) || (!implici && IS_SET(cast_result.type, CastResult::EXPLICIT_CAST)))
 	{
-		CheckFunctionIsDeleted(*cast_result.cast_func.cf);
 		ParseNode* cast = ParseNode::Get();
 		if(IS_SET(cast_result.type, CastResult::BUILTIN_CAST))
 		{
@@ -3178,6 +3366,7 @@ void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, b
 		else
 		{
 			// user defined function cast
+			CheckFunctionIsDeleted(*cast_result.cast_func.cf);
 			cast->op = (cast_result.cast_func.is_parse ? CALLU : CALL);
 			cast->result = cast_result.cast_func.cf->result;
 			cast->value = cast_result.cast_func.cf->index;
@@ -3198,6 +3387,8 @@ void Parser::Cast(ParseNode*& node, VarType vartype, CastResult* _cast_result, b
 		cast->push(node);
 		node = cast;
 	}
+
+	return true;
 }
 
 // used in var assignment, passing argument to function
@@ -3213,12 +3404,12 @@ bool Parser::TryCast(ParseNode*& node, VarType vartype, bool implici, bool pass_
 			if(!IS_SET(c.type, CastResult::IMPLICIT_CAST | CastResult::IMPLICIT_CTOR) && c.type != CastResult::NOT_REQUIRED)
 				return false;
 		}
-		Cast(node, vartype, &c, implici);
+		Cast(node, vartype, implici ? 0 : CF_EXPLICIT, &c);
 	}
 	return true;
 }
 
-bool Parser::TryConstCast(ParseNode* node, VarType vartype)
+bool Parser::DoConstCast(ParseNode* node, VarType vartype)
 {
 	// can cast only const literal
 	if(vartype == V_STRING)
@@ -3287,7 +3478,17 @@ bool Parser::TryConstCast(ParseNode* node, VarType vartype)
 		node->result = V_INT;
 		return true;
 	default:
-		return false;
+		{
+			bool right_enum = GetType(vartype.type)->IsEnum();
+			if((node->op == PUSH_ENUM || node->result.type == V_INT) && (right_enum || vartype.type == V_INT))
+			{
+				node->result.type = vartype.type;
+				node->op = (right_enum ? PUSH_ENUM : PUSH_INT);
+				return true;
+			}
+			else
+				return false;
+		}
 	}
 }
 
@@ -3296,15 +3497,42 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 	CastResult result;
 
 	if(node->result.GetType() == vartype.GetType())
+	{
+		// types match, no cast required
 		result.type = CastResult::NOT_REQUIRED;
+	}
 	else
 	{
+		node->result.GetType();
 		Type* left = GetType(node->result.type);
 		Type* right = GetType(vartype.type);
+		bool builtin_cast = false;
+		bool left_builtin = (left->IsBuiltin() || (node->result.type == V_REF && GetType(node->result.subtype)->IsBuiltin()));
+		bool right_builtin = (right->IsBuiltin() || (vartype.type == V_REF && GetType(vartype.subtype)->IsBuiltin()));
 
-		result.cast_func = FindSpecialFunction(left, SF_CAST, [vartype](AnyFunction& f) {return f.cf->result == vartype; });
-		if(!result.cast_func && node->result.type == V_REF)
-			result.cast_func = FindSpecialFunction(GetType(node->result.subtype), SF_CAST, [vartype](AnyFunction& f) {return f.cf->result == vartype; });
+		// cast
+		if(left_builtin && right_builtin)
+		{
+			// builtin cast between bool/char/int/float/string/enum
+			// everything is allowed except string to other type
+			if(node->result.GetType() != V_STRING)
+			{
+				builtin_cast = true;
+				result.type |= CastResult::IMPLICIT_CAST | CastResult::BUILTIN_CAST;
+			}
+		}
+		else
+		{
+			// find cast function
+			result.cast_func = FindSpecialFunction(left, SF_CAST, [vartype](AnyFunction& f) {return f.cf->result == vartype; });
+			if(!result.cast_func && node->result.type == V_REF)
+			{
+				// find cast function when passed by reference
+				result.cast_func = FindSpecialFunction(GetType(node->result.subtype), SF_CAST, [vartype](AnyFunction& f) {return f.cf->result == vartype; });
+			}
+		}
+
+		// find ctor cast function
 		result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
 		{
 			uint required = (f.is_parse ? 2u : 1u);
@@ -3314,6 +3542,7 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 		});
 		if(!result.ctor_func && node->result.type == V_REF)
 		{
+			// find ctor cast function when passed by reference
 			result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
 			{
 				uint required = (f.is_parse ? 2u : 1u);
@@ -3323,12 +3552,14 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 			});
 		}
 
-		if(!result.cast_func && !result.ctor_func)
+		// found anything?
+		if(!result.cast_func && !builtin_cast && !result.ctor_func)
 		{
 			result.type = CastResult::CANT;
 			return result;
 		}
 
+		// mark cast type
 		if(result.cast_func)
 		{
 			if(IS_SET(result.cast_func.cf->flags, CommonFunction::F_IMPLICIT))
@@ -3338,7 +3569,6 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 			if(IS_SET(result.cast_func.cf->flags, CommonFunction::F_BUILTIN))
 				result.type |= CastResult::BUILTIN_CAST;
 		}
-
 		if(result.ctor_func)
 			result.type |= CastResult::IMPLICIT_CTOR;
 	}
@@ -3370,6 +3600,17 @@ void Parser::ForceCast(ParseNode*& node, VarType vartype, cstring op)
 {
 	if(!TryCast(node, vartype))
 		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetName(vartype), op);
+}
+
+bool Parser::TryConstCast(ParseNode*& node, VarType type)
+{
+	CastResult c = MayCast(node, type, false);
+	if(c.CantCast())
+		return false;
+	else if(c.NeedCast())
+		return Cast(node, type, CF_REQUIRE_CONST);
+	else
+		return true;
 }
 
 Op Parser::PushToSet(ParseNode* node)
@@ -4031,7 +4272,10 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 						code.push_back(cas->value);
 						break;
 					default:
-						assert(0);
+						assert(GetType(cas->result.type)->IsEnum());
+						code.push_back(PUSH_ENUM);
+						code.push_back(cas->result.type);
+						code.push_back(cas->value);
 						break;
 					}
 					code.push_back(EQ);
@@ -4177,6 +4421,11 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		break;
 	case RETURN:
 		code.push_back(RET);
+		break;
+	case PUSH_ENUM:
+		code.push_back(PUSH_ENUM);
+		code.push_back(node->result.type);
+		code.push_back(node->value);
 		break;
 	default:
 		assert(0);
@@ -4784,7 +5033,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			for(uint i = 0; i < node->childs.size(); ++i)
 			{
 				ArgInfo& a = cf.arg_infos[i];
-				Cast(node->childs[i], a.vartype, nullptr, true, a.pass_by_ref);
+				Cast(node->childs[i], a.vartype, a.pass_by_ref ? CF_PASS_BY_REF : 0);
 			}
 		}
 
@@ -4818,7 +5067,9 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 				n->value = arg.value;
 				break;
 			default:
-				assert(0);
+				assert(GetType(arg.vartype.type)->IsEnum());
+				n->op = PUSH_ENUM;
+				n->value = arg.value;
 				break;
 			}
 			node->push(n);
@@ -4972,6 +5223,8 @@ void Parser::AnalyzeCode()
 			}
 			CreateDefaultFunctions(type);
 		}
+		else if(t.IsKeyword(K_ENUM, G_KEYWORD))
+			ParseEnum(true);
 		else if(t.IsSymbol("([{", &c))
 		{
 			char closing;
@@ -4994,10 +5247,19 @@ void Parser::AnalyzeCode()
 			AnalyzeType(nullptr);
 	}
 
+	// verify all types are declared
 	for(Type* type : run_module->types)
 	{
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
+	}
+
+	// function default values
+	for(ParseFunction* f : ufuncs)
+	{
+		if(f->required_args == f->arg_infos.size() || IS_SET(f->flags, CommonFunction::F_DEFAULT))
+			continue;
+		AnalyzeArgsDefaultValues(f);
 	}
 
 	t.Reset();
@@ -5164,6 +5426,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 
 	// (
 	t.Next();
+	func->start_pos = t.GetPos();
 
 	if(!t.IsSymbol(')'))
 	{
@@ -5185,30 +5448,8 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 			{
 				prev_def = true;
 				t.Next();
-				NodeRef item = ParseConstItem();
-				if(!TryCast(item.Get(), vartype))
-					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
-				switch(item->op)
-				{
-				case PUSH_BOOL:
-					func->arg_infos.push_back(ArgInfo(item->bvalue));
-					break;
-				case PUSH_CHAR:
-					func->arg_infos.push_back(ArgInfo(item->cvalue));
-					break;
-				case PUSH_INT:
-					func->arg_infos.push_back(ArgInfo(item->value));
-					break;
-				case PUSH_FLOAT:
-					func->arg_infos.push_back(ArgInfo(item->fvalue));
-					break;
-				case PUSH_STRING:
-					func->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
-					break;
-				default:
-					assert(0);
-					break;
-				}
+				func->arg_infos.push_back(ArgInfo(vartype, 0, true));
+				t.SkipToSymbol("),");
 			}
 			else
 			{
@@ -5317,7 +5558,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 		func->result = vartype;
 		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 		func->block = nullptr;
-		func->flags = 0;
+		func->flags = CommonFunction::F_DEFAULT;
 		if(IS_SET(type->flags, Type::Code))
 			func->flags |= CommonFunction::F_CODE;
 		func->index = ufuncs.size();
@@ -5359,9 +5600,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
+			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				func->flags = 0;
 				if(IS_SET(type->flags, Type::Code))
 					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
@@ -5387,7 +5628,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 			}
 			else
 			{
-				func->flags = CommonFunction::F_BUILTIN;
+				func->flags |= CommonFunction::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
@@ -5414,9 +5655,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
+			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				func->flags = 0;
 				if(IS_SET(type->flags, Type::Code))
 					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
@@ -5439,7 +5680,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 			}
 			else
 			{
-				func->flags = CommonFunction::F_BUILTIN;
+				func->flags |= CommonFunction::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
@@ -5466,9 +5707,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
+			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				func->flags = 0;
 				if(IS_SET(type->flags, Type::Code))
 					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
@@ -5491,7 +5732,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 			}
 			else
 			{
-				func->flags = CommonFunction::F_BUILTIN;
+				func->flags |= CommonFunction::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
@@ -5589,5 +5830,51 @@ bool Parser::HasSideEffects(ParseNode* node)
 		return false;
 	default:
 		return true;
+	}
+}
+
+void Parser::AnalyzeArgsDefaultValues(ParseFunction* f)
+{
+	t.MoveTo(f->start_pos);
+	uint offset = (f->special == SF_CTOR ? 1u : 0u);
+	
+	for(uint i=offset, count = f->arg_infos.size(); i <= count; ++i)
+	{
+		VarType vartype = AnalyzeVarType();
+		t.AssertItem();
+		t.Next();
+
+		if(t.IsSymbol('='))
+		{
+			t.Next();
+			NodeRef item = ParseConstExpr();
+			if(!TryConstCast(item.Get(), vartype))
+				t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
+			ArgInfo& arg = f->arg_infos[i];
+			switch(item->op)
+			{
+			case PUSH_BOOL:
+				arg.bvalue = item->bvalue;
+				break;
+			case PUSH_CHAR:
+				arg.cvalue = item->cvalue;
+				break;
+			case PUSH_INT:
+			case PUSH_STRING:
+			case PUSH_ENUM:
+				arg.value = item->value;
+				break;
+			case PUSH_FLOAT:
+				arg.fvalue = item->fvalue;
+				break;
+			default:
+				assert(0);
+				break;
+			}
+		}
+		if(t.IsSymbol(')'))
+			break;
+		t.AssertSymbol(',');
+		t.Next();
 	}
 }

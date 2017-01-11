@@ -28,7 +28,8 @@ enum KEYWORD
 	K_DEFAULT,
 	K_IMPLICIT,
 	K_DELETE,
-	K_STATIC
+	K_STATIC,
+	K_ENUM
 };
 
 enum CONST
@@ -363,6 +364,7 @@ struct ParseFunction : CommonFunction
 {
 	uint pos;
 	uint locals;
+	tokenizer::Pos start_pos;
 	ParseNode* node;
 	Block* block;
 	vector<ParseVar*> args;

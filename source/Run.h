@@ -192,6 +192,7 @@ struct Var
 	inline explicit Var(Str* str) : vartype(V_STRING), str(str) {}
 	inline Var(RefVar* ref, int subtype) : vartype(VarType(V_REF, subtype)), ref(ref) {}
 	inline explicit Var(Class* clas) : vartype(clas->type->index, 0), clas(clas) {}
+	inline Var(VarType vartype, int value) : vartype(vartype), value(value) {}
 };
 
 struct StackFrame

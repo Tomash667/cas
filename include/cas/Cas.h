@@ -28,8 +28,10 @@ namespace cas
 		bool use_getch;
 		bool use_assert_handler;
 		bool decompile_marker;
+		bool use_logger_handler;
 
-		Settings() : input(nullptr), output(nullptr), use_getch(true), use_corelib(true), use_debuglib(true), use_assert_handler(true), decompile_marker(false)
+		Settings() : input(nullptr), output(nullptr), use_getch(true), use_corelib(true), use_debuglib(true), use_assert_handler(true), decompile_marker(false),
+			use_logger_handler(true)
 		{
 
 		}
@@ -45,6 +47,7 @@ namespace cas
 			use_getch = s.use_getch;
 			use_assert_handler = s.use_assert_handler;
 			decompile_marker = s.decompile_marker;
+			use_logger_handler = s.use_logger_handler;
 		}
 	};
 
