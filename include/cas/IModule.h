@@ -151,6 +151,36 @@ namespace cas
 		}
 	};
 
+	class IEnum
+	{
+	public:
+		struct Item
+		{
+			cstring name;
+			int value;
+		};
+
+		template<typename T>
+		struct EnumClassItem
+		{
+			cstring name;
+			T value;
+
+			static_assert(sizeof(T) == sizeof(int), "T must be size of int.");
+		};
+
+		virtual bool AddValue(cstring name) = 0;
+		virtual bool AddValue(cstring name, int value) = 0;
+		virtual bool AddValues(std::initializer_list<cstring> const& items) = 0;
+		virtual bool AddValues(std::initializer_list<Item> const& items) = 0;
+
+		template<typename T>
+		inline bool AddEnums(std::initializer_list<EnumClassItem<T>> const& items)
+		{
+			return AddValues((std::initializer_list<Item> const&)items);
+		}
+	};
+
 	class IModule
 	{
 	public:
@@ -164,6 +194,7 @@ namespace cas
 
 		virtual bool AddFunction(cstring decl, const FunctionInfo& func_info) = 0;
 		virtual IType* AddType(cstring type_name, int size, int flags = 0) = 0;
+		virtual IEnum* AddEnum(cstring type_name) = 0;
 		virtual ReturnValue GetReturnValue() = 0;
 		virtual cstring GetException() = 0;
 		virtual ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) = 0;

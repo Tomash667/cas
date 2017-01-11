@@ -726,6 +726,60 @@ TEST_METHOD(StaticMethodInCode)
 }
 
 //=========================================================================================
+TEST_METHOD(CodeEnum)
+{
+	enum E
+	{
+		E1,
+		E2,
+		E3
+	};
+
+	enum class F
+	{
+		F1,
+		F2,
+		F3
+	};
+
+	IEnum* enu = module->AddEnum("Enum");
+	enu->AddValue("invalid");
+	enu->AddValue("none", -1);
+	enu->AddValues({ "a","b","c" });
+	enu->AddValues({
+		{"E1",E1},
+		{"E2",E2},
+		{"E3",E3}
+	});
+	enu->AddEnums<F>({
+		{"F1",F::F1},
+		{"F2",F::F2},
+		{"F3",F::F3}
+	});
+
+	RunTest(R"code(
+		Enum g = Enum.F2;
+		void f(Enum e)
+		{
+			switch(e)
+			{
+			case Enum.E1:
+				println("E1");
+				break;
+			case Enum.none:
+				println("none");
+				break;
+			default:
+				println(e);
+				break;
+			}
+		}
+		f(g);
+		f(Enum.invalid);
+	)code");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

@@ -1098,7 +1098,8 @@ void RunInternal(ReturnValue& retval)
 					assert(left.vartype.type == V_INT || left.vartype.type == V_FLOAT || left.vartype.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
 					assert(left.vartype.type == V_BOOL || left.vartype.type == V_CHAR || left.vartype.type == V_INT || left.vartype.type == V_FLOAT
-						|| left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass());
+						|| left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass()
+						|| run_module->GetType(left.vartype.type)->IsEnum());
 				else if(op == AND || op == OR)
 					assert(left.vartype.type == V_BOOL);
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)

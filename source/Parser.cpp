@@ -801,12 +801,12 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 	if(t.IsKeyword(K_CASE, G_KEYWORD))
 	{
 		t.Next();
-		NodeRef val = ParseConstItem();
+		NodeRef val = ParseConstExpr();
 		Type* type = GetType(val->result.type);
 		if(val->result != V_BOOL && val->result != V_CHAR && val->result != V_INT && val->result != V_FLOAT && val->result != V_STRING
 			&& !type->IsEnum())
 			t.Throw("Invalid case type '%s'.", GetName(val->result));
-		if(!TryCast(val.Get(), swi->childs[0]->result))
+		if(!TryConstCast(val.Get(), swi->childs[0]->result))
 			t.Throw("Can't cast case value from '%s' to '%s'.", GetTypeName(val), GetTypeName(swi->childs[0]));
 		assert(val->op != CAST);
 		for(uint i = 1, count = swi->childs.size(); i < count; ++i)
@@ -841,7 +841,7 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 			default:
 				assert(type->IsEnum());
 				if(val->value == chi->value)
-					dup = Format("%s.%s", type->name.c_str(), type->enu->values[val->value].first.c_str());
+					dup = Format("%d", val->value);
 				break;
 			}
 			if(dup)
@@ -4272,7 +4272,10 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 						code.push_back(cas->value);
 						break;
 					default:
-						assert(0);
+						assert(GetType(cas->result.type)->IsEnum());
+						code.push_back(PUSH_ENUM);
+						code.push_back(cas->result.type);
+						code.push_back(cas->value);
 						break;
 					}
 					code.push_back(EQ);

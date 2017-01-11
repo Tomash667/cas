@@ -23,6 +23,7 @@ Module::~Module()
 {
 	DeleteElements(types);
 	DeleteElements(script_types);
+	DeleteElements(script_enums);
 	DeleteElements(functions);
 	delete parser;
 
@@ -145,12 +146,8 @@ bool VerifyFlags(int flags)
 	return true;
 }
 
-cas::IType* Module::AddType(cstring type_name, int size, int flags)
+bool Module::VerifyTypeName(cstring type_name)
 {
-	assert(type_name && size > 0);
-	assert(!inherited); // can't add types to inherited module (until fixed)
-	assert(VerifyFlags(flags));
-
 	int type_index;
 	if(!parser->VerifyTypeName(type_name, type_index))
 	{
@@ -158,8 +155,20 @@ cas::IType* Module::AddType(cstring type_name, int size, int flags)
 			Event(EventType::Error, Format("Can't declare type '%s', name is keyword.", type_name));
 		else
 			Event(EventType::Error, Format("Type '%s' already declared.", type_name));
-		return nullptr;
+		return false;
 	}
+	else
+		return true;
+}
+
+cas::IType* Module::AddType(cstring type_name, int size, int flags)
+{
+	assert(type_name && size > 0);
+	assert(!inherited); // can't add types to inherited module (until fixed)
+	assert(VerifyFlags(flags));
+
+	if(!VerifyTypeName(type_name))
+		return nullptr;
 
 	Type* type = new Type;
 	type->name = type_name;
@@ -186,6 +195,33 @@ cas::IType* Module::AddType(cstring type_name, int size, int flags)
 
 	built = false;
 	return script_type;
+}
+
+cas::IEnum* Module::AddEnum(cstring type_name)
+{
+	assert(type_name);
+	assert(!inherited); // can't add types to inherited module (until fixed)
+
+	if(!VerifyTypeName(type_name))
+		return nullptr;
+
+	Type* type = new Type;
+	type->name = type_name;
+	type->size = sizeof(int);
+	type->flags = Type::Code;
+	type->index = types.size() | (index << 16);
+	type->declared = true;
+	type->built = false;
+	type->enu = new Enum;
+	type->enu->type = type;
+	types.push_back(type);
+	parser->AddType(type);
+
+	ScriptEnum* script_enum = new ScriptEnum(this, type);
+	script_enums.push_back(script_enum);
+
+	built = false;
+	return script_enum;
 }
 
 bool Module::AddMember(Type* type, cstring decl, int offset)
@@ -360,6 +396,25 @@ bool Module::BuildModule()
 	return true;
 }
 
+bool Module::AddEnumValue(Type* type, cstring name, int value)
+{
+	int type_index;
+	if(!parser->VerifyTypeName(name, type_index))
+	{
+		Event(EventType::Error, Format("Enumerator name '%s' already used as %s.", name, type_index == -1 ? "keyword" : "type"));
+		return false;
+	}
+
+	if(type->enu->Find(name))
+	{
+		Event(EventType::Error, Format("Enumerator '%s.%s' already defined.", type->name.c_str(), name));
+		return false;
+	}
+
+	type->enu->values.push_back(std::pair<string, int>(name, value));
+	return true;
+}
+
 bool ScriptType::AddMember(cstring decl, int offset)
 {
 	return module->AddMember(type, decl, offset);
@@ -368,4 +423,49 @@ bool ScriptType::AddMember(cstring decl, int offset)
 bool ScriptType::AddMethod(cstring decl, const FunctionInfo& func_info)
 {
 	return module->AddMethod(type, decl, func_info);
+}
+
+bool ScriptEnum::AddValue(cstring name)
+{
+	assert(name);
+	int value;
+	if(type->enu->values.empty())
+		value = 0;
+	else
+		value = type->enu->values.back().second + 1;
+	return module->AddEnumValue(type, name, value);
+}
+
+bool ScriptEnum::AddValue(cstring name, int value)
+{
+	assert(name);
+	return module->AddEnumValue(type, name, value);
+}
+
+bool ScriptEnum::AddValues(std::initializer_list<cstring> const& items)
+{
+	int value;
+	if(type->enu->values.empty())
+		value = 0;
+	else
+		value = type->enu->values.back().second + 1;
+	for(cstring name : items)
+	{
+		assert(name);
+		if(!module->AddEnumValue(type, name, value))
+			return false;
+		++value;
+	}
+	return true;
+}
+
+bool ScriptEnum::AddValues(std::initializer_list<Item> const& items)
+{
+	for(const Item& item : items)
+	{
+		assert(item.name);
+		if(!module->AddEnumValue(type, item.name, item.value))
+			return false;
+	}
+	return true;
 }

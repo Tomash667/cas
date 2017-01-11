@@ -20,6 +20,20 @@ public:
 	Type* type;
 };
 
+class ScriptEnum : public IEnum
+{
+public:
+	inline ScriptEnum(Module* module, Type* type) : module(module), type(type) {}
+
+	bool AddValue(cstring name) override;
+	bool AddValue(cstring name, int value) override;
+	bool AddValues(std::initializer_list<cstring> const& items) override;
+	bool AddValues(std::initializer_list<Item> const& items) override;
+
+	Module* module;
+	Type* type;
+};
+
 class Module : public IModule
 {
 public:
@@ -30,16 +44,11 @@ public:
 	// from IModule
 	bool AddFunction(cstring decl, const FunctionInfo& func_info) override;
 	IType* AddType(cstring type_name, int size, int flags) override;
+	IEnum* AddEnum(cstring type_name) override;
 	ReturnValue GetReturnValue() override;
 	cstring GetException() override;
 	ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) override;
-
-	/*template<typename T>
-	inline bool AddType(cstring type_name)
-	{
-		return IModule::AddType<T>(type_name);
-	}*/
-
+	
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
 	bool AddMember(Type* type, cstring decl, int offset);
 	bool AddMethod(Type* type, cstring decl, const FunctionInfo& func_info);
@@ -47,11 +56,14 @@ public:
 	Type* FindType(cstring type_name);
 	void AddParentModule(Module* parent_module);
 	bool BuildModule();
+	bool AddEnumValue(Type* type, cstring name, int value);
+	bool VerifyTypeName(cstring type_name);
 
 	std::map<int, Module*> modules;
 	vector<Function*> functions;
 	vector<Type*> types;
 	vector<ScriptType*> script_types;
+	vector<ScriptEnum*> script_enums;
 	ReturnValue return_value;
 	Parser* parser;
 	string exc;
