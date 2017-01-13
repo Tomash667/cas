@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cas/ReturnValue.h"
 namespace cas
 {
 	namespace internal
@@ -125,33 +124,62 @@ namespace cas
 	class IType
 	{
 	public:
+		enum class GenericType
+		{
+			Void,
+			Bool,
+			Char,
+			Int,
+			Float,
+			String,
+			Class,
+			Struct,
+			Enum,
+			Invalid
+		};
+
+		inline GenericType GetGenericType() const { return generic_type; }
+		inline bool IsSimple() const
+		{
+			return generic_type == GenericType::Void
+				|| generic_type == GenericType::Bool
+				|| generic_type == GenericType::Char
+				|| generic_type == GenericType::Int
+				|| generic_type == GenericType::Float;
+		}
+		virtual cstring GetName() const = 0;
+
+	protected:
+		GenericType generic_type;
+	};
+
+	class IClass : public virtual IType
+	{
+	public:
 		virtual bool AddMember(cstring decl, int offset) = 0;
 		virtual bool AddMethod(cstring decl, const FunctionInfo& func_info) = 0;
 
 		template<typename T, typename... Args>
 		inline bool AddCtor(cstring decl)
 		{
-			FunctionInfo info = is_struct ?
+			FunctionInfo info = (generic_type == GenericType::Struct) ?
 				FunctionInfo(internal::AsCtorHelper::Create<T, Args...>) : FunctionInfo(internal::AsCtorHelper::CreateNew<T, Args...>);
 			return AddMethod(decl, info);
 		}
-
-	protected:
-		bool is_struct;
 	};
 
 	template<typename T>
-	class ISpecificType : public IType
+	class ISpecificClass : public IClass
 	{
 	public:
 		template<typename... Args>
 		inline bool AddCtor(cstring decl)
 		{
-			return IType::AddCtor<T, Args...>(decl);
+			return IClass::AddCtor<T, Args...>(decl);
 		}
 	};
 
-	class IEnum
+	class IEnum : public virtual IType
 	{
 	public:
 		struct Item
@@ -181,6 +209,18 @@ namespace cas
 		}
 	};
 
+	struct ReturnValue
+	{
+		IType* type;
+		union
+		{
+			bool bool_value;
+			char char_value;
+			int int_value;
+			float float_value;
+		};
+	};
+
 	class IModule
 	{
 	public:
@@ -192,33 +232,46 @@ namespace cas
 			Ok
 		};
 
+		struct Options
+		{
+			bool optimize;
+			bool decompile;
+
+			inline Options() : optimize(true), decompile(false) {}
+		};
+
 		virtual bool AddFunction(cstring decl, const FunctionInfo& func_info) = 0;
-		virtual IType* AddType(cstring type_name, int size, int flags = 0) = 0;
+		virtual IClass* AddType(cstring type_name, int size, int flags = 0) = 0;
 		virtual IEnum* AddEnum(cstring type_name) = 0;
 		virtual ReturnValue GetReturnValue() = 0;
 		virtual cstring GetException() = 0;
-		virtual ExecutionResult ParseAndRun(cstring input, bool optimize = true, bool decompile = false) = 0;
+		virtual ExecutionResult ParseAndRun(cstring input) = 0;
+		virtual ExecutionResult Parse(cstring input) = 0;
+		virtual ExecutionResult Run() = 0;
+		virtual void SetOptions(const Options& options) = 0;
+		virtual void ResetParse() = 0;
+		virtual void ResetAll() = 0;
 
 		template<typename T>
-		inline ISpecificType<T>* AddType(cstring type_name, int flags = 0)
+		inline ISpecificClass<T>* AddType(cstring type_name, int flags = 0)
 		{
 			if(internal::is_complex<T>::value)
 				flags |= Complex;
-			return (ISpecificType<T>*)AddType(type_name, sizeof(T), flags);
+			return (ISpecificClass<T>*)AddType(type_name, sizeof(T), flags);
 		}
 
 		template<typename T>
-		inline ISpecificType<T>* AddRefType(cstring type_name, int flags = 0)
+		inline ISpecificClass<T>* AddRefType(cstring type_name, int flags = 0)
 		{
 			flags |= RefCount;
 			static_assert(std::is_base_of<RefCounter, T>::value, "AddRefType can only be used for classes derived from RefCounter.");
-			IType* type = AddType<T>(type_name, flags);
+			IClass* type = AddType<T>(type_name, flags);
 			if(type)
 			{
 				type->AddMethod("void operator addref()", &T::AddRef);
 				type->AddMethod("void operator release()", &T::Release);
 			}
-			return (ISpecificType<T>*)type;
+			return (ISpecificClass<T>*)type;
 		}
 
 	protected:

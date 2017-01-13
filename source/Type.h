@@ -1,5 +1,8 @@
 #pragma once
 
+#include "cas/IModule.h"
+
+class Module;
 struct Enum;
 struct Function;
 struct CommonFunction;
@@ -85,7 +88,7 @@ struct VarType
 };
 
 // type
-struct Type
+struct Type : public cas::IClass, public cas::IEnum
 {
 	enum Flags
 	{
@@ -100,6 +103,7 @@ struct Type
 		RefCount = 1 << 8
 	};
 
+	Module* module;
 	string name;
 	vector<Function*> funcs;
 	vector<ParseFunction*> ufuncs;
@@ -114,6 +118,7 @@ struct Type
 	Member* FindMember(const string& name, int& index);
 	Function* FindCodeFunction(cstring name);
 	Function* FindSpecialCodeFunction(SpecialFunction special);
+	void SetGenericType();
 
 	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
 	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
@@ -123,6 +128,14 @@ struct Type
 	inline bool IsSimple() const { return ::IsSimple(index); }
 	inline bool IsEnum() const { return enu != nullptr; }
 	inline bool IsBuiltin() const { return IsSimple() || index == V_STRING || IsEnum(); }
+
+	bool AddMember(cstring decl, int offset) override;
+	bool AddMethod(cstring decl, const cas::FunctionInfo& func_info) override;
+	bool AddValue(cstring name) override;
+	bool AddValue(cstring name, int value) override;
+	bool AddValues(std::initializer_list<cstring> const& items) override;
+	bool AddValues(std::initializer_list<Item> const& items) override;
+	cstring GetName() const override;
 };
 
 struct VarSource

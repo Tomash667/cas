@@ -10,18 +10,29 @@ namespace Microsoft
 		namespace CppUnitTestFramework
 		{
 			template<>
-			static wstring ToString(const ReturnValue::Type& type)
+			static wstring ToString(const IType::GenericType& generic_type)
 			{
-				switch(type)
+				switch(generic_type)
 				{
-				case ReturnValue::Void:
+				case IType::GenericType::Void:
 					return L"void";
-				case ReturnValue::Bool:
+				case IType::GenericType::Bool:
 					return L"bool";
-				case ReturnValue::Int:
+				case IType::GenericType::Char:
+					return L"char";
+				case IType::GenericType::Int:
 					return L"int";
-				case ReturnValue::Float:
+				case IType::GenericType::Float:
 					return L"float";
+				case IType::GenericType::String:
+					return L"string";
+				case IType::GenericType::Class:
+					return L"class";
+				case IType::GenericType::Struct:
+					return L"struct";
+				case IType::GenericType::Enum:
+					return L"enum";
+				case IType::GenericType::Invalid:
 				default:
 					return L"invalid";
 				}
@@ -29,6 +40,7 @@ namespace Microsoft
 		}
 	}
 }
+
 
 const bool CI_MODE = ((_CI_MODE - 1) == 0);
 
@@ -67,35 +79,43 @@ struct Retval
 	void IsVoid()
 	{
 		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Void, ret.type);
+		Assert::AreEqual(IType::GenericType::Void, ret.type->GetGenericType());
 	}
 
 	void IsBool(bool expected)
 	{
 		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Bool, ret.type);
+		Assert::AreEqual(IType::GenericType::Bool, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.bool_value);
 	}
 
 	void IsChar(char expected)
 	{
 		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Char, ret.type);
+		Assert::AreEqual(IType::GenericType::Char, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.char_value);
 	}
 
 	void IsInt(int expected)
 	{
 		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Int, ret.type);
+		Assert::AreEqual(IType::GenericType::Int, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.int_value);
 	}
 
 	void IsFloat(float expected)
 	{
 		ReturnValue ret = module->GetReturnValue();
-		Assert::AreEqual(ReturnValue::Float, ret.type);
+		Assert::AreEqual(IType::GenericType::Float, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.float_value);
+	}
+
+	void IsEnum(cstring name, int expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(IType::GenericType::Enum, ret.type->GetGenericType());
+		Assert::AreEqual(name, ret.type->GetName());
+		Assert::AreEqual(expected, ret.int_value);
 	}
 
 private:

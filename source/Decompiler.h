@@ -4,7 +4,7 @@ class Decompiler
 {
 public:
 	void Init(Settings& settings);
-	void Decompile(RunModule& module);
+	void Decompile(Module& module);
 
 	inline static Decompiler& Get()
 	{
@@ -16,8 +16,7 @@ private:
 	Decompiler();
 	void DecompileType(int type, int val);
 
-	Parser* parser;
-	RunModule* module;
+	Module* module;
 	std::ostream* s_output;
 	bool decompile_marker;
 };

@@ -10,6 +10,9 @@ cas::ReturnValue return_value;
 
 Module::Module(int index, Module* parent_module) : inherited(false), parser(nullptr), index(index), refs(1), released(false), built(false)
 {
+	Options default_options;
+	SetOptions(default_options);
+
 	modules[index] = this;
 	if(parent_module)
 		AddParentModule(parent_module);
@@ -22,8 +25,6 @@ Module::Module(int index, Module* parent_module) : inherited(false), parser(null
 Module::~Module()
 {
 	DeleteElements(types);
-	DeleteElements(script_types);
-	DeleteElements(script_enums);
 	DeleteElements(functions);
 	delete parser;
 
@@ -161,7 +162,7 @@ bool Module::VerifyTypeName(cstring type_name)
 		return true;
 }
 
-cas::IType* Module::AddType(cstring type_name, int size, int flags)
+cas::IClass* Module::AddType(cstring type_name, int size, int flags)
 {
 	assert(type_name && size > 0);
 	assert(!inherited); // can't add types to inherited module (until fixed)
@@ -171,6 +172,7 @@ cas::IType* Module::AddType(cstring type_name, int size, int flags)
 		return nullptr;
 
 	Type* type = new Type;
+	type->module = this;
 	type->name = type_name;
 	type->size = size;
 	type->flags = Type::Class | Type::Code;
@@ -187,14 +189,12 @@ cas::IType* Module::AddType(cstring type_name, int size, int flags)
 	type->index = types.size() | (index << 16);
 	type->declared = true;
 	type->built = false;
+	type->SetGenericType();
 	types.push_back(type);
 	parser->AddType(type);
 
-	ScriptType* script_type = new ScriptType(this, type, IS_SET(flags, cas::ValueType));
-	script_types.push_back(script_type);
-
 	built = false;
-	return script_type;
+	return type;
 }
 
 cas::IEnum* Module::AddEnum(cstring type_name)
@@ -206,6 +206,7 @@ cas::IEnum* Module::AddEnum(cstring type_name)
 		return nullptr;
 
 	Type* type = new Type;
+	type->module = this;
 	type->name = type_name;
 	type->size = sizeof(int);
 	type->flags = Type::Code;
@@ -214,14 +215,12 @@ cas::IEnum* Module::AddEnum(cstring type_name)
 	type->built = false;
 	type->enu = new Enum;
 	type->enu->type = type;
+	type->SetGenericType();
 	types.push_back(type);
 	parser->AddType(type);
 
-	ScriptEnum* script_enum = new ScriptEnum(this, type);
-	script_enums.push_back(script_enum);
-
 	built = false;
-	return script_enum;
+	return type;
 }
 
 bool Module::AddMember(Type* type, cstring decl, int offset)
@@ -259,7 +258,7 @@ cstring Module::GetException()
 	return exc.c_str();
 }
 
-IModule::ExecutionResult Module::ParseAndRun(cstring input, bool optimize, bool decompile)
+IModule::ExecutionResult Module::ParseAndRun(cstring input)
 {
 	// build
 	if(!BuildModule())
@@ -269,16 +268,15 @@ IModule::ExecutionResult Module::ParseAndRun(cstring input, bool optimize, bool 
 	ParseSettings settings;
 	settings.input = input;
 	settings.optimize = optimize;
-	RunModule* run_module = parser->Parse(settings);
-	if(!run_module)
+	if(!parser->Parse(settings))
 		return ExecutionResult::ParsingError;
 
 	// decompile
 	if(decompile)
-		Decompiler::Get().Decompile(*run_module);
+		Decompiler::Get().Decompile(*this);
 		
 	// run
-	bool ok = Run(*run_module, return_value, exc);
+	bool ok = ::Run(*this);
 
 	// cleanup
 	parser->Cleanup();
@@ -292,6 +290,7 @@ Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int
 	assert(!inherited);
 
 	Type* type = new Type;
+	type->module = this;
 	type->name = type_name;
 	type->size = size;
 	type->index = types.size();
@@ -299,6 +298,7 @@ Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int
 	type->flags = flags;
 	type->declared = true;
 	type->built = false;
+	type->SetGenericType();
 	types.push_back(type);
 	if(!IS_SET(flags, Type::Hidden))
 		parser->AddType(type);
@@ -333,6 +333,39 @@ Type* Module::FindType(cstring type_name)
 				return type;
 		}
 	}
+
+	return nullptr;
+}
+
+Type* Module::GetType(int type_index)
+{
+	/*
+	int module_index = (index & 0xFFFF0000) >> 16;
+-	int type_index = (index & 0xFFFF);
+-	if(module_index == 0xFFFF)
+-	{
+-		assert(type_index < (int)types.size());
+-		return types[type_index];
+-	}
+-	else
+-	{
+-		assert(parent->modules.find(module_index) != parent->modules.end());
+-		Module* m = parent->modules[module_index];
+-		assert(type_index < (int)m->types.size());
+-		return m->types[type_index];
+-	}*/
+	return nullptr;
+}
+
+Function* GetFunction(int func_index)
+{
+	/*-int module_index = (index & 0xFFFF0000) >> 16;
+	-int func_index = (index & 0xFFFF);
+	-assert(parent->modules.find(module_index) != parent->modules.end());
+	-Module* m = parent->modules[module_index];
+	-assert(func_index < (int)m->functions.size());
+	-return m->functions[func_index];
+	-*/
 
 	return nullptr;
 }
@@ -415,57 +448,48 @@ bool Module::AddEnumValue(Type* type, cstring name, int value)
 	return true;
 }
 
-bool ScriptType::AddMember(cstring decl, int offset)
+IModule::ExecutionResult Module::Parse(cstring input)
 {
-	return module->AddMember(type, decl, offset);
+	// build
+	if(!BuildModule())
+		return ExecutionResult::ValidationError;
+
+	// parse
+	ParseSettings settings;
+	settings.input = input;
+	settings.optimize = optimize;
+	if(!parser->Parse(settings))
+		return ExecutionResult::ParsingError;
+
+	// decompile
+	if(decompile)
+		Decompiler::Get().Decompile(*this);
+
+	return ExecutionResult::Ok;
 }
 
-bool ScriptType::AddMethod(cstring decl, const FunctionInfo& func_info)
+IModule::ExecutionResult Module::Run()
 {
-	return module->AddMethod(type, decl, func_info);
+	// run
+	bool ok = ::Run(*this);
+
+	// cleanup
+	parser->Cleanup();
+	return (ok ? ExecutionResult::Ok : ExecutionResult::Exception);
 }
 
-bool ScriptEnum::AddValue(cstring name)
+void Module::SetOptions(const Options& options)
 {
-	assert(name);
-	int value;
-	if(type->enu->values.empty())
-		value = 0;
-	else
-		value = type->enu->values.back().second + 1;
-	return module->AddEnumValue(type, name, value);
+	optimize = options.optimize;
+	decompile = options.decompile;
 }
 
-bool ScriptEnum::AddValue(cstring name, int value)
+void Module::ResetParse()
 {
-	assert(name);
-	return module->AddEnumValue(type, name, value);
+
 }
 
-bool ScriptEnum::AddValues(std::initializer_list<cstring> const& items)
+void Module::ResetAll()
 {
-	int value;
-	if(type->enu->values.empty())
-		value = 0;
-	else
-		value = type->enu->values.back().second + 1;
-	for(cstring name : items)
-	{
-		assert(name);
-		if(!module->AddEnumValue(type, name, value))
-			return false;
-		++value;
-	}
-	return true;
-}
 
-bool ScriptEnum::AddValues(std::initializer_list<Item> const& items)
-{
-	for(const Item& item : items)
-	{
-		assert(item.name);
-		if(!module->AddEnumValue(type, item.name, item.value))
-			return false;
-	}
-	return true;
 }

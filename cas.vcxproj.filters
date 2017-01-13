@@ -7,9 +7,6 @@
     <ClCompile Include="source/CoreLib.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="source/Decompile.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="source/Module.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -22,7 +19,10 @@
     <ClCompile Include="source/Run.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="source/RunModule.cpp">
+    <ClCompile Include="source\Type.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Decompiler.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -31,9 +31,6 @@
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="include/cas/IModule.h">
-      <Filter>Include</Filter>
-    </ClInclude>
-    <ClInclude Include="include/cas/ReturnValue.h">
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="source/CasImpl.h">
@@ -55,9 +52,6 @@
       <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="source/Pch.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="source/RunModule.h">
       <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="source/Type.h">

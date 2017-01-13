@@ -102,7 +102,7 @@ BasicSymbolInfo basic_symbols[] = {
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
-Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), run_module(nullptr)
+Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), empty_string(-1)
 {
 	AddKeywords();
 	AddChildModulesKeywords();
@@ -184,11 +184,10 @@ void Parser::AddChildModulesKeywords()
 	}
 }
 
-RunModule* Parser::Parse(ParseSettings& settings)
+bool Parser::Parse(ParseSettings& settings)
 {
 	optimize = settings.optimize;
 	t.FromString(settings.input);
-	run_module = new RunModule(module);
 
 	try
 	{
@@ -198,24 +197,26 @@ RunModule* Parser::Parse(ParseSettings& settings)
 		CopyFunctionChangedStructs();
 		ConvertToBytecode();
 		FinishRunModule();
+
+		return true;
 	}
 	catch(const Tokenizer::Exception& e)
 	{
 		Event(EventType::Error, e.ToString());
 		Cleanup();
-	}
 
-	return run_module;
+		return false;
+	}
 }
 
 void Parser::FinishRunModule()
 {
-	run_module->strs = strs;
-	run_module->ufuncs.resize(ufuncs.size());
+	uint offset = module->ufuncs.size();
+	module->ufuncs.resize(offset + ufuncs.size());
 	for(uint i = 0; i < ufuncs.size(); ++i)
 	{
 		ParseFunction& f = *ufuncs[i];
-		UserFunction& uf = run_module->ufuncs[i];
+		UserFunction& uf = module->ufuncs[i + offset];
 		uf.name = GetName(&f);
 		uf.pos = f.pos;
 		uf.locals = f.locals;
@@ -224,22 +225,19 @@ void Parser::FinishRunModule()
 			uf.args.push_back(arg.vartype);
 		uf.type = f.type;
 	}
-	run_module->globals = main_block->GetMaxVars();
-	run_module->result = global_result;
+	module->globals += main_block->GetMaxVars();
+	module->return_type = GetType(global_result);
 }
 
 void Parser::Cleanup()
 {
-	assert(run_module);
-
 	// cleanup old types
-	for(Type* type : run_module->types)
+	for(Type* type : module->types)
 	{
 		t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
 		delete type;
 	}
 
-	Str::Free(strs);
 	LoopAndRemove(ufuncs, [](ParseFunction* f)
 	{
 		if(IS_SET(f->flags, CommonFunction::F_CODE))
@@ -250,21 +248,23 @@ void Parser::Cleanup()
 	for(uint i = 0; i < ufuncs.size(); ++i)
 		ufuncs[i]->index = i;
 	DeleteElements(rsvs);
-	delete run_module;
 	main_block->Free();
 	if(global_node)
 	{
 		global_node->Free();
 		global_node = nullptr;
 	}
-	run_module = nullptr;
 	main_block = nullptr;
+}
+
+void Parser::Reset()
+{
+	// co w cleanup/co w reset
 }
 
 void Parser::ParseCode()
 {
 	breakable_block = 0;
-	empty_string = -1;
 	main_block = Block::Get();
 	main_block->parent = nullptr;
 	main_block->var_offset = 0u;
@@ -639,7 +639,8 @@ ParseNode* Parser::ParseReturn()
 		if(!ret->childs.empty())
 		{
 			ParseNode* r = ret->childs[0];
-			if(r->result.type != V_BOOL && r->result.type != V_CHAR && r->result.type != V_INT && r->result.type != V_FLOAT)
+			if(r->result.type != V_BOOL && r->result.type != V_CHAR && r->result.type != V_INT && r->result.type != V_FLOAT
+				&& !GetType(r->result.type)->IsEnum())
 				t.Throw("Invalid type '%s' for global return.", GetName(r->result));
 		}
 		ReturnInfo info = { ret, t.GetLine(), t.GetCharPos() };
@@ -835,8 +836,8 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 					dup = Format("%g", val->fvalue);
 				break;
 			case V_STRING:
-				if(strs[val->value]->s == strs[chi->value]->s)
-					dup = strs[val->value]->s.c_str();
+				if(module->strs[val->value]->s == module->strs[chi->value]->s)
+					dup = module->strs[val->value]->s.c_str();
 				break;
 			default:
 				assert(type->IsEnum());
@@ -1472,12 +1473,12 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 			expr->op = PUSH_STRING;
 			if(empty_string == -1)
 			{
-				empty_string = strs.size();
+				empty_string = module->strs.size();
 				Str* str = Str::Get();
 				str->s = "";
 				str->refs = 1;
 				str->seed = 0;
-				strs.push_back(str);
+				module->strs.push_back(str);
 			}
 			expr->value = empty_string;
 			break;
@@ -2545,12 +2546,12 @@ ParseNode* Parser::ParseConstItem()
 	else if(t.IsString())
 	{
 		// string
-		int index = strs.size();
+		int index = module->strs.size();
 		Str* str = Str::Get();
 		str->s = t.GetString();
 		str->refs = 1;
 		str->seed = 0;
-		strs.push_back(str);
+		module->strs.push_back(str);
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_STRING;
 		node->value = index;
@@ -3996,19 +3997,19 @@ void Parser::ConvertToBytecode()
 {
 	for(ParseFunction* ufunc : ufuncs)
 	{
-		ufunc->pos = run_module->code.size();
+		ufunc->pos = module->code.size();
 		ufunc->locals = (ufunc->block ? ufunc->block->GetMaxVars() : 0);
-		uint old_size = run_module->code.size();
+		uint old_size = module->code.size();
 		if(ufunc->node)
-			ToCode(run_module->code, ufunc->node, nullptr);
-		if(old_size == run_module->code.size() || run_module->code.back() != RET)
-			run_module->code.push_back(RET);
+			ToCode(module->code, ufunc->node, nullptr);
+		if(old_size == module->code.size() || module->code.back() != RET)
+			module->code.push_back(RET);
 	}
-	run_module->entry_point = run_module->code.size();
-	uint old_size = run_module->code.size();
-	ToCode(run_module->code, global_node, nullptr);
-	if(old_size == run_module->code.size() || run_module->code.back() != RET)
-		run_module->code.push_back(RET);
+	module->entry_point = module->code.size();
+	uint old_size = module->code.size();
+	ToCode(module->code, global_node, nullptr);
+	if(old_size == module->code.size() || module->code.back() != RET)
+		module->code.push_back(RET);
 }
 
 void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
@@ -4439,8 +4440,8 @@ Type* Parser::GetType(int index)
 	int type_index = (index & 0xFFFF);
 	if(module_index == 0xFFFF)
 	{
-		assert(type_index < (int)run_module->types.size());
-		return run_module->types[type_index];
+		assert(type_index < (int)module->types.size());
+		return module->types[type_index];
 	}
 	else
 	{
@@ -5206,6 +5207,7 @@ void Parser::AnalyzeCode()
 				type->flags |= Type::Ref;
 			else
 				type->flags |= Type::PassByValue;
+			type->SetGenericType();
 			t.Next();
 			t.AssertSymbol('{');
 			t.Next();
@@ -5248,7 +5250,7 @@ void Parser::AnalyzeCode()
 	}
 
 	// verify all types are declared
-	for(Type* type : run_module->types)
+	for(Type* type : module->types)
 	{
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
@@ -5517,13 +5519,14 @@ VarType Parser::AnalyzeVarType()
 Type* Parser::AnalyzeAddType(const string& name) 
 {
 	Type* type = new Type;
+	type->module = nullptr;
 	type->name = name;
-	type->index = (0xFFFF0000 | run_module->types.size());
+	type->index = (0xFFFF0000 | module->types.size());
 	type->declared = false;
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();
 	type->flags = 0;
-	run_module->types.push_back(type);
+	module->types.push_back(type);
 	AddType(type);
 	return type;
 }

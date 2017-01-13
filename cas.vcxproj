@@ -104,8 +104,6 @@
     <ClInclude Include="source/Parser.h" />
     <ClInclude Include="source/ParserImpl.h" />
     <ClInclude Include="source/Pch.h" />
-    <ClInclude Include="include/cas/ReturnValue.h" />
-    <ClInclude Include="source/RunModule.h" />
     <ClInclude Include="source/Type.h" />
     <ClInclude Include="source\Decompiler.h" />
     <ClInclude Include="source\Run.h" />
@@ -113,7 +111,7 @@
   <ItemGroup>
     <ClCompile Include="source/Cas.cpp" />
     <ClCompile Include="source/CoreLib.cpp" />
-    <ClCompile Include="source/Decompile.cpp" />
+    <ClCompile Include="source\Decompiler.cpp" />
     <ClCompile Include="source/Module.cpp" />
     <ClCompile Include="source/Parser.cpp" />
     <ClCompile Include="source/Pch.cpp">
@@ -121,7 +119,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="source/Run.cpp" />
-    <ClCompile Include="source/RunModule.cpp" />
+    <ClCompile Include="source\Type.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="readme.md" />

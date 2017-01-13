@@ -85,7 +85,7 @@ static void f_wypisz_vec3(Vec3& v)
 
 TEST_METHOD(ComplexClassResult)
 {
-	IType* type;
+	IClass* type;
 	// Vec2
 	type = module->AddType<Vec2>("Vec2");
 	type->AddMember("float x", offsetof(Vec2, x));
@@ -137,7 +137,7 @@ struct Vec
 
 TEST_METHOD(CodeRegisterValueType)
 {
-	IType* type = module->AddType<Vec>("Vec", cas::ValueType);
+	IClass* type = module->AddType<Vec>("Vec", cas::ValueType);
 	type->AddMember("int x", offsetof(Vec, x));
 	type->AddMethod("Vec& operator += (int a)", &Vec::operator+=);
 	RunTest(R"code(
@@ -283,7 +283,7 @@ public:
 
 TEST_METHOD(CodeMemberFunction)
 {
-	IType* type = module->AddType<AObj>("AObj");
+	IClass* type = module->AddType<AObj>("AObj");
 	type->AddMethod("int GetX()", &AObj::GetX);
 	type->AddMethod("void SetX(int a)", &AObj::SetX);
 	RunTest("AObj a; a.SetX(7); return a.GetX();");
@@ -302,7 +302,7 @@ public:
 
 TEST_METHOD(CodeMemberFunctionOverload)
 {
-	IType* type = module->AddType<BObj>("BObj");
+	IClass* type = module->AddType<BObj>("BObj");
 	type->AddMethod("int f()", AsMethod(BObj, f, int, ()));
 	type->AddMethod("int f(int a)", AsMethod(BObj, f, int, (int)));
 	RunTest("BObj b; return b.f() + b.f(4);");
@@ -328,7 +328,7 @@ static void D_sub(D& d, int a)
 
 TEST_METHOD(OverloadClassOperator)
 {
-	IType* type = module->AddType<D>("D");
+	IClass* type = module->AddType<D>("D");
 	type->AddMember("int x", offsetof(D, x));
 	type->AddMethod("void operator += (int a)", &D::operator+=);
 	type->AddMethod("void operator -= (int a)", D_sub);
@@ -346,7 +346,7 @@ struct E
 
 TEST_METHOD(Functor)
 {
-	IType* type = module->AddType<E>("E");
+	IClass* type = module->AddType<E>("E");
 	type->AddMember("int x", offsetof(E, x));
 	type->AddMethod("int operator () ()", AsMethod(E, f, int, ()));
 	type->AddMethod("int operator () (int a)", AsMethod(E, f, int, (int)));

@@ -1,6 +1,5 @@
 #include "Pch.h"
 #include "CasImpl.h"
-#include "RunModule.h"
 #include "Module.h"
 #include "Op.h"
 #include "Run.h"
@@ -10,7 +9,7 @@ static Var tmpv;
 static vector<StackFrame> stack_frames;
 static int current_function, args_offset, locals_offset, current_line;
 static uint depth;
-static RunModule* run_module;
+static Module* module;
 static vector<RefVar*> refs;
 
 Str* CreateStr()
@@ -39,7 +38,7 @@ void AddRef(Var& v)
 		v.ref->refs++;
 	else
 	{
-		Type* type = run_module->GetType(v.vartype.type);
+		Type* type = module->GetType(v.vartype.type);
 		if(type->IsClass())
 			v.clas->refs++;
 	}
@@ -53,7 +52,7 @@ void ReleaseRef(Var& v)
 		v.ref->Release();
 	else
 	{
-		Type* type = run_module->GetType(v.vartype.type);
+		Type* type = module->GetType(v.vartype.type);
 		if(type->IsClass())
 			v.clas->Release();
 	}
@@ -152,7 +151,7 @@ void ExecuteFunction(Function& f)
 	bool in_mem = false, ret_by_ref = false;
 
 	// pack return value
-	Type* result_type = run_module->GetType(f.result.type);
+	Type* result_type = module->GetType(f.result.type);
 	if(f.result.type == V_STRING)
 	{
 		// string return value
@@ -187,7 +186,7 @@ void ExecuteFunction(Function& f)
 			|| (arg.pass_by_ref && v.vartype.type == V_REF && v.vartype.subtype == arg.vartype.type && v.ref->type == RefVar::CODE));
 		Type* type;
 		bool code_fake_val = (v.vartype != arg.vartype);
-		if(code_fake_val || arg.pass_by_ref || !(type = run_module->GetType(arg.vartype.type))->IsPassByValue())
+		if(code_fake_val || arg.pass_by_ref || !(type = module->GetType(arg.vartype.type))->IsPassByValue())
 		{
 			int value;
 			switch(v.vartype.type)
@@ -226,7 +225,7 @@ void ExecuteFunction(Function& f)
 				}
 				break;
 			default:
-				assert(run_module->GetType(v.vartype.type)->IsClass());
+				assert(module->GetType(v.vartype.type)->IsClass());
 				value = (int)v.clas->data();
 				break;
 			}
@@ -346,9 +345,9 @@ void ExecuteFunction(Function& f)
 			else
 			{
 				if(f.result.type == V_REF)
-					assert(run_module->GetType(f.result.subtype)->IsStruct());
+					assert(module->GetType(f.result.subtype)->IsStruct());
 				else
-					assert(run_module->GetType(f.result.type)->IsRefClass());
+					assert(module->GetType(f.result.type)->IsRefClass());
 				if((int*)result.low == v.clas->adr)
 				{
 					v.clas->refs++;
@@ -391,7 +390,7 @@ void ExecuteFunction(Function& f)
 			else
 			{
 				ref->adr = (int*)result.low;
-				Type* real_type = run_module->GetType(f.result.subtype);
+				Type* real_type = module->GetType(f.result.subtype);
 				if(real_type->IsStruct())
 				{
 					Class* c = Class::CreateCode(real_type, ref->adr);
@@ -424,7 +423,7 @@ void ExecuteFunction(Function& f)
 
 void MakeSingleInstance(Var& v)
 {
-	Type* type = run_module->GetType(v.vartype.type);
+	Type* type = module->GetType(v.vartype.type);
 	assert(type && type->IsStruct());
 	assert(v.clas->refs >= START_REF_COUNT);
 	if(v.clas->refs <= START_REF_COUNT && !v.clas->is_code)
@@ -449,7 +448,7 @@ void SetFromStack(Var& v)
 	}
 	else
 	{
-		Type* type = run_module->GetType(v.vartype.type); // with s.vartype.type it will crash for new variables that have type V_VOID
+		Type* type = module->GetType(v.vartype.type); // with s.vartype.type it will crash for new variables that have type V_VOID
 		if(!type->IsStruct())
 		{
 			// free what was in variable previously
@@ -465,8 +464,8 @@ void SetFromStack(Var& v)
 
 void Cast(Var& v, VarType vartype)
 {
-	assert(In((CoreVarType)v.vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || run_module->GetType(v.vartype.type)->IsEnum());
-	assert(In((CoreVarType)vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || run_module->GetType(vartype.type)->IsEnum());
+	assert(In((CoreVarType)v.vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || module->GetType(v.vartype.type)->IsEnum());
+	assert(In((CoreVarType)vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || module->GetType(vartype.type)->IsEnum());
 	assert(v.vartype != vartype);
 
 #define COMBINE(x,y) ((x & 0xFF) | ((y & 0xFF) << 8))
@@ -539,8 +538,8 @@ void Cast(Var& v, VarType vartype)
 		break;
 	default:
 		{
-			bool left_enum = run_module->GetType(v.vartype.type)->IsEnum(),
-				right_enum = run_module->GetType(vartype.type)->IsEnum();
+			bool left_enum = module->GetType(v.vartype.type)->IsEnum(),
+				right_enum = module->GetType(vartype.type)->IsEnum();
 			if(left_enum)
 			{
 				if(right_enum)
@@ -568,11 +567,11 @@ void Cast(Var& v, VarType vartype)
 #undef COMBINE
 }
 
-void RunInternal(ReturnValue& retval)
+void RunInternal()
 {
-	int* start = run_module->code.data();
-	int* end = start + run_module->code.size();
-	int* c = start + run_module->entry_point;
+	int* start = module->code.data();
+	int* end = start + module->code.size();
+	int* c = start + module->entry_point;
 
 	while(true)
 	{
@@ -616,8 +615,8 @@ void RunInternal(ReturnValue& retval)
 		case PUSH_STRING:
 			{
 				uint str_index = *c++;
-				assert(str_index < run_module->strs.size());
-				Str* str = run_module->strs[str_index];
+				assert(str_index < module->strs.size());
+				Str* str = module->strs[str_index];
 				str->refs++;
 				stack.push_back(Var(str));
 			}
@@ -625,8 +624,8 @@ void RunInternal(ReturnValue& retval)
 		case PUSH_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < run_module->ufuncs.size());
-				assert(run_module->ufuncs[current_function].locals > local_index);
+				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
+				assert(module->ufuncs[current_function].locals > local_index);
 				Var& v = local[locals_offset + local_index];
 				AddRef(v);
 				stack.push_back(v);
@@ -635,8 +634,8 @@ void RunInternal(ReturnValue& retval)
 		case PUSH_LOCAL_REF:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < run_module->ufuncs.size());
-				assert(run_module->ufuncs[current_function].locals > local_index);
+				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
+				assert(module->ufuncs[current_function].locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
 				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
@@ -667,8 +666,8 @@ void RunInternal(ReturnValue& retval)
 		case PUSH_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < run_module->ufuncs.size());
-				assert(run_module->ufuncs[current_function].args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
+				assert(module->ufuncs[current_function].args.size() > arg_index);
 				Var& v = local[args_offset + arg_index];
 				AddRef(v);
 				stack.push_back(v);
@@ -677,8 +676,8 @@ void RunInternal(ReturnValue& retval)
 		case PUSH_ARG_REF:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < run_module->ufuncs.size());
-				assert(run_module->ufuncs[current_function].args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
+				assert(module->ufuncs[current_function].args.size() > arg_index);
 				uint index = args_offset + arg_index;
 				Var& v = local[index];
 				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
@@ -692,7 +691,7 @@ void RunInternal(ReturnValue& retval)
 			{
 				assert(!stack.empty());
 				Var& v = stack.back();
-				Type* type = run_module->GetType(v.vartype.type);
+				Type* type = module->GetType(v.vartype.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -725,7 +724,7 @@ void RunInternal(ReturnValue& retval)
 				// don't release class ref because MEMBER_REF increase by 1
 				assert(!stack.empty());
 				Var& v = stack.back();
-				Type* type = run_module->GetType(v.vartype.type);
+				Type* type = module->GetType(v.vartype.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -742,9 +741,9 @@ void RunInternal(ReturnValue& retval)
 			{
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < run_module->ufuncs.size());
-				UserFunction& f = run_module->ufuncs[current_function];
-				Type* type = run_module->GetType(f.type);
+				assert((uint)current_function < module->ufuncs.size());
+				UserFunction& f = module->ufuncs[current_function];
+				Type* type = module->GetType(f.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -778,9 +777,9 @@ void RunInternal(ReturnValue& retval)
 			{
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < run_module->ufuncs.size());
-				UserFunction& f = run_module->ufuncs[current_function];
-				Type* type = run_module->GetType(f.type);
+				assert((uint)current_function < module->ufuncs.size());
+				UserFunction& f = module->ufuncs[current_function];
+				Type* type = module->GetType(f.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -820,9 +819,9 @@ void RunInternal(ReturnValue& retval)
 		case PUSH_THIS:
 			{
 				assert(current_function != -1);
-				assert((uint)current_function < run_module->ufuncs.size());
-				UserFunction& f = run_module->ufuncs[current_function];
-				Type* type = run_module->GetType(f.type);
+				assert((uint)current_function < module->ufuncs.size());
+				UserFunction& f = module->ufuncs[current_function];
+				Type* type = module->GetType(f.type);
 				assert(type->IsClass());
 				Var& v = local[args_offset];
 				AddRef(v);
@@ -833,7 +832,7 @@ void RunInternal(ReturnValue& retval)
 			{
 				int type_idx = *c++;
 				int value = *c++;
-				assert(run_module->GetType(type_idx)->IsEnum());
+				assert(module->GetType(type_idx)->IsEnum());
 				stack.push_back(Var(VarType(type_idx, 0), value));
 			}
 			break;
@@ -848,8 +847,8 @@ void RunInternal(ReturnValue& retval)
 		case SET_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < run_module->ufuncs.size());
-				assert(run_module->ufuncs[current_function].locals > local_index);
+				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
+				assert(module->ufuncs[current_function].locals > local_index);
 				Var& v = local[locals_offset + local_index];
 				SetFromStack(v);
 			}
@@ -865,8 +864,8 @@ void RunInternal(ReturnValue& retval)
 		case SET_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < run_module->ufuncs.size());
-				assert(run_module->ufuncs[current_function].args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
+				assert(module->ufuncs[current_function].args.size() > arg_index);
 				Var& v = local[args_offset + arg_index];
 				SetFromStack(v);
 			}
@@ -880,7 +879,7 @@ void RunInternal(ReturnValue& retval)
 
 				// get class
 				Var& cv = stack.back();
-				Type* type = run_module->GetType(cv.vartype.type);
+				Type* type = module->GetType(cv.vartype.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -918,9 +917,9 @@ void RunInternal(ReturnValue& retval)
 
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < run_module->ufuncs.size());
-				UserFunction& f = run_module->ufuncs[current_function];
-				Type* type = run_module->GetType(f.type);
+				assert((uint)current_function < module->ufuncs.size());
+				UserFunction& f = module->ufuncs[current_function];
+				Type* type = module->GetType(f.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
 				assert(member_index < type->members.size());
@@ -1012,7 +1011,7 @@ void RunInternal(ReturnValue& retval)
 						}
 						else
 						{
-							Type* type = run_module->GetType(data.vartype.type);
+							Type* type = module->GetType(data.vartype.type);
 							if(type->IsStruct())
 								value = (int)(Class*)data.data;
 							else
@@ -1098,14 +1097,14 @@ void RunInternal(ReturnValue& retval)
 					assert(left.vartype.type == V_INT || left.vartype.type == V_FLOAT || left.vartype.type == V_STRING);
 				else if(op == EQ || op == NOT_EQ)
 					assert(left.vartype.type == V_BOOL || left.vartype.type == V_CHAR || left.vartype.type == V_INT || left.vartype.type == V_FLOAT
-						|| left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass()
-						|| run_module->GetType(left.vartype.type)->IsEnum());
+						|| left.vartype.type == V_STRING || module->GetType(left.vartype.type)->IsClass()
+						|| module->GetType(left.vartype.type)->IsEnum());
 				else if(op == AND || op == OR)
 					assert(left.vartype.type == V_BOOL);
 				else if(op == BIT_AND || op == BIT_OR || op == BIT_XOR || op == BIT_LSHIFT || op == BIT_RSHIFT)
 					assert(left.vartype.type == V_INT);
 				else if(op == IS)
-					assert(left.vartype.type == V_STRING || run_module->GetType(left.vartype.type)->IsClass() || left.vartype.type == V_REF);
+					assert(left.vartype.type == V_STRING || module->GetType(left.vartype.type)->IsClass() || left.vartype.type == V_REF);
 				else if(op == SET_ADR)
 					assert(left.vartype.type == V_REF);
 				else
@@ -1317,7 +1316,7 @@ void RunInternal(ReturnValue& retval)
 							}
 							else
 							{
-								Type* type = run_module->GetType(right.vartype.type);
+								Type* type = module->GetType(right.vartype.type);
 								assert(type->IsSimple());
 								memcpy(ref.data, &right.value, type->size);
 							}							
@@ -1329,7 +1328,7 @@ void RunInternal(ReturnValue& retval)
 						}
 						else
 						{
-							Type* type = run_module->GetType(right.vartype.type);
+							Type* type = module->GetType(right.vartype.type);
 							uint size;
 							if(type->IsClass())
 							{
@@ -1357,26 +1356,26 @@ void RunInternal(ReturnValue& retval)
 				// set & validate return value
 				assert(depth == 0);
 				assert(local.empty());
-				if(run_module->result == V_VOID)
+				if(module->return_type->index == V_VOID)
 				{
 					assert(stack.empty());
-					retval.type = cas::ReturnValue::Void;
+					module->return_value.type = module->GetType(V_VOID);
 				}
 				else
 				{
 					assert(stack.size() == 1u);
 					Var& v = stack.back();
-					assert(v.vartype.type == run_module->result);
-					retval.type = (cas::ReturnValue::Type)run_module->result;
-					retval.int_value = v.value;
+					assert(v.vartype.type == module->return_type->index);
+					module->return_value.type = module->return_type;
+					module->return_value.int_value = v.value;
 					stack.pop_back();
 				}
 				return;
 			}
 			else
 			{
-				assert((uint)current_function < run_module->ufuncs.size());
-				UserFunction& f = run_module->ufuncs[current_function];
+				assert((uint)current_function < module->ufuncs.size());
+				UserFunction& f = module->ufuncs[current_function];
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
 				StackFrame& frame = stack_frames.back();
@@ -1419,8 +1418,8 @@ void RunInternal(ReturnValue& retval)
 				if(current_function != -1)
 				{
 					// checking local stack
-					assert((uint)current_function < run_module->ufuncs.size());
-					UserFunction& f = run_module->ufuncs[current_function];
+					assert((uint)current_function < module->ufuncs.size());
+					UserFunction& f = module->ufuncs[current_function];
 					uint count = 1 + f.locals + f.args.size();
 					assert(local.size() >= count);
 					Var& d = *(local.end() - count);
@@ -1464,15 +1463,15 @@ void RunInternal(ReturnValue& retval)
 		case CALL:
 			{
 				uint f_idx = *c++;
-				Function* f = run_module->GetFunction(f_idx);
+				Function* f = module->GetFunction(f_idx);
 				ExecuteFunction(*f);
 			}
 			break;
 		case CALLU:
 			{
 				uint f_idx = *c++;
-				assert(f_idx < run_module->ufuncs.size());
-				UserFunction& f = run_module->ufuncs[f_idx];
+				assert(f_idx < module->ufuncs.size());
+				UserFunction& f = module->ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
 				local.push_back(Var(V_SPECIAL));
@@ -1510,16 +1509,16 @@ void RunInternal(ReturnValue& retval)
 		case CALLU_CTOR:
 			{
 				uint f_idx = *c++;
-				assert(f_idx < run_module->ufuncs.size());
-				UserFunction& f = run_module->ufuncs[f_idx];
+				assert(f_idx < module->ufuncs.size());
+				UserFunction& f = module->ufuncs[f_idx];
 				// mark function call
 				uint pos = c - start;
 				local.push_back(Var(V_SPECIAL));
 				// push this
 				args_offset = local.size();
-				assert(run_module->GetType(f.type)->IsClass());
+				assert(module->GetType(f.type)->IsClass());
 				local.resize(local.size() + f.args.size());
-				local[args_offset] = Var(Class::Create(run_module->GetType(f.type)));
+				local[args_offset] = Var(Class::Create(module->GetType(f.type)));
 				// handle args
 				assert(stack.size() >= f.args.size() - 1);
 				for(uint i = 1, count = f.args.size(); i < count; ++i)
@@ -1557,8 +1556,8 @@ void RunInternal(ReturnValue& retval)
 		case COPY_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < run_module->ufuncs.size());
-				assert(run_module->ufuncs[current_function].args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
+				assert(module->ufuncs[current_function].args.size() > arg_index);
 				Var& v = local[args_offset + arg_index];
 				MakeSingleInstance(v);
 			}
@@ -1602,15 +1601,15 @@ void RunInternal(ReturnValue& retval)
 	}
 }
 
-bool Run(RunModule& _run_module, ReturnValue& _retval, string& _exc)
+bool Run(Module& _module, string& _exc)
 {
-	run_module = &_run_module;
+	module = &_module;
 
 	// prepare stack
 	tmpv = Var();
 	stack.clear();
 	global.clear();
-	global.resize(run_module->globals);
+	global.resize(module->globals);
 	local.clear();
 	current_function = -1;
 	depth = 0;
@@ -1625,7 +1624,7 @@ bool Run(RunModule& _run_module, ReturnValue& _retval, string& _exc)
 	try
 	{
 		// run
-		RunInternal(_retval);
+		RunInternal();
 		_exc.clear();
 		result = true;
 
@@ -1660,7 +1659,7 @@ std::pair<cstring, int> cas::GetCurrentLocation()
 	if(current_function == -1)
 		func_name = "<global>";
 	else
-		func_name = run_module->ufuncs[current_function].name.c_str();
+		func_name = module->ufuncs[current_function].name.c_str();
 	return std::pair<cstring, uint>(func_name, current_line);
 }
 

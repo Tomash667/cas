@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Function.h"
-#include "RunModule.h"
 
 struct Block;
 struct CastResult;
@@ -61,8 +60,9 @@ public:
 	Type* GetType(int index);
 	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
 	cstring GetParserFunctionName(uint index);
-	RunModule* Parse(ParseSettings& settigns);
+	bool Parse(ParseSettings& settigns);
 	void Cleanup();
+	void Reset();
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
 	int CreateDefaultFunctions(Type* type);
 
@@ -165,8 +165,6 @@ private:
 	
 	Tokenizer t;
 	Module* module;
-	RunModule* run_module;
-	vector<Str*> strs;
 	vector<ParseFunction*> ufuncs;
 	vector<ReturnInfo> global_returns;
 	Block* main_block, *current_block;

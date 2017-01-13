@@ -216,7 +216,7 @@ TEST_METHOD(RegisterSameTypeTwice)
 
 TEST_METHOD(RegisterMethodParseError)
 {
-	IType* type = module->AddType<A>("A");
+	IClass* type = module->AddType<A>("A");
 	Assert::IsNotNull(type);
 
 	bool r = type->AddMethod("void f;", &A::f);
@@ -227,7 +227,7 @@ TEST_METHOD(RegisterMethodParseError)
 
 TEST_METHOD(RegisterSameMethodTwice)
 {
-	IType* type = module->AddType<A>("A");
+	IClass* type = module->AddType<A>("A");
 	Assert::IsNotNull(type);
 
 	bool r = type->AddMethod("void f()", &A::f);
@@ -240,7 +240,7 @@ TEST_METHOD(RegisterSameMethodTwice)
 
 TEST_METHOD(RegisterMemberParseError)
 {
-	IType* type = module->AddType<A>("A");
+	IClass* type = module->AddType<A>("A");
 	Assert::IsNotNull(type);
 
 	bool r = type->AddMember("int;", offsetof(A, x));
@@ -453,7 +453,7 @@ static X create_x_by_value() { X x; return x; }
 static X* create_x_by_pointer() { static X x; return &x; }
 TEST_METHOD(CodeCtorInvalidReturnType)
 {
-	IType* type = module->AddType<X>("X");
+	IClass* type = module->AddType<X>("X");
 	bool r = type->AddMethod("X()", create_x_by_value);
 	Assert::IsFalse(r);
 	AssertError("Class constructor 'X()' must return type by reference/pointer.");
@@ -467,7 +467,7 @@ TEST_METHOD(CodeCtorInvalidReturnType)
 
 TEST_METHOD(ReturnCodeClassByValue)
 {
-	IType* type = module->AddType<X>("X");
+	IClass* type = module->AddType<X>("X");
 	bool r = type->AddMethod("X f()", create_x_by_value);
 	Assert::IsFalse(r);
 	AssertError("Class in code method must be returned by reference/pointer.");
