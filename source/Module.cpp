@@ -337,37 +337,32 @@ Type* Module::FindType(cstring type_name)
 	return nullptr;
 }
 
-Type* Module::GetType(int type_index)
+Type* Module::GetType(int index)
 {
-	/*
 	int module_index = (index & 0xFFFF0000) >> 16;
--	int type_index = (index & 0xFFFF);
--	if(module_index == 0xFFFF)
--	{
--		assert(type_index < (int)types.size());
--		return types[type_index];
--	}
--	else
--	{
--		assert(parent->modules.find(module_index) != parent->modules.end());
--		Module* m = parent->modules[module_index];
--		assert(type_index < (int)m->types.size());
--		return m->types[type_index];
--	}*/
-	return nullptr;
+	int type_index = (index & 0xFFFF);
+	if(module_index == 0xFFFF)
+	{
+		assert(type_index < (int)tmp_types.size());
+		return tmp_types[type_index];
+	}
+	else
+	{
+		assert(modules.find(module_index) != modules.end());
+		Module* m = modules[module_index];
+		assert(type_index < (int)m->types.size());
+		return m->types[type_index];
+	}
 }
 
-Function* GetFunction(int func_index)
+Function* Module::GetFunction(int index)
 {
-	/*-int module_index = (index & 0xFFFF0000) >> 16;
-	-int func_index = (index & 0xFFFF);
-	-assert(parent->modules.find(module_index) != parent->modules.end());
-	-Module* m = parent->modules[module_index];
-	-assert(func_index < (int)m->functions.size());
-	-return m->functions[func_index];
-	-*/
-
-	return nullptr;
+	int module_index = (index & 0xFFFF0000) >> 16;
+	int func_index = (index & 0xFFFF);
+	assert(modules.find(module_index) != modules.end());
+	Module* m = modules[module_index];
+	assert(func_index < (int)m->functions.size());
+	return m->functions[func_index];
 }
 
 void Module::AddParentModule(Module* parent_module)
@@ -492,4 +487,12 @@ void Module::ResetParse()
 void Module::ResetAll()
 {
 
+}
+
+cstring Module::GetFunctionName(uint index, bool is_user)
+{
+	if(is_user)
+		return parser->GetParserFunctionName(index);
+	else
+		return parser->GetName(parser->GetFunction(index));
 }

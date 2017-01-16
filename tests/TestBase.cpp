@@ -119,10 +119,15 @@ void WriteDecompileOutput()
 
 Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 {
+	IModule::Options options;
+	options.optimize = optimize;
+	options.decompile = decompile;
+	module->SetOptions(options);
+
 	Result result;
 	try
 	{
-		IModule::ExecutionResult ex_result = module->ParseAndRun(input, optimize, decompile);
+		IModule::ExecutionResult ex_result = module->ParseAndRun(input);
 		WriteDecompileOutput();
 		if(ex_result != IModule::Ok)
 		{

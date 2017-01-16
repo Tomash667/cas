@@ -197,6 +197,7 @@ bool Parser::Parse(ParseSettings& settings)
 		CopyFunctionChangedStructs();
 		ConvertToBytecode();
 		FinishRunModule();
+		Cleanup();
 
 		return true;
 	}
@@ -231,22 +232,6 @@ void Parser::FinishRunModule()
 
 void Parser::Cleanup()
 {
-	// cleanup old types
-	for(Type* type : module->types)
-	{
-		t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
-		delete type;
-	}
-
-	LoopAndRemove(ufuncs, [](ParseFunction* f)
-	{
-		if(IS_SET(f->flags, CommonFunction::F_CODE))
-			return false;
-		delete f;
-		return true;
-	});
-	for(uint i = 0; i < ufuncs.size(); ++i)
-		ufuncs[i]->index = i;
 	DeleteElements(rsvs);
 	main_block->Free();
 	if(global_node)
@@ -259,7 +244,22 @@ void Parser::Cleanup()
 
 void Parser::Reset()
 {
-	// co w cleanup/co w reset
+	for(Type* type : module->tmp_types)
+	{
+		t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
+		delete type;
+	}
+
+	for(uint i = 0; i < ufuncs.size(); ++i)
+	{
+		ParseFunction* f = ufuncs[i];
+		if(!IS_SET(f->flags, CommonFunction::F_CODE))
+		{
+			delete f;
+			ufuncs[i] = nullptr;
+			empty_ufuncs.push_back(i);
+		}
+	}
 }
 
 void Parser::ParseCode()
@@ -4441,7 +4441,7 @@ Type* Parser::GetType(int index)
 	if(module_index == 0xFFFF)
 	{
 		assert(type_index < (int)module->types.size());
-		return module->types[type_index];
+		return module->tmp_types[type_index];
 	}
 	else
 	{
@@ -5526,7 +5526,7 @@ Type* Parser::AnalyzeAddType(const string& name)
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();
 	type->flags = 0;
-	module->types.push_back(type);
+	module->tmp_types.push_back(type);
 	AddType(type);
 	return type;
 }

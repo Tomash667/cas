@@ -1,3 +1,6 @@
+Co z:
+ufuncs - czyœciæ w Parser czy nie, jest u¿ywane w Finish
+
 co w cleanup/co w reset
 Cleanup:
 ufuncs

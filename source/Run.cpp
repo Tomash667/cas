@@ -1601,7 +1601,7 @@ void RunInternal()
 	}
 }
 
-bool Run(Module& _module, string& _exc)
+bool Run(Module& _module)
 {
 	module = &_module;
 
@@ -1625,7 +1625,7 @@ bool Run(Module& _module, string& _exc)
 	{
 		// run
 		RunInternal();
-		_exc.clear();
+		module->exc.clear();
 		result = true;
 
 		// cleanup
@@ -1646,7 +1646,7 @@ bool Run(Module& _module, string& _exc)
 	}
 	catch(const CasException& ex)
 	{
-		_exc = ex.exc;
+		module->exc = ex.exc;
 		result = false;
 	}
 

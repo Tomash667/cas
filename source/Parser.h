@@ -175,6 +175,7 @@ private:
 	CoreVarType global_result;
 	bool optimize;
 	vector<ReturnStructVar*> rsvs;
+	vector<uint> empty_ufuncs;
 	uint prev_line;
 	Enum* active_enum;
 };

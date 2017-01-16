@@ -32,8 +32,8 @@ public:
 	bool AddMethod(Type* type, cstring decl, const FunctionInfo& func_info);
 	Function* FindEqualFunction(Function& fc);
 	Type* FindType(cstring type_name);
-	Type* GetType(int type_index);
-	Function* GetFunction(int func_index);
+	Type* GetType(int index);
+	Function* GetFunction(int index);
 	void AddParentModule(Module* parent_module);
 	bool BuildModule();
 	bool AddEnumValue(Type* type, cstring name, int value);
@@ -43,7 +43,7 @@ public:
 	std::map<int, Module*> modules;
 	vector<Function*> functions;
 	vector<UserFunction> ufuncs;
-	vector<Type*> types;
+	vector<Type*> types, tmp_types;
 	vector<Str*> strs;
 	vector<int> code;
 	ReturnValue return_value;
