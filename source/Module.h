@@ -20,12 +20,12 @@ public:
 	IEnum* AddEnum(cstring type_name) override;
 	ReturnValue GetReturnValue() override;
 	cstring GetException() override;
-	ExecutionResult ParseAndRun(cstring input) override;
+	ExecutionResult ParseAndRun(cstring input, bool decompile) override;
 	ExecutionResult Parse(cstring input) override;
 	ExecutionResult Run() override;
 	void SetOptions(const Options& options) override;
-	void ResetParse() override;
-	void ResetAll() override;
+	void ResetParser() override;
+	void Decompile() override;
 	
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
 	bool AddMember(Type* type, cstring decl, int offset);
@@ -49,10 +49,9 @@ public:
 	ReturnValue return_value;
 	Parser* parser;
 	string exc;
-	Type* return_type;
 	int index, refs;
 	uint globals, entry_point;
-	bool inherited, released, built, optimize, decompile;
+	bool inherited, released, built, optimize;
 
 	static vector<Module*> all_modules;
 	static bool all_modules_shutdown;

@@ -219,9 +219,22 @@ TEST_METHOD(ReturnValueToCode)
 //=========================================================================================
 TEST_METHOD(MultipleReturnValueToCode)
 {
-	// will upcast to common type - float
-	RunTest("return 7; return 14.11; return false;");
-	retval.IsFloat(7.f);
+	module->Parse(R"code(
+		int a = getint();
+		if(a == 1)
+			return 3;
+		else if(a == 2)
+			return 3.14;
+	)code");
+
+	RunParsedTest("0");
+	retval.IsVoid();
+
+	RunParsedTest("1");
+	retval.IsInt(3);
+
+	RunParsedTest("2");
+	retval.IsFloat(3.14f);
 }
 
 //=========================================================================================
@@ -777,6 +790,46 @@ TEST_METHOD(CodeEnum)
 		f(g);
 		f(Enum.invalid);
 	)code");
+}
+
+//=========================================================================================
+TEST_METHOD(TwoScriptsCombined)
+{
+	module->Parse("int f() { return 4; }");
+	module->Parse("return f();");
+	RunParsedTest();
+	retval.IsInt(4);
+}
+
+//=========================================================================================
+TEST_METHOD(ModuleResetParser)
+{
+	module->Parse("int f(){return 1;} return f();");
+	RunParsedTest();
+	retval.IsInt(1);
+
+	module->ResetParser();
+	module->Parse("int f(){return 2;} return f();");
+	RunParsedTest();
+	retval.IsInt(2);
+}
+
+//=========================================================================================
+TEST_METHOD(ComplexTwoScriptsCombined)
+{
+	module->Parse(R"code(
+		int a = getint();
+		if(a == 7)
+			return 3.33;
+	)code");
+	module->Parse("float f = 3.14, g = 7.11; return a + f;");
+
+	SetDecompile(true);
+	RunParsedTest("7");
+	retval.IsFloat(3.33f);
+
+	RunParsedTest("4");
+	retval.IsFloat(7.14f);
 }
 
 //=========================================================================================

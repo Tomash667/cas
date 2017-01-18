@@ -102,7 +102,8 @@ BasicSymbolInfo basic_symbols[] = {
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
-Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), empty_string(-1)
+Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), empty_string(-1),
+main_block(nullptr)
 {
 	AddKeywords();
 	AddChildModulesKeywords();
@@ -111,6 +112,8 @@ Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer
 Parser::~Parser()
 {
 	DeleteElements(ufuncs);
+	if(main_block)
+		main_block->Free();
 }
 
 bool Parser::VerifyTypeName(cstring type_name, int& type_index)
@@ -226,53 +229,44 @@ void Parser::FinishRunModule()
 			uf.args.push_back(arg.vartype);
 		uf.type = f.type;
 	}
-	module->globals += main_block->GetMaxVars();
-	module->return_type = GetType(global_result);
+	module->globals = main_block->GetMaxVars();
 }
 
 void Parser::Cleanup()
 {
 	DeleteElements(rsvs);
-	main_block->Free();
 	if(global_node)
 	{
 		global_node->Free();
 		global_node = nullptr;
 	}
-	main_block = nullptr;
 }
 
 void Parser::Reset()
 {
+	if(main_block)
+	{
+		main_block->Free();
+		main_block = nullptr;
+	}
 	for(Type* type : module->tmp_types)
-	{
 		t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
-		delete type;
-	}
-
-	for(uint i = 0; i < ufuncs.size(); ++i)
-	{
-		ParseFunction* f = ufuncs[i];
-		if(!IS_SET(f->flags, CommonFunction::F_CODE))
-		{
-			delete f;
-			ufuncs[i] = nullptr;
-			empty_ufuncs.push_back(i);
-		}
-	}
+	DeleteElements(ufuncs);
 }
 
 void Parser::ParseCode()
 {
 	breakable_block = 0;
-	main_block = Block::Get();
-	main_block->parent = nullptr;
-	main_block->var_offset = 0u;
+	if(!main_block)
+	{
+		main_block = Block::Get();
+		main_block->parent = nullptr;
+		main_block->var_offset = 0u;
+	}
 	current_block = main_block;
 	current_function = nullptr;
 	current_type = nullptr;
 	global_node = nullptr;
-	global_returns.clear();
 	active_enum = nullptr;
 
 	NodeRef node;
@@ -643,8 +637,6 @@ ParseNode* Parser::ParseReturn()
 				&& !GetType(r->result.type)->IsEnum())
 				t.Throw("Invalid type '%s' for global return.", GetName(r->result));
 		}
-		ReturnInfo info = { ret, t.GetLine(), t.GetCharPos() };
-		global_returns.push_back(info);
 	}
 	t.Next();
 	return ret.Pin();
@@ -936,6 +928,7 @@ void Parser::ParseEnum(bool forward)
 	enu->type = type;
 	type->size = 4;
 	type->enu = enu;
+	type->SetGenericType();
 	active_enum = enu;
 	t.Next();
 
@@ -1167,6 +1160,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 {
 	ParseFuncModifiers(type != nullptr, f->flags);
 
+	bool oper = false;
 	BASIC_SYMBOL symbol = BS_MAX;
 	f->result = GetVarType(false, in_cpp);
 	f->type = (type ? type->index : V_VOID);
@@ -1201,6 +1195,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		f->special = SF_NO;
 		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 		{
+			oper = true;
 			t.Next();
 			if(t.IsItem())
 			{
@@ -1269,6 +1264,14 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 			t.Throw("Implicit can only be used for constructor and cast operators.");
 	}
 
+	if(IS_SET(f->flags, CommonFunction::F_STATIC))
+	{
+		if(f->special == SF_CTOR)
+			t.Throw("Static constructor not allowed.");
+		else if(oper)
+			t.Throw("Static operator not allowed.");
+	}
+	
 	if(f->special == SF_CAST || f->special == SF_ADDREF || f->special == SF_RELEASE)
 	{
 		if(f->arg_infos.size() != 1u // first arg is this
@@ -3838,52 +3841,8 @@ ParseNode* Parser::OptimizeTree(ParseNode* node)
 
 void Parser::CheckReturnValues()
 {
-	CheckGlobalReturnValue();
 	for(ParseFunction* ufunc : ufuncs)
 		VerifyFunctionReturnValue(ufunc);
-}
-
-void Parser::CheckGlobalReturnValue()
-{
-	if(global_returns.empty())
-	{
-		global_result = V_VOID;
-		return;
-	}
-
-	VarType common = GetReturnType(global_returns[0].node);
-
-	// verify common type
-	for(uint i = 1; i < global_returns.size(); ++i)
-	{
-		ReturnInfo& info = global_returns[i];
-		VarType other_type = GetReturnType(info.node);
-		VarType new_common = CommonType(common, other_type);
-		if(new_common.type == -1)
-			t.ThrowAt(info.line, info.charpos, "Mismatched return type '%s' and '%s'.", GetType(common.type)->name.c_str(),
-				GetType(other_type.type)->name.c_str());
-		common = new_common;
-	}
-
-	// cast to common type
-	for(ReturnInfo& info : global_returns)
-	{
-		VarType vartype = GetReturnType(info.node);
-		if(vartype != common)
-		{
-			ParseNode* ret = info.node;
-			ParseNode* expr = info.node->childs[0];
-			ParseNode* cast = ParseNode::Get();
-			cast->push(expr);
-			cast->op = CAST;
-			cast->result = common;
-			cast->value = common.type;
-			cast->source = nullptr;
-			ret->childs[0] = cast;
-		}
-	}
-
-	global_result = (CoreVarType)common.type;
 }
 
 void Parser::VerifyFunctionReturnValue(ParseFunction* f)
@@ -3995,6 +3954,16 @@ void Parser::CopyFunctionChangedStructs()
 
 void Parser::ConvertToBytecode()
 {
+	uint jmp_to_next_section = 0;
+	bool first_script = module->code.empty();
+	if(!first_script)
+	{
+		module->code.pop_back();
+		module->code.push_back(JMP);
+		jmp_to_next_section = module->code.size();
+		module->code.push_back(0);
+	}
+
 	for(ParseFunction* ufunc : ufuncs)
 	{
 		ufunc->pos = module->code.size();
@@ -4005,11 +3974,14 @@ void Parser::ConvertToBytecode()
 		if(old_size == module->code.size() || module->code.back() != RET)
 			module->code.push_back(RET);
 	}
-	module->entry_point = module->code.size();
+
+	if(first_script)
+		module->entry_point = module->code.size();
+	else
+		module->code[jmp_to_next_section] = module->code.size();
 	uint old_size = module->code.size();
 	ToCode(module->code, global_node, nullptr);
-	if(old_size == module->code.size() || module->code.back() != RET)
-		module->code.push_back(RET);
+	module->code.push_back(RET);
 }
 
 void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
@@ -4440,7 +4412,7 @@ Type* Parser::GetType(int index)
 	int type_index = (index & 0xFFFF);
 	if(module_index == 0xFFFF)
 	{
-		assert(type_index < (int)module->types.size());
+		assert(type_index < (int)module->tmp_types.size());
 		return module->tmp_types[type_index];
 	}
 	else
@@ -5250,7 +5222,7 @@ void Parser::AnalyzeCode()
 	}
 
 	// verify all types are declared
-	for(Type* type : module->types)
+	for(Type* type : module->tmp_types)
 	{
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
@@ -5521,7 +5493,7 @@ Type* Parser::AnalyzeAddType(const string& name)
 	Type* type = new Type;
 	type->module = nullptr;
 	type->name = name;
-	type->index = (0xFFFF0000 | module->types.size());
+	type->index = (0xFFFF0000 | module->tmp_types.size());
 	type->declared = false;
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();

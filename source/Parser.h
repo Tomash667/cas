@@ -61,15 +61,15 @@ public:
 	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
 	cstring GetParserFunctionName(uint index);
 	bool Parse(ParseSettings& settigns);
-	void Cleanup();
-	void Reset();
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
 	int CreateDefaultFunctions(Type* type);
+	void Reset();
 
 private:
 	void FinishRunModule();
 	void AddKeywords();
 	void AddChildModulesKeywords();
+	void Cleanup();
 
 	void ParseCode();
 	ParseNode* ParseLineOrBlock();
@@ -123,7 +123,6 @@ private:
 	ParseNode* OptimizeTree(ParseNode* node);
 
 	void CheckReturnValues();
-	void CheckGlobalReturnValue();
 	void VerifyFunctionReturnValue(ParseFunction* f);
 	RETURN_INFO VerifyNodeReturnValue(ParseNode* node, bool in_switch);
 
@@ -166,16 +165,13 @@ private:
 	Tokenizer t;
 	Module* module;
 	vector<ParseFunction*> ufuncs;
-	vector<ReturnInfo> global_returns;
 	Block* main_block, *current_block;
 	ParseFunction* current_function;
 	Type* current_type;
 	ParseNode* global_node;
 	int breakable_block, empty_string;
-	CoreVarType global_result;
-	bool optimize;
 	vector<ReturnStructVar*> rsvs;
-	vector<uint> empty_ufuncs;
 	uint prev_line;
 	Enum* active_enum;
+	bool optimize;
 };

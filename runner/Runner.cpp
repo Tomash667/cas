@@ -141,10 +141,9 @@ int main(int argc, char** argv)
 
 		IModule::Options options;
 		options.optimize = optimize;
-		options.decompile = decompile;
 		module->SetOptions(options);
 
-		IModule::ExecutionResult result = module->ParseAndRun(content.c_str());
+		IModule::ExecutionResult result = module->ParseAndRun(content.c_str(), decompile);
 		vector<string>& asserts = GetAsserts();
 		if(result != IModule::Ok)
 		{

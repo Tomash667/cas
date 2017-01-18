@@ -1,42 +1,4 @@
-Co z:
-ufuncs - czyœciæ w Parser czy nie, jest u¿ywane w Finish
-
-co w cleanup/co w reset
-Cleanup:
-ufuncs
-
-ResetParser:
-ufuncs
-types (partial)
-strs
-code
-
-ResetAll:
-functions
-ufuncs
-types
-strs
-code
-
-
-+ return_type
-+ globals, init/update
-
-1. tworze modu³
-2. dodaje klasy questowe
-	a. pierwszy quest
-	b. drugi quest
-	c. trzeci quest
-	...
-3. kompilacja
-	a. global init block
-	b. main block
-4. pêtla
-	a. wykonywanie
-	b. u¿ycie wyniku
-5. sprz¹tanie
-
-+ return type is destroyed on cleanup before used return value
++ debug file marker, like LINE but FILE index to str
 
 BUGS:
 - index operator don't work for string& (and possibly struct/class) CODE/SCRIPT, and for functor, possibly other operators too (class ref += ?)
@@ -64,7 +26,6 @@ IMPROVEMENT/VERIFY:
 + set_tmp reference (string?), check string references
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 ? verify if ParseExpr type is longer used
-? parse class func checks FindEqualFunction without type
 + remove duplicates in string table
 + signaling parse/run thread to exit, not using TerminateThread
 + map of casts
@@ -92,9 +53,9 @@ IMPROVEMENT/VERIFY:
 + += should call + and = if compound not found
 + optimize string concat (currently a+=b will create new string with a+b, then assign to a)
 + member initialization const expr
++ remove double ret at end of main
 
 FEATURE:
-+ enum global return value
 + string global return value
 + subscript with multiple items
 + overload pre/post ++ --

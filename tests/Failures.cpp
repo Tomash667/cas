@@ -160,11 +160,6 @@ TEST_METHOD(InvalidAssignTypes)
 		"No matching call to method 'int.operator = ' with arguments (string), could be 'int int.operator = (int)'.");
 }
 
-TEST_METHOD(MixedGlobalReturnType)
-{
-	RunFailureTest("return; return 1;", "Mismatched return type 'void' and 'int'.");
-}
-
 TEST_METHOD(InvalidGlobalReturnType)
 {
 	RunFailureTest("return \"dada\";", "Invalid type 'string' for global return.");
@@ -367,7 +362,7 @@ TEST_METHOD(ClassRedeclaration)
 
 TEST_METHOD(UndeclaredTypeUsed)
 {
-	RunFailureTest("A f(){}", "Undeclared type 'A' used.");
+	RunFailureTest("A f(){A a; return a;}", "Undeclared type 'A' used.");
 }
 
 TEST_METHOD(MissingFunctionClosingBrace)
@@ -415,7 +410,7 @@ TEST_METHOD(IndexOutOfRangeOnReference)
 TEST_METHOD(DisallowCreateType)
 {
 	module->AddType<A>("A", cas::DisallowCreate);
-	RunFailureTest("A a;", "Type 'A' cannot be created in script.");
+	RunFailureTest("A aa;", "Type 'A' cannot be created in script.");
 
 	auto type = module->AddType<B>("B", cas::DisallowCreate);
 	type->AddCtor<int, int>("B(int a, int b)");
@@ -509,8 +504,8 @@ TEST_METHOD(StaticCtor)
 {
 	RunFailureTest("class A{static A(){}}", "Static constructor not allowed.");
 
-	auto type = module->AddType<A>("A");
-	bool r = type->AddMethod("static A()", f);
+	auto type = module->AddType<A>("A2");
+	bool r = type->AddCtor("static A2()");
 	Assert::IsFalse(r);
 	AssertError("Static constructor not allowed.");
 }
@@ -536,7 +531,6 @@ TEST_METHOD(MismatchedStaticMethod)
 TEST_METHOD(RegisterEnumWithSameEnumerator)
 {
 	RunFailureTest("enum E{A,A}", "Enumerator 'E.A' already defined.");
-	CleanupErrors();
 
 	IEnum* enu = module->AddEnum("F");
 	bool r = enu->AddValue("A");
@@ -559,7 +553,6 @@ TEST_METHOD(RegisterEnumWithSameEnumerator)
 TEST_METHOD(KeywordAsEnumerator)
 {
 	RunFailureTest("enum E{A,int}", "Expecting item, found keyword 'int' from group 'var'.");
-	CleanupErrors();
 
 	IEnum* enu = module->AddEnum("F");
 	bool r = enu->AddValue("int");

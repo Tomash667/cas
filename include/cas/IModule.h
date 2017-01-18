@@ -235,9 +235,8 @@ namespace cas
 		struct Options
 		{
 			bool optimize;
-			bool decompile;
 
-			inline Options() : optimize(true), decompile(false) {}
+			inline Options() : optimize(true) {}
 		};
 
 		virtual bool AddFunction(cstring decl, const FunctionInfo& func_info) = 0;
@@ -245,12 +244,12 @@ namespace cas
 		virtual IEnum* AddEnum(cstring type_name) = 0;
 		virtual ReturnValue GetReturnValue() = 0;
 		virtual cstring GetException() = 0;
-		virtual ExecutionResult ParseAndRun(cstring input) = 0;
+		virtual ExecutionResult ParseAndRun(cstring input, bool decompile = false) = 0;
 		virtual ExecutionResult Parse(cstring input) = 0;
 		virtual ExecutionResult Run() = 0;
 		virtual void SetOptions(const Options& options) = 0;
-		virtual void ResetParse() = 0;
-		virtual void ResetAll() = 0;
+		virtual void ResetParser() = 0;
+		virtual void Decompile() = 0;
 
 		template<typename T>
 		inline ISpecificClass<T>* AddType(cstring type_name, int flags = 0)

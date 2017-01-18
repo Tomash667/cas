@@ -1356,17 +1356,16 @@ void RunInternal()
 				// set & validate return value
 				assert(depth == 0);
 				assert(local.empty());
-				if(module->return_type->index == V_VOID)
+				if(stack.empty())
 				{
-					assert(stack.empty());
+					module->return_value.int_value = 0;
 					module->return_value.type = module->GetType(V_VOID);
 				}
 				else
 				{
 					assert(stack.size() == 1u);
 					Var& v = stack.back();
-					assert(v.vartype.type == module->return_type->index);
-					module->return_value.type = module->return_type;
+					module->return_value.type = module->GetType(v.vartype.type);
 					module->return_value.int_value = v.value;
 					stack.pop_back();
 				}

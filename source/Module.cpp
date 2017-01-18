@@ -24,7 +24,9 @@ Module::Module(int index, Module* parent_module) : inherited(false), parser(null
 
 Module::~Module()
 {
+	Str::Free(strs);
 	DeleteElements(types);
+	DeleteElements(tmp_types);
 	DeleteElements(functions);
 	delete parser;
 
@@ -258,7 +260,7 @@ cstring Module::GetException()
 	return exc.c_str();
 }
 
-IModule::ExecutionResult Module::ParseAndRun(cstring input)
+IModule::ExecutionResult Module::ParseAndRun(cstring input, bool decompile)
 {
 	// build
 	if(!BuildModule())
@@ -278,8 +280,6 @@ IModule::ExecutionResult Module::ParseAndRun(cstring input)
 	// run
 	bool ok = ::Run(*this);
 
-	// cleanup
-	parser->Cleanup();
 	return (ok ? ExecutionResult::Ok : ExecutionResult::Exception);
 }
 
@@ -456,10 +456,6 @@ IModule::ExecutionResult Module::Parse(cstring input)
 	if(!parser->Parse(settings))
 		return ExecutionResult::ParsingError;
 
-	// decompile
-	if(decompile)
-		Decompiler::Get().Decompile(*this);
-
 	return ExecutionResult::Ok;
 }
 
@@ -468,25 +464,21 @@ IModule::ExecutionResult Module::Run()
 	// run
 	bool ok = ::Run(*this);
 
-	// cleanup
-	parser->Cleanup();
 	return (ok ? ExecutionResult::Ok : ExecutionResult::Exception);
 }
 
 void Module::SetOptions(const Options& options)
 {
 	optimize = options.optimize;
-	decompile = options.decompile;
 }
 
-void Module::ResetParse()
+void Module::ResetParser()
 {
-
-}
-
-void Module::ResetAll()
-{
-
+	parser->Reset();
+	Str::Free(strs);
+	ufuncs.clear();
+	DeleteElements(tmp_types);
+	code.clear();
 }
 
 cstring Module::GetFunctionName(uint index, bool is_user)
@@ -495,4 +487,9 @@ cstring Module::GetFunctionName(uint index, bool is_user)
 		return parser->GetParserFunctionName(index);
 	else
 		return parser->GetName(parser->GetFunction(index));
+}
+
+void Module::Decompile()
+{
+	Decompiler::Get().Decompile(*this);
 }

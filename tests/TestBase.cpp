@@ -7,10 +7,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 const int DEFAULT_TIMEOUT = (CI_MODE ? 60 : 1);
 istringstream s_input;
 ostringstream s_output;
-string event_output;
+string event_output, content;
 IModule* current_module;
 int reg_errors;
-bool decompile;
+bool decompile, reset_parser = true;
 
 enum Result
 {
@@ -88,10 +88,13 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 	Shutdown();
 }
 
-void WriteDecompileOutput()
+void WriteDecompileOutput(IModule* module)
 {
 	if(!decompile)
 		return;
+
+	module->Decompile();
+
 	cstring mark = "***DCMP***";
 	cstring mark_end = "***DCMP_END***";
 	string s = s_output.str();
@@ -121,14 +124,28 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 {
 	IModule::Options options;
 	options.optimize = optimize;
-	options.decompile = decompile;
 	module->SetOptions(options);
 
+	bool can_decompile = false;
 	Result result;
 	try
 	{
-		IModule::ExecutionResult ex_result = module->ParseAndRun(input);
-		WriteDecompileOutput();
+		IModule::ExecutionResult ex_result;
+		if(input)
+		{
+			ex_result = module->Parse(input);
+			if(ex_result == IModule::Ok)
+			{
+				WriteDecompileOutput(module);
+				ex_result = module->Run();
+			}
+		}
+		else
+		{
+			can_decompile = true;
+			ex_result = module->Run();
+		}
+
 		if(ex_result != IModule::Ok)
 		{
 			if(ex_result == IModule::Exception)
@@ -155,7 +172,8 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 	}
 	catch(cstring)
 	{
-		WriteDecompileOutput();
+		if(can_decompile)
+			WriteDecompileOutput(module);
 		result = ASSERT;
 	}
 	return result;
@@ -169,6 +187,9 @@ unsigned __stdcall ThreadStart(void* data)
 
 Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 {
+	if(reset_parser && content)
+		module->ResetParser();
+
 	if(IsDebuggerPresent())
 		return ParseAndRunChecked(module, content, optimize);
 
@@ -191,35 +212,56 @@ Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, i
 	return (Result)exit_code;
 }
 
-void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize)
+void RunTest(const TestSettings& s)
 {
+	// verify module registeration before RunTest
 	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
 
+	// clear event
 	event_output.clear();
 
-	if(!CI_MODE && input[0] != 0)
+	// write input
+	if(!CI_MODE && s.input && s.input[0] != 0)
 	{
 		Logger::WriteMessage("\nScript input:\n");
-		Logger::WriteMessage(input);
+		Logger::WriteMessage(s.input);
 		Logger::WriteMessage("\n");
 	}
 
-	string path(Format("../cases/%s", filename));
-	ifstream ifs(path);
-	Assert::IsTrue(ifs.is_open(), GetWC(Format("Failed to open file '%s'.", path.c_str())).c_str());
-	string content((istreambuf_iterator<char>(ifs)), (istreambuf_iterator<char>()));
-	ifs.close();
-
+	// reset io
 	s_input.clear();
-	s_input.str(input);
+	s_input.str(s.input ? s.input : "");
 	s_output.clear();
 	s_output.str("");
 
-	Result result = ParseAndRunWithTimeout(module, content.c_str(), optimize);
-	string s = s_output.str();
-	cstring ss = s.c_str();
+	// get script code
+	cstring code;
+	if(s.filename)
+	{
+		string path(Format("../cases/%s", s.filename));
+		ifstream ifs(path);
+		Assert::IsTrue(ifs.is_open(), GetWC(Format("Failed to open file '%s'.", path.c_str())).c_str());
+		content = string((istreambuf_iterator<char>(ifs)), (istreambuf_iterator<char>()));
+		ifs.close();
+		code = content.c_str();
+	}
+	else
+		code = s.code;
+
+	// run
+	Result result = ParseAndRunWithTimeout(s.module, code, s.optimize);
+	
+	// get output
+	string output = s_output.str();
+	cstring ss = output.c_str();
+
+	// check result
 	switch(result)
 	{
+	case OK:
+		if(s.error)
+			Assert::Fail(L"Failure without error.");
+		break;
 	case TIMEOUT:
 		{
 			cstring output = Format("Script execution/parsing timeout. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
@@ -230,91 +272,34 @@ void RunFileTest(IModule* module, cstring filename, cstring input, cstring outpu
 		Assert::Fail(GetWC(event_output.c_str()).c_str());
 		break;
 	case FAILED:
+		if(!s.error)
 		{
 			cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
 			Assert::Fail(GetWC(output).c_str());
 		}
+		else
+			AssertError(s.error);
 		break;
 	}
 
-	if(!CI_MODE)
+	// verify output
+	if(s.output)
 	{
-		Logger::WriteMessage("\nScript output:\n");
-		Logger::WriteMessage(ss);
-		Logger::WriteMessage("\n");
-	}
-
-	Assert::AreEqual(output, ss, "Invalid output.");
-
-	reg_errors = 0;
-}
-
-void RunTest(IModule* module, cstring code)
-{
-	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
-
-	event_output.clear();
-
-	s_input.clear();
-	s_input.str("");
-	s_output.clear();
-	s_output.str("");
-
-	Result result = ParseAndRunWithTimeout(module, code, true);
-	string s = s_output.str();
-	cstring ss = s.c_str();
-
-	switch(result)
-	{
-	case TIMEOUT:
-		Assert::Fail(L"Test timeout.");
-		break;
-	case ASSERT:
-		Assert::Fail(GetWC(event_output.c_str()).c_str());
-		break;
-	case FAILED:
+		if(!CI_MODE)
 		{
-			cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
-			Assert::Fail(GetWC(output).c_str());
+			Logger::WriteMessage("\nScript output:\n");
+			Logger::WriteMessage(ss);
+			Logger::WriteMessage("\n");
 		}
-		break;
+
+		Assert::AreEqual(s.output, ss, "Invalid output.");
 	}
 
+	// cleanup
+	if(reset_parser && code)
+		s.module->ResetParser();
 	reg_errors = 0;
-}
-
-void RunFailureTest(IModule* module, cstring code, cstring error)
-{
-	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
-
 	event_output.clear();
-	
-	s_input.clear();
-	s_input.str("");
-	s_output.clear();
-	s_output.str("");
-
-	Result result = ParseAndRunWithTimeout(module, code, true);
-	string s = s_output.str();
-	cstring ss = s.c_str();
-
-	switch(result)
-	{
-	case OK:
-		Assert::Fail(L"Failure without error.");
-		break;
-	case TIMEOUT:
-		Assert::Fail(L"Failure timeout.");
-		break;
-	case ASSERT:
-		Assert::Fail(GetWC(event_output.c_str()).c_str());
-		break;
-	case FAILED:
-		AssertError(error);
-		break;
-	}
-
-	reg_errors = 0;
 }
 
 void CleanupErrors()
@@ -338,4 +323,9 @@ void AssertError(cstring error)
 void SetDecompile(bool _decompile)
 {
 	decompile = _decompile;
+}
+
+void SetResetParser(bool _reset_parser)
+{
+	reset_parser = _reset_parser;
 }

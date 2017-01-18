@@ -134,9 +134,12 @@ TEST_METHOD(StaticMethods)
 
 TEST_METHOD(EnumGlobalReturnValue)
 {
+	SetDecompile(true);
+	SetResetParser(false);
 	RunTest("enum E{A=2,B=4,C=6} return E.B;");
 	retval.IsEnum("E", 4);
 
+	module->ResetParser();
 	IEnum* enu = module->AddEnum("F");
 	enu->AddValues({ {"A", 3}, {"B", 6}, {"C", 9} });
 	RunTest("return F.B;");

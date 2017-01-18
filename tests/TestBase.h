@@ -37,6 +37,24 @@ namespace Microsoft
 					return L"invalid";
 				}
 			}
+
+			template<>
+			static wstring ToString(const IModule::ExecutionResult& result)
+			{
+				switch(result)
+				{
+				case IModule::ValidationError:
+					return L"ValidationError";
+				case IModule::ParsingError:
+					return L"ParsingError";
+				case IModule::Exception:
+					return L"Exception";
+				case IModule::Ok:
+					return L"Ok";
+				default:
+					return L"Invalid";
+				}
+			}
 		}
 	}
 }
@@ -46,28 +64,76 @@ const bool CI_MODE = ((_CI_MODE - 1) == 0);
 
 extern IModule* current_module;
 
-void RunFileTest(IModule* module, cstring filename, cstring input, cstring output, bool optimize = true);
+struct TestSettings
+{
+	IModule* module;
+	cstring filename;
+	cstring code;
+	cstring input;
+	cstring output;
+	cstring error;
+	bool optimize;
+};
+
+void RunTest(const TestSettings& settings);
+
 inline void RunFileTest(cstring filename, cstring input = "", cstring output = "", bool optimize = true)
 {
-	RunFileTest(current_module, filename, input, output, optimize);
+	TestSettings s;
+	s.module = current_module;
+	s.filename = filename;
+	s.code = nullptr;
+	s.input = input;
+	s.output = output;
+	s.error = nullptr;
+	s.optimize = optimize;
+	RunTest(s);
 }
 
-void RunTest(IModule* module, cstring code);
-inline void RunTest(cstring code)
+inline void RunTest(cstring code, cstring input = "")
 {
-	RunTest(current_module, code);
+	TestSettings s;
+	s.module = current_module;
+	s.filename = nullptr;
+	s.code = code;
+	s.input = input;
+	s.output = nullptr;
+	s.error = nullptr;
+	s.optimize = true;
+	RunTest(s);
 }
 
-void RunFailureTest(IModule* module, cstring code, cstring error);
-inline void RunFailureTest(cstring code, cstring error)
+inline void RunFailureTest(cstring code, cstring error, cstring input = "")
 {
-	RunFailureTest(current_module, code, error);
+	TestSettings s;
+	s.module = current_module;
+	s.filename = nullptr;
+	s.code = code;
+	s.input = input;
+	s.output = nullptr;
+	s.error = error;
+	s.optimize = true;
+	RunTest(s);
+}
+
+inline void RunParsedTest(cstring input = "")
+{
+	TestSettings s;
+	s.module = current_module;
+	s.filename = nullptr;
+	s.code = nullptr;
+	s.input = input;
+	s.output = nullptr;
+	s.error = nullptr;
+	s.optimize = true;
+	RunTest(s);
 }
 
 void CleanupErrors();
 void CleanupAsserts();
 void AssertError(cstring error);
 void SetDecompile(bool decompile);
+void SetResetParser(bool reset_parser);
 
 struct Retval
 {
@@ -107,7 +173,7 @@ struct Retval
 	{
 		ReturnValue ret = module->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Float, ret.type->GetGenericType());
-		Assert::AreEqual(expected, ret.float_value);
+		Assert::AreEqual(expected, ret.float_value, 0.01f);
 	}
 
 	void IsEnum(cstring name, int expected)
@@ -144,6 +210,7 @@ TEST_CLASS(Name) 											\
 		DestroyModule(module);								\
 		current_module = nullptr;                           \
 		SetDecompile(false);								\
+		SetResetParser(true);								\
 	}														\
 															\
 	IModule* module;										\

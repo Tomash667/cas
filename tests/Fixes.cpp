@@ -186,4 +186,13 @@ TEST_METHOD(CallCtorInsideMethod)
 	)code");
 }
 
+TEST_METHOD(ReturnInsideIf)
+{
+	RunTest(R"code(
+		int a = getint();
+		if(a == 7)
+			return 3.33;
+	)code", "1");
+}
+
 CA_TEST_CLASS_END();
