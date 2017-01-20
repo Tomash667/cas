@@ -70,6 +70,12 @@ namespace cas
 				return R();
 			}
 
+			template<typename C, typename R, typename... A>
+			static R ret(R(C::*)(A...) const)
+			{
+				return R();
+			}
+
 		public:
 			typedef typename decltype(ret(T())) result;
 		};

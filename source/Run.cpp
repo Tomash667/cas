@@ -42,7 +42,7 @@ void AddRef(Var& v)
 		v.ref->refs++;
 		break;
 	case V_ARRAY:
-		v.ar->refs++;
+		v.arr->refs++;
 		break;
 	default:
 		{
@@ -65,7 +65,7 @@ void ReleaseRef(Var& v)
 		v.ref->Release();
 		break;
 	case V_ARRAY:
-		v.ar->Release();
+		v.arr->Release();
 		break;
 	default:
 		{
@@ -910,6 +910,14 @@ void RunInternal(ReturnValue& retval)
 				int value = *c++;
 				assert(run_module->GetType(type_idx)->IsEnum());
 				stack.push_back(Var(VarType(type_idx, 0), value));
+			}
+			break;
+		case PUSH_ARRAY:
+			{
+				int type_idx = *c++;
+				assert(type_idx == V_INT);
+				Array* arr = new Array(run_module->GetType(type_idx));
+				stack.push_back(Var(arr));
 			}
 			break;
 		case POP:

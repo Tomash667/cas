@@ -181,7 +181,7 @@ struct Var
 		Str* str;
 		RefVar* ref;
 		Class* clas;
-		BaseArray* ar;
+		Array* arr;
 	};
 
 	inline explicit Var() : vartype(V_VOID) {}
@@ -194,6 +194,7 @@ struct Var
 	inline Var(RefVar* ref, int subtype) : vartype(VarType(V_REF, subtype)), ref(ref) {}
 	inline explicit Var(Class* clas) : vartype(clas->type->index, 0), clas(clas) {}
 	inline Var(VarType vartype, int value) : vartype(vartype), value(value) {}
+	inline explicit Var(Array* arr) : vartype(V_ARRAY, arr->type->index), arr(arr) {}
 };
 
 struct StackFrame
@@ -201,57 +202,4 @@ struct StackFrame
 	uint expected_stack, pos;
 	int current_line, current_function;
 	bool is_ctor;
-};
-
-template<typename T>
-struct Array : public BaseArray
-{
-	vector<T> ar;
-
-	inline void Add(int item) override
-	{
-		T it;
-		memcpy(&it, &item, type->size);
-		ar.push_back(it);
-	}
-
-	inline void Clear() override
-	{
-		ar.clear();
-	}
-
-	inline uint Count() override
-	{
-		return ar.size();
-	}
-
-	inline Var Get(uint index) override
-	{
-		assert(ar.size() < index);
-		Var v;
-		v.type = type->index;
-		v.value = 0;
-		memcpy(&v.value, &ar[index], type->size);
-		return v;
-	}
-
-	inline void Insert(uint index, int item) override
-	{
-		assert(ar.size() <= index);
-		T it;
-		memcpy(&it, &item, type->size);
-		ar.insert(ar.begin() + index, it);
-	}
-
-	inline void Remove(uint index) override
-	{
-		assert(ar.size() <= index);
-		ar.erase(ar.begin() + index);
-	}
-
-	inline void Set(uint index, Var& v) override
-	{
-		assert(ar.size() < index);
-		memcpy(&ar[index], &v.value, type->size);
-	}
 };

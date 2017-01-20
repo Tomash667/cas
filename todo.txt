@@ -1,3 +1,20 @@
++ int array
++ check all funcs
++ bool/char/float array
++ string array
++ multi-array
++ reference to array
++ reference to multi-array
++ pass array to code (require ref)
++ struct
++ class
++ code struct
++ code class
++ pass struct to code
++ pass class to code
++ pass code struct to code
++ pass code class to code
+
 BUGS:
 - index operator don't work for string& (and possibly struct/class) CODE/SCRIPT, and for functor, possibly other operators too (class ref += ?)
 - c++ function returning string cause 1 byte memory leak (string.txt)
@@ -76,6 +93,14 @@ FEATURE:
 	+ for each
 	+ operator []
 	+ variadic functions (params)
+	+ store:
+		+ string
+		+ struct
+		+ class
+		+ code struct
+		+ code class
+		+ array
+	+ add(1,2,3)
 + entry point, run function/method
 + get list of globals, get/set global value
 + class/struct return value
@@ -117,6 +142,7 @@ FEATURE:
 	+ default value for class argument in function
 	+ inhertiance
 	+ interfaces
+	+ array member
 + is operator
 	+ compare object and type if(a is INT2)
 + default string arg for code function
@@ -182,4 +208,13 @@ FEATURE:
 	+ remove builtin functions from disasembly
 	+ debugger
 	+ include code in decompile
+	+ operator arr + arr (join)
 + ref to thing that needs subtype
++ generic
+	+ function/method
+	+ string
+	+ class
+	+ struct
+	+ array
+	+ code class
+	+ code struct

@@ -1167,7 +1167,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	ParseFuncModifiers(type != nullptr, f->flags);
 
 	BASIC_SYMBOL symbol = BS_MAX;
-	f->result = GetVarType(false, in_cpp);
+	f->result = GetVarType(false, in_cpp, type);
 	f->type = (type ? type->index : V_VOID);
 
 	if(type && type->index == f->result.type && t.IsSymbol('('))
@@ -1245,12 +1245,17 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	t.AssertSymbol('(');
 	t.Next();
 
-	ParseFunctionArgs(f, in_cpp);
+	ParseFunctionArgs(f, in_cpp, type);
 
 	if(type && (f->special != SF_CTOR || !in_cpp) && !IS_SET(f->flags, CommonFunction::F_STATIC))
 	{
-		// pass this for member functions (not for code ctor)
-		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
+		// pass this for member functions, except for:
+		//		static methods
+		//		code constructors
+		VarType vartype((CoreVarType)type->index);
+		if(type->IsGeneric())
+			vartype.subtype = V_GENERIC;
+		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(vartype, 0, false));
 		f->required_args++;
 		if(in_cpp)
 			f->arg_infos.front().pass_by_ref = true;
@@ -1282,7 +1287,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	}
 }
 
-void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
+void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp, Type* type)
 {
 	assert(f);
 	f->required_args = 0;
@@ -1293,7 +1298,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 	{
 		while(true)
 		{
-			VarType vartype = GetVarType(true, in_cpp);
+			VarType vartype = GetVarType(true, in_cpp, type);
 			bool pass_by_ref = false;
 			LocalString id = t.MustGetItem();
 			CheckFindItem(id.get_ref(), false);
@@ -1483,6 +1488,12 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 			break;
 		case V_REF:
 			t.Throw("Uninitialized reference variable.");
+			break;
+		case V_ARRAY:
+			expr->result = vartype;
+			expr->op = PUSH_ARRAY;
+			expr->value = vartype.subtype;
+			break;
 		default: // class
 			{
 				Type* rtype = GetType(vartype.type);
@@ -1835,7 +1846,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			else
 			{
 				assert(op_result.result == OpResult::FALLBACK);
-				int type = node->result.GetType();
+				int type = node->result.GetBaseType();
 				if(type != V_CHAR && type != V_INT && type != V_FLOAT)
 					t.Throw("Invalid type '%s' for operation '%s'.", GetTypeName(node), si.name);
 
@@ -1845,7 +1856,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 
 				NodeRef op;
 				op->pseudo_op = INTERNAL_GROUP;
-				op->result = VarType(node->result.GetType(), 0);
+				op->result = VarType(node->result.GetBaseType(), 0);
 				op->source = nullptr;
 				if(node->source)
 					node->source->mod = true;
@@ -1934,7 +1945,7 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		if(si.symbol == S_MEMBER_ACCESS)
 		{
 			// member access
-			Type* type = GetType(left->result.GetType());
+			Type* type = GetType(left->result.GetBaseType());
 			bool deref = (left->result.type == V_REF);
 
 			if(right->pseudo_op == OBJ_FUNC)
@@ -2150,7 +2161,7 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 	if(si.op == NOP)
 	{
 		// assign to variable
-		Type* left_type = GetType(left->result.GetType());
+		Type* left_type = GetType(left->result.GetBaseType());
 
 		// find all assign operators
 		vector<AnyFunction> funcs;
@@ -2622,7 +2633,7 @@ ParseVar* Parser::GetVar(ParseNode* node)
 	}
 }
 
-VarType Parser::GetVarType(bool is_arg, bool in_cpp)
+VarType Parser::GetVarType(bool is_arg, bool in_cpp, Type* type)
 {
 	VarType vartype(nullptr);
 	bool ok = false;
@@ -2631,21 +2642,77 @@ VarType Parser::GetVarType(bool is_arg, bool in_cpp)
 		vartype.type = t.GetKeywordId(G_VAR);
 		ok = true;
 	}
+	else if(t.IsItem() && type && type->IsGeneric() && type->generic_param == t.GetItem())
+	{
+		vartype.type = V_GENERIC;
+		ok = true;
+	}
 	if(!ok)
 		t.Unexpected("Expecting var type.");
 	t.Next();
 
+	complex_chain.clear();
+	while(t.IsSymbol('['))
+	{
+		t.Next();
+		t.AssertSymbol(']');
+		t.Next();
+		complex_chain.push_back(V_ARRAY);
+	}
+
 	if(t.IsSymbol('&'))
 	{
 		t.Next();
-		vartype.subtype = vartype.type;
-		vartype.type = V_REF;
+		complex_chain.push_back(V_REF);
 	}
 	else if(is_arg && in_cpp)
 	{
 		Type* type = GetType(vartype.type);
 		if(type->IsRef())
 			t.Throw("Reference type '%s' must be passed by reference/pointer.", type->name.c_str());
+	}
+
+	if(!complex_chain.empty())
+	{
+		if(complex_chain.size() == 1u)
+		{
+			vartype.subtype = vartype.type;
+			vartype.type = complex_chain[0];
+		}
+		else
+		{
+			complex_chain.push_back(vartype.type);
+			int offset_found = -1;
+			for(int offset : module->complex_offsets)
+			{
+				int off = offset;
+				ok = true;
+				for(int i = 0; i < (int)complex_chain.size(); ++i, ++off)
+				{
+					if(module->complex_types[off] != complex_chain[i])
+					{
+						ok = false;
+						break;
+					}
+				}
+				if(ok)
+				{
+					offset_found = offset;
+					break;
+				}
+			}
+			vartype.type = V_COMPLEX;
+			if(offset_found == -1)
+			{
+				vartype.subtype = module->complex_types.size();
+				module->complex_offsets.push_back(vartype.subtype);
+				for(int i = 0; i < (int)complex_chain.size(); ++i)
+					module->complex_types.push_back(complex_chain[i]);
+				module->complex_types.push_back(V_COMPLEX);
+			}
+			else
+				vartype.subtype = offset_found;
+		}
 	}
 
 	return vartype;
@@ -2845,8 +2912,8 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 	VarType leftvar = lnode->result;
 	VarType rightvar = (rnode ? rnode->result : V_VOID);
 	int& cast = op_result.cast_var.type;
-	int left = leftvar.GetType();
-	int right = rightvar.GetType();
+	int left = leftvar.GetBaseType();
+	int right = rightvar.GetBaseType();
 
 	// left is void, right is void for two arg op, left is type
 	if(left == V_VOID || left == V_TYPE || (right == V_VOID && symbols[symbol].args != 1))
@@ -3496,14 +3563,15 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 {
 	CastResult result;
 
-	if(node->result.GetType() == vartype.GetType())
+	if(node->result.GetBaseType() == vartype.GetBaseType())
 	{
+		DUPA - sprawdza, array i array, a podtype?
 		// types match, no cast required
 		result.type = CastResult::NOT_REQUIRED;
 	}
 	else
 	{
-		node->result.GetType();
+		node->result.GetBaseType();
 		Type* left = GetType(node->result.type);
 		Type* right = GetType(vartype.type);
 		bool builtin_cast = false;
@@ -3515,7 +3583,7 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 		{
 			// builtin cast between bool/char/int/float/string/enum
 			// everything is allowed except string to other type
-			if(node->result.GetType() != V_STRING)
+			if(node->result.GetBaseType() != V_STRING)
 			{
 				builtin_cast = true;
 				result.type |= CastResult::IMPLICIT_CAST | CastResult::BUILTIN_CAST;
@@ -4363,6 +4431,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case SWAP:
 	case RELEASE_REF:
 	case LINE:
+	case PUSH_ARRAY:
 		code.push_back(node->op);
 		code.push_back(node->value);
 		break;
@@ -4475,7 +4544,7 @@ cstring Parser::GetName(ParseVar* var)
 	return Format("%s %s", GetName(var->vartype), var->name.c_str());
 }
 
-cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, BASIC_SYMBOL* symbol)
+cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, BASIC_SYMBOL* symbol, int generic_type)
 {
 	assert(cf);
 	LocalString s = "";
@@ -4489,10 +4558,18 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 	{
 		if(write_type)
 		{
-			s += GetType(cf->type)->name;
+			if(cf->type == V_ARRAY)
+				s += GetName(VarType(V_ARRAY, generic_type));
+			else if(cf->type == V_GENERIC)
+			{
+				assert(generic_type != V_VOID);
+				s += GetType(generic_type)->name;
+			}
+			else
+				s += GetType(cf->type)->name;
 			s += '.';
 		}
-		if(!IS_SET(cf->flags, CommonFunction::F_CODE | CommonFunction::F_STATIC))
+		if(cf->type != V_VOID && !(cf->IsStatic() || (cf->IsCode() && cf->special == SF_CTOR)))
 			++var_offset;
 	}
 	if(!symbol)
@@ -4534,7 +4611,7 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 	{
 		if(i != var_offset)
 			s += ',';
-		s += GetName(cf->arg_infos[i].vartype);
+		s += GetName(cf->arg_infos[i].vartype, generic_type);
 		if(cf->arg_infos[i].pass_by_ref)
 			s += '&';
 	}
@@ -4542,13 +4619,44 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 	return Format("%s", s->c_str());
 }
 
-cstring Parser::GetName(VarType vartype)
+cstring Parser::GetName(VarType vartype, int generic_type)
 {
-	Type* t = GetType(vartype.type == V_REF ? vartype.subtype : vartype.type);
-	if(vartype.type != V_REF)
-		return t->name.c_str();
+	if(vartype.type != V_COMPLEX)
+	{
+		Type* t = GetType(vartype.GetBaseSubtype(generic_type));
+		if(vartype.type == V_REF)
+			return Format("%s&", t->name.c_str());
+		else if(vartype.type == V_ARRAY)
+			return Format("%s[]", t->name.c_str());
+		else
+			return t->name.c_str();
+	}
 	else
-		return Format("%s&", t->name.c_str());
+	{
+		LocalString s = "";
+		int start = vartype.subtype;
+		int end = start;
+		while(module->complex_types[end] != V_COMPLEX)
+			++end;
+		--end;
+		while(end >= start)
+		{
+			int type = module->complex_types[end];
+			if(type == V_REF)
+				s += "&";
+			else if(type == V_ARRAY)
+				s += "[]";
+			else if(type == V_GENERIC)
+			{
+				assert(generic_type != V_VOID);
+				s += GetType(generic_type)->name;
+			}
+			else
+				s += GetType(type)->name;
+			--end;
+		}
+		return s.c_str();
+	}
 }
 
 cstring Parser::GetTypeName(ParseNode* node)
@@ -4924,6 +5032,10 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 
 	if(match.size() >= 2u || match_level == 0)
 	{
+		int generic_type = V_VOID;
+		if(type->index == V_ARRAY)
+			generic_type = node->childs.front()->result.subtype;
+
 		LocalString s;
 		if(match.size() >= 2u)
 			s = "Ambiguous call to overloaded ";
@@ -4934,6 +5046,8 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			cstring type_name;
 			if(type->index == V_TYPE && node->childs.front()->pseudo_op == PUSH_TYPE)
 				type_name = GetType(node->childs.front()->value)->name.c_str();
+			else if(type->index == V_ARRAY)
+				type_name = GetName(VarType(V_ARRAY, generic_type));
 			else
 				type_name = type->name.c_str();
 			s += Format("method '%s.", type_name);
@@ -4950,7 +5064,6 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 				{
 					s += "operator ";
 					s += si.oper;
-					s += ' ';
 					break;
 				}
 			}
@@ -4958,7 +5071,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		else
 			s += first;
 		s += '\'';
-		uint var_offset = ((type && !ctor && !IS_SET(type->flags, Type::Code)) ? 1 : 0);
+		uint var_offset = ((type && !ctor) ? 1 : 0);
 		if(node->childs.size() > var_offset)
 		{
 			s += " with arguments (";
@@ -4979,11 +5092,11 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			for(AnyFunction& f : match)
 			{
 				s += "\n\t";
-				s += GetName(f.cf);
+				s += GetName(f.cf, true, true, nullptr, generic_type);
 			}
 		}
 		else
-			s += Format(" '%s'.", GetName(match.front().cf));
+			s += Format(" '%s'.", GetName(match.front().cf, true, true, nullptr, generic_type));
 		t.Throw(s->c_str());
 	}
 	else

@@ -59,7 +59,7 @@ public:
 	void AddType(Type* type);
 	Function* GetFunction(int index);
 	Type* GetType(int index);
-	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
+	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr, int generic_type = V_VOID);
 	cstring GetParserFunctionName(uint index);
 	RunModule* Parse(ParseSettings& settigns);
 	void Cleanup();
@@ -84,7 +84,7 @@ private:
 	ParseNode* ParseFunc();
 	void ParseFuncModifiers(bool have_type, int& flags);
 	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
-	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
+	void ParseFunctionArgs(CommonFunction* f, bool in_cpp, Type* type);
 	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
 	ParseNode* ParseVarDecl(VarType vartype);
@@ -101,7 +101,7 @@ private:
 
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);
-	VarType GetVarType(bool is_arg, bool in_cpp = false);
+	VarType GetVarType(bool is_arg, bool in_cpp = false, Type* type = nullptr);
 	VarType GetVarTypeForMember();
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
@@ -133,7 +133,7 @@ private:
 
 	VarType GetReturnType(ParseNode* node);
 	cstring GetName(ParseVar* var);
-	cstring GetName(VarType vartype);
+	cstring GetName(VarType vartype, int generic_type = V_VOID);
 	cstring GetTypeName(ParseNode* node);
 	VarType CommonType(VarType a, VarType b);
 	FOUND FindItem(const string& id, Found& found);
@@ -169,6 +169,7 @@ private:
 	vector<Str*> strs;
 	vector<ParseFunction*> ufuncs;
 	vector<ReturnInfo> global_returns;
+	vector<int> complex_chain;
 	Block* main_block, *current_block;
 	ParseFunction* current_function;
 	Type* current_type;

@@ -96,6 +96,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/cas/Cas.h" />
+    <ClInclude Include="include\cas\Exception.h" />
+    <ClInclude Include="include\cas\Vector.h" />
     <ClInclude Include="source/CasImpl.h" />
     <ClInclude Include="source/Function.h" />
     <ClInclude Include="include/cas/IModule.h" />

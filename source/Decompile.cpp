@@ -46,6 +46,7 @@ OpInfo ops[] = {
 	PUSH_INDEX, "push_index", Args0(),
 	PUSH_THIS, "push_this", Args0(),
 	PUSH_ENUM, "push_enum", Args2(V_TYPE, V_INT),
+	PUSH_ARRAY, "push_array", Args1(V_TYPE),
 	POP, "pop", Args0(),
 	SET_LOCAL, "set_local", Args1(V_INT),
 	SET_GLOBAL, "set_global", Args1(V_INT),

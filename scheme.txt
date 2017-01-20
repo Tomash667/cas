@@ -58,10 +58,14 @@ cond:
 	( expr ) // expr returns must return bool
 
 var_type:
-	simple_var_type [&]
+	core_type [ [] ...  ] [&]
+
+core_type:
+	simple_var_type
 	void
 	string
 	<class_name>
+	<generic_param>
 
 simple_var_type:
 	bool

@@ -8,6 +8,8 @@ class A
 {
 public:
 	void f() {}
+	void f2(int) {}
+	void f2(string&) {}
 	int x, y;
 };
 
@@ -155,9 +157,9 @@ TEST_METHOD(InvalidMemberAccess)
 
 TEST_METHOD(InvalidAssignTypes)
 {
-	RunFailureTest("int a; a=\"dodo\";", "No matching call to method 'int.operator = ' with arguments (string), could be 'int int.operator = (int)'.");
+	RunFailureTest("int a; a=\"dodo\";", "No matching call to method 'int.operator =' with arguments (string), could be 'int int.operator = (int)'.");
 	RunFailureTest("void f(int& a) {a=\"dodo\";}",
-		"No matching call to method 'int.operator = ' with arguments (string), could be 'int int.operator = (int)'.");
+		"No matching call to method 'int.operator =' with arguments (string), could be 'int int.operator = (int)'.");
 }
 
 TEST_METHOD(MixedGlobalReturnType)
@@ -284,13 +286,18 @@ TEST_METHOD(AmbiguousCallToOverloadedOperator)
 		A a;
 		a += 1.13;
 	)code",
-		"Ambiguous call to overloaded method 'A.operator += ' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
+		"Ambiguous call to overloaded method 'A.operator +=' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
+
+	auto type = module->AddType<A>("A");
+	type->AddMethod("void f(int i)", AsMethod(A, f2, void, (int)));
+	type->AddMethod("void f(string& s)", AsMethod(A, f2, void, (string&)));
+	RunFailureTest("A a; a.f(3.14);", "Ambiguous call to overloaded method 'A.f' with arguments (float), could be:\n\tvoid A.f(int)\n\tvoid A.f(string&)");
 }
 
 TEST_METHOD(InvalidFunctorArgs)
 {
 	RunFailureTest("class A{ void operator () (int a) {}} A a; a(3, 14);",
-		"No matching call to method 'A.operator () ' with arguments (int,int), could be 'void A.operator () (int)'.");
+		"No matching call to method 'A.operator ()' with arguments (int,int), could be 'void A.operator () (int)'.");
 }
 
 TEST_METHOD(InvalidFunctorType)

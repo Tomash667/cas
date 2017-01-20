@@ -64,6 +64,7 @@ public:
 	vector<Type*> types;
 	vector<ScriptType*> script_types;
 	vector<ScriptEnum*> script_enums;
+	vector<int> complex_types, complex_offsets;
 	ReturnValue return_value;
 	Parser* parser;
 	string exc;

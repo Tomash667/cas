@@ -23,6 +23,7 @@ enum Op
 	PUSH_INDEX, // [] ..., arr, index -> ..., arr[index]
 	PUSH_THIS, // [] ... -> ..., this
 	PUSH_ENUM, // [type, value] ... -> ..., value
+	PUSH_ARRAY, // [type] ... -> ..., array
 	POP, // [] ..., x -> ...
 	SET_LOCAL, // [local_index] ..., x -> ..., x (local = value)
 	SET_GLOBAL, // [global_index] ..., x -> ..., x (global = value)

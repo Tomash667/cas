@@ -15,10 +15,5 @@ void InitLib(Module& module, Settings& settings);
 bool Run(RunModule& run_module, ReturnValue& retval, string& exc);
 void Event(EventType event_type, cstring msg);
 
-struct CasException
-{
-	cstring exc;
-	CasException(cstring exc) : exc(exc) {}
-};
-
+#include "cas/Exception.h"
 #include "Decompiler.h"

@@ -69,6 +69,12 @@
     <ClInclude Include="source\Decompiler.h">
       <Filter>Source</Filter>
     </ClInclude>
+    <ClInclude Include="include\cas\Vector.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\Exception.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Doc">

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cas/Exception.h"
+
 struct Enum;
 struct Function;
 struct CommonFunction;
@@ -52,6 +54,8 @@ enum CoreVarType
 	V_REF,
 	V_SPECIAL,
 	V_TYPE,
+	V_COMPLEX,
+	V_GENERIC,
 	V_MAX
 };
 
@@ -76,12 +80,30 @@ struct VarType
 		return type != vartype.type || subtype != vartype.subtype;
 	}
 
-	inline int GetType() const
+	inline int GetBaseType() const
 	{
+		assert(type != V_COMPLEX);
 		if(type == V_REF)
 			return subtype;
 		else
 			return type;
+	}
+
+	inline int GetBaseSubtype(int generic_type) const
+	{
+		assert(type != V_COMPLEX);
+		int result;
+		if(type == V_REF || type == V_ARRAY)
+			result = subtype;
+		else
+			result = type;
+		if(result == V_GENERIC)
+		{
+			assert(generic_type != V_VOID);
+			return generic_type;
+		}
+		else
+			return result;
 	}
 };
 
@@ -98,13 +120,15 @@ struct Type
 		Class = 1 << 5,
 		Code = 1 << 6,
 		PassByValue = 1 << 7, // struct/string
-		RefCount = 1 << 8
+		RefCount = 1 << 8,
+		Generic = 1 << 9
 	};
 
 	string name;
 	vector<Function*> funcs;
 	vector<ParseFunction*> ufuncs;
 	vector<Member*> members;
+	string generic_param;
 	Enum* enu;
 	int size, index, flags;
 	uint first_line, first_charpos;
@@ -124,6 +148,7 @@ struct Type
 	inline bool IsSimple() const { return ::IsSimple(index); }
 	inline bool IsEnum() const { return enu != nullptr; }
 	inline bool IsBuiltin() const { return IsSimple() || index == V_STRING || IsEnum(); }
+	inline bool IsGeneric() const { return IS_SET(flags, Type::Generic); }
 };
 
 struct VarSource
@@ -174,20 +199,121 @@ struct Enum
 
 struct Var;
 
-struct BaseArray
+struct Array
 {
 	int refs;
 	Type* type;
+	vector<byte> data;
 
-	virtual ~BaseArray() {}
+	inline Array(Type* type) : refs(1), type(type)
+	{
 
-	virtual void Add(int item) = 0;
-	virtual void Clear() = 0;
-	virtual uint Count() = 0;
-	virtual Var Get(uint index) = 0;
-	virtual void Insert(uint index, int item) = 0;
-	virtual void Remove(uint index) = 0;
-	virtual void Set(uint index, Var& v) = 0;
+	}
+
+	inline void add(int* item)
+	{
+		uint offset = data.size();
+		data.resize(type->size);
+		memcpy(data.data() + offset, item, type->size);
+	}
+
+	inline byte* at(int index)
+	{
+		if(index < 0 || index > count())
+			throw CasException(Format("Index %d out of range.", index));
+		return data.data() + index * type->size;
+	}
+
+	inline byte* back(int offset = 0)
+	{
+		return at(count() - offset - 1);
+	}
+
+	inline void clear()
+	{
+		data.clear();
+	}
+
+	inline int count() const
+	{
+		return data.size() / type->size;
+	}
+
+	inline bool empty() const
+	{
+		return data.empty();
+	}
+
+	inline byte* front(int offset = 0)
+	{
+		return at(offset);
+	}
+
+	inline void insert(int index, int* item)
+	{
+		if(index < 0 || index > count())
+			throw CasException(Format("Index %d out of range.", index));
+		data.resize(data.size() + type->size);
+		memmove(data.data() + (index + 1) * type->size, data.data() + index * type->size, data.size() - index * type->size);
+		memcpy(data.data() + index * type->size, item, type->size);
+	}
+
+	inline void pop()
+	{
+		if(data.empty())
+			throw CasException("Array empty.");
+		data.resize(data.size() - type->size);
+	}
+
+	inline void remove(int index)
+	{
+		if(index < 0 || index > count())
+			throw CasException(Format("Index %d out of range.", index));
+		memmove(data.data() + index * type->size, data.data() + (index + 1) * type->size, data.size() - (index - 1) * type->size);
+		data.resize(data.size() - type->size);
+	}
+
+	inline void resize(int size)
+	{
+		if(size < 0)
+			throw CasException(Format("Invalid array size %d.", size));
+		data.resize(size * type->size);
+	}
+
+	inline byte* operator [] (int index)
+	{
+		return at(index);
+	}
+
+	inline bool operator == (Array* arr)
+	{
+		assert(type == arr->type);
+		if(this == arr)
+			return true;
+		else if(count() == arr->count())
+			return memcmp(data.data(), arr->data.data(), data.size() * type->size) == 0;
+		else
+			return false;
+	}
+
+	inline bool operator != (Array* arr)
+	{
+		return !(operator == (arr));
+	}
+
+	inline void operator += (int* item)
+	{
+		add(item);
+	}
+
+	inline void operator += (Array& arr)
+	{
+		assert(type == arr.type);
+		uint offset = data.size();
+		uint size = arr.data.size();
+		data.resize(offset + arr.data.size());
+		memcpy(data.data() + offset, arr.data.data(), size);
+	}
 
 	inline void Release()
 	{

@@ -143,31 +143,6 @@ static char f_char_parse(string& s)
 	return c;
 }
 
-static int f_array_count(BaseArray* ar)
-{
-	return ar->Count();
-}
-
-static void f_array_add(BaseArray* ar, int item)
-{
-	ar->Add(item);
-}
-
-static void f_array_insert(BaseArray* ar, int index, int item)
-{
-	ar->Insert(index, item);
-}
-
-static void f_array_remove(BaseArray* ar, int index)
-{
-	ar->Remove(index);
-}
-
-static void f_array_clear(BaseArray* ar)
-{
-	ar->Clear();
-}
-
 static void InitCoreLib(Module& module, Settings& settings)
 {
 	assert(settings.input && settings.output);
@@ -183,10 +158,13 @@ static void InitCoreLib(Module& module, Settings& settings)
 	Type* _int = module.AddCoreType("int", sizeof(int), V_INT, 0);
 	Type* _float = module.AddCoreType("float", sizeof(float), V_FLOAT, 0);
 	Type* _string = module.AddCoreType("string", sizeof(string), V_STRING, Type::PassByValue);
-	Type* _ref = module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
-	Type* _special = module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
-	Type* _type = module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
-	Type* _array = module.AddCoreType("array", 0, V_ARRAY, Type::Ref | Type::Hidden);
+	Type* _array = module.AddCoreType("array", 0, V_ARRAY, Type::Ref | Type::Hidden | Type::Generic | Type::Class);
+	_array->generic_param = "T";
+	module.AddCoreType("ref", 0, V_REF, Type::Ref | Type::Hidden);
+	module.AddCoreType("special", 0, V_SPECIAL, Type::Hidden);
+	module.AddCoreType("type", 0, V_TYPE, Type::Hidden);
+	module.AddCoreType("complex", 0, V_COMPLEX, Type::Hidden);
+	module.AddCoreType("generic", 0, V_GENERIC, Type::Hidden);
 	// bool methods
 	module.AddMethod(_bool, "bool operator = (bool b)", nullptr);
 	module.AddMethod(_bool, "static bool Parse(string& s)", f_bool_parse);
@@ -211,11 +189,22 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod(_string, "bool empty()", f_string_empty);
 	module.AddMethod(_string, "void clear()", f_string_clear);
 	// array methods
-	module.AddMethod(_array, "int count()", f_array_count);
-	module.AddMethod(_array, "void add(? item)", f_array_add);
-	module.AddMethod(_array, "void insert(int index, ? item)", f_array_insert);
-	module.AddMethod(_array, "void remove(int index)", f_array_remove);
-	module.AddMethod(_array, "void clear()", f_array_clear);
+	module.AddMethod(_array, "void add(T& item)", &Array::add);
+	module.AddMethod(_array, "T& at(int index)", &Array::at);
+	module.AddMethod(_array, "T& back(int offset=0)", &Array::back);
+	module.AddMethod(_array, "void clear()", &Array::clear);
+	module.AddMethod(_array, "int count()", &Array::count);
+	module.AddMethod(_array, "bool empty()", &Array::empty);
+	module.AddMethod(_array, "T& front(int offset=0)", &Array::front);
+	module.AddMethod(_array, "void insert(int index, T& item)", &Array::insert);
+	module.AddMethod(_array, "void pop()", &Array::pop);
+	module.AddMethod(_array, "void remove(int index)", &Array::remove);
+	module.AddMethod(_array, "void resize(int size)", &Array::resize);
+	module.AddMethod(_array, "T& operator [](int index)", &Array::operator []);
+	module.AddMethod(_array, "bool operator == (T[] arr)", &Array::operator ==);
+	module.AddMethod(_array, "bool operator != (T[] arr)", &Array::operator !=);
+	module.AddMethod(_array, "void operator += (T& item)", AsMethod(Array, operator +=, void, (int*)));
+	module.AddMethod(_array, "void operator += (T[] arr)", AsMethod(Array, operator +=, void, (Array&)));
 	// functions
 	module.AddFunction("void print(string& str)", f_print);
 	module.AddFunction("void println()", f_println0);
