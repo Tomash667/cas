@@ -131,6 +131,8 @@ private:
 	void ConvertToBytecode();
 	void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos);
 
+	int FindComplexType(vector<int>& complex, int offset);
+	VarType DereferenceType(VarType vartype);
 	VarType GetReturnType(ParseNode* node);
 	cstring GetName(ParseVar* var);
 	cstring GetName(VarType vartype, int generic_type = V_VOID);

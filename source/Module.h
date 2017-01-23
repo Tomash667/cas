@@ -34,6 +34,7 @@ public:
 	Type* type;
 };
 
+
 class Module : public IModule
 {
 public:
@@ -64,7 +65,7 @@ public:
 	vector<Type*> types;
 	vector<ScriptType*> script_types;
 	vector<ScriptEnum*> script_enums;
-	vector<int> complex_types, complex_offsets;
+	vector<vector<int>*> complex_types;
 	ReturnValue return_value;
 	Parser* parser;
 	string exc;
@@ -73,3 +74,9 @@ public:
 	static vector<Module*> all_modules;
 	static bool all_modules_shutdown;
 };
+
+namespace ComplexTypeHelper
+{
+	extern Module* module;
+	extern ObjectPool<vector<int>> pool;
+}

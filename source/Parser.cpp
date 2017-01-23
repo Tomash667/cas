@@ -4530,6 +4530,55 @@ Function* Parser::GetFunction(int index)
 	return m->functions[func_index];
 }
 
+int Parser::FindComplexType(vector<int>& complex, int offset)
+{
+	int offset_found = -1;
+	for(int offset : module->complex_offsets)
+	{
+		int off = offset;
+		ok = true;
+		for(int i = 0; i < (int)complex_chain.size(); ++i, ++off)
+		{
+			if(module->complex_types[off] != complex_chain[i])
+			{
+				ok = false;
+				break;
+			}
+		}
+		if(ok)
+		{
+			offset_found = offset;
+			break;
+		}
+	}
+}
+
+VarType Parser::DereferenceType(VarType vartype)
+{
+	if(vartype.type == V_REF)
+		return VarType(vartype.subtype, 0);
+	else if(vartype.type == V_COMPLEX)
+	{
+		int offset = vartype.subtype;
+		if(module->complex_types[offset] == V_REF)
+		{
+			// check complex type length
+			++offset;
+			while(module->complex_types[offset] != V_COMPLEX)
+				++offset;
+			int depth = offset - vartype.subtype;
+			assert(depth >= 2);
+			if(depth == 2)
+				return VarType(module->complex_types[vartype.subtype+1])
+			if(offset - vartype.subtype > 2)
+		}
+		else
+			return vartype;
+	}
+	else
+		return vartype;
+}
+
 VarType Parser::GetReturnType(ParseNode* node)
 {
 	if(node->childs.empty())

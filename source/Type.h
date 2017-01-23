@@ -63,15 +63,25 @@ inline bool IsSimple(int type) { return type == V_BOOL || type == V_CHAR || type
 
 struct VarType
 {
-	int type, subtype;
+	int type;
+	union
+	{
+		int subtype;
+		vector<int>* complex;
+	};
 
 	VarType() {}
 	VarType(nullptr_t) : type(0), subtype(0) {}
 	VarType(CoreVarType core) : type(core), subtype(0) {}
 	VarType(int type, int subtype) : type(type), subtype(subtype) {}
+	explicit VarType(vector<int>* complex) : type(V_COMPLEX), complex(complex) {}
 
 	inline bool operator == (const VarType& vartype) const
 	{
+		if(type == vartype.type)
+		{
+			if(type == V_COMPLEX)
+		}
 		return type == vartype.type && subtype == vartype.subtype;
 	}
 
