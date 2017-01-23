@@ -1790,43 +1790,28 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			if(funcs.empty())
 				t.Throw("Type '%s' don't have subscript operator.", GetTypeName(node));
 
-			if(funcs.size() == 1u && funcs.back().cf->IsBuiltin())
+			NodeRef op;
+			op->source = node->source;
+			op->push(node.Pin());
+			op->push(sn.node->childs);
+			sn.node->childs.clear();
+			sn.node->Free();
+			sn.node = nullptr;
+
+			AnyFunction builtin = ApplyFunctionCall(op.Get(), funcs, ltype, false, true);
+			if(builtin)
 			{
-				// builtin string operator []
-				assert(ltype->index == V_STRING);
-				// cast for dereference
-				NodeRef index = sn.node->childs[0];
-				sn.node->childs.clear();
-				if(!TryCast(index.Get(), V_INT))
-					t.Throw("Subscript operator require type 'int', found '%s'.", GetName(index->result));
-				Cast(node.Get(), V_STRING);
-				ParseNode* op = ParseNode::Get();
+				Cast(op->childs[0], V_STRING); // cast for dereference
 				op->op = PUSH_INDEX;
 				op->result = VarType(V_REF, V_CHAR);
-				op->source = node->source;
-				op->push(node.Pin());
-				op->push(index.Pin());
-				sn.node->Free();
-				sn.node = nullptr;
-				stack.push_back(op);
 			}
-			else
-			{
-				NodeRef op;
-				op->source = node->source;
-				op->push(node.Pin());
-				op->push(sn.node->childs[0]);
-				sn.node->childs.clear();
-				sn.node->Free();
-				sn.node = nullptr;
-				ApplyFunctionCall(op.Get(), funcs, ltype, false, true);
-				stack.push_back(op.Pin());
-			}			
+			
+			stack.push_back(op.Pin());
 		}
 		else if(si.type == ST_CALL)
 		{
 			// call operator
-			Type* type = GetType(node->result.type);
+			Type* type = GetType(node->result.GetType());
 			vector<AnyFunction> funcs;
 			FindAllFunctionOverloads(type, si.op_code, funcs);
 			if(funcs.empty())

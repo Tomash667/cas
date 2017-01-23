@@ -227,4 +227,22 @@ TEST_METHOD(SubscriptOperatorOnClassReference)
 	)code");
 }
 
+TEST_METHOD(CallOperatorOnClassReference)
+{
+	RunTest(R"code(
+		class X
+		{
+			void operator () (){}
+		}
+
+		void f(X& x)
+		{
+			x();
+		}
+
+		X x;
+		f(x);
+	)code");
+}
+
 CA_TEST_CLASS_END();

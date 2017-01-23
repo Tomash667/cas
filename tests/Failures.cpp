@@ -249,7 +249,8 @@ TEST_METHOD(RegisterMemberParseError)
 
 TEST_METHOD(InvalidSubscriptIndexType)
 {
-	RunFailureTest("string a; a[a] = 'b';", "Subscript operator require type 'int', found 'string'.");
+	RunFailureTest("string a; a[a] = 'b';",
+		"No matching call to method 'string.operator []' with arguments (string), could be 'char& string.operator [] (int)'.");
 }
 
 TEST_METHOD(InvalidSubscriptType)

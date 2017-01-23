@@ -56,7 +56,6 @@ IMPROVEMENT/VERIFY:
 
 FEATURE:
 + string global return value
-+ subscript with multiple items
 + overload pre/post ++ --
 + nullable?
 + ++-- returns reference

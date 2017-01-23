@@ -184,4 +184,47 @@ TEST_METHOD(IndexOperatorOnClass)
 	)code");
 }
 
+TEST_METHOD(ComplexSubscriptOperator)
+{
+	RunTest(R"code(
+		string a, b, c;
+
+		class A
+		{
+			A()
+			{
+				a = "test";
+				b = "dodo";
+				c = "dadar";
+			}
+	
+			char& operator [] (int x, int y)
+			{
+				switch(x)
+				{
+				case 0:
+				default:
+					return a[y];
+				case 1:
+					return b[y];
+				case 2:
+					return c[y];
+				}
+			}
+		}
+
+		A aa;
+		Assert_AreEqual('t', aa[0,0]);
+		Assert_AreEqual('o', aa[1,1]);
+		Assert_AreEqual('d', aa[2,2]);
+
+		int x = getint(), y = getint();
+		println(aa[x,y]);
+
+		x = getint();
+		y = getint();
+		println(aa[x,y]);
+	)code", "0 2 2 4", "s\nr\n");
+}
+
 CA_TEST_CLASS_END();

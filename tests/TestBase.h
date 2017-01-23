@@ -90,14 +90,14 @@ inline void RunFileTest(cstring filename, cstring input = "", cstring output = "
 	RunTest(s);
 }
 
-inline void RunTest(cstring code, cstring input = "")
+inline void RunTest(cstring code, cstring input = "", cstring output = nullptr)
 {
 	TestSettings s;
 	s.module = current_module;
 	s.filename = nullptr;
 	s.code = code;
 	s.input = input;
-	s.output = nullptr;
+	s.output = output;
 	s.error = nullptr;
 	s.optimize = true;
 	RunTest(s);
