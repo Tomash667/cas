@@ -195,4 +195,36 @@ TEST_METHOD(ReturnInsideIf)
 	)code", "1");
 }
 
+TEST_METHOD(SubscriptOperatorOnReference)
+{
+	RunTest(R"code(
+		void f(string& s)
+		{
+			s[0] = 'a';	
+		}
+
+		string s = "test";
+		f(s);
+		Assert_AreEqual("aest", s);
+	)code");
+}
+
+TEST_METHOD(SubscriptOperatorOnClassReference)
+{
+	RunTest(R"code(
+		class A
+		{
+			int operator [] (int n) { return n; }
+		}
+
+		A a;
+		Assert_AreEqual(100, a[100]);
+
+		void f(A& aa)
+		{
+			Assert_AreEqual(200, a[200]);
+		}(a);
+	)code");
+}
+
 CA_TEST_CLASS_END();

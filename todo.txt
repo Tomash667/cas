@@ -1,9 +1,8 @@
 + debug file marker, like LINE but FILE index to str
 
 BUGS:
-- index operator don't work for string& (and possibly struct/class) CODE/SCRIPT, and for functor, possibly other operators too (class ref += ?)
 - c++ function returning string cause 1 byte memory leak (string.txt)
-- many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct, subscript
+- many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct
 - ParseExpr end/end2 is unused
 - ParseNode::str cleanup
 - class A { void int; } cause Member of 'void' type not allowed.

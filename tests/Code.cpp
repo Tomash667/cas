@@ -833,6 +833,43 @@ TEST_METHOD(ComplexTwoScriptsCombined)
 }
 
 //=========================================================================================
+class Subscript
+{
+public:
+	int a[5];
+	int& operator [] (int index) { return a[index]; }
+};
+TEST_METHOD(CodeClassSubscriptOperator)
+{
+	auto type = module->AddType<Subscript>("A");
+	type->AddMethod("int& operator [] (int index)", &Subscript::operator[]);
+	RunTest(R"code(
+		A a;
+		a[0] = 1;
+		a[1] = 3;
+		a[2] = 5;
+		a[3] = 7;
+		a[4] = 9;
+
+		a[0] *= 2;
+		a[1] += a[2];
+		a[3] -= a[4] * 2;
+
+		void f(A& aa)
+		{
+			aa[0]++;
+			aa[1]--;
+		}(a);
+
+		Assert_AreEqual(3, a[0]);
+		Assert_AreEqual(7, a[1]);
+		Assert_AreEqual(5, a[2]);
+		Assert_AreEqual(-11, a[3]);
+		Assert_AreEqual(9, a[4]);
+	)code");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

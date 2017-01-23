@@ -181,6 +181,7 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddMethod(_float, "static bool TryParse(string& s, float& f)", f_float_try_parse);
 	// string methods
 	module.AddMethod(_string, "string operator = (string& s)", nullptr);
+	module.AddMethod(_string, "char& operator [] (int index)", nullptr);
 	module.AddMethod(_string, "int length()", f_string_length);
 	module.AddMethod(_string, "bool empty()", f_string_empty);
 	module.AddMethod(_string, "void clear()", f_string_clear);

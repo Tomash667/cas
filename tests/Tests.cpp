@@ -146,4 +146,42 @@ TEST_METHOD(EnumGlobalReturnValue)
 	retval.IsEnum("F", 6);
 }
 
+TEST_METHOD(IndexOperatorOnClass)
+{
+	RunTest(R"code(
+		class A
+		{
+			int x, y, z;
+			A(int _x, int _y, int _z)
+			{
+				x = _x;
+				y = _y;
+				z = _z;
+			}
+			int& operator [] (int n)
+			{
+				switch(n)
+				{
+				default:
+				case 0:
+					return x;
+				case 1:
+					return y;
+				case 2:
+					return z;
+				}
+			}
+		}
+
+		A a = A(1,2,3);
+		a[0] += 4;
+		a[1] = 7;
+		a[2] *= a[0];
+
+		Assert_AreEqual(5, a[0]);
+		Assert_AreEqual(7, a[1]);
+		Assert_AreEqual(15, a[2]);
+	)code");
+}
+
 CA_TEST_CLASS_END();

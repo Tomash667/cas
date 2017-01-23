@@ -1245,7 +1245,9 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 
 	if(type && (f->special != SF_CTOR || !in_cpp) && !IS_SET(f->flags, CommonFunction::F_STATIC))
 	{
-		// pass this for member functions (not for code ctor)
+		// pass this for member functions, except for:
+		//		static methods
+		//		code constructors
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
 		f->required_args++;
 		if(in_cpp)
@@ -1718,21 +1720,11 @@ void Parser::ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, v
 
 		if(bsi.post_symbol == S_SUBSCRIPT)
 		{
-			t.Next();
-			NodeRef expr = ParseExpr(']');
-			if(!TryCast(expr.Get(), VarType(V_INT)))
-				t.Throw("Subscript operator require type 'int', found '%s'.", GetTypeName(expr));
-			ParseNode* sub = ParseNode::Get();
-			sub->pseudo_op = SUBSCRIPT;
-			sub->childs.push_back(expr.Pin());
-			sub->source = nullptr;
-			PushSymbol(bsi.post_symbol, exit, stack, sub);
-			t.Next();
-			/*NodeRef sub;
+			NodeRef sub;
 			ParseArgs(sub->childs, '[', ']');
 			sub->pseudo_op = SUBSCRIPT;
 			sub->source = nullptr;
-			PushSymbol(bsi.post_symbol, exit, stack, sub);*/
+			PushSymbol(bsi.post_symbol, exit, stack, sub.Pin());
 		}
 		else if(bsi.post_symbol == S_CALL)
 		{
@@ -1792,18 +1784,44 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 		else if(si.type == ST_SUBSCRIPT)
 		{
 			// subscript operator
-			if(node->result != V_STRING)
+			Type* ltype = GetType(node->result.GetType());
+			vector<AnyFunction> funcs;
+			FindAllFunctionOverloads(ltype, si.op_code, funcs);
+			if(funcs.empty())
 				t.Throw("Type '%s' don't have subscript operator.", GetTypeName(node));
-			ParseNode* op = ParseNode::Get();
-			op->op = PUSH_INDEX;
-			op->result = VarType(V_REF, V_CHAR);
-			op->source = node->source;
-			op->push(node.Pin());
-			op->push(sn.node->childs[0]);
-			stack.push_back(op);
-			sn.node->childs.clear();
-			sn.node->Free();
-			sn.node = nullptr;
+
+			if(funcs.size() == 1u && funcs.back().cf->IsBuiltin())
+			{
+				// builtin string operator []
+				assert(ltype->index == V_STRING);
+				// cast for dereference
+				NodeRef index = sn.node->childs[0];
+				sn.node->childs.clear();
+				if(!TryCast(index.Get(), V_INT))
+					t.Throw("Subscript operator require type 'int', found '%s'.", GetName(index->result));
+				Cast(node.Get(), V_STRING);
+				ParseNode* op = ParseNode::Get();
+				op->op = PUSH_INDEX;
+				op->result = VarType(V_REF, V_CHAR);
+				op->source = node->source;
+				op->push(node.Pin());
+				op->push(index.Pin());
+				sn.node->Free();
+				sn.node = nullptr;
+				stack.push_back(op);
+			}
+			else
+			{
+				NodeRef op;
+				op->source = node->source;
+				op->push(node.Pin());
+				op->push(sn.node->childs[0]);
+				sn.node->childs.clear();
+				sn.node->Free();
+				sn.node = nullptr;
+				ApplyFunctionCall(op.Get(), funcs, ltype, false, true);
+				stack.push_back(op.Pin());
+			}			
 		}
 		else if(si.type == ST_CALL)
 		{
@@ -4465,7 +4483,7 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 			s += GetType(cf->type)->name;
 			s += '.';
 		}
-		if(!IS_SET(cf->flags, CommonFunction::F_CODE | CommonFunction::F_STATIC))
+		if(cf->type != V_VOID && !(cf->IsStatic() || (cf->IsCode() && cf->special == SF_CTOR)))
 			++var_offset;
 	}
 	if(!symbol)
@@ -4923,7 +4941,6 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 				{
 					s += "operator ";
 					s += si.oper;
-					s += ' ';
 					break;
 				}
 			}
@@ -4931,7 +4948,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		else
 			s += first;
 		s += '\'';
-		uint var_offset = ((type && !ctor && !IS_SET(type->flags, Type::Code)) ? 1 : 0);
+		uint var_offset = ((type && !ctor) ? 1 : 0);
 		if(node->childs.size() > var_offset)
 		{
 			s += " with arguments (";
