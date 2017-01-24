@@ -478,17 +478,26 @@ ParseNode* Parser::ParseLine()
 				else if(t.IsSymbol(';'))
 					for1 = nullptr;
 				else
-					for1 = ParseExpr(';');
+				{
+					for1 = ParseExpr();
+					t.AssertSymbol(';');
+				}
 				t.Next();
 				if(t.IsSymbol(';'))
 					for2 = nullptr;
 				else
-					for2 = ParseExpr(';');
+				{
+					for2 = ParseExpr();
+					t.AssertSymbol(';');
+				}
 				t.Next();
 				if(t.IsSymbol(')'))
 					for3 = nullptr;
 				else
-					for3 = ParseExpr(')');
+				{
+					for3 = ParseExpr();
+					t.AssertSymbol(')');
+				}
 				t.Next();
 
 				if(for2 && !TryCast(for2.Get(), V_BOOL))
@@ -558,7 +567,7 @@ ParseNode* Parser::ParseLine()
 				VarType vartype = GetVarType(false);
 				t.AssertSymbol('(');
 				t.Next();
-				NodeRef node = ParseExpr(';', 0, &vartype);
+				NodeRef node = ParseExpr(&vartype);
 				t.AssertSymbol(';');
 				t.Next();
 				return node.Pin();
@@ -576,7 +585,7 @@ ParseNode* Parser::ParseLine()
 		}
 	}
 
-	NodeRef node = ParseExpr(';');
+	NodeRef node = ParseExpr();
 
 	// ;
 	t.AssertSymbol(';');
@@ -594,7 +603,7 @@ ParseNode* Parser::ParseReturn()
 	t.Next();
 	if(!t.IsSymbol(';'))
 	{
-		ret->push(ParseExpr(';'));
+		ret->push(ParseExpr());
 		t.AssertSymbol(';');
 	}
 	if(current_function)
@@ -664,6 +673,9 @@ void Parser::ParseClass(bool is_struct)
 	// [class_item ...] }
 	while(!t.IsSymbol('}'))
 	{
+		if(t.IsKeyword(K_ENUM))
+			t.Throw("Enum can't be declared inside class.");
+
 		// member, method or ctor
 		if(GetNextType() != 0)
 		{
@@ -736,7 +748,7 @@ ParseNode* Parser::ParseSwitch()
 	t.Next();
 	t.AssertSymbol('(');
 	t.Next();
-	swi->push(ParseExpr(')'));
+	swi->push(ParseExpr());
 	int type = swi->childs[0]->result.type;
 	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING && !GetType(type)->IsEnum())
 		t.Throw("Invalid switch type '%s'.", GetName(swi->childs[0]->result));
@@ -1109,7 +1121,11 @@ ParseNode* Parser::ParseFunc()
 
 	// call
 	if(t.IsSymbol('('))
-		return ParseExpr(';', 0, nullptr, func);
+	{
+		NodeRef call = ParseExpr(nullptr, func);
+		t.AssertSymbol(';');
+		return call.Pin();
+	}
 	else
 		return nullptr;
 }
@@ -1382,12 +1398,12 @@ ParseNode* Parser::ParseVarTypeDecl()
 		t.Throw("Can't declare void variable.");
 
 	// var_decl(s)
-	vector<ParseNode*> nodes;
+	NodeVectorRef nodes;
 	do
 	{
 		ParseNode* decl = ParseVarDecl(vartype);
 		if(decl)
-			nodes.push_back(decl);
+			nodes->push_back(decl);
 		if(t.IsSymbol(';'))
 			break;
 		t.AssertSymbol(',');
@@ -1395,7 +1411,7 @@ ParseNode* Parser::ParseVarTypeDecl()
 	} while(true);
 
 	// node
-	if(nodes.empty())
+	if(nodes->empty())
 		return nullptr;
 	else
 	{
@@ -1403,7 +1419,7 @@ ParseNode* Parser::ParseVarTypeDecl()
 		node->pseudo_op = GROUP;
 		node->result = V_VOID;
 		node->source = nullptr;
-		node->childs = nodes;
+		node->childs = nodes.Pin();
 		return node;
 	}
 }
@@ -1412,7 +1428,7 @@ ParseNode* Parser::ParseCond()
 {
 	t.AssertSymbol('(');
 	t.Next();
-	NodeRef cond = ParseExpr(')');
+	NodeRef cond = ParseExpr();
 	t.AssertSymbol(')');
 	if(!TryCast(cond.Get(), V_BOOL))
 		t.Throw("Condition expression with '%s' type.", GetTypeName(cond));
@@ -1517,8 +1533,7 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 			t.Unexpected();
 		t.Next();
 
-		// expr<,;>
-		expr = ParseExpr(',', ';');
+		expr = ParseExpr();
 		if(!TryCast(expr.Get(), vartype))
 			t.Throw("Can't assign type '%s' to variable '%s'.", GetTypeName(expr), GetName(var));
 		if(expr->op != CALLU_CTOR && GetType(expr->result.type)->IsStruct())
@@ -1536,7 +1551,7 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	return node;
 }
 
-ParseNode* Parser::ParseExpr(char end, char end2, VarType* vartype, ParseFunction* func)
+ParseNode* Parser::ParseExpr(VarType* vartype, ParseFunction* func)
 {
 	vector<SymbolNode> stack, exit;
 	vector<ParseNode*> stack2;
@@ -1602,10 +1617,10 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 				t.Next();
 
 				NodeRef ter;
-				ter->push(ParseExpr(':'));
+				ter->push(ParseExpr());
 				t.AssertSymbol(':');
 				t.Next();
-				ter->push(ParseExpr(';'));
+				ter->push(ParseExpr());
 				ParseNode*& leftn = ter->childs[0];
 				ParseNode*& rightn = ter->childs[1];
 				VarType common = CommonType(leftn->result, rightn->result);
@@ -1699,7 +1714,8 @@ BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>&
 		if(t.IsSymbol('('))
 		{
 			t.Next();
-			exit.push_back(ParseExpr(')'));
+			exit.push_back(ParseExpr());
+			t.AssertSymbol(')');
 			t.Next();
 		}
 		else
@@ -2327,7 +2343,7 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 
 ParseNode* Parser::ParseConstExpr()
 {
-	NodeRef expr = ParseExpr(';');
+	NodeRef expr = ParseExpr();
 	bool is_const = false;
 	switch(expr->op)
 	{
@@ -2356,7 +2372,7 @@ void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 	{
 		while(true)
 		{
-			nodes.push_back(ParseExpr(',', close));
+			nodes.push_back(ParseExpr());
 			if(t.IsSymbol(close))
 				break;
 			t.AssertSymbol(',');
@@ -2588,7 +2604,7 @@ ParseNode* Parser::ParseConstItem()
 		return node;
 	}
 	else
-		t.Unexpected();
+		t.ThrowExpecting("const item");
 }
 
 void Parser::CheckFindItem(const string& id, bool is_func)

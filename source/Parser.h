@@ -19,6 +19,7 @@ enum Op;
 enum RETURN_INFO;
 enum SYMBOL;
 typedef ObjectPoolRef<ParseNode> NodeRef;
+typedef ObjectPoolVectorRef<ParseNode> NodeVectorRef;
 
 struct ParseSettings
 {
@@ -88,7 +89,7 @@ private:
 	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
 	ParseNode* ParseVarDecl(VarType vartype);
-	ParseNode* ParseExpr(char end, char end2 = 0, VarType* vartype = nullptr, ParseFunction* func = nullptr);
+	ParseNode* ParseExpr(VarType* vartype = nullptr, ParseFunction* func = nullptr);
 	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
 	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
 	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);

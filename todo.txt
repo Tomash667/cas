@@ -1,10 +1,3 @@
-BUGS:
-- ParseExpr end/end2 is unused
-	- " at eof will give stupid error msg, need to check end/end2
-		ERROR|(1:1) Expecting symbol ';', found end of file.
-- - at eof "Unexpected end of file.", what was expected?, other symbols '+' too
-- int at eof -> Expecting symbol ';', found end of file.
-
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
 ? verify if ParseExpr type is longer used
@@ -54,8 +47,9 @@ FEATURE:
 + named parameters
 + nested class
 	+ forward nested class usage
-+ nested enum
-	+ nested enum forward usage
++ enum
+	+ inside function/block
+	+ inside class
 + class protection level (public/protected/private)
 + array
 	+ functions (count, push, pop, front, back-with argument return n last element, insert, erase, at, empty)

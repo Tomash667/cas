@@ -569,6 +569,27 @@ TEST_METHOD(KeywordAsEnumerator)
 	AssertError("Enumerator name 'int' already used as type.");
 }
 
+TEST_METHOD(EnumInsideBlock)
+{
+	RunFailureTest("{enum E{}}", "Enum can't be declared inside block.");
+	RunFailureTest("void f(){enum E{}}", "Enum can't be declared inside block.");
+}
+
+TEST_METHOD(EnumInsideClass)
+{
+	RunFailureTest("class C{enum E{}}", "Enum can't be declared inside class.");
+}
+
+TEST_METHOD(ExpectingEnumName)
+{
+	RunFailureTest("enum 4{}", "Expecting enum name, found integer 4.");
+}
+
+TEST_METHOD(InvalidEnumValue)
+{
+	RunFailureTest("enum E{A=\"1\"}", "Enumerator require 'int' value, have 'string'.");
+}
+
 TEST_METHOD(UnclosedMultilineComment)
 {
 	RunFailureTest("*/", "Unclosed multiline comment.");
