@@ -151,6 +151,7 @@ private:
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
 	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type
+	void FreeTmpStr(string* str);
 
 	void AnalyzeCode();
 	void AnalyzeType(Type* type);
@@ -171,6 +172,7 @@ private:
 	ParseNode* global_node;
 	int breakable_block, empty_string;
 	vector<ReturnStructVar*> rsvs;
+	vector<string*> tmp_strs;
 	uint prev_line;
 	Enum* active_enum;
 	bool optimize;

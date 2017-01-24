@@ -569,4 +569,9 @@ TEST_METHOD(KeywordAsEnumerator)
 	AssertError("Enumerator name 'int' already used as type.");
 }
 
+TEST_METHOD(UnclosedMultilineComment)
+{
+	RunFailureTest("*/", "Unclosed multiline comment.");
+}
+
 CA_TEST_CLASS_END();

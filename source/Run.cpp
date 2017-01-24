@@ -16,7 +16,6 @@ Str* CreateStr()
 {
 	Str* str = Str::Get();
 	str->refs = 1;
-	str->seed = 0;
 	return str;
 }
 
@@ -25,7 +24,6 @@ Str* CreateStr(cstring s)
 	Str* str = Str::Get();
 	str->s = s;
 	str->refs = 1;
-	str->seed = 0;
 	return str;
 }
 
@@ -156,6 +154,9 @@ void ExecuteFunction(Function& f)
 	{
 		// string return value
 		Str* str = CreateStr();
+		// call destructor because function returning string will call ctor
+		// this would cause 2x ctor call and memory leak in proxy
+		str->s.~basic_string();
 		packed_args.push_back((int)(&str->s));
 		retptr = str;
 	}
@@ -442,6 +443,7 @@ void SetFromStack(Var& v)
 		v = s;
 	else if(s.vartype.type == V_STRING)
 	{
+		// free what was in variable previously
 		ReleaseRef(v);
 		v.vartype = s.vartype;
 		v.str = CreateStr(s.str->s.c_str());

@@ -32,7 +32,7 @@ struct AnyFunction
 struct Str : ObjectPoolProxy<Str>
 {
 	string s;
-	int refs, seed;
+	int refs;
 
 	inline void Release()
 	{

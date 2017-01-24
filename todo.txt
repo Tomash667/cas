@@ -1,21 +1,9 @@
-+ debug file marker, like LINE but FILE index to str
-
 BUGS:
-- c++ function returning string cause 1 byte memory leak (string.txt)
-- many memory leaks in user_func, func_def_params, def_value, class, func_overload, script_class, script_class_func, is, ref, class_ref, cast, struct
 - ParseExpr end/end2 is unused
-- ParseNode::str cleanup
-- class A { void int; } cause Member of 'void' type not allowed.
-- code constructor create copy two instance and then copy value from one to another
-- missing member for type x/func - memory leak of string
-- lines in debug don't work for tabbed file:
-string global_s;
-		string& f() { return global_s; }
-		global_s = "123";
-		f() += "456";
-		Assert_AreEqual("123456", global_s);
-- */ -> Not opened multiline comment found instead of unexpected *.
-? register member function as member func
+	- " at eof will give stupid error msg, need to check end/end2
+		ERROR|(1:1) Expecting symbol ';', found end of file.
+- - at eof "Unexpected end of file.", what was expected?, other symbols '+' too
+- int at eof -> Expecting symbol ';', found end of file.
 
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
@@ -53,6 +41,7 @@ IMPROVEMENT/VERIFY:
 + optimize string concat (currently a+=b will create new string with a+b, then assign to a)
 + member initialization const expr
 + remove double ret at end of main
++ code constructor create copy two instance and then copy value from one to another
 
 FEATURE:
 + string global return value
@@ -173,12 +162,14 @@ FEATURE:
 + CommonType user cast
 + other cast operator (float)x
 + better error message [dupa();] currently "unknown item dupa", new "no function 'dupa()' found"
-+ debug
-	+ file/line/function on assert/crash
-	+ allow multiple errors, continue parsing after error
-	+ deassembly labels
-	+ code in disassembly
-	+ remove builtin functions from disasembly
-	+ debugger
-	+ include code in decompile
 + ref to thing that needs subtype
+
+DEBUG:
++ debug file marker, like LINE but FILE index to str
++ file/line/function on assert/crash
++ allow multiple errors, continue parsing after error
++ deassembly labels
++ code in disassembly
++ remove builtin functions from disasembly
++ debugger
++ include code in decompile

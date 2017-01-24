@@ -235,6 +235,7 @@ void Parser::FinishRunModule()
 void Parser::Cleanup()
 {
 	DeleteElements(rsvs);
+	StringPool.Free(tmp_strs);
 	if(global_node)
 	{
 		global_node->Free();
@@ -1482,7 +1483,6 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 				Str* str = Str::Get();
 				str->s = "";
 				str->refs = 1;
-				str->seed = 0;
 				module->strs.push_back(str);
 			}
 			expr->value = empty_string;
@@ -1631,6 +1631,7 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 			if(bsi.op_symbol == S_MEMBER_ACCESS)
 			{
 				string* str = StringPool.Get();
+				tmp_strs.push_back(str);
 				*str = t.MustGetItem();
 				t.Next();
 				NodeRef node = ParseNode::Get();
@@ -1957,10 +1958,9 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 						err = Format("Missing static method '%s' for type '%s'.", right->str->c_str(), GetType(left->value)->name.c_str());
 					else
 						err = Format("Missing method '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
-					StringPool.Free(right->str);
 					t.Throw(err);
 				}
-				StringPool.Free(right->str);
+				FreeTmpStr(right->str);
 
 				NodeRef node = ParseNode::Get();
 				node->source = left->source;
@@ -1993,12 +1993,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 				{
 					auto e = real_type->enu->Find(*right->str);
 					if(!e)
-					{
-						cstring err = Format("Invalid enumerator '%s.%s'.", real_type->name.c_str(), right->str->c_str());
-						StringPool.Free(right->str);
-						t.Throw(err);
-					}
-					StringPool.Free(right->str);
+						t.Throw("Invalid enumerator '%s.%s'.", real_type->name.c_str(), right->str->c_str());
+					FreeTmpStr(right->str);
 					ParseNode* enu = ParseNode::Get();
 					enu->op = PUSH_ENUM;
 					enu->result = VarType(real_type->index, 0);
@@ -2012,12 +2008,8 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 					int m_index;
 					Member* m = type->FindMember(*right->str, m_index);
 					if(!m)
-					{
-						cstring err = Format("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
-						StringPool.Free(right->str);
-						t.Throw(err);
-					}
-					StringPool.Free(right->str);
+						t.Throw("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+					FreeTmpStr(right->str);
 					ParseNode* node = ParseNode::Get();
 					node->op = PUSH_MEMBER;
 					node->result = m->vartype;
@@ -2556,7 +2548,6 @@ ParseNode* Parser::ParseConstItem()
 		Str* str = Str::Get();
 		str->s = t.GetString();
 		str->refs = 1;
-		str->seed = 0;
 		module->strs.push_back(str);
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_STRING;
@@ -2760,6 +2751,8 @@ BASIC_SYMBOL Parser::GetSymbol(bool full_over)
 	case '*':
 		if(t.PeekSymbol('='))
 			return BS_ASSIGN_MUL;
+		else if(t.PeekSymbol('/'))
+			t.Throw("Unclosed multiline comment.");
 		else
 			return BS_MUL;
 	case '/':
@@ -5855,4 +5848,10 @@ void Parser::AnalyzeArgsDefaultValues(ParseFunction* f)
 		t.AssertSymbol(',');
 		t.Next();
 	}
+}
+
+void Parser::FreeTmpStr(string* str)
+{
+	RemoveElement(tmp_strs, str);
+	StringPool.Free(str);
 }
