@@ -151,7 +151,7 @@ private:
 	void CheckFunctionIsDeleted(CommonFunction& cf);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
-	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type
+	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type, 5-dtor
 	void FreeTmpStr(string* str);
 
 	void AnalyzeCode();
@@ -171,7 +171,7 @@ private:
 	ParseFunction* current_function;
 	Type* current_type;
 	ParseNode* global_node;
-	int breakable_block, empty_string;
+	int breakable_block, empty_string, ufunc_offset, tmp_type_offset;
 	vector<ReturnStructVar*> rsvs;
 	vector<string*> tmp_strs;
 	uint prev_line;

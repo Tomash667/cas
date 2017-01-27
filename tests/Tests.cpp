@@ -227,4 +227,9 @@ TEST_METHOD(ComplexSubscriptOperator)
 	)code", "0 2 2 4", "s\nr\n");
 }
 
+TEST_METHOD(Dtor)
+{
+
+}
+
 CA_TEST_CLASS_END();

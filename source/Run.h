@@ -10,12 +10,9 @@ struct Class;
 struct RefVar;
 static vector<Class*> all_classes;
 static vector<RefVar*> all_refs;
-static const int START_REF_COUNT = 2;
-#else
-static const int START_REF_COUNT = 1;
 #endif
 
-void ReleaseClass(Class* c);
+void ReleaseClass(Class* c, bool dtor);
 
 // For class created in script this Class have larger size and class data is stored in it, starting at adr
 // for code class, adr points to class created in code
@@ -47,7 +44,7 @@ struct Class
 		assert(type);
 		byte* data = new byte[type->size + sizeof(Class)];
 		Class* c = (Class*)data;
-		c->refs = START_REF_COUNT;
+		c->refs = 1;
 		c->type = type;
 		c->is_code = false;
 		c->adr = ((int*)&c->adr) + 1;
@@ -62,7 +59,7 @@ struct Class
 	{
 		assert(type);
 		Class* c = new Class;
-		c->refs = START_REF_COUNT;
+		c->refs = 1;
 		c->type = type;
 		c->is_code = true;
 		c->adr = real_class;
@@ -79,7 +76,7 @@ struct Class
 		byte* data = new byte[type->size + sizeof(Class)];
 		Class* c = (Class*)data;
 		c->type = type;
-		c->refs = START_REF_COUNT;
+		c->refs = 1;
 		c->is_code = false;
 		c->adr = ((int*)&c->adr) + 1;
 		memcpy(c->adr, base->adr, type->size);
@@ -91,10 +88,11 @@ struct Class
 
 	inline void Release()
 	{
+		assert(refs >= 1);
 		if(--refs == 0)
 		{
 #ifdef CHECK_LEAKS
-			assert(0); // there should be at last 1 reference
+			RemoveElement(all_classes, this);
 #endif
 			Delete();
 		}
@@ -102,13 +100,21 @@ struct Class
 
 	inline void Delete()
 	{
+		bool mem_free = false;
+		if(type->dtor)
+		{
+			if(is_code && !type->IsStruct())
+				mem_free = true;
+			ReleaseClass(this, true);
+		}
 		if(is_code)
 		{
 			if(IS_SET(type->flags, Type::RefCount))
-				ReleaseClass(this);
-			delete this;
+				ReleaseClass(this, false);
+			if(!mem_free)
+				delete this;
 		}
-		else
+		else if(!mem_free)
 		{
 			byte* data = (byte*)this;
 			delete[] data;
@@ -139,8 +145,8 @@ struct RefVar
 	bool is_valid, to_release, ref_to_class;
 
 	// hopefuly noone will use function with 999 args
-	inline RefVar(Type type, uint index, int var_index = -999, uint depth = 0) : type(type), refs(START_REF_COUNT), index(index), var_index(var_index),
-		depth(depth), is_valid(true), to_release(false), ref_to_class(false)
+	inline RefVar(Type type, uint index, int var_index = -999, uint depth = 0) : type(type), refs(1), index(index), var_index(var_index), depth(depth),
+		is_valid(true), to_release(false), ref_to_class(false)
 	{
 #ifdef CHECK_LEAKS
 		all_refs.push_back(this);
@@ -159,10 +165,11 @@ struct RefVar
 
 	inline void Release()
 	{
+		assert(refs >= 1);
 		if(--refs == 0)
 		{
 #ifdef CHECK_LEAKS
-			assert(0); // there should be at last 1 reference
+			RemoveElement(all_refs, this);
 #endif
 			delete this;
 		}
@@ -197,7 +204,44 @@ struct Var
 
 struct StackFrame
 {
+	enum Type
+	{
+		NORMAL,
+		CTOR,
+		DTOR
+	};
+
 	uint expected_stack, pos;
 	int current_line, current_function;
-	bool is_ctor;
+	Type type;
+};
+
+struct RunContext
+{
+	int* code_start;
+	int* code_end;
+	int* code_pos;
+	int cleanup_offset;
+};
+
+template<typename T>
+struct VectorOffset
+{
+	inline VectorOffset(vector<T>& _data, uint offset) : data(&_data), offset(offset)
+	{
+
+	}
+
+	inline T* operator -> ()
+	{
+		return &data->at(offset);
+	}
+
+	inline T& operator () ()
+	{
+		return data->at(offset);
+	}
+
+	vector<T>* data;
+	uint offset;
 };

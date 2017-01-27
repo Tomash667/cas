@@ -1,3 +1,15 @@
+- constructor setting member don't prevent from setting default value
+	class C { int a; C(int _a) { a = _a; }}
+	cause:
+		push_int 0, set_this_member 0
+		push_arg 1, set_this_member 0
+		ret
+
+? DEREF invalidate ref
+- copy constructor is not called
+	struct A{...}  A a=...; A b = a; // must be A b = A(a);
++ call dtor in block
+
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
 ? verify if ParseExpr type is longer used
@@ -42,8 +54,6 @@ FEATURE:
 + nullable?
 + ++-- returns reference
 + extension methods
-+ static ctor (like in c#)
-+ static member
 + named parameters
 + nested class
 	+ forward nested class usage
@@ -92,7 +102,9 @@ FEATURE:
 	}
 	unnamed struct
 + class
-	+ dtor
+	+ static constructor
+	+ static destructor
+	+ static member
 	+ string member
 	+ class member (detect recursion), allow declare member of same type as class (but prevent it until nullable type, just don't show error of unknown item)
 	+ properties

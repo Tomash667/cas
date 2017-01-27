@@ -9,23 +9,38 @@ struct CommonFunction;
 struct Member;
 struct ParseFunction;
 struct Type;
+struct UserFunction;
 enum SpecialFunction;
 
 // code or script function
 struct AnyFunction
 {
+	enum Type
+	{
+		NONE,
+		CODE,
+		PARSE,
+		SCRIPT
+	};
+
 	union
 	{
 		Function* f;
 		ParseFunction* pf;
 		CommonFunction* cf;
+		UserFunction* uf;
 	};
-	bool is_parse;
+	Type type;
 
-	inline AnyFunction(std::nullptr_t) : cf(nullptr), is_parse(false) {}
-	inline AnyFunction(Function* f) : f(f), is_parse(false) {}
-	inline AnyFunction(ParseFunction* pf) : pf(pf), is_parse(true) {}
-	inline operator bool() const { return cf != nullptr; }
+	inline AnyFunction(std::nullptr_t) : cf(nullptr), type(NONE) {}
+	inline AnyFunction(Function* f) : f(f), type(CODE) {}
+	inline AnyFunction(ParseFunction* pf) : pf(pf), type(PARSE) {}
+	inline AnyFunction(UserFunction* uf) : uf(uf), type(SCRIPT) {}
+	inline AnyFunction(CommonFunction* cf, Type type) : cf(cf), type(type) {}
+	inline operator bool() const { return type != NONE; }
+	inline bool IsCode() const { return type == CODE; }
+	inline bool IsParse() const { return type == PARSE; }
+	inline bool IsScript() const { return type == SCRIPT; }
 };
 
 // string implementation
@@ -107,13 +122,14 @@ struct Type : public cas::IClass, public cas::IEnum
 	string name;
 	vector<Function*> funcs;
 	vector<ParseFunction*> ufuncs;
+	AnyFunction dtor;
 	vector<Member*> members;
 	Enum* enu;
 	int size, index, flags;
 	uint first_line, first_charpos;
 	bool declared, built;
 
-	inline Type() : enu(nullptr) {}
+	inline Type() : enu(nullptr), dtor(nullptr) {}
 	~Type();
 	Member* FindMember(const string& name, int& index);
 	Function* FindCodeFunction(cstring name);

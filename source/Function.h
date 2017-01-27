@@ -27,6 +27,7 @@ enum SpecialFunction
 {
 	SF_NO,
 	SF_CTOR,
+	SF_DTOR,
 	SF_CAST,
 	SF_ADDREF,
 	SF_RELEASE
@@ -74,5 +75,5 @@ struct UserFunction
 	uint locals;
 	VarType result;
 	vector<VarType> args;
-	int type;
+	int type, index;
 };

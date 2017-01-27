@@ -116,14 +116,14 @@ inline void RunFailureTest(cstring code, cstring error, cstring input = "")
 	RunTest(s);
 }
 
-inline void RunParsedTest(cstring input = "")
+inline void RunParsedTest(cstring input = "", cstring output = nullptr)
 {
 	TestSettings s;
 	s.module = current_module;
 	s.filename = nullptr;
 	s.code = nullptr;
 	s.input = input;
-	s.output = nullptr;
+	s.output = output;
 	s.error = nullptr;
 	s.optimize = true;
 	RunTest(s);
