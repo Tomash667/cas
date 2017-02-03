@@ -1383,7 +1383,6 @@ void RunInternal()
 				UserFunction& f = module->ufuncs[current_function];
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
-				StackFrame& frame = stack_frames.back();
 				Var& func_mark = *(local.end() - to_pop - 1);
 				assert(func_mark.vartype.type == V_SPECIAL);
 				while(!refs.empty())
@@ -1402,7 +1401,7 @@ void RunInternal()
 					refs.pop_back();
 				}
 				--depth;
-				if(frame.type == StackFrame::CTOR)
+				if(stack_frames.back().type == StackFrame::CTOR)
 					--to_pop;
 				int tmp_cleanup_offset = ctx.cleanup_offset;
 				ctx.cleanup_offset = 0;
@@ -1414,6 +1413,7 @@ void RunInternal()
 					ctx.cleanup_offset++;
 				}
 				ctx.cleanup_offset = tmp_cleanup_offset;
+				StackFrame& frame = stack_frames.back();
 				Class* thi = nullptr;
 				if(frame.type == StackFrame::CTOR)
 				{

@@ -115,7 +115,8 @@ struct Type : public cas::IClass, public cas::IEnum
 		Class = 1 << 5,
 		Code = 1 << 6,
 		PassByValue = 1 << 7, // struct/string
-		RefCount = 1 << 8
+		RefCount = 1 << 8,
+		BuiltinCtor
 	};
 
 	Module* module;

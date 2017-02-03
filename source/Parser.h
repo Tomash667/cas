@@ -47,6 +47,14 @@ enum CastFlags
 	CF_REQUIRE_CONST = 1<<2
 };
 
+enum NextType
+{
+	NT_FUNC,
+	NT_CALL,
+	NT_VAR_DECL,
+	NT_INVALID
+};
+
 class Parser
 {
 public:
@@ -88,6 +96,8 @@ private:
 	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
 	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
+	ParseNode* GetDefaultValueForVarDecl(VarType type);
+	ParseNode* ParseVarCtor(VarType vartype);
 	ParseNode* ParseVarDecl(VarType vartype);
 	ParseNode* ParseExpr(VarType* vartype = nullptr, ParseFunction* func = nullptr);
 	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
@@ -151,7 +161,7 @@ private:
 	void CheckFunctionIsDeleted(CommonFunction& cf);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
-	int GetNextType(); // 0-var, 1-ctor, 2-func, 3-operator, 4-type, 5-dtor
+	NextType GetNextType();
 	void FreeTmpStr(string* str);
 
 	void AnalyzeCode();
@@ -163,6 +173,7 @@ private:
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
 	bool HasSideEffects(ParseNode* node);
 	void AnalyzeArgsDefaultValues(ParseFunction* f);
+	NextType AnalyzeNextType();
 	
 	Tokenizer t;
 	Module* module;

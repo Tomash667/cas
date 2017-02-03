@@ -1,65 +1,45 @@
-class A
+/*class A
 {
-	int index;
-	
-	A(int _index)
-	{
-		int unused = 1;
-		index = _index;
-		println("A,"+index);
-	}
-	
-	A(A a)
-	{
-		int unused = 2;
-		index = a.index * 10;
-		println("A copy, "+a.index+"->"+index);
-	}
-	
-	~A()
-	{
-		int unused = 3;
-		println("~A, "+index);
-	}
-	
-	void operator = (A a)
-	{
-		int unused = 4;
-		index = a.index + 5;
-		println("A =, "+a.index+"->"+index);
-	}
+	A() { println("ctor A"); }
+	A(int _1) { println("ctor A "+_1); }
+	A(A a) { println("copy A"); }
+	//A(B b) { println("copy B"); }
+	void operator = (A a) { println("assign A"); }
+	//void operator = (C c) { println("assign C"); }
 }
+class B {}
+class C {}*/
 
-void create_and_destroy()
-{
-	A a = A(4);
-}();
+// new syntax
+int a(4);
+int b = int(5);
+int c = int(2) * int(3);
+Assert_AreEqual(4, a);
+Assert_AreEqual(5, b);
+Assert_AreEqual(6, c);
 
-void inside_block()
-{
-	A a = A(1);
-	{
-		A b = A(2);
-	}
-	{
-		A c = A(3);
-		a = c;
-	}
-	A d = a;
-}();
-
-void copy_operator()
-{
-	A a = A(20);
-	A b = A(a);
-}();
-
-void deref(A& a, A& b)
-{
-	A c = a;
-	b = A(30);
-}
-A a = A(40), b = A(50);
-deref(a, b);
+/*
+A a0; // ctor A
+A a01(); // ctor A
+A a02 = A(); // ctor A
+A a03(){println("func");}(); // func
+A a1(1); // ctor A 1
+A a10 = A(2); // ctor A 2
+A a2 = a1; // copy A
+A a21 = A(a1); // copy A
+A a22(a1); // copy A
+a2 = a1; // assign
+*/
+//B b;
+//C c;
+//A a3 = b; // copy, nie działa, powinno użyć "copy B"
+//a3 = b; // ?, copy B jeśli nie ma =
+//A a4 = c; // ?
+//a3 = c;
 
 pause();
+
+/*
+var decl zawsze ma wywolywać copy ctor
+a = b; wywołuje assign lub copy ctor
+*/

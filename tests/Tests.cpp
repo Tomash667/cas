@@ -227,9 +227,16 @@ TEST_METHOD(ComplexSubscriptOperator)
 	)code", "0 2 2 4", "s\nr\n");
 }
 
-TEST_METHOD(Dtor)
+TEST_METHOD(NewVarCtorSyntax)
 {
-
+	RunTest(R"code(
+		int a(4);
+		int b = int(5);
+		int c = int(2) * int(3);
+		Assert_AreEqual(4, a);
+		Assert_AreEqual(5, b);
+		Assert_AreEqual(6, c);
+	)code");
 }
 
 CA_TEST_CLASS_END();

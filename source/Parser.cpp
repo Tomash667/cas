@@ -568,14 +568,14 @@ ParseNode* Parser::ParseLine()
 		int next_type = GetNextType();
 		switch(next_type)
 		{
-		case 0:
+		case NT_VAR_DECL:
 			{
 				// var
 				ParseNode* node = ParseVarTypeDecl();
 				t.Next();
 				return node;
 			}
-		case 1:
+		case NT_CALL:
 			{
 				// ctor
 				VarType vartype = GetVarType(false);
@@ -586,12 +586,9 @@ ParseNode* Parser::ParseLine()
 				t.Next();
 				return node.Pin();
 			}
-		case 2:
+		case NT_FUNC:
 			return ParseFunc();
-		case 3:
-			t.Throw("Operator function can be used only inside class.");
-		case 4:
-		case 5: // unexpected symbol ~
+		case NT_INVALID:
 			// fallback to ParseExpr
 			break;
 		default:
@@ -1476,6 +1473,107 @@ ParseNode* Parser::ParseCond()
 	return cond.Pin();
 }
 
+ParseNode* Parser::GetDefaultValueForVarDecl(VarType vartype)
+{
+	NodeRef expr;
+	expr->source = nullptr;
+
+	switch(vartype.type)
+	{
+	case V_BOOL:
+		expr->result = V_BOOL;
+		expr->pseudo_op = PUSH_BOOL;
+		expr->bvalue = false;
+		break;
+	case V_CHAR:
+		expr->result = V_CHAR;
+		expr->op = PUSH_CHAR;
+		expr->cvalue = 0;
+		break;
+	case V_INT:
+		expr->result = V_INT;
+		expr->op = PUSH_INT;
+		expr->value = 0;
+		break;
+	case V_FLOAT:
+		expr->result = V_FLOAT;
+		expr->op = PUSH_FLOAT;
+		expr->fvalue = 0.f;
+		break;
+	case V_STRING:
+		expr->result = V_STRING;
+		expr->op = PUSH_STRING;
+		if(empty_string == -1)
+		{
+			empty_string = module->strs.size();
+			Str* str = Str::Get();
+			str->s = "";
+			str->refs = 1;
+			module->strs.push_back(str);
+		}
+		expr->value = empty_string;
+		break;
+	case V_REF:
+		t.Throw("Uninitialized reference variable.");
+	default: // class
+		{
+			Type* rtype = GetType(vartype.type);
+			if(rtype->IsClass())
+			{
+				if(IS_SET(rtype->flags, Type::DisallowCreate))
+					t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
+				vector<AnyFunction> funcs;
+				FindAllCtors(rtype, funcs);
+				ApplyFunctionCall(expr, funcs, rtype, true);
+			}
+			else
+			{
+				assert(rtype->IsEnum());
+				expr->result = vartype;
+				expr->op = PUSH_ENUM;
+				expr->value = 0;
+			}
+		}
+		break;
+	}
+
+	return expr.Pin();
+}
+
+ParseNode* Parser::ParseVarCtor(VarType vartype)
+{
+	t.AssertSymbol('(');
+	NodeRef node;
+	ParseArgs(node->childs);
+
+	Type* type = GetType(vartype.type);
+	if(IS_SET(type->flags, Type::DisallowCreate))
+		t.Throw("Type '%s' cannot be created in script.", type->name.c_str());
+
+	if(type->IsBuiltin() || vartype.type == V_REF)
+	{
+		if(node->childs.empty())
+			return GetDefaultValueForVarDecl(vartype);
+		else if(node->childs.size() == 1u)
+		{
+			if(!TryCast(node->childs[0], vartype))
+				t.Throw("Can't assign type '%s' to type '%s'.", GetTypeName(node->childs[0]), GetName(vartype));
+			ParseNode* result = node->childs[0];
+			node->childs.clear();
+			return result;
+		}
+		else
+			t.Throw("Constructor for type '%s' require single argument.", type->name.c_str());
+	}
+	else
+	{
+		vector<AnyFunction> funcs;
+		FindAllCtors(type, funcs);
+		ApplyFunctionCall(node, funcs, type, true);
+		return node.Pin();
+	}
+}
+
 ParseNode* Parser::ParseVarDecl(VarType vartype)
 {
 	// var_name
@@ -1493,81 +1591,22 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	current_block->var_offset++;
 	t.Next();
 
-	int type; // 0-none, 1-assign, 2-ref assign
+	int type; // 0-none, 1-assign, 2-ref assign, 3 - ctor syntax
 	if(t.IsSymbol('='))
 		type = 1;
 	else if(t.IsSymbol('-') && t.PeekSymbol('>'))
 		type = 2;
+	else if(t.IsSymbol('('))
+		type = 3;
 	else
 		type = 0;
 
-	// [=]
 	NodeRef expr(nullptr);
 	bool require_copy = false;
+
 	if(type == 0)
-	{
-		expr = ParseNode::Get();
-		expr->source = nullptr;
-		switch(vartype.type)
-		{
-		case V_BOOL:
-			expr->result = V_BOOL;
-			expr->pseudo_op = PUSH_BOOL;
-			expr->bvalue = false;
-			break;
-		case V_CHAR:
-			expr->result = V_CHAR;
-			expr->op = PUSH_CHAR;
-			expr->cvalue = 0;
-			break;
-		case V_INT:
-			expr->result = V_INT;
-			expr->op = PUSH_INT;
-			expr->value = 0;
-			break;
-		case V_FLOAT:
-			expr->result = V_FLOAT;
-			expr->op = PUSH_FLOAT;
-			expr->fvalue = 0.f;
-			break;
-		case V_STRING:
-			expr->result = V_STRING;
-			expr->op = PUSH_STRING;
-			if(empty_string == -1)
-			{
-				empty_string = module->strs.size();
-				Str* str = Str::Get();
-				str->s = "";
-				str->refs = 1;
-				module->strs.push_back(str);
-			}
-			expr->value = empty_string;
-			break;
-		case V_REF:
-			t.Throw("Uninitialized reference variable.");
-		default: // class
-			{
-				Type* rtype = GetType(vartype.type);
-				if(rtype->IsClass())
-				{
-					if(IS_SET(rtype->flags, Type::DisallowCreate))
-						t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
-					vector<AnyFunction> funcs;
-					FindAllCtors(rtype, funcs);
-					ApplyFunctionCall(expr, funcs, rtype, true);
-				}
-				else
-				{
-					assert(rtype->IsEnum());
-					expr->result = vartype;
-					expr->op = PUSH_ENUM;
-					expr->value = 0;
-				}
-			}
-			break;
-		}
-	}
-	else
+		expr = GetDefaultValueForVarDecl(vartype);
+	else if(type != 3)
 	{
 		if(type == 2 && vartype.type != V_REF)
 			t.Unexpected();
@@ -1579,6 +1618,8 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 		if(expr->op != CALLU_CTOR && GetType(expr->result.type)->IsStruct())
 			require_copy = true;
 	}
+	else
+		expr = ParseVarCtor(vartype);
 
 	ParseNode* node = ParseNode::Get();
 	node->op = (var->subtype == ParseVar::GLOBAL ? SET_GLOBAL : SET_LOCAL);
@@ -2438,16 +2479,7 @@ ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
 		if(t.IsSymbol('('))
 		{
 			// ctor
-			Type* rtype = GetType(vartype.type);
-			if(IS_SET(rtype->flags, Type::DisallowCreate))
-				t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
-			NodeRef node;
-			node->source = nullptr;
-			ParseArgs(node->childs);
-			vector<AnyFunction> funcs;
-			FindAllCtors(rtype, funcs);
-			ApplyFunctionCall(node, funcs, rtype, true);
-			return node.Pin();
+			return ParseVarCtor(vartype);
 		}
 		else
 		{
@@ -5176,46 +5208,72 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 	return false;
 }
 
-// 0-var, 1-ctor, 2-func, 3-operator, 4-type, 5-dtor
-int Parser::GetNextType()
+NextType Parser::GetNextType()
 {
-	// member, method or ctor
+	// function modifiers
 	if(t.IsKeywordGroup(G_KEYWORD))
 	{
 		int id = t.GetKeywordId(G_KEYWORD);
 		if(id == K_IMPLICIT || id == K_DELETE || id == K_STATIC)
-			return 2; // func
+			return NT_FUNC;
+		else
+			return NT_INVALID;
 	}
-	bool dtor = false;
-	int type;
+
 	tokenizer::Pos pos = t.GetPos();
+
+	// dtor
+	bool dtor = false;
 	if(t.IsSymbol('~'))
 	{
 		dtor = true;
 		t.Next();
 	}
+
+	// var type
 	GetVarType(false);
+
+	NextType result;
+
 	if(t.IsSymbol('('))
 	{
-		if(dtor)
-			type = 5; // dtor
-		else
-			type = 1; // ctor
-	}
-	else if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
-		type = 3; // operator
-	else if(t.IsItem())
-	{
+		// ctor or dtor decl
+		// [~] item/type (
+		t.ForceMoveToClosingSymbol('(', ')');
 		t.Next();
-		if(t.IsSymbol('('))
-			type = 2; // func
+		if(t.IsSymbol('{'))
+			result = NT_FUNC;
 		else
-			type = 0; // var
+			result = NT_CALL;
 	}
 	else
-		type = 4; // type
+	{
+		if(t.IsSymbol('&'))
+			t.Next();
+
+		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+			result = NT_FUNC;
+		else if(!t.IsItem())
+			result = NT_INVALID;
+		else
+		{
+			t.Next();
+			if(t.IsSymbol('('))
+			{
+				t.ForceMoveToClosingSymbol('(', ')');
+				t.Next();
+				if(t.IsSymbol('{'))
+					result = NT_FUNC;
+				else
+					result = NT_VAR_DECL;
+			}
+			else
+				result = NT_VAR_DECL;
+		}
+	}
+
 	t.MoveTo(pos);
-	return type;
+	return result;
 }
 
 void Parser::AnalyzeCode()
@@ -5283,6 +5341,7 @@ void Parser::AnalyzeCode()
 				break;
 			}
 			t.ForceMoveToClosingSymbol(c, closing);
+			t.Next();
 		}
 		else
 			AnalyzeType(nullptr);
@@ -5308,166 +5367,158 @@ void Parser::AnalyzeCode()
 
 void Parser::AnalyzeType(Type* type)
 {
-	static string item, func_name;
-	int result = V_SPECIAL;
-	int flags = 0;
-	bool dtor = false;
-
-	// function modifiers
-	ParseFuncModifiers(type != nullptr, flags);
-
-	if(t.IsSymbol('~'))
+	NextType next = AnalyzeNextType();
+	if(next == NT_FUNC)
 	{
-		dtor = true;
-		t.Next();
-	}
+		int flags = 0;
+		bool dtor = false;
+		int result = V_SPECIAL;
 
-	// return type
-	if(t.IsKeywordGroup(G_VAR))
-		result = t.GetKeywordId(G_VAR);
-	else if(t.IsItem())
-		item = t.GetItem();
+		// function modifiers
+		ParseFuncModifiers(type != nullptr, flags);
+
+		if(t.IsSymbol('~'))
+		{
+			dtor = true;
+			t.Next();
+		}
+
+		VarType vartype = AnalyzeVarType();
+
+		if(t.IsSymbol('('))
+		{
+			assert(vartype.type != V_REF);
+
+			// ctor/dtor
+			if(!type)
+				t.Throw("%s can only be declared inside class.", dtor ? "Destructor" : "Constructor");
+
+			if(dtor)
+			{
+				if(IS_SET(flags, CommonFunction::F_STATIC))
+					t.Throw("Static destructor not allowed.");
+				AnalyzeArgs(V_VOID, SF_DTOR, type, Format("~%s", type->name.c_str()), flags);
+			}
+			else
+			{
+				if(IS_SET(flags, CommonFunction::F_STATIC))
+					t.Throw("Static constructor not allowed.");
+				AnalyzeArgs(VarType(result, 0), SF_CTOR, type, type->name.c_str(), flags);
+			}
+		}
+		else
+		{
+			if(dtor)
+				t.Throw("Destructor tag mismatch.");
+
+			if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+			{
+				// operator
+				if(!type)
+					t.Throw("Operator function can be used only inside class.");
+				if(IS_SET(flags, CommonFunction::F_STATIC))
+					t.Throw("Static operator not allowed.");
+				t.Next();
+				if(t.IsItem())
+				{
+					// operator string
+					const string& item = t.GetItem();
+					if(item == "cast")
+					{
+						t.Next();
+						AnalyzeArgs(vartype, SF_CAST, type, "$opCast", flags);
+					}
+					else if(item == "addref" || item == "release")
+						t.Throw("Operator function '%s' can only be registered in code.", item.c_str());
+					else
+						t.ThrowExpecting("operator");
+				}
+				else
+				{
+					// operator symbol
+					BASIC_SYMBOL symbol = GetSymbol(true);
+					if(symbol == BS_MAX)
+						t.ThrowExpecting("symbol");
+					if(!CanOverload(symbol))
+						t.Throw("Can't overload operator '%s'.", basic_symbols[symbol].GetOverloadText());
+					t.Next();
+					ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
+					if(!FindMatchingOverload(*func, symbol))
+						t.Throw("Invalid overload operator definition '%s'.", GetName(func, true, true, &symbol));
+				}
+			}
+			else
+			{
+				// normal function
+				static string func_name = t.MustGetItem();
+				t.Next();
+
+				t.AssertSymbol('(');
+				AnalyzeArgs(vartype, SF_NO, type, func_name.c_str(), flags);
+			}
+		}
+	}
+	else if(next == NT_VAR_DECL)
+	{
+		// var decl
+		if(!type)
+		{
+			t.Next();
+			return;
+		}
+
+		VarType vartype = AnalyzeVarType();
+
+		do
+		{
+			Member* m = new Member;
+			m->vartype = vartype;
+			m->name = t.MustGetItem();
+			int index;
+			if(type->FindMember(m->name, index))
+				t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
+			t.Next();
+			m->index = type->members.size();
+			type->members.push_back(m);
+
+			if(t.IsSymbol('('))
+			{
+				t.ForceMoveToClosingSymbol('(', ')');
+				t.Next();
+			}
+			else if(t.IsSymbol('='))
+			{
+				if(!t.SkipTo([](Tokenizer& t)
+				{
+					if(t.IsSymbol())
+					{
+						switch(t.GetSymbol())
+						{
+						case '(':
+						case '{':
+						case '[':
+							t.ForceMoveToClosingSymbol(t.GetSymbol());
+							break;
+						case ',':
+						case ';':
+							return true;
+						}
+					}
+					return false;
+				}))
+					t.Throw("Broken member declaration, can't find end.");
+			}
+
+			if(t.IsSymbol(';'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		} while(1);
+	}
 	else
 	{
 		t.Next();
 		return;
-	}
-
-	t.Next();
-	if(t.IsSymbol('('))
-	{
-		// ctor/dtor
-		if(!type || type->index != result)
-		{
-			t.Next();
-			return;
-		}
-		if(dtor)
-		{
-			if(IS_SET(flags, CommonFunction::F_STATIC))
-				t.Throw("Static destructor not allowed.");
-			AnalyzeArgs(V_VOID, SF_DTOR, type, Format("~%s", type->name.c_str()), flags);
-		}
-		else
-		{
-			if(IS_SET(flags, CommonFunction::F_STATIC))
-				t.Throw("Static constructor not allowed.");
-			AnalyzeArgs(VarType(result, 0), SF_CTOR, type, type->name.c_str(), flags);
-		}
-	}
-	else
-	{
-		if(dtor)
-		{
-			t.Next();
-			return;
-		}
-
-		VarType vartype(result, 0);
-		bool is_ref = false;
-		if(t.IsSymbol('&'))
-		{
-			is_ref = true;
-			vartype.subtype = vartype.type;
-			vartype.type = V_REF;
-			t.Next();
-		}
-
-		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
-		{
-			if(!type)
-				t.Throw("Operator function can be used only inside class.");
-			if(IS_SET(flags, CommonFunction::F_STATIC))
-				t.Throw("Static operator not allowed.");
-			t.Next();
-			if(t.IsItem())
-			{
-				const string& item = t.GetItem();
-				if(item == "cast")
-				{
-					t.Next();
-					AnalyzeMakeType(vartype, item);
-					if(!type)
-					{
-						t.Next();
-						return;
-					}
-					AnalyzeArgs(vartype, SF_CAST, type, "$opCast", flags);
-				}
-				else if(item == "addref" || item == "release")
-					t.Throw("Operator function '%s' can only be registered in code.", item.c_str());
-				else
-					t.Unexpected();
-			}
-			else
-			{
-				BASIC_SYMBOL symbol = GetSymbol(true);
-				if(symbol == BS_MAX || !CanOverload(symbol))
-				{
-					t.Next();
-					return;
-				}
-				t.Next();
-				AnalyzeMakeType(vartype, item);
-				ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
-				if(!FindMatchingOverload(*func, symbol))
-					t.Throw("Invalid overload operator definition '%s'.", GetName(func, true, true, &symbol));
-			}
-		}
-		else if(t.IsItem())
-		{
-			func_name = t.GetItem();
-			t.Next();
-
-			if(t.IsSymbol('('))
-			{
-				AnalyzeMakeType(vartype, item);
-				AnalyzeArgs(vartype, SF_NO, type, func_name.c_str(), flags);
-			}
-			else if(type)
-			{
-				// members
-				if(flags != 0)
-					t.AssertSymbol('(');
-				AnalyzeMakeType(vartype, item);
-				bool first = true;
-				do
-				{
-					Member* m = new Member;
-					m->vartype = vartype;
-					if(first)
-						m->name = func_name;
-					else
-						m->name = t.MustGetItem();
-					int index;
-					if(type->FindMember(m->name, index))
-						t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
-					if(first)
-						first = false;
-					else
-						t.Next();
-					m->index = type->members.size();
-					type->members.push_back(m);
-
-					if(t.IsSymbol('='))
-					{
-						t.Next();
-						NodeRef item = ParseConstItem();
-						if(!TryCast(item.Get(), vartype))
-							t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
-						m->value = item->value;
-						m->have_def_value = true;
-					}
-					else
-						m->have_def_value = false;
-
-					if(t.IsSymbol(';'))
-						break;
-					t.AssertSymbol(',');
-					t.Next();
-				} while(1);
-			}
-		}
 	}
 }
 
@@ -5956,4 +6007,73 @@ void Parser::FreeTmpStr(string* str)
 {
 	RemoveElement(tmp_strs, str);
 	StringPool.Free(str);
+}
+
+NextType Parser::AnalyzeNextType()
+{
+	// function modifiers
+	if(t.IsKeywordGroup(G_KEYWORD))
+	{
+		int id = t.GetKeywordId(G_KEYWORD);
+		if(id == K_IMPLICIT || id == K_DELETE || id == K_STATIC)
+			return NT_FUNC;
+		else
+			return NT_INVALID;
+	}
+
+	tokenizer::Pos pos = t.GetPos();
+
+	// dtor
+	if(t.IsSymbol('~'))
+		t.Next();
+
+	// var type
+	if(!t.IsKeywordGroup(G_VAR) && !t.IsItem())
+	{
+		t.MoveTo(pos);
+		return NT_INVALID;
+	}
+	t.Next();
+
+	NextType result;
+
+	if(t.IsSymbol('('))
+	{
+		// ctor or dtor decl
+		// [~] item/type (
+		t.ForceMoveToClosingSymbol('(', ')');
+		t.Next();
+		if(t.IsSymbol('{'))
+			result = NT_FUNC;
+		else
+			result = NT_CALL;
+	}
+	else
+	{
+		if(t.IsSymbol('&'))
+			t.Next();
+
+		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+			result = NT_FUNC;
+		else if(!t.IsItem())
+			result = NT_INVALID;
+		else
+		{
+			t.Next();
+			if(t.IsSymbol('('))
+			{
+				t.ForceMoveToClosingSymbol('(', ')');
+				t.Next();
+				if(t.IsSymbol('{'))
+					result = NT_FUNC;
+				else
+					result = NT_VAR_DECL;
+			}
+			else
+				result = NT_VAR_DECL;
+		}
+	}
+
+	t.MoveTo(pos);
+	return result;
 }
