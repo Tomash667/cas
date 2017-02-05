@@ -128,9 +128,9 @@ struct Type : public cas::IClass, public cas::IEnum
 	Enum* enu;
 	int size, index, flags;
 	uint first_line, first_charpos;
-	bool declared, built;
+	bool declared, built, have_def_value;
 
-	inline Type() : enu(nullptr), dtor(nullptr) {}
+	inline Type() : enu(nullptr), dtor(nullptr), have_def_value(false) {}
 	~Type();
 	Member* FindMember(const string& name, int& index);
 	Function* FindCodeFunction(cstring name);
@@ -182,6 +182,7 @@ struct Member : public VarSource
 		Set
 	};
 	UsedMode used;
+	tokenizer::Pos pos;
 	bool have_def_value;
 };
 

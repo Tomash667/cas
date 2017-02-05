@@ -71,7 +71,7 @@ public:
 	cstring GetParserFunctionName(uint index);
 	bool Parse(ParseSettings& settigns);
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
-	int CreateDefaultFunctions(Type* type);
+	int CreateDefaultFunctions(Type* type, int define_ctor = -1);
 	void Reset();
 
 private:

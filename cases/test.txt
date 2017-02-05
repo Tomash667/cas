@@ -11,12 +11,8 @@ class B {}
 class C {}*/
 
 // new syntax
-int a(4);
-int b = int(5);
-int c = int(2) * int(3);
-Assert_AreEqual(4, a);
-Assert_AreEqual(5, b);
-Assert_AreEqual(6, c);
+/*
+
 
 /*
 A a0; // ctor A

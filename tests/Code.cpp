@@ -175,7 +175,7 @@ static A* createA()
 
 static void checkA(A* a)
 {
-	Assert::AreEqual(1, a->GetRefs()); // 1 refernce in script
+	Assert::AreEqual(1, a->GetRefs()); // 1 reference in script
 	A::global = a;
 	a->AddRef(); // now two references
 }
@@ -824,7 +824,6 @@ TEST_METHOD(ComplexTwoScriptsCombined)
 	)code");
 	module->Parse("float f = 3.14, g = 7.11; return a + f;");
 
-	SetDecompile(true);
 	RunParsedTest("7");
 	retval.IsFloat(3.33f);
 

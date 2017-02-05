@@ -59,6 +59,7 @@ struct CommonFunction
 	inline bool IsBuiltin() const { return IS_SET(flags, F_BUILTIN); }
 	inline bool IsCode() const { return IS_SET(flags, F_CODE); }
 	inline bool IsStatic() const { return IS_SET(flags, F_STATIC); }
+	inline bool IsDefault() const { return IS_SET(flags, F_DEFAULT); }
 };
 
 // code function

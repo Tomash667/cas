@@ -565,7 +565,7 @@ ParseNode* Parser::ParseLine()
 	else if(t.IsKeywordGroup(G_VAR))
 	{
 		// is this function or var declaration or ctor
-		int next_type = GetNextType();
+		NextType next_type = GetNextType();
 		switch(next_type)
 		{
 		case NT_VAR_DECL:
@@ -689,63 +689,73 @@ void Parser::ParseClass(bool is_struct)
 			t.Throw("Enum can't be declared inside class.");
 
 		// member, method or ctor
-		if(GetNextType() != 0)
+		NextType next = GetNextType();
+		switch(next)
 		{
-			Ptr<ParseFunction> f;
-			f->flags = 0;
-			current_function = f;
-
-			ParseFuncInfo(f, type, false);
-
-			AnyFunction af = FindEqualFunction(type, AnyFunction(f));
-			assert(af.IsParse());
-
-			// block
-			ParseFunction* func = af.pf;
-			if(!IS_SET(func->flags, CommonFunction::F_DELETE))
+		case NT_VAR_DECL:
+			ParseMemberDeclClass(type, pad);
+			break;
+		case NT_FUNC:
 			{
-				current_function = func;
-				if(current_function->special == SF_CTOR)
+				Ptr<ParseFunction> f;
+				f->flags = 0;
+				current_function = f;
+
+				ParseFuncInfo(f, type, false);
+
+				AnyFunction af = FindEqualFunction(type, AnyFunction(f));
+				assert(af.IsParse());
+
+				// block
+				ParseFunction* func = af.pf;
+				if(!IS_SET(func->flags, CommonFunction::F_DELETE))
 				{
-					for(Member* m : type->members)
-						m->used = Member::No;
-				}
-				func->node = ParseBlock(func);
-				if(current_function->special == SF_CTOR)
-				{
-					bool any = false;
-					for(Member* m : type->members)
+					current_function = func;
+					if(current_function->special == SF_CTOR)
 					{
-						if(m->used != Member::Set)
-						{
-							any = true;
-							break;
-						}
+						for(Member* m : type->members)
+							m->used = Member::No;
 					}
-					if(any)
+					func->node = ParseBlock(func);
+					if(current_function->special == SF_CTOR)
 					{
-						ParseNode* group = ParseNode::Get();
+						bool any = false;
 						for(Member* m : type->members)
 						{
 							if(m->used != Member::Set)
 							{
-								ParseNode* node = ParseNode::Get();
-								SetParseNodeFromMember(node, m);
-								group->push(node);
-								group->push(SET_THIS_MEMBER, m->index);
-								group->push(POP);
+								any = true;
+								break;
 							}
 						}
-						group->result = V_VOID;
-						group->pseudo_op = INTERNAL_GROUP;
-						func->node->childs.insert(func->node->childs.begin(), group);
+						if(any)
+						{
+							ParseNode* group = ParseNode::Get();
+							for(Member* m : type->members)
+							{
+								if(m->used != Member::Set)
+								{
+									ParseNode* node = ParseNode::Get();
+									SetParseNodeFromMember(node, m);
+									group->push(node);
+									group->push(SET_THIS_MEMBER, m->index);
+									group->push(POP);
+								}
+							}
+							group->result = V_VOID;
+							group->pseudo_op = INTERNAL_GROUP;
+							func->node->childs.insert(func->node->childs.begin(), group);
+						}
 					}
 				}
+				current_function = nullptr;
 			}
-			current_function = nullptr;
+			break;
+		case NT_INVALID:
+		case NT_CALL:
+			t.ThrowExpecting("member or method declaration");
+			break;
 		}
-		else
-			ParseMemberDeclClass(type, pad);
 	}
 	t.Next();
 
@@ -1099,6 +1109,11 @@ void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 		{
 			t.Next();
 			t.SkipTo([](Tokenizer& t) { return t.IsSymbol(',') || t.IsSymbol(';'); });
+		}
+		else if(t.IsSymbol('('))
+		{
+			t.ForceMoveToClosingSymbol('(', ')');
+			t.Next();
 		}
 		
 		if(t.IsSymbol(';'))
@@ -1544,6 +1559,7 @@ ParseNode* Parser::ParseVarCtor(VarType vartype)
 {
 	t.AssertSymbol('(');
 	NodeRef node;
+	node->source = nullptr;
 	ParseArgs(node->childs);
 
 	Type* type = GetType(vartype.type);
@@ -5320,7 +5336,7 @@ void Parser::AnalyzeCode()
 					}
 				}
 			}
-			CreateDefaultFunctions(type);
+			CreateDefaultFunctions(type, type->have_def_value ? 1 : -1);
 		}
 		else if(t.IsKeyword(K_ENUM, G_KEYWORD))
 			ParseEnum(true);
@@ -5347,11 +5363,37 @@ void Parser::AnalyzeCode()
 			AnalyzeType(nullptr);
 	}
 
-	// verify all types are declared
+	// verify all types are declared, member default values
 	for(Type* type : module->tmp_types)
 	{
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
+		if(type->have_def_value)
+		{
+			for(Member* m : type->members)
+			{
+				if(!m->have_def_value)
+					continue;
+				t.MoveTo(m->pos);
+				if(t.IsSymbol('='))
+				{
+					t.Next();
+					NodeRef item = ParseConstExpr();
+					if(!TryCast(item.Get(), m->vartype))
+						t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
+					m->value = item->value;
+				}
+				else
+				{
+					assert(t.IsSymbol('('));
+					ParseNode* node = ParseVarCtor(m->vartype);
+					assert(node->op != CALLU_CTOR && node->op != CALL);
+					m->value = node->value;
+					node->Free();
+				}
+			}
+			CreateDefaultFunctions(type, 0);
+		}
 	}
 
 	// function default values
@@ -5372,7 +5414,6 @@ void Parser::AnalyzeType(Type* type)
 	{
 		int flags = 0;
 		bool dtor = false;
-		int result = V_SPECIAL;
 
 		// function modifiers
 		ParseFuncModifiers(type != nullptr, flags);
@@ -5403,7 +5444,7 @@ void Parser::AnalyzeType(Type* type)
 			{
 				if(IS_SET(flags, CommonFunction::F_STATIC))
 					t.Throw("Static constructor not allowed.");
-				AnalyzeArgs(VarType(result, 0), SF_CTOR, type, type->name.c_str(), flags);
+				AnalyzeArgs(vartype, SF_CTOR, type, type->name.c_str(), flags);
 			}
 		}
 		else
@@ -5450,7 +5491,8 @@ void Parser::AnalyzeType(Type* type)
 			else
 			{
 				// normal function
-				static string func_name = t.MustGetItem();
+				static string func_name;
+				func_name = t.MustGetItem();
 				t.Next();
 
 				t.AssertSymbol('(');
@@ -5479,15 +5521,22 @@ void Parser::AnalyzeType(Type* type)
 				t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
 			t.Next();
 			m->index = type->members.size();
+			m->have_def_value = true;
 			type->members.push_back(m);
 
 			if(t.IsSymbol('('))
 			{
+				m->have_def_value = true;
+				m->pos = t.GetPos();
+				type->have_def_value = true;
 				t.ForceMoveToClosingSymbol('(', ')');
 				t.Next();
 			}
 			else if(t.IsSymbol('='))
 			{
+				m->have_def_value = true;
+				m->pos = t.GetPos();
+				type->have_def_value = true;
 				if(!t.SkipTo([](Tokenizer& t)
 				{
 					if(t.IsSymbol())
@@ -5508,6 +5557,8 @@ void Parser::AnalyzeType(Type* type)
 				}))
 					t.Throw("Broken member declaration, can't find end.");
 			}
+			else
+				m->have_def_value = false;
 
 			if(t.IsSymbol(';'))
 				break;
@@ -5666,8 +5717,8 @@ void Parser::AnalyzeMakeType(VarType& vartype, const string& name)
 }
 
 // create default functions for type if they are not declared
-// return flags for builtin functions to declare in module (0x01 - 
-int Parser::CreateDefaultFunctions(Type* type)
+// return flags for builtin functions to declare in module
+int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 {
 	assert(type);
 	VarType vartype(type->index, 0);
@@ -5675,6 +5726,7 @@ int Parser::CreateDefaultFunctions(Type* type)
 
 	// ctor
 	AnyFunction f = FindSpecialFunction(type, SF_CTOR, [](AnyFunction& f) { return true; });
+	bool apply_ctor_code = false;
 	if(!f)
 	{
 		ParseFunction* func = new ParseFunction;
@@ -5689,6 +5741,18 @@ int Parser::CreateDefaultFunctions(Type* type)
 		func->type = type->index;
 		func->required_args = 1;
 		func->special = SF_CTOR;
+		ufuncs.push_back(func);
+		type->ufuncs.push_back(func);
+		if(define_ctor == -1)
+			apply_ctor_code = true;
+		f = func;
+	}
+	else if(define_ctor == 0 && f.pf->IsDefault())
+		apply_ctor_code = true;
+	if(apply_ctor_code)
+	{
+		assert(f.IsParse());
+		ParseFunction* func = f.pf;
 		ParseNode* group = ParseNode::Get();
 		group->result = vartype;
 		group->pseudo_op = INTERNAL_GROUP;
@@ -5702,9 +5766,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 		}
 		group->push(RET);
 		func->node = group;
-		ufuncs.push_back(func);
-		type->ufuncs.push_back(func);
 	}
+	if(define_ctor == 0)
+		return 0;
 
 	// assign
 	SymbolInfo* info = &symbols[S_ASSIGN];

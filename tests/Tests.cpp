@@ -134,7 +134,6 @@ TEST_METHOD(StaticMethods)
 
 TEST_METHOD(EnumGlobalReturnValue)
 {
-	SetDecompile(true);
 	SetResetParser(false);
 	RunTest("enum E{A=2,B=4,C=6} return E.B;");
 	retval.IsEnum("E", 4);
@@ -233,9 +232,16 @@ TEST_METHOD(NewVarCtorSyntax)
 		int a(4);
 		int b = int(5);
 		int c = int(2) * int(3);
+		class A
+		{
+			int d(7), e = int(3) * int(4);
+		}
 		Assert_AreEqual(4, a);
 		Assert_AreEqual(5, b);
 		Assert_AreEqual(6, c);
+		A o;
+		Assert_AreEqual(7, o.d);
+		Assert_AreEqual(12, o.e);
 	)code");
 }
 

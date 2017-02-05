@@ -9,12 +9,10 @@
 - copy constructor is not called
 	struct A{...}  A a=...; A b = a; // must be A b = A(a);
 + call dtor in block
-? ctor syntax for members
 
 + allow to call ctor/dtor
 + can't delete dtor
 + join GetNextType and AnalyzeNextType
-+ ctor in expr -> int a = 3 * int(4);
 
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
@@ -113,6 +111,7 @@ FEATURE:
 	+ static member
 	+ string member
 	+ class member (detect recursion), allow declare member of same type as class (but prevent it until nullable type, just don't show error of unknown item)
+		+ member ctor decl
 	+ properties
 	+ default value for class argument in function
 	+ inhertiance
