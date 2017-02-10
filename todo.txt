@@ -1,3 +1,11 @@
++ fixed GetName for code class default functions
++ fixed empty constructor for class with members
++ fixed calling copy after struct returned from code ctor
+
+- test.txt, missing decompile function inside_block; fix ufunc pos for builtin
+? ref counted object out of scope
+
+? verify Class in code %s must be returned by reference/pointer. for code ctor
 - constructor setting member don't prevent from setting default value
 	class C { int a; C(int _a) { a = _a; }}
 	cause:

@@ -163,6 +163,7 @@ private:
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
 	NextType GetNextType();
 	void FreeTmpStr(string* str);
+	bool IsCtor(ParseNode* node);
 
 	void AnalyzeCode();
 	void AnalyzeType(Type* type);

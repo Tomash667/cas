@@ -90,6 +90,7 @@ OpInfo ops[] = {
 	COPY, "copy", Args0(),
 	COPY_ARG, "copy_arg", Args1(V_INT),
 	RELEASE_REF, "release_ref", Args1(V_INT),
+	RELEASE_OBJ, "release_obj", Args1(V_INT),
 	LINE, "line", Args1(V_INT)
 };
 static_assert(sizeof(ops) / sizeof(OpInfo) == MAX_OP, "Missing decompile op codes.");

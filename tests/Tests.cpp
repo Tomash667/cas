@@ -245,4 +245,29 @@ TEST_METHOD(NewVarCtorSyntax)
 	)code");
 }
 
+TEST_METHOD(CopyCtor)
+{
+	RunTest(R"code(
+		struct Def
+		{
+			int x,y,z;
+		}
+
+		Def a;
+		Def b = Def(a);
+		Def b2 = a;
+
+		struct ND
+		{
+			int x,y,z;
+			ND() {println("ctor");}
+			ND(ND n) {println("copy");}
+		}
+
+		ND n;
+		ND n1 = ND(n);
+		ND n2 = n;
+	)code", "", "ctor\ncopy\ncopy\n");
+}
+
 CA_TEST_CLASS_END();

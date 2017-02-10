@@ -47,6 +47,9 @@ struct CommonFunction
 		F_DEFAULT = 1 << 6
 	};
 
+#ifdef _DEBUG
+	string decl;
+#endif
 	string name;
 	VarType result;
 	int index, type, flags;
@@ -60,6 +63,14 @@ struct CommonFunction
 	inline bool IsCode() const { return IS_SET(flags, F_CODE); }
 	inline bool IsStatic() const { return IS_SET(flags, F_STATIC); }
 	inline bool IsDefault() const { return IS_SET(flags, F_DEFAULT); }
+
+	// Should function pass this as first argument, 
+	// Non static methods, except code ctors
+	inline bool PassThis() const
+	{
+		
+		return type != V_VOID && !(IsStatic() || (IsCode() && special == SF_CTOR));
+	}
 };
 
 // code function

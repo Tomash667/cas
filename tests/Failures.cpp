@@ -20,7 +20,14 @@ public:
 	B(int a, int b) {}
 };
 
+class C : public RefCounter
+{
+public:
+};
+
 static void f() {}
+static A* A_ctor() { return new A; }
+static A invalid_ctor() { return A(); }
 
 CA_TEST_CLASS(Failures);
 
@@ -476,6 +483,11 @@ TEST_METHOD(ReturnCodeClassByValue)
 	Assert::IsFalse(r);
 	AssertError("Class in code method must be returned by reference/pointer.");
 	AssertError("Failed to parse function declaration for AddMethod 'X f()'.");
+	CleanupErrors();
+
+	r = type->AddMethod("X()", create_x_by_value);
+	Assert::IsFalse(r);
+	AssertError("Class constructor 'X()' must return type by reference/pointer.");
 }
 
 TEST_METHOD(StaticOnFunction)
@@ -593,6 +605,58 @@ TEST_METHOD(InvalidEnumValue)
 TEST_METHOD(UnclosedMultilineComment)
 {
 	RunFailureTest("*/", "Unclosed multiline comment.");
+}
+
+TEST_METHOD(DestructorWithArguments)
+{
+	RunFailureTest("class A{~A(int x){}}", "Destructor can't have arguments.");
+
+	auto type = module->AddType<A>("A");
+	bool result = type->AddMethod("~A(int x)", f);
+	Assert::IsFalse(result);
+	AssertError("Destructor can't have arguments.");
+}
+
+TEST_METHOD(RefCountedTypeDestructor)
+{
+	auto type = module->AddRefType<C>("C");
+	bool result = type->AddMethod("~C()", f);
+	Assert::IsFalse(result);
+	AssertError("Reference counted type can't have destructor.");
+}
+
+TEST_METHOD(AlreadyDeclaredDestructor)
+{
+	RunFailureTest("class A{~A(){} ~A(){}}", "Type 'A' have already declared destructor.");
+
+	auto type = module->AddType<A>("A");
+	bool result = type->AddMethod("~A()", f);
+	Assert::IsTrue(result);
+	result = type->AddMethod("~A()", f);
+	Assert::IsFalse(result);
+	AssertError("Type 'A' have already declared destructor.");
+}
+
+TEST_METHOD(SimpleTypeCtorInvalidArgCount)
+{
+	RunFailureTest("int a(4,5);", "Constructor for type 'int' require single argument.");
+	RunFailureTest("class A{int a(4,5);}", "Constructor for type 'int' require single argument.");
+}
+
+TEST_METHOD(ConstructorDestructorOutsideClass)
+{
+	RunFailureTest("class A{} A(){}", "Constructor can only be declared inside class.");
+	RunFailureTest("class A{} ~A(){}", "Destructor can only be declared inside class.");
+
+	auto type = module->AddType<A>("A");
+	bool result = module->AddFunction("A()", A_ctor);
+	Assert::IsFalse(result);
+	AssertError("Constructor can only be declared inside class.");
+	CleanupErrors();
+
+	result = module->AddFunction("~A()", A_ctor);
+	Assert::IsFalse(result);
+	AssertError("Destructor can only be declared inside class.");
 }
 
 CA_TEST_CLASS_END();

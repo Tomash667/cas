@@ -210,8 +210,8 @@ TestMethod(LongRefAssign)
 
 TestMethod(VardeclAssign)
 {
-	RunFileTest("vardecl_assign.txt", "", "ctor0\n---\nctor2\n---\nctor2\nassign\n---\nctor2\n---\nctor2\nassign\n---\nctor2\nctor2\n---\nassign\nctor2\n"
-		"ctor2\n");
+	RunFileTest("vardecl_assign.txt", "",
+		"ctor0\n-A-\nctor2\nctor2\nassign\n-B-\nctor2\nctor1\nctor2\nassign\n-C-\nctor1\nctor2\nctor2\nassign\nctor2\nctor2\n");
 }
 
 TestMethod(Enum)

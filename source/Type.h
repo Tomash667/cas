@@ -37,7 +37,11 @@ struct AnyFunction
 	inline AnyFunction(ParseFunction* pf) : pf(pf), type(PARSE) {}
 	inline AnyFunction(UserFunction* uf) : uf(uf), type(SCRIPT) {}
 	inline AnyFunction(CommonFunction* cf, Type type) : cf(cf), type(type) {}
+
 	inline operator bool() const { return type != NONE; }
+	inline bool operator == (const AnyFunction& f) const { return type == f.type && cf == f.cf; }
+	inline bool operator != (const AnyFunction& f) const { return type != f.type || cf != f.cf; }
+
 	inline bool IsCode() const { return type == CODE; }
 	inline bool IsParse() const { return type == PARSE; }
 	inline bool IsScript() const { return type == SCRIPT; }

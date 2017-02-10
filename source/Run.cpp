@@ -1604,6 +1604,13 @@ void RunInternal()
 				assert(any);
 			}
 			break;
+		case RELEASE_OBJ:
+			{
+				int local_index = *c++;
+				Var& v = local[locals_offset + local_index];
+				ReleaseRef(v);
+			}
+			break;
 		case LINE:
 			current_line = *c++;
 			break;
