@@ -45,16 +45,19 @@ void AddRef(Var& v)
 
 void ReleaseRef(Var& v)
 {
+	bool deleted = true;
 	if(v.vartype == V_STRING)
-		v.str->Release();
+		deleted = v.str->Release();
 	else if(v.vartype.type == V_REF)
-		v.ref->Release();
+		deleted = v.ref->Release();
 	else
 	{
 		Type* type = module->GetType(v.vartype.type);
 		if(type->IsClass())
-			v.clas->Release();
+			deleted = v.clas->Release();
 	}
+	if(deleted)
+		v.vartype = V_VOID;
 }
 
 struct GetRefData

@@ -114,7 +114,7 @@ void Decompiler::Decompile(Module& _module)
 	std::ostream& out = *s_output;
 	int* c = module->code.data();
 	int* end = c + module->code.size();
-	int cf = -2;
+	current_function = -2;
 
 	if(decompile_marker)
 		out << "***DCMP***";
@@ -122,36 +122,7 @@ void Decompiler::Decompile(Module& _module)
 	out << "DECOMPILE:\n";
 	while(c != end)
 	{
-		if(cf == -2)
-		{
-			if(module->ufuncs.empty())
-			{
-				cf = -1;
-				out << "Main:\n";
-			}
-			else
-			{
-				cf = 0;
-				out << "Function " << module->GetFunctionName(0, true) << ":\n";
-			}
-		}
-		else if(cf != -1)
-		{
-			uint offset = c - module->code.data();
-			if(offset >= module->entry_point)
-			{
-				cf = -1;
-				out << "Main:\n";
-			}
-			else if(cf + 1 < (int)module->ufuncs.size())
-			{
-				if(offset >= module->ufuncs[cf + 1].pos)
-				{
-					++cf;
-					out << "Function " << module->GetFunctionName(cf, true) << ":\n";
-				}
-			}
-		}
+		GetNextFunction(c);
 
 		Op op = (Op)*c++;
 		if(op >= MAX_OP)
@@ -230,5 +201,65 @@ void Decompiler::DecompileType(int type, int val)
 	default:
 		assert(0);
 		break;
+	}
+}
+
+void Decompiler::GetNextFunction(int* pos)
+{
+	if(current_function == -1)
+		return;
+
+	std::ostream& out = *s_output;
+
+	// find first function in bytecode
+	if(current_function == -2)
+	{
+		current_function = 0;
+		while(1)
+		{
+			if(current_function == (int)module->ufuncs.size())
+			{
+				current_function = -1;
+				break;
+			}
+			if(module->ufuncs[current_function].pos == -1)
+				++current_function;
+			else
+				break;
+		}
+		if(current_function == -1)
+			out << "Main:\n";
+		else
+			out << "Function " << module->GetFunctionName(current_function, true) << ":\n";
+		return;
+	}
+	
+	// find next function in bytecode
+	uint offset = pos - module->code.data();
+	if(offset >= module->entry_point)
+	{
+		current_function = -1;
+		out << "Main:\n";
+	}
+	else
+	{
+		int next_function = current_function + 1;
+		while(true)
+		{
+			if(next_function == (int)module->ufuncs.size())
+			{
+				next_function = -1;
+				break;
+			}
+			if(module->ufuncs[next_function].pos == -1)
+				++next_function;
+			else
+				break;
+		}
+		if(next_function != -1 && offset >= module->ufuncs[next_function].pos)
+		{
+			current_function = next_function;
+			out << "Function " << module->GetFunctionName(current_function, true) << ":\n";
+		}
 	}
 }

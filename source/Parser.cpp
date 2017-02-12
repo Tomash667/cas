@@ -231,6 +231,8 @@ void Parser::FinishRunModule()
 		for(auto& arg : f.arg_infos)
 			uf.args.push_back(arg.vartype);
 		uf.type = f.type;
+		if(f.IsBuiltin())
+			uf.pos = -1;
 	}
 
 	// convert types dtor from parse function to script function
@@ -380,8 +382,11 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 		{
 			if(var->referenced || GetType(var->vartype.GetType())->dtor)
 			{
+				assert(var->referenced ^ GetType(var->vartype.GetType())->dtor);
+				if(!var->referenced)
+					assert(var->subtype == ParseVar::LOCAL);
 				ParseNode* rel = ParseNode::Get();
-				rel->op = RELEASE_REF;
+				rel->op = (var->referenced ? RELEASE_REF : RELEASE_OBJ);
 				rel->value = (var->subtype == ParseVar::LOCAL ? var->index : -var->index - 1);
 				rel->result = V_VOID;
 				rel->source = nullptr;
@@ -4481,6 +4486,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case COPY_ARG:
 	case SWAP:
 	case RELEASE_REF:
+	case RELEASE_OBJ:
 	case LINE:
 		code.push_back(node->op);
 		code.push_back(node->value);

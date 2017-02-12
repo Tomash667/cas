@@ -53,11 +53,16 @@ struct Str : ObjectPoolProxy<Str>
 	string s;
 	int refs;
 
-	inline void Release()
+	inline bool Release()
 	{
 		--refs;
 		if(refs == 0)
+		{
 			Free();
+			return true;
+		}
+		else
+			return false;
 	}
 };
 

@@ -86,7 +86,7 @@ struct Class
 		return c;
 	}
 
-	inline void Release()
+	inline bool Release()
 	{
 		assert(refs >= 1);
 		if(--refs == 0)
@@ -95,7 +95,10 @@ struct Class
 			RemoveElement(all_classes, this);
 #endif
 			Delete();
+			return true;
 		}
+		else
+			return false;
 	}
 
 	inline void Delete()
@@ -163,7 +166,7 @@ struct RefVar
 			clas->Release();
 	}
 
-	inline void Release()
+	inline bool Release()
 	{
 		assert(refs >= 1);
 		if(--refs == 0)
@@ -172,7 +175,10 @@ struct RefVar
 			RemoveElement(all_refs, this);
 #endif
 			delete this;
+			return true;
 		}
+		else
+			return false;
 	}
 };
 
