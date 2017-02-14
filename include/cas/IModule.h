@@ -96,6 +96,7 @@ namespace cas
 	{
 	public:
 		RefCounter() : refs(1) {}
+		virtual ~RefCounter() {}
 		inline void AddRef() { ++refs; }
 		inline void Release() { if(--refs == 0) delete this; }
 		inline int GetRefs() const { return refs; }
@@ -190,7 +191,7 @@ namespace cas
 		{
 			FunctionInfo info = (generic_type == GenericType::Struct) ?
 				FunctionInfo(internal::CtorDtorHelper::Destroy<T>) : FunctionInfo(internal::CtorDtorHelper::DestroyNew<T>);
-			return AddMethod(Format("~%s", GetName()), info);
+			return AddMethod(Format("~%s()", GetName()), info);
 		}
 	};
 

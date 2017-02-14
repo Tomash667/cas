@@ -99,15 +99,15 @@ private:
 	ParseNode* GetDefaultValueForVarDecl(VarType type);
 	ParseNode* ParseVarCtor(VarType vartype);
 	ParseNode* ParseVarDecl(VarType vartype);
-	ParseNode* ParseExpr(VarType* vartype = nullptr, ParseFunction* func = nullptr);
-	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
-	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func);
+	ParseNode* ParseExpr(ParseFunction* func = nullptr);
+	void ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseFunction* func);
+	BASIC_SYMBOL ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseFunction* func);
 	void ParseExprPartPost(BASIC_SYMBOL& symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack);
 	void ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn);
 	ParseNode* ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right);
 	ParseNode* ParseConstExpr();
 	void ParseArgs(vector<ParseNode*>& nodes, char open = '(', char close = ')');
-	ParseNode* ParseItem(VarType* vartype = nullptr, ParseFunction* func = nullptr);
+	ParseNode* ParseItem(ParseFunction* func = nullptr);
 	ParseNode* ParseConstItem();
 
 	void CheckFindItem(const string& id, bool is_func);
@@ -161,7 +161,7 @@ private:
 	void CheckFunctionIsDeleted(CommonFunction& cf);
 	bool CanOverload(BASIC_SYMBOL symbol);
 	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
-	NextType GetNextType();
+	NextType GetNextType(bool analyze);
 	void FreeTmpStr(string* str);
 	bool IsCtor(ParseNode* node);
 
@@ -174,7 +174,6 @@ private:
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
 	bool HasSideEffects(ParseNode* node);
 	void AnalyzeArgsDefaultValues(ParseFunction* f);
-	NextType AnalyzeNextType();
 	
 	Tokenizer t;
 	Module* module;

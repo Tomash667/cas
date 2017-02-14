@@ -380,9 +380,10 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 		// cleanup block if it's not function main block
 		for(ParseVar* var : current_block->vars)
 		{
-			if(var->referenced || GetType(var->vartype.GetType())->dtor)
+			Type* var_type = GetType(var->vartype.GetType());
+			if(var->referenced || var_type->dtor || var_type->IsRefCounted())
 			{
-				assert(var->referenced ^ GetType(var->vartype.GetType())->dtor);
+				assert(var->referenced ^ (var_type->dtor || var_type->IsRefCounted()));
 				if(!var->referenced)
 					assert(var->subtype == ParseVar::LOCAL);
 				ParseNode* rel = ParseNode::Get();
@@ -570,7 +571,7 @@ ParseNode* Parser::ParseLine()
 	else if(t.IsKeywordGroup(G_VAR))
 	{
 		// is this function or var declaration or ctor
-		NextType next_type = GetNextType();
+		NextType next_type = GetNextType(false);
 		switch(next_type)
 		{
 		case NT_VAR_DECL:
@@ -580,19 +581,9 @@ ParseNode* Parser::ParseLine()
 				t.Next();
 				return node;
 			}
-		case NT_CALL:
-			{
-				// ctor
-				VarType vartype = GetVarType(false);
-				t.AssertSymbol('(');
-				t.Next();
-				NodeRef node = ParseExpr(&vartype);
-				t.AssertSymbol(';');
-				t.Next();
-				return node.Pin();
-			}
 		case NT_FUNC:
 			return ParseFunc();
+		case NT_CALL:
 		case NT_INVALID:
 			// fallback to ParseExpr
 			break;
@@ -694,7 +685,7 @@ void Parser::ParseClass(bool is_struct)
 			t.Throw("Enum can't be declared inside class.");
 
 		// member, method or ctor
-		NextType next = GetNextType();
+		NextType next = GetNextType(false);
 		switch(next)
 		{
 		case NT_VAR_DECL:
@@ -1160,7 +1151,7 @@ ParseNode* Parser::ParseFunc()
 	// call
 	if(t.IsSymbol('('))
 	{
-		NodeRef call = ParseExpr(nullptr, func);
+		NodeRef call = ParseExpr(func);
 		t.AssertSymbol(';');
 		return call.Pin();
 	}
@@ -1642,7 +1633,7 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 		type = 0;
 
 	NodeRef expr(nullptr);
-	bool require_copy = false;
+	bool require_copy = false, require_deref = false;
 
 	if(type == 0)
 		expr = GetDefaultValueForVarDecl(vartype);
@@ -1654,8 +1645,8 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 
 		expr = ParseExpr();
 
-		Type* var_type = GetType(expr->result.type);
-		if(vartype.type != V_REF && var_type->IsStruct() && (!IsCtor(expr) || expr->result != vartype))
+		Type* var_type = GetType(expr->result.GetType());
+		if(vartype.type != V_REF && var_type->IsStruct() && (!IsCtor(expr) || var_type->index != vartype.type))
 		{
 			ParseNode* node = ParseNode::Get();
 			node->source = nullptr;
@@ -1670,6 +1661,8 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 				ParseNode* old_expr = node->childs[0];
 				node->childs.clear();
 				expr = old_expr;
+				if(expr->result.type == V_REF)
+					require_deref = true;
 			}
 		}
 		else
@@ -1687,19 +1680,21 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	node->value = var->index;
 	node->source = nullptr;
 	node->push(expr.Pin());
+	if(require_deref)
+		node->push(DEREF);
 	if(require_copy)
 		node->push(COPY);
 	return node;
 }
 
-ParseNode* Parser::ParseExpr(VarType* vartype, ParseFunction* func)
+ParseNode* Parser::ParseExpr(ParseFunction* func)
 {
 	vector<SymbolNode> stack, exit;
 	vector<ParseNode*> stack2;
 
 	try
 	{
-		ParseExprConvertToRPN(exit, stack, vartype, func);
+		ParseExprConvertToRPN(exit, stack, func);
 
 		for(SymbolNode& sn : exit)
 		{
@@ -1742,12 +1737,11 @@ ParseNode* Parser::ParseExpr(VarType* vartype, ParseFunction* func)
 	}
 }
 
-void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func)
+void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseFunction* func)
 {
 	while(true)
 	{
-		BASIC_SYMBOL left = ParseExprPart(exit, stack, vartype, func);
-		vartype = nullptr;
+		BASIC_SYMBOL left = ParseExprPart(exit, stack, func);
 		func = nullptr;
 	next_symbol:
 		if(GetNextSymbol(left))
@@ -1820,14 +1814,12 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 	}
 }
 
-BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func)
+BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseFunction* func)
 {
 	BASIC_SYMBOL symbol = BS_MAX;
 
-	if(vartype)
-		exit.push_back(ParseItem(vartype));
-	else if(func)
-		exit.push_back(ParseItem(nullptr, func));
+	if(func)
+		exit.push_back(ParseItem(func));
 	else
 	{
 		// [pre_op ...]
@@ -2523,18 +2515,12 @@ void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 	t.Next();
 }
 
-ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
+ParseNode* Parser::ParseItem(ParseFunction* func)
 {
-	if(t.IsKeywordGroup(G_VAR) || _vartype)
+	if(t.IsKeywordGroup(G_VAR))
 	{
-		VarType vartype(nullptr);
-		if(_vartype)
-			vartype = *_vartype;
-		else
-		{
-			vartype.type = t.GetKeywordId(G_VAR);
-			t.Next();
-		}
+		VarType vartype(t.GetKeywordId(G_VAR), 0);
+		t.Next();
 
 		if(t.IsSymbol('('))
 		{
@@ -5271,7 +5257,7 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 	return false;
 }
 
-NextType Parser::GetNextType()
+NextType Parser::GetNextType(bool analyze)
 {
 	// function modifiers
 	if(t.IsKeywordGroup(G_KEYWORD))
@@ -5286,15 +5272,21 @@ NextType Parser::GetNextType()
 	tokenizer::Pos pos = t.GetPos();
 
 	// dtor
-	bool dtor = false;
 	if(t.IsSymbol('~'))
-	{
-		dtor = true;
 		t.Next();
-	}
 
 	// var type
-	GetVarType(false);
+	if(analyze)
+	{
+		if(!t.IsKeywordGroup(G_VAR) && !t.IsItem())
+		{
+			t.MoveTo(pos);
+			return NT_INVALID;
+		}
+		t.Next();
+	}
+	else
+		GetVarType(false);
 
 	NextType result;
 
@@ -5456,7 +5448,7 @@ void Parser::AnalyzeCode()
 
 void Parser::AnalyzeType(Type* type)
 {
-	NextType next = AnalyzeNextType();
+	NextType next = GetNextType(true);
 	if(next == NT_FUNC)
 	{
 		int flags = 0;
@@ -6171,73 +6163,4 @@ bool Parser::IsCtor(ParseNode* node)
 	}
 	else
 		return false;
-}
-
-NextType Parser::AnalyzeNextType()
-{
-	// function modifiers
-	if(t.IsKeywordGroup(G_KEYWORD))
-	{
-		int id = t.GetKeywordId(G_KEYWORD);
-		if(id == K_IMPLICIT || id == K_DELETE || id == K_STATIC)
-			return NT_FUNC;
-		else
-			return NT_INVALID;
-	}
-
-	tokenizer::Pos pos = t.GetPos();
-
-	// dtor
-	if(t.IsSymbol('~'))
-		t.Next();
-
-	// var type
-	if(!t.IsKeywordGroup(G_VAR) && !t.IsItem())
-	{
-		t.MoveTo(pos);
-		return NT_INVALID;
-	}
-	t.Next();
-
-	NextType result;
-
-	if(t.IsSymbol('('))
-	{
-		// ctor or dtor decl
-		// [~] item/type (
-		t.ForceMoveToClosingSymbol('(', ')');
-		t.Next();
-		if(t.IsSymbol('{'))
-			result = NT_FUNC;
-		else
-			result = NT_CALL;
-	}
-	else
-	{
-		if(t.IsSymbol('&'))
-			t.Next();
-
-		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
-			result = NT_FUNC;
-		else if(!t.IsItem())
-			result = NT_INVALID;
-		else
-		{
-			t.Next();
-			if(t.IsSymbol('('))
-			{
-				t.ForceMoveToClosingSymbol('(', ')');
-				t.Next();
-				if(t.IsSymbol('{'))
-					result = NT_FUNC;
-				else
-					result = NT_VAR_DECL;
-			}
-			else
-				result = NT_VAR_DECL;
-		}
-	}
-
-	t.MoveTo(pos);
-	return result;
 }

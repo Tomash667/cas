@@ -12,6 +12,7 @@ static int current_function, args_offset, locals_offset, current_line;
 static uint depth;
 static Module* module;
 static vector<RefVar*> refs;
+const uint MAX_STACK_DEPTH = 100u;
 
 Str* CreateStr()
 {
@@ -576,6 +577,13 @@ void Cast(Var& v, VarType vartype)
 	}
 
 #undef COMBINE
+}
+
+void PushStackFrame(StackFrame& frame)
+{
+	if(stack_frames.size() >= MAX_STACK_DEPTH)
+		throw CasException("Stack overflow.");
+	stack_frames.push_back(frame);
 }
 
 void RunInternal()
@@ -1515,7 +1523,8 @@ void RunInternal()
 				frame.current_line = current_line;
 				frame.expected_stack = expected;
 				frame.type = StackFrame::NORMAL;
-				stack_frames.push_back(frame);
+				PushStackFrame(frame);
+
 				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
@@ -1555,7 +1564,7 @@ void RunInternal()
 				frame.current_line = current_line;
 				frame.expected_stack = expected;
 				frame.type = StackFrame::CTOR;
-				stack_frames.push_back(frame);
+				PushStackFrame(frame);
 				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
@@ -1723,7 +1732,7 @@ void ReleaseClass(Class* c, bool dtor)
 			frame.expected_stack = stack.size();
 			frame.type = StackFrame::DTOR;
 			frame.pos = ctx.code_pos - ctx.code_start;
-			stack_frames.push_back(frame);
+			PushStackFrame(frame);
 
 			UserFunction& f = *c->type->dtor.uf;
 			local.push_back(Var(V_SPECIAL));

@@ -659,4 +659,9 @@ TEST_METHOD(ConstructorDestructorOutsideClass)
 	AssertError("Destructor can only be declared inside class.");
 }
 
+TEST_METHOD(StackOverflow)
+{
+	RunFailureTest("void f(){f();}();", "Exception: Stack overflow.");
+}
+
 CA_TEST_CLASS_END();

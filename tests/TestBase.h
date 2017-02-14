@@ -134,6 +134,7 @@ void CleanupAsserts();
 void AssertError(cstring error);
 void SetDecompile(bool decompile);
 void SetResetParser(bool reset_parser);
+void WriteOutput(cstring msg);
 
 struct Retval
 {

@@ -869,6 +869,36 @@ TEST_METHOD(CodeClassSubscriptOperator)
 }
 
 //=========================================================================================
+struct AR : public RefCounter
+{
+	int index;
+	AR(int index) : index(index) { WriteOutput(Format("C%d\n", index)); }
+	virtual ~AR() { WriteOutput(Format("D%d\n", index)); }
+};
+TEST_METHOD(RefCountedTypeOutOfScope)
+{
+	auto type = module->AddRefType<AR>("AR");
+	type->AddCtor<int>("AR(int index)");
+	RunTest(R"code(
+		void f()
+		{
+			AR a0(0);
+			{
+				AR a1(1);
+				{
+					AR a2(2);
+				}
+				{
+					AR a3(3);
+				}
+				AR a4(4);
+			}
+			AR a5(5);
+		}();
+	)code", "", "C0\nC1\nC2\nD2\nC3\nD3\nC4\nD1\nD4\nC5\nD5\nD0\n");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

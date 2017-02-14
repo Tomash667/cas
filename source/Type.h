@@ -154,6 +154,7 @@ struct Type : public cas::IClass, public cas::IEnum
 	inline bool IsSimple() const { return ::IsSimple(index); }
 	inline bool IsEnum() const { return enu != nullptr; }
 	inline bool IsBuiltin() const { return IsSimple() || index == V_STRING || IsEnum(); }
+	inline bool IsRefCounted() const { return IS_SET(flags, Type::RefCount); }
 
 	bool AddMember(cstring decl, int offset) override;
 	bool AddMethod(cstring decl, const cas::FunctionInfo& func_info) override;
