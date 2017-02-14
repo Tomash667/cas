@@ -40,6 +40,10 @@ public:
 	bool VerifyTypeName(cstring type_name);
 	cstring GetFunctionName(uint index, bool is_user);
 
+private:
+	void Cleanup(bool dtor);
+
+public:
 	std::map<int, Module*> modules;
 	vector<Function*> functions;
 	vector<UserFunction> ufuncs;

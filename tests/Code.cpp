@@ -899,6 +899,24 @@ TEST_METHOD(RefCountedTypeOutOfScope)
 }
 
 //=========================================================================================
+TEST_METHOD(GlobalReturnString)
+{
+	module->Parse(R"code(
+		int a = getint();
+		if(a == 0)
+			return "zero";
+		else
+			return "result="+a;
+	)code");
+
+	RunParsedTest("0");
+	retval.IsString("zero");
+
+	RunParsedTest("2");
+	retval.IsString("result=2");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

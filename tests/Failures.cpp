@@ -172,7 +172,6 @@ TEST_METHOD(InvalidAssignTypes)
 
 TEST_METHOD(InvalidGlobalReturnType)
 {
-	RunFailureTest("return \"dada\";", "Invalid type 'string' for global return.");
 	RunFailureTest("class A{} A a; return a;", "Invalid type 'A' for global return.");
 	RunFailureTest("int& f(int& a){return a;} int a; return f(a);", "Invalid type 'int&' for global return.");
 }

@@ -12,6 +12,7 @@ static int current_function, args_offset, locals_offset, current_line;
 static uint depth;
 static Module* module;
 static vector<RefVar*> refs;
+static Str* retval_str;
 const uint MAX_STACK_DEPTH = 100u;
 
 Str* CreateStr()
@@ -1383,7 +1384,13 @@ void RunInternal()
 					assert(stack.size() == 1u);
 					Var& v = stack.back();
 					module->return_value.type = module->GetType(v.vartype.type);
-					module->return_value.int_value = v.value;
+					if(v.vartype.type == V_STRING)
+					{
+						retval_str = v.str;
+						module->return_value.str_value = retval_str->s.c_str();
+					}
+					else
+						module->return_value.int_value = v.value;
 					stack.pop_back();
 				}
 				return;
@@ -1639,6 +1646,7 @@ bool Run(Module& _module)
 	module = &_module;
 
 	// prepare stack
+	CleanupReturnValue();
 	tmpv = Var();
 	stack.clear();
 	global.clear();
@@ -1759,5 +1767,14 @@ void ReleaseClass(Class* c, bool dtor)
 		Function* f = c->type->FindSpecialCodeFunction(SF_RELEASE);
 		assert(f);
 		CallSimpleFunction(f, c->adr);
+	}
+}
+
+void CleanupReturnValue()
+{
+	if(retval_str)
+	{
+		retval_str->Release();
+		retval_str = nullptr;
 	}
 }

@@ -24,14 +24,39 @@ Module::Module(int index, Module* parent_module) : inherited(false), parser(null
 
 Module::~Module()
 {
-	Str::Free(strs);
-	DeleteElements(types);
-	DeleteElements(tmp_types);
-	DeleteElements(functions);
-	delete parser;
+	Cleanup(true);
 
 	if(!all_modules_shutdown)
 		RemoveElement(all_modules, this);
+}
+
+void Module::Cleanup(bool dtor)
+{
+	CleanupReturnValue();
+
+	for(Str* s : strs)
+	{
+		if(s->refs == 1)
+			s->Free();
+		else
+			s->refs--;
+	}
+	strs.clear();
+
+	if(dtor)
+	{
+		DeleteElements(types);
+		DeleteElements(functions);
+		delete parser;
+	}
+	else
+	{
+		parser->Reset();
+		ufuncs.clear();
+		code.clear();
+	}
+
+	DeleteElements(tmp_types);
 }
 
 void Module::RemoveRef(bool release)
@@ -480,11 +505,7 @@ void Module::SetOptions(const Options& options)
 
 void Module::ResetParser()
 {
-	parser->Reset();
-	Str::Free(strs);
-	ufuncs.clear();
-	DeleteElements(tmp_types);
-	code.clear();
+	Cleanup(false);
 }
 
 cstring Module::GetFunctionName(uint index, bool is_user)

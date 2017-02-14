@@ -1,8 +1,9 @@
+? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
+
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
 + ParseFunctionArgs -> ParseConstExpr
 + set_tmp reference (string?), check string references
-? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
 + remove duplicates in string table
 + signaling parse/run thread to exit, not using TerminateThread
 + map of casts
@@ -34,7 +35,6 @@ IMPROVEMENT/VERIFY:
 + code constructor create copy two instance and then copy value from one to another
 
 FEATURE:
-+ string global return value
 + overload pre/post ++ --
 + nullable?
 + ++-- returns reference

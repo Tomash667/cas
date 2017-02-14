@@ -250,6 +250,7 @@ namespace cas
 			char char_value;
 			int int_value;
 			float float_value;
+			cstring str_value;
 		};
 	};
 

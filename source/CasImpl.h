@@ -13,6 +13,7 @@ class Parser;
 void InitLib(Module& module, Settings& settings);
 bool Run(Module& module);
 void Event(EventType event_type, cstring msg);
+void CleanupReturnValue();
 
 struct CasException
 {

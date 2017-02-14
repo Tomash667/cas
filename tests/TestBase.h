@@ -185,6 +185,13 @@ struct Retval
 		Assert::AreEqual(expected, ret.int_value);
 	}
 
+	void IsString(cstring expected)
+	{
+		ReturnValue ret = module->GetReturnValue();
+		Assert::AreEqual(IType::GenericType::String, ret.type->GetGenericType());
+		Assert::AreEqual(expected, ret.str_value);
+	}
+
 private:
 	IModule* module;
 };

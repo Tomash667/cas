@@ -1,1 +1,17 @@
-void f(){f();}();
+class A
+{
+	int i;
+	
+	A(int _i)
+	{
+		i = _i;
+	}
+	
+	void operator += (int x)
+	{
+		println(i+"+="+x);
+	}
+}
+
+A(1) += 4;
+pause();
