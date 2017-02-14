@@ -1,11 +1,8 @@
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
-? verify if ParseExpr type is longer used
-? parse class func checks FindEqualFunction without type
 + ParseFunctionArgs -> ParseConstExpr
 + set_tmp reference (string?), check string references
 ? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
-? verify if ParseExpr type is longer used
 + remove duplicates in string table
 + signaling parse/run thread to exit, not using TerminateThread
 + map of casts
@@ -42,8 +39,6 @@ FEATURE:
 + nullable?
 + ++-- returns reference
 + extension methods
-+ static ctor (like in c#)
-+ static member
 + named parameters
 + nested class
 	+ forward nested class usage
@@ -92,13 +87,17 @@ FEATURE:
 	}
 	unnamed struct
 + class
-	+ dtor
+	+ static constructor
+	+ static destructor
+	+ static member
 	+ string member
 	+ class member (detect recursion), allow declare member of same type as class (but prevent it until nullable type, just don't show error of unknown item)
+		+ member ctor decl
 	+ properties
 	+ default value for class argument in function
 	+ inhertiance
 	+ interfaces
+	+ allow call ctor from ctor
 + is operator
 	+ compare object and type if(a is INT2)
 + default string arg for code function
@@ -167,3 +166,4 @@ DEBUG:
 + remove builtin functions from disasembly
 + debugger
 + include code in decompile
++ decompiler - calculate next function offset

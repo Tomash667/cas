@@ -9,23 +9,42 @@ struct CommonFunction;
 struct Member;
 struct ParseFunction;
 struct Type;
+struct UserFunction;
 enum SpecialFunction;
 
 // code or script function
 struct AnyFunction
 {
+	enum Type
+	{
+		NONE,
+		CODE,
+		PARSE,
+		SCRIPT
+	};
+
 	union
 	{
 		Function* f;
 		ParseFunction* pf;
 		CommonFunction* cf;
+		UserFunction* uf;
 	};
-	bool is_parse;
+	Type type;
 
-	inline AnyFunction(std::nullptr_t) : cf(nullptr), is_parse(false) {}
-	inline AnyFunction(Function* f) : f(f), is_parse(false) {}
-	inline AnyFunction(ParseFunction* pf) : pf(pf), is_parse(true) {}
-	inline operator bool() const { return cf != nullptr; }
+	inline AnyFunction(std::nullptr_t) : cf(nullptr), type(NONE) {}
+	inline AnyFunction(Function* f) : f(f), type(CODE) {}
+	inline AnyFunction(ParseFunction* pf) : pf(pf), type(PARSE) {}
+	inline AnyFunction(UserFunction* uf) : uf(uf), type(SCRIPT) {}
+	inline AnyFunction(CommonFunction* cf, Type type) : cf(cf), type(type) {}
+
+	inline operator bool() const { return type != NONE; }
+	inline bool operator == (const AnyFunction& f) const { return type == f.type && cf == f.cf; }
+	inline bool operator != (const AnyFunction& f) const { return type != f.type || cf != f.cf; }
+
+	inline bool IsCode() const { return type == CODE; }
+	inline bool IsParse() const { return type == PARSE; }
+	inline bool IsScript() const { return type == SCRIPT; }
 };
 
 // string implementation
@@ -34,11 +53,16 @@ struct Str : ObjectPoolProxy<Str>
 	string s;
 	int refs;
 
-	inline void Release()
+	inline bool Release()
 	{
 		--refs;
 		if(refs == 0)
+		{
 			Free();
+			return true;
+		}
+		else
+			return false;
 	}
 };
 
@@ -100,20 +124,22 @@ struct Type : public cas::IClass, public cas::IEnum
 		Class = 1 << 5,
 		Code = 1 << 6,
 		PassByValue = 1 << 7, // struct/string
-		RefCount = 1 << 8
+		RefCount = 1 << 8,
+		BuiltinCtor
 	};
 
 	Module* module;
 	string name;
 	vector<Function*> funcs;
 	vector<ParseFunction*> ufuncs;
+	AnyFunction dtor;
 	vector<Member*> members;
 	Enum* enu;
 	int size, index, flags;
 	uint first_line, first_charpos;
-	bool declared, built;
+	bool declared, built, have_def_value;
 
-	inline Type() : enu(nullptr) {}
+	inline Type() : enu(nullptr), dtor(nullptr), have_def_value(false) {}
 	~Type();
 	Member* FindMember(const string& name, int& index);
 	Function* FindCodeFunction(cstring name);
@@ -128,6 +154,7 @@ struct Type : public cas::IClass, public cas::IEnum
 	inline bool IsSimple() const { return ::IsSimple(index); }
 	inline bool IsEnum() const { return enu != nullptr; }
 	inline bool IsBuiltin() const { return IsSimple() || index == V_STRING || IsEnum(); }
+	inline bool IsRefCounted() const { return IS_SET(flags, Type::RefCount); }
 
 	bool AddMember(cstring decl, int offset) override;
 	bool AddMethod(cstring decl, const cas::FunctionInfo& func_info) override;
@@ -165,6 +192,7 @@ struct Member : public VarSource
 		Set
 	};
 	UsedMode used;
+	tokenizer::Pos pos;
 	bool have_def_value;
 };
 

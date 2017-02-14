@@ -38,7 +38,7 @@ namespace cas
 			static const bool value = (std::is_pointer<T>::value || std::is_reference<T>::value);
 		};
 
-		struct AsCtorHelper
+		struct CtorDtorHelper
 		{
 			template<typename T, typename... Args>
 			static T Create(Args... args)
@@ -50,6 +50,18 @@ namespace cas
 			static T* CreateNew(Args... args)
 			{
 				return new T(args...);
+			}
+
+			template<typename T>
+			static void Destroy(T& item)
+			{
+				item.~T();
+			}
+
+			template<typename T>
+			static void DestroyNew(T* item)
+			{
+				delete item;
 			}
 		};
 
@@ -84,6 +96,7 @@ namespace cas
 	{
 	public:
 		RefCounter() : refs(1) {}
+		virtual ~RefCounter() {}
 		inline void AddRef() { ++refs; }
 		inline void Release() { if(--refs == 0) delete this; }
 		inline int GetRefs() const { return refs; }
@@ -169,8 +182,16 @@ namespace cas
 		inline bool AddCtor(cstring decl)
 		{
 			FunctionInfo info = (generic_type == GenericType::Struct) ?
-				FunctionInfo(internal::AsCtorHelper::Create<T, Args...>) : FunctionInfo(internal::AsCtorHelper::CreateNew<T, Args...>);
+				FunctionInfo(internal::CtorDtorHelper::Create<T, Args...>) : FunctionInfo(internal::CtorDtorHelper::CreateNew<T, Args...>);
 			return AddMethod(decl, info);
+		}
+
+		template<typename T>
+		inline bool AddDtor()
+		{
+			FunctionInfo info = (generic_type == GenericType::Struct) ?
+				FunctionInfo(internal::CtorDtorHelper::Destroy<T>) : FunctionInfo(internal::CtorDtorHelper::DestroyNew<T>);
+			return AddMethod(Format("~%s()", GetName()), info);
 		}
 	};
 
@@ -182,6 +203,11 @@ namespace cas
 		inline bool AddCtor(cstring decl)
 		{
 			return IClass::AddCtor<T, Args...>(decl);
+		}
+
+		inline bool AddDtor()
+		{
+			return IClass::AddDtor<T>();
 		}
 	};
 

@@ -4,6 +4,7 @@
 #include "Op.h"
 #include "Run.h"
 
+static RunContext ctx;
 static vector<Var> stack, global, local;
 static Var tmpv;
 static vector<StackFrame> stack_frames;
@@ -11,6 +12,7 @@ static int current_function, args_offset, locals_offset, current_line;
 static uint depth;
 static Module* module;
 static vector<RefVar*> refs;
+const uint MAX_STACK_DEPTH = 100u;
 
 Str* CreateStr()
 {
@@ -44,16 +46,19 @@ void AddRef(Var& v)
 
 void ReleaseRef(Var& v)
 {
+	bool deleted = true;
 	if(v.vartype == V_STRING)
-		v.str->Release();
+		deleted = v.str->Release();
 	else if(v.vartype.type == V_REF)
-		v.ref->Release();
+		deleted = v.ref->Release();
 	else
 	{
 		Type* type = module->GetType(v.vartype.type);
 		if(type->IsClass())
-			v.clas->Release();
+			deleted = v.clas->Release();
 	}
+	if(deleted)
+		v.vartype = V_VOID;
 }
 
 struct GetRefData
@@ -426,16 +431,19 @@ void MakeSingleInstance(Var& v)
 {
 	Type* type = module->GetType(v.vartype.type);
 	assert(type && type->IsStruct());
-	assert(v.clas->refs >= START_REF_COUNT);
-	if(v.clas->refs <= START_REF_COUNT && !v.clas->is_code)
+	assert(v.clas->refs >= 1);
+	if(v.clas->refs <= 1 && !v.clas->is_code)
 		return;
 	Class* copy = Class::Copy(v.clas);
 	ReleaseRef(v);
 	v.clas = copy;
+	assert(v.vartype == VarType(v.clas->type->index, 0));
 }
 
-void SetFromStack(Var& v)
+// passed by VectorOffset because ReleaseRef can modify vector and invalidate reference
+void SetFromStack(VectorOffset<Var>& vo)
 {
+	Var& v = vo();
 	assert(!stack.empty());
 	Var& s = stack.back();
 	assert(v.vartype == V_VOID || v.vartype == s.vartype);
@@ -455,7 +463,9 @@ void SetFromStack(Var& v)
 		{
 			// free what was in variable previously
 			ReleaseRef(v);
-			// incrase reference for new var
+			// incrase reference for new var, ReleaseRef can invalidate s & v
+			Var& v = vo();
+			Var& s = stack.back();
 			AddRef(s);
 			v = s;
 		}
@@ -569,11 +579,16 @@ void Cast(Var& v, VarType vartype)
 #undef COMBINE
 }
 
+void PushStackFrame(StackFrame& frame)
+{
+	if(stack_frames.size() >= MAX_STACK_DEPTH)
+		throw CasException("Stack overflow.");
+	stack_frames.push_back(frame);
+}
+
 void RunInternal()
 {
-	int* start = module->code.data();
-	int* end = start + module->code.size();
-	int* c = start + module->entry_point;
+	int*& c = ctx.code_pos;
 
 	while(true)
 	{
@@ -851,16 +866,14 @@ void RunInternal()
 				uint local_index = *c++;
 				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
 				assert(module->ufuncs[current_function].locals > local_index);
-				Var& v = local[locals_offset + local_index];
-				SetFromStack(v);
+				SetFromStack(VectorOffset<Var>(local, locals_offset + local_index));
 			}
 			break;
 		case SET_GLOBAL:
 			{
 				uint global_index = *c++;
 				assert(global_index < global.size());
-				Var& v = global[global_index];
-				SetFromStack(v);
+				SetFromStack(VectorOffset<Var>(global, global_index));
 			}
 			break;
 		case SET_ARG:
@@ -868,8 +881,7 @@ void RunInternal()
 				uint arg_index = *c++;
 				assert(current_function != -1 && (uint)current_function < module->ufuncs.size());
 				assert(module->ufuncs[current_function].args.size() > arg_index);
-				Var& v = local[args_offset + arg_index];
-				SetFromStack(v);
+				SetFromStack(VectorOffset<Var>(local, args_offset + arg_index));
 			}
 			break;
 		case SET_MEMBER:
@@ -1353,6 +1365,7 @@ void RunInternal()
 			}
 			break;
 		case RET:
+			// return from function/main
 			if(current_function == -1)
 			{
 				// set & validate return value
@@ -1360,11 +1373,13 @@ void RunInternal()
 				assert(local.empty());
 				if(stack.empty())
 				{
+					// set void as return value
 					module->return_value.int_value = 0;
 					module->return_value.type = module->GetType(V_VOID);
 				}
 				else
 				{
+					// set return value
 					assert(stack.size() == 1u);
 					Var& v = stack.back();
 					module->return_value.type = module->GetType(v.vartype.type);
@@ -1379,7 +1394,6 @@ void RunInternal()
 				UserFunction& f = module->ufuncs[current_function];
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
-				StackFrame& frame = stack_frames.back();
 				Var& func_mark = *(local.end() - to_pop - 1);
 				assert(func_mark.vartype.type == V_SPECIAL);
 				while(!refs.empty())
@@ -1387,7 +1401,7 @@ void RunInternal()
 					RefVar* ref = refs.back();
 					if(ref->depth != depth)
 						break;
-					if(ref->refs != START_REF_COUNT)
+					if(ref->refs != 1)
 					{
 						assert(ref->index < local.size());
 						Var& vr = local[ref->index];
@@ -1398,22 +1412,27 @@ void RunInternal()
 					refs.pop_back();
 				}
 				--depth;
-				if(frame.is_ctor)
+				if(stack_frames.back().type == StackFrame::CTOR)
 					--to_pop;
+				int tmp_cleanup_offset = ctx.cleanup_offset;
+				ctx.cleanup_offset = 0;
 				while(to_pop--)
 				{
 					Var& v = local.back();
 					ReleaseRef(v);
 					local.pop_back();
+					ctx.cleanup_offset++;
 				}
+				ctx.cleanup_offset = tmp_cleanup_offset;
+				StackFrame& frame = stack_frames.back();
 				Class* thi = nullptr;
-				if(frame.is_ctor)
+				if(frame.type == StackFrame::CTOR)
 				{
 					assert(local.back().vartype.type == f.type);
 					thi = local.back().clas;
 					local.pop_back();
 				}
-				c = start + frame.pos;
+				c = ctx.code_start + frame.pos;
 				current_function = frame.current_function;
 				local.pop_back();
 				if(current_function != -1)
@@ -1422,11 +1441,11 @@ void RunInternal()
 					assert((uint)current_function < module->ufuncs.size());
 					UserFunction& f = module->ufuncs[current_function];
 					uint count = 1 + f.locals + f.args.size();
-					assert(local.size() >= count);
-					Var& d = *(local.end() - count);
+					assert(local.size() >= count - ctx.cleanup_offset);
+					Var& d = *(local.end() - (count - ctx.cleanup_offset));
 					assert(d.vartype.type == V_SPECIAL);
-					locals_offset = local.size() - f.locals;
-					args_offset = locals_offset - f.args.size();
+					locals_offset = local.size() - f.locals - ctx.cleanup_offset;
+					args_offset = locals_offset - f.args.size() - ctx.cleanup_offset;
 				}
 				if(thi)
 					stack.push_back(Var(thi));
@@ -1434,22 +1453,27 @@ void RunInternal()
 				if(f.result.type != V_VOID)
 					assert(stack.back().vartype == f.result);
 				current_line = frame.current_line;
+				if(frame.type == StackFrame::DTOR)
+				{
+					stack_frames.pop_back();
+					return;
+				}
 				stack_frames.pop_back();
 			}
 			break;
 		case JMP:
 			{
 				uint offset = *c;
-				c = start + offset;
-				assert(c < end);
+				c = ctx.code_start + offset;
+				assert(c < ctx.code_end);
 			}
 			break;
 		case TJMP:
 		case FJMP:
 			{
 				uint offset = *c++;
-				int* new_c = start + offset;
-				assert(new_c < end);
+				int* new_c = ctx.code_start + offset;
+				assert(new_c < ctx.code_end);
 				assert(!stack.empty());
 				Var v = stack.back();
 				stack.pop_back();
@@ -1474,7 +1498,7 @@ void RunInternal()
 				assert(f_idx < module->ufuncs.size());
 				UserFunction& f = module->ufuncs[f_idx];
 				// mark function call
-				uint pos = c - start;
+				uint pos = c - ctx.code_start;
 				local.push_back(Var(V_SPECIAL));
 				// handle args
 				assert(stack.size() >= f.args.size());
@@ -1498,12 +1522,13 @@ void RunInternal()
 				frame.current_function = current_function;
 				frame.current_line = current_line;
 				frame.expected_stack = expected;
-				frame.is_ctor = false;
-				stack_frames.push_back(frame);
+				frame.type = StackFrame::NORMAL;
+				PushStackFrame(frame);
+
 				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
-				c = start + f.pos;
+				c = ctx.code_start + f.pos;
 				++depth;
 			}
 			break;
@@ -1513,7 +1538,7 @@ void RunInternal()
 				assert(f_idx < module->ufuncs.size());
 				UserFunction& f = module->ufuncs[f_idx];
 				// mark function call
-				uint pos = c - start;
+				uint pos = c - ctx.code_start;
 				local.push_back(Var(V_SPECIAL));
 				// push this
 				args_offset = local.size();
@@ -1538,12 +1563,12 @@ void RunInternal()
 				frame.current_function = current_function;
 				frame.current_line = current_line;
 				frame.expected_stack = expected;
-				frame.is_ctor = true;
-				stack_frames.push_back(frame);
+				frame.type = StackFrame::CTOR;
+				PushStackFrame(frame);
 				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
-				c = start + f.pos;
+				c = ctx.code_start + f.pos;
 				++depth;
 			}
 			break;
@@ -1576,7 +1601,7 @@ void RunInternal()
 						break;
 					if(ref->var_index == index)
 					{
-						if(ref->refs != START_REF_COUNT)
+						if(ref->refs != 1)
 						{
 							assert(ref->index < local.size());
 							Var& vr = local[ref->index];
@@ -1591,6 +1616,13 @@ void RunInternal()
 				assert(any);
 			}
 			break;
+		case RELEASE_OBJ:
+			{
+				int local_index = *c++;
+				Var& v = local[locals_offset + local_index];
+				ReleaseRef(v);
+			}
+			break;
 		case LINE:
 			current_line = *c++;
 			break;
@@ -1598,7 +1630,7 @@ void RunInternal()
 			assert(0);
 			break;
 		}
-		assert(c < end);
+		assert(c < ctx.code_end);
 	}
 }
 
@@ -1620,6 +1652,10 @@ bool Run(Module& _module)
 	all_classes.clear();
 	all_refs.clear();
 #endif
+	ctx.code_start = module->code.data();
+	ctx.code_end = ctx.code_start + module->code.size();
+	ctx.code_pos = ctx.code_start + module->entry_point;
+	ctx.cleanup_offset = 0;
 
 	bool result;
 	try
@@ -1633,16 +1669,8 @@ bool Run(Module& _module)
 		for(Var& v : global)
 			ReleaseRef(v);
 #ifdef CHECK_LEAKS
-		for(RefVar* r : all_refs)
-		{
-			assert(r->refs == 1);
-			delete r;
-		}
-		for(Class* c : all_classes)
-		{
-			assert(c->refs == 1);
-			c->Delete();
-		}
+		assert(all_refs.empty());
+		assert(all_classes.empty());
 #endif
 	}
 	catch(const CasException& ex)
@@ -1664,11 +1692,9 @@ std::pair<cstring, int> cas::GetCurrentLocation()
 	return std::pair<cstring, uint>(func_name, current_line);
 }
 
-void ReleaseClass(Class* c)
+void CallSimpleFunction(Function* f, void* _this)
 {
-	Function* f = c->type->FindSpecialCodeFunction(SF_RELEASE);
 	void* clbk = f->clbk;
-	void* _this = c->adr;
 	int to_push = IS_SET(f->flags, CommonFunction::F_THISCALL) ? 4 : 0;
 
 	__asm
@@ -1688,4 +1714,50 @@ void ReleaseClass(Class* c)
 		add esp, to_push;
 		pop ecx;
 	};
+}
+
+void ReleaseClass(Class* c, bool dtor)
+{
+	if(dtor)
+	{
+		assert(c->type->dtor);
+		if(c->type->dtor.IsScript())
+		{
+			// incrase reference to prevent infinite release loop
+			c->refs = 2;
+
+			StackFrame frame;
+			frame.current_function = current_function;
+			frame.current_line = current_line;
+			frame.expected_stack = stack.size();
+			frame.type = StackFrame::DTOR;
+			frame.pos = ctx.code_pos - ctx.code_start;
+			PushStackFrame(frame);
+
+			UserFunction& f = *c->type->dtor.uf;
+			local.push_back(Var(V_SPECIAL));
+
+			// push this
+			args_offset = local.size();
+			local.push_back(Var(c));
+			// handle locals
+			locals_offset = local.size();
+			local.resize(local.size() + f.locals);
+			// jmp to new location
+			current_function = c->type->dtor.uf->index;
+			current_line = -1;
+			ctx.code_pos = ctx.code_start + f.pos;
+			++depth;
+
+			RunInternal();
+		}
+		else
+			CallSimpleFunction(c->type->dtor.f, c->adr);
+	}
+	else
+	{
+		Function* f = c->type->FindSpecialCodeFunction(SF_RELEASE);
+		assert(f);
+		CallSimpleFunction(f, c->adr);
+	}
 }

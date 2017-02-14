@@ -175,7 +175,7 @@ static A* createA()
 
 static void checkA(A* a)
 {
-	Assert::AreEqual(1, a->GetRefs()); // 1 refernce in script
+	Assert::AreEqual(1, a->GetRefs()); // 1 reference in script
 	A::global = a;
 	a->AddRef(); // now two references
 }
@@ -824,7 +824,6 @@ TEST_METHOD(ComplexTwoScriptsCombined)
 	)code");
 	module->Parse("float f = 3.14, g = 7.11; return a + f;");
 
-	SetDecompile(true);
 	RunParsedTest("7");
 	retval.IsFloat(3.33f);
 
@@ -867,6 +866,36 @@ TEST_METHOD(CodeClassSubscriptOperator)
 		Assert_AreEqual(-11, a[3]);
 		Assert_AreEqual(9, a[4]);
 	)code");
+}
+
+//=========================================================================================
+struct AR : public RefCounter
+{
+	int index;
+	AR(int index) : index(index) { WriteOutput(Format("C%d\n", index)); }
+	virtual ~AR() { WriteOutput(Format("D%d\n", index)); }
+};
+TEST_METHOD(RefCountedTypeOutOfScope)
+{
+	auto type = module->AddRefType<AR>("AR");
+	type->AddCtor<int>("AR(int index)");
+	RunTest(R"code(
+		void f()
+		{
+			AR a0(0);
+			{
+				AR a1(1);
+				{
+					AR a2(2);
+				}
+				{
+					AR a3(3);
+				}
+				AR a4(4);
+			}
+			AR a5(5);
+		}();
+	)code", "", "C0\nC1\nC2\nD2\nC3\nD3\nC4\nD1\nD4\nC5\nD5\nD0\n");
 }
 
 //=========================================================================================

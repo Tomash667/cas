@@ -85,6 +85,7 @@ struct INT2
 };
 TEST_METHOD(ReturnReferenceToPassedStruct)
 {
+	SetDecompile(true);
 	auto type = module->AddType<INT2>("INT2", cas::ValueType);
 	type->AddMember("int x", offsetof(INT2, x));
 	type->AddMember("int y", offsetof(INT2, y));
@@ -243,6 +244,38 @@ TEST_METHOD(CallOperatorOnClassReference)
 		X x;
 		f(x);
 	)code");
+}
+
+TEST_METHOD(MultipleFilesAndFunctions)
+{
+	module->Parse(R"code(
+		void f1() { print("1"); }
+		void f2() { print("2"); }
+		f1();
+		f2();
+	)code");
+	module->Parse(R"code(
+		void f3() { print("3"); }
+		void f4() { print("4"); }
+		f1();
+		f3();
+		f4();
+	)code");
+	module->Parse(R"code(
+		void f5() { print("5"); }
+		void f6() { print("6"); }
+		f2();
+		f5();
+		f3();
+		f6();
+	)code");
+
+	RunParsedTest("", "121342536");
+}
+
+TEST_METHOD(EmptyConstructorWithMembers)
+{
+	RunTest("class A{int x;A(){}}");
 }
 
 CA_TEST_CLASS_END();

@@ -27,6 +27,7 @@ enum SpecialFunction
 {
 	SF_NO,
 	SF_CTOR,
+	SF_DTOR,
 	SF_CAST,
 	SF_ADDREF,
 	SF_RELEASE
@@ -46,6 +47,9 @@ struct CommonFunction
 		F_DEFAULT = 1 << 6
 	};
 
+#ifdef _DEBUG
+	string decl;
+#endif
 	string name;
 	VarType result;
 	int index, type, flags;
@@ -58,6 +62,15 @@ struct CommonFunction
 	inline bool IsBuiltin() const { return IS_SET(flags, F_BUILTIN); }
 	inline bool IsCode() const { return IS_SET(flags, F_CODE); }
 	inline bool IsStatic() const { return IS_SET(flags, F_STATIC); }
+	inline bool IsDefault() const { return IS_SET(flags, F_DEFAULT); }
+
+	// Should function pass this as first argument, 
+	// Non static methods, except code ctors
+	inline bool PassThis() const
+	{
+		
+		return type != V_VOID && !(IsStatic() || (IsCode() && special == SF_CTOR));
+	}
 };
 
 // code function
@@ -74,5 +87,5 @@ struct UserFunction
 	uint locals;
 	VarType result;
 	vector<VarType> args;
-	int type;
+	int type, index;
 };

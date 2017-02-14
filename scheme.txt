@@ -82,7 +82,8 @@ expr_part:
 item:
 	const_item
 	<var_name>
-	<func> args
+	<func> args // function call
+	[~] <var_type> args // ctor/dtor call
 	<class_name> args
 	enum_item
 	<enum_val_name> // only in enum_val const_expr

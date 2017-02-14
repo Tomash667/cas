@@ -210,13 +210,39 @@ TestMethod(LongRefAssign)
 
 TestMethod(VardeclAssign)
 {
-	RunFileTest("vardecl_assign.txt", "", "ctor0\n---\nctor2\n---\nctor2\nassign\n---\nctor2\n---\nctor2\nassign\n---\nctor2\nctor2\n---\nassign\nctor2\n"
-		"ctor2\n");
+	RunFileTest("vardecl_assign.txt", "",
+		"ctor0\n-A-\nctor2\nctor2\nassign\n-B-\nctor2\nctor1\nctor2\nassign\n-C-\nctor1\nctor2\nctor2\nassign\nctor2\nctor2\n");
 }
 
 TestMethod(Enum)
 {
 	RunFileTest("enum.txt");
+}
+
+TestMethod(Dtor)
+{
+	RunFileTest("dtor.txt", "",
+		R"result(A,4
+~A, 4
+A,1
+A,2
+~A, 2
+A,3
+A =, 3->8
+~A, 3
+~A, 8
+A,20
+A copy, 20->200
+~A, 200
+~A, 20
+A,40
+A,50
+A,30
+A =, 30->35
+~A, 30
+~A, 40
+~A, 35
+)result");
 }
 
 CA_TEST_CLASS_END();

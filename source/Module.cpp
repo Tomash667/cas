@@ -81,6 +81,9 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 	else
 		f->flags |= CommonFunction::F_CODE;
 	f->index = (index << 16) | functions.size();
+#ifdef _DEBUG
+	f->decl = parser->GetName(f);
+#endif
 	functions.push_back(f);
 	return true;
 }
@@ -135,6 +138,9 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 	}
 	f->index = (index << 16) | functions.size();
 	type->funcs.push_back(f);
+#ifdef _DEBUG
+	f->decl = parser->GetName(f);
+#endif
 	functions.push_back(f);
 	return true;
 }

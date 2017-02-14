@@ -190,6 +190,8 @@ void Parser::AddChildModulesKeywords()
 bool Parser::Parse(ParseSettings& settings)
 {
 	optimize = settings.optimize;
+	ufunc_offset = module->ufuncs.size();
+	tmp_type_offset = module->tmp_types.size();
 	t.FromString(settings.input);
 
 	try
@@ -215,12 +217,13 @@ bool Parser::Parse(ParseSettings& settings)
 
 void Parser::FinishRunModule()
 {
-	uint offset = module->ufuncs.size();
-	module->ufuncs.resize(offset + ufuncs.size());
+	// convert parse functions to script functions
+	module->ufuncs.resize(ufunc_offset + ufuncs.size());
 	for(uint i = 0; i < ufuncs.size(); ++i)
 	{
 		ParseFunction& f = *ufuncs[i];
-		UserFunction& uf = module->ufuncs[i + offset];
+		UserFunction& uf = module->ufuncs[i + ufunc_offset];
+		uf.index = i + ufunc_offset;
 		uf.name = GetName(&f);
 		uf.pos = f.pos;
 		uf.locals = f.locals;
@@ -228,7 +231,20 @@ void Parser::FinishRunModule()
 		for(auto& arg : f.arg_infos)
 			uf.args.push_back(arg.vartype);
 		uf.type = f.type;
+		if(f.IsBuiltin())
+			uf.pos = -1;
 	}
+
+	// convert types dtor from parse function to script function
+	for(int i = tmp_type_offset, count = (int)module->tmp_types.size(); i < count; ++i)
+	{
+		Type* type = module->tmp_types[i];
+		if(!type->dtor)
+			continue;
+		assert(type->dtor.type == AnyFunction::PARSE);
+		type->dtor = &module->ufuncs[type->dtor.pf->index + ufunc_offset];
+	}
+
 	module->globals = main_block->GetMaxVars();
 }
 
@@ -364,10 +380,14 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 		// cleanup block if it's not function main block
 		for(ParseVar* var : current_block->vars)
 		{
-			if(var->referenced)
+			Type* var_type = GetType(var->vartype.GetType());
+			if(var->referenced || var_type->dtor || var_type->IsRefCounted())
 			{
+				assert(var->referenced ^ (var_type->dtor || var_type->IsRefCounted()));
+				if(!var->referenced)
+					assert(var->subtype == ParseVar::LOCAL);
 				ParseNode* rel = ParseNode::Get();
-				rel->op = RELEASE_REF;
+				rel->op = (var->referenced ? RELEASE_REF : RELEASE_OBJ);
 				rel->value = (var->subtype == ParseVar::LOCAL ? var->index : -var->index - 1);
 				rel->result = V_VOID;
 				rel->source = nullptr;
@@ -551,32 +571,20 @@ ParseNode* Parser::ParseLine()
 	else if(t.IsKeywordGroup(G_VAR))
 	{
 		// is this function or var declaration or ctor
-		int next_type = GetNextType();
+		NextType next_type = GetNextType(false);
 		switch(next_type)
 		{
-		case 0:
+		case NT_VAR_DECL:
 			{
 				// var
 				ParseNode* node = ParseVarTypeDecl();
 				t.Next();
 				return node;
 			}
-		case 1:
-			{
-				// ctor
-				VarType vartype = GetVarType(false);
-				t.AssertSymbol('(');
-				t.Next();
-				NodeRef node = ParseExpr(&vartype);
-				t.AssertSymbol(';');
-				t.Next();
-				return node.Pin();
-			}
-		case 2:
+		case NT_FUNC:
 			return ParseFunc();
-		case 3:
-			t.Throw("Operator function can be used only inside class.");
-		case 4:
+		case NT_CALL:
+		case NT_INVALID:
 			// fallback to ParseExpr
 			break;
 		default:
@@ -677,63 +685,76 @@ void Parser::ParseClass(bool is_struct)
 			t.Throw("Enum can't be declared inside class.");
 
 		// member, method or ctor
-		if(GetNextType() != 0)
+		NextType next = GetNextType(false);
+		switch(next)
 		{
-			Ptr<ParseFunction> f;
-			f->flags = 0;
-			current_function = f;
-
-			ParseFuncInfo(f, type, false);
-
-			AnyFunction af = FindEqualFunction(type, AnyFunction(f));
-			assert(af && af.is_parse);
-
-			// block
-			ParseFunction* func = af.pf;
-			if(!IS_SET(func->flags, CommonFunction::F_DELETE))
+		case NT_VAR_DECL:
+			ParseMemberDeclClass(type, pad);
+			break;
+		case NT_FUNC:
 			{
-				current_function = func;
-				if(current_function->special == SF_CTOR)
+				Ptr<ParseFunction> f;
+				f->flags = 0;
+				current_function = f;
+
+				ParseFuncInfo(f, type, false);
+
+				AnyFunction af = FindEqualFunction(type, AnyFunction(f));
+				assert(af.IsParse());
+
+				// block
+				ParseFunction* func = af.pf;
+				if(!IS_SET(func->flags, CommonFunction::F_DELETE))
 				{
-					for(Member* m : type->members)
-						m->used = Member::No;
-				}
-				func->node = ParseBlock(func);
-				if(current_function->special == SF_CTOR)
-				{
-					bool any = false;
-					for(Member* m : type->members)
+					current_function = func;
+					if(current_function->special == SF_CTOR)
 					{
-						if(m->used != Member::Set)
-						{
-							any = true;
-							break;
-						}
+						for(Member* m : type->members)
+							m->used = Member::No;
 					}
-					if(any)
+					func->node = ParseBlock(func);
+					if(current_function->special == SF_CTOR)
 					{
-						ParseNode* group = ParseNode::Get();
+						bool any = false;
 						for(Member* m : type->members)
 						{
 							if(m->used != Member::Set)
 							{
-								ParseNode* node = ParseNode::Get();
-								SetParseNodeFromMember(node, m);
-								group->push(node);
-								group->push(SET_THIS_MEMBER, m->index);
-								group->push(POP);
+								any = true;
+								break;
 							}
 						}
-						group->result = V_VOID;
-						group->pseudo_op = INTERNAL_GROUP;
-						func->node->childs.insert(func->node->childs.begin(), group);
+						if(any)
+						{
+							ParseNode* group = ParseNode::Get();
+							for(Member* m : type->members)
+							{
+								if(m->used != Member::Set)
+								{
+									ParseNode* node = ParseNode::Get();
+									SetParseNodeFromMember(node, m);
+									group->push(node);
+									group->push(SET_THIS_MEMBER, m->index);
+									group->push(POP);
+								}
+							}
+							group->result = V_VOID;
+							group->pseudo_op = INTERNAL_GROUP;
+							if(func->node)
+								func->node->childs.insert(func->node->childs.begin(), group);
+							else
+								func->node = group;
+						}
 					}
 				}
+				current_function = nullptr;
 			}
-			current_function = nullptr;
+			break;
+		case NT_INVALID:
+		case NT_CALL:
+			t.ThrowExpecting("member or method declaration");
+			break;
 		}
-		else
-			ParseMemberDeclClass(type, pad);
 	}
 	t.Next();
 
@@ -999,6 +1020,9 @@ void Parser::ParseEnum(bool forward)
 	f->result = V_BOOL;
 	f->special = SF_NO;
 	f->type = type->index;
+#ifdef _DEBUG
+	f->decl = GetName(f);
+#endif
 	type->ufuncs.push_back(f);
 	ufuncs.push_back(f);
 }
@@ -1088,6 +1112,11 @@ void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 			t.Next();
 			t.SkipTo([](Tokenizer& t) { return t.IsSymbol(',') || t.IsSymbol(';'); });
 		}
+		else if(t.IsSymbol('('))
+		{
+			t.ForceMoveToClosingSymbol('(', ')');
+			t.Next();
+		}
 		
 		if(t.IsSymbol(';'))
 			break;
@@ -1108,7 +1137,7 @@ ParseNode* Parser::ParseFunc()
 	current_function = f;
 	ParseFuncInfo(f, nullptr, false);
 	AnyFunction af = FindEqualFunction(f);
-	assert(af && af.is_parse);
+	assert(af.IsParse());
 
 	// block
 	ParseFunction* func = af.pf;
@@ -1122,7 +1151,7 @@ ParseNode* Parser::ParseFunc()
 	// call
 	if(t.IsSymbol('('))
 	{
-		NodeRef call = ParseExpr(nullptr, func);
+		NodeRef call = ParseExpr(func);
 		t.AssertSymbol(';');
 		return call.Pin();
 	}
@@ -1177,19 +1206,34 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 {
 	ParseFuncModifiers(type != nullptr, f->flags);
 
-	bool oper = false;
+	bool oper = false, dtor = false;
 	BASIC_SYMBOL symbol = BS_MAX;
+
+	if(t.IsSymbol('~'))
+	{
+		dtor = true;
+		t.Next();
+	}
+
 	f->result = GetVarType(false, in_cpp);
 	f->type = (type ? type->index : V_VOID);
 
-	if(type && type->index == f->result.type && t.IsSymbol('('))
+	if(t.IsSymbol('('))
 	{
-		// ctor
-		f->special = SF_CTOR;
-		f->name = type->name;
+		// ctor/dtor
+		if(type && type->index == f->result.type)
+		{
+			f->special = (dtor ? SF_DTOR : SF_CTOR);
+			f->name = type->name;
+		}
+		else
+			t.Throw("%s can only be declared inside class.", dtor ? "Destructor" : "Constructor");
 	}
 	else
 	{
+		if(dtor)
+			t.Throw("Destructor tag mismatch.");
+
 		if(in_cpp)
 		{
 			if(f->result.type == V_REF)
@@ -1296,6 +1340,24 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		if(f->arg_infos.size() != 1u // first arg is this
 			&& (f->special == SF_CAST || f->result.type == V_VOID)) // returns void or is cast
 			t.Throw("Invalid cast operator definition '%s'.", GetName(f));
+	}
+	else if(f->special == SF_DTOR)
+	{
+		if(f->arg_infos.size() != 1u)
+			t.Throw("Destructor can't have arguments.");
+		if(IS_SET(type->flags, Type::RefCount))
+			t.Throw("Reference counted type can't have destructor.");
+		if(in_cpp)
+		{
+			AnyFunction dtor(f, in_cpp ? AnyFunction::CODE : AnyFunction::PARSE);
+			if(type->dtor)
+			{
+				if(type->dtor != dtor)
+					t.Throw("Type '%s' have already declared destructor.", type->name.c_str());
+			}
+			else
+				type->dtor = dtor;
+		}
 	}
 
 	if(symbol != BS_MAX)
@@ -1436,6 +1498,113 @@ ParseNode* Parser::ParseCond()
 	return cond.Pin();
 }
 
+ParseNode* Parser::GetDefaultValueForVarDecl(VarType vartype)
+{
+	NodeRef expr;
+	expr->source = nullptr;
+
+	switch(vartype.type)
+	{
+	case V_BOOL:
+		expr->result = V_BOOL;
+		expr->pseudo_op = PUSH_BOOL;
+		expr->bvalue = false;
+		break;
+	case V_CHAR:
+		expr->result = V_CHAR;
+		expr->op = PUSH_CHAR;
+		expr->cvalue = 0;
+		break;
+	case V_INT:
+		expr->result = V_INT;
+		expr->op = PUSH_INT;
+		expr->value = 0;
+		break;
+	case V_FLOAT:
+		expr->result = V_FLOAT;
+		expr->op = PUSH_FLOAT;
+		expr->fvalue = 0.f;
+		break;
+	case V_STRING:
+		expr->result = V_STRING;
+		expr->op = PUSH_STRING;
+		if(empty_string == -1)
+		{
+			empty_string = module->strs.size();
+			Str* str = Str::Get();
+			str->s = "";
+			str->refs = 1;
+			module->strs.push_back(str);
+		}
+		expr->value = empty_string;
+		break;
+	case V_REF:
+		t.Throw("Uninitialized reference variable.");
+	default: // class
+		{
+			Type* rtype = GetType(vartype.type);
+			if(rtype->IsClass())
+			{
+				if(IS_SET(rtype->flags, Type::DisallowCreate))
+					t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
+				vector<AnyFunction> funcs;
+				FindAllCtors(rtype, funcs);
+				ApplyFunctionCall(expr, funcs, rtype, true);
+			}
+			else
+			{
+				assert(rtype->IsEnum());
+				expr->result = vartype;
+				expr->op = PUSH_ENUM;
+				expr->value = 0;
+			}
+		}
+		break;
+	}
+
+	return expr.Pin();
+}
+
+ParseNode* Parser::ParseVarCtor(VarType vartype)
+{
+	t.AssertSymbol('(');
+	NodeRef node;
+	node->source = nullptr;
+	ParseArgs(node->childs);
+
+	Type* type = GetType(vartype.type);
+	if(IS_SET(type->flags, Type::DisallowCreate))
+		t.Throw("Type '%s' cannot be created in script.", type->name.c_str());
+
+	if(type->IsBuiltin() || vartype.type == V_REF)
+	{
+		if(node->childs.empty())
+			return GetDefaultValueForVarDecl(vartype);
+		else if(node->childs.size() == 1u)
+		{
+			if(!TryCast(node->childs[0], vartype))
+				t.Throw("Can't assign type '%s' to type '%s'.", GetTypeName(node->childs[0]), GetName(vartype));
+			ParseNode* result = node->childs[0];
+			node->childs.clear();
+			return result;
+		}
+		else
+			t.Throw("Constructor for type '%s' require single argument.", type->name.c_str());
+	}
+	else
+	{
+		vector<AnyFunction> funcs;
+		FindAllCtors(type, funcs);
+		if(ApplyFunctionCall(node, funcs, type, true))
+		{
+			// builtin
+			node->op = COPY;
+			node->result = vartype;
+		}
+		return node.Pin();
+	}
+}
+
 ParseNode* Parser::ParseVarDecl(VarType vartype)
 {
 	// var_name
@@ -1453,92 +1622,57 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	current_block->var_offset++;
 	t.Next();
 
-	int type; // 0-none, 1-assign, 2-ref assign
+	int type; // 0-none, 1-assign, 2-ref assign, 3 - ctor syntax
 	if(t.IsSymbol('='))
 		type = 1;
 	else if(t.IsSymbol('-') && t.PeekSymbol('>'))
 		type = 2;
+	else if(t.IsSymbol('('))
+		type = 3;
 	else
 		type = 0;
 
-	// [=]
 	NodeRef expr(nullptr);
-	bool require_copy = false;
+	bool require_copy = false, require_deref = false;
+
 	if(type == 0)
-	{
-		expr = ParseNode::Get();
-		expr->source = nullptr;
-		switch(vartype.type)
-		{
-		case V_BOOL:
-			expr->result = V_BOOL;
-			expr->pseudo_op = PUSH_BOOL;
-			expr->bvalue = false;
-			break;
-		case V_CHAR:
-			expr->result = V_CHAR;
-			expr->op = PUSH_CHAR;
-			expr->cvalue = 0;
-			break;
-		case V_INT:
-			expr->result = V_INT;
-			expr->op = PUSH_INT;
-			expr->value = 0;
-			break;
-		case V_FLOAT:
-			expr->result = V_FLOAT;
-			expr->op = PUSH_FLOAT;
-			expr->fvalue = 0.f;
-			break;
-		case V_STRING:
-			expr->result = V_STRING;
-			expr->op = PUSH_STRING;
-			if(empty_string == -1)
-			{
-				empty_string = module->strs.size();
-				Str* str = Str::Get();
-				str->s = "";
-				str->refs = 1;
-				module->strs.push_back(str);
-			}
-			expr->value = empty_string;
-			break;
-		case V_REF:
-			t.Throw("Uninitialized reference variable.");
-		default: // class
-			{
-				Type* rtype = GetType(vartype.type);
-				if(rtype->IsClass())
-				{
-					if(IS_SET(rtype->flags, Type::DisallowCreate))
-						t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
-					vector<AnyFunction> funcs;
-					FindAllCtors(rtype, funcs);
-					ApplyFunctionCall(expr, funcs, rtype, true);
-				}
-				else
-				{
-					assert(rtype->IsEnum());
-					expr->result = vartype;
-					expr->op = PUSH_ENUM;
-					expr->value = 0;
-				}
-			}
-			break;
-		}
-	}
-	else
+		expr = GetDefaultValueForVarDecl(vartype);
+	else if(type != 3)
 	{
 		if(type == 2 && vartype.type != V_REF)
 			t.Unexpected();
 		t.Next();
 
 		expr = ParseExpr();
-		if(!TryCast(expr.Get(), vartype))
-			t.Throw("Can't assign type '%s' to variable '%s'.", GetTypeName(expr), GetName(var));
-		if(expr->op != CALLU_CTOR && GetType(expr->result.type)->IsStruct())
-			require_copy = true;
+
+		Type* var_type = GetType(expr->result.GetType());
+		if(vartype.type != V_REF && var_type->IsStruct() && (!IsCtor(expr) || var_type->index != vartype.type))
+		{
+			ParseNode* node = ParseNode::Get();
+			node->source = nullptr;
+			node->push(expr.Pin());
+			expr = node;
+			vector<AnyFunction> funcs;
+			FindAllCtors(var_type, funcs);
+			AnyFunction builtin = ApplyFunctionCall(node, funcs, var_type, true);
+			if(builtin)
+			{
+				require_copy = true;
+				ParseNode* old_expr = node->childs[0];
+				node->childs.clear();
+				expr = old_expr;
+				if(expr->result.type == V_REF)
+					require_deref = true;
+			}
+		}
+		else
+		{
+			if(!TryCast(expr.Get(), vartype))
+				t.Throw("Can't assign type '%s' to variable '%s'.", GetTypeName(expr), GetName(var));
+		}
 	}
+	else
+		expr = ParseVarCtor(vartype);
 
 	ParseNode* node = ParseNode::Get();
 	node->op = (var->subtype == ParseVar::GLOBAL ? SET_GLOBAL : SET_LOCAL);
@@ -1546,19 +1680,21 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	node->value = var->index;
 	node->source = nullptr;
 	node->push(expr.Pin());
+	if(require_deref)
+		node->push(DEREF);
 	if(require_copy)
 		node->push(COPY);
 	return node;
 }
 
-ParseNode* Parser::ParseExpr(VarType* vartype, ParseFunction* func)
+ParseNode* Parser::ParseExpr(ParseFunction* func)
 {
 	vector<SymbolNode> stack, exit;
 	vector<ParseNode*> stack2;
 
 	try
 	{
-		ParseExprConvertToRPN(exit, stack, vartype, func);
+		ParseExprConvertToRPN(exit, stack, func);
 
 		for(SymbolNode& sn : exit)
 		{
@@ -1601,12 +1737,11 @@ ParseNode* Parser::ParseExpr(VarType* vartype, ParseFunction* func)
 	}
 }
 
-void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func)
+void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseFunction* func)
 {
 	while(true)
 	{
-		BASIC_SYMBOL left = ParseExprPart(exit, stack, vartype, func);
-		vartype = nullptr;
+		BASIC_SYMBOL left = ParseExprPart(exit, stack, func);
 		func = nullptr;
 	next_symbol:
 		if(GetNextSymbol(left))
@@ -1679,14 +1814,12 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 	}
 }
 
-BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, VarType* vartype, ParseFunction* func)
+BASIC_SYMBOL Parser::ParseExprPart(vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseFunction* func)
 {
 	BASIC_SYMBOL symbol = BS_MAX;
 
-	if(vartype)
-		exit.push_back(ParseItem(vartype));
-	else if(func)
-		exit.push_back(ParseItem(nullptr, func));
+	if(func)
+		exit.push_back(ParseItem(func));
 	else
 	{
 		// [pre_op ...]
@@ -2382,32 +2515,17 @@ void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 	t.Next();
 }
 
-ParseNode* Parser::ParseItem(VarType* _vartype, ParseFunction* func)
+ParseNode* Parser::ParseItem(ParseFunction* func)
 {
-	if(t.IsKeywordGroup(G_VAR) || _vartype)
+	if(t.IsKeywordGroup(G_VAR))
 	{
-		VarType vartype(nullptr);
-		if(_vartype)
-			vartype = *_vartype;
-		else
-		{
-			vartype.type = t.GetKeywordId(G_VAR);
-			t.Next();
-		}
+		VarType vartype(t.GetKeywordId(G_VAR), 0);
+		t.Next();
 
 		if(t.IsSymbol('('))
 		{
 			// ctor
-			Type* rtype = GetType(vartype.type);
-			if(IS_SET(rtype->flags, Type::DisallowCreate))
-				t.Throw("Type '%s' cannot be created in script.", rtype->name.c_str());
-			NodeRef node;
-			node->source = nullptr;
-			ParseArgs(node->childs);
-			vector<AnyFunction> funcs;
-			FindAllCtors(rtype, funcs);
-			ApplyFunctionCall(node, funcs, rtype, true);
-			return node.Pin();
+			return ParseVarCtor(vartype);
 		}
 		else
 		{
@@ -3383,7 +3501,7 @@ bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult*
 		{
 			// user defined function cast
 			CheckFunctionIsDeleted(*cast_result.cast_func.cf);
-			cast->op = (cast_result.cast_func.is_parse ? CALLU : CALL);
+			cast->op = (cast_result.cast_func.IsParse() ? CALLU : CALL);
 			cast->result = cast_result.cast_func.cf->result;
 			cast->value = cast_result.cast_func.cf->index;
 		}
@@ -3396,7 +3514,7 @@ bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult*
 		// ctor cast
 		CheckFunctionIsDeleted(*cast_result.ctor_func.cf);
 		ParseNode* cast = ParseNode::Get();
-		cast->op = (cast_result.ctor_func.is_parse ? CALLU_CTOR : CALL);
+		cast->op = (cast_result.ctor_func.IsParse() ? CALLU_CTOR : CALL);
 		cast->result = cast_result.ctor_func.cf->result;
 		cast->value = cast_result.ctor_func.cf->index;
 		cast->source = nullptr;
@@ -3551,7 +3669,7 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 		// find ctor cast function
 		result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
 		{
-			uint required = (f.is_parse ? 2u : 1u);
+			uint required = (f.IsParse() ? 2u : 1u);
 			return f.cf->arg_infos.size() == required
 				&& f.cf->arg_infos[required - 1].vartype == node->result
 				&& IS_SET(f.cf->flags, CommonFunction::F_IMPLICIT);
@@ -3561,7 +3679,7 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 			// find ctor cast function when passed by reference
 			result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
 			{
-				uint required = (f.is_parse ? 2u : 1u);
+				uint required = (f.IsParse() ? 2u : 1u);
 				return f.cf->arg_infos.size() == required
 					&& f.cf->arg_infos[required - 1].vartype.type == node->result.subtype
 					&& IS_SET(f.cf->flags, CommonFunction::F_IMPLICIT);
@@ -3978,6 +4096,8 @@ void Parser::ConvertToBytecode()
 
 	for(ParseFunction* ufunc : ufuncs)
 	{
+		if(ufunc->IsBuiltin())
+			continue;
 		ufunc->pos = module->code.size();
 		ufunc->locals = (ufunc->block ? ufunc->block->GetMaxVars() : 0);
 		uint old_size = module->code.size();
@@ -4320,14 +4440,19 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 		break;
 	case CALL:
 	case CALLU:
-		code.push_back(node->op);
-		code.push_back(node->value);
-		if(node->source && node->source->mod && node->source->index == -1 && !((ReturnStructVar*)node->source)->code_result)
-			code.push_back(COPY);
+	case CALLU_CTOR:
+		{
+			code.push_back(node->op);
+			int f_idx = node->value;
+			if(node->op != CALL)
+				f_idx += ufunc_offset;
+			code.push_back(f_idx);
+			if(node->op != CALLU_CTOR && node->source && node->source->mod && node->source->index == -1 && !((ReturnStructVar*)node->source)->code_result)
+				code.push_back(COPY);
+		}
 		break;
 	case PUSH_INT:
 	case PUSH_STRING:
-	case CALLU_CTOR:
 	case CAST:
 	case PUSH_LOCAL:
 	case PUSH_LOCAL_REF:
@@ -4347,6 +4472,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case COPY_ARG:
 	case SWAP:
 	case RELEASE_REF:
+	case RELEASE_OBJ:
 	case LINE:
 		code.push_back(node->op);
 		code.push_back(node->value);
@@ -4464,7 +4590,7 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 {
 	assert(cf);
 	LocalString s = "";
-	if(write_result && cf->special != SF_CTOR)
+	if(write_result && cf->special != SF_CTOR && cf->special != SF_DTOR)
 	{
 		s += GetName(cf->result);
 		s += ' ';
@@ -4477,7 +4603,7 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 			s += GetType(cf->type)->name;
 			s += '.';
 		}
-		if(cf->type != V_VOID && !(cf->IsStatic() || (cf->IsCode() && cf->special == SF_CTOR)))
+		if(cf->PassThis())
 			++var_offset;
 	}
 	if(!symbol)
@@ -4578,7 +4704,7 @@ FOUND Parser::FindItem(const string& id, Found& found)
 		AnyFunction f = FindFunction(current_type, id);
 		if(f)
 		{
-			if(f.is_parse)
+			if(f.IsParse())
 			{
 				found.func = f.f;
 				return F_FUNC;
@@ -4895,7 +5021,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 
 	for(AnyFunction& f : funcs)
 	{
-		int m = MatchFunctionCall(node, *f.f, f.is_parse, obj_call);
+		int m = MatchFunctionCall(node, *f.f, f.IsParse(), obj_call);
 		if(m == match_level)
 			match.push_back(f);
 		else if(m > match_level)
@@ -4995,7 +5121,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			}
 		}
 
-		if(cf.special == SF_CTOR && f.is_parse)
+		if(cf.special == SF_CTOR && f.IsParse())
 		{
 			// user constructor call
 			callu_ctor = true;
@@ -5060,7 +5186,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		}
 
 		// apply type
-		node->op = (f.is_parse ? (callu_ctor ? CALLU_CTOR : CALLU) : CALL);
+		node->op = (f.IsParse() ? (callu_ctor ? CALLU_CTOR : CALLU) : CALL);
 		node->result = cf.result;
 		node->value = cf.index;
 
@@ -5131,35 +5257,78 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 	return false;
 }
 
-// 0-var, 1-ctor, 2-func, 3-operator, 4-type
-int Parser::GetNextType()
+NextType Parser::GetNextType(bool analyze)
 {
-	// member, method or ctor
+	// function modifiers
 	if(t.IsKeywordGroup(G_KEYWORD))
 	{
 		int id = t.GetKeywordId(G_KEYWORD);
 		if(id == K_IMPLICIT || id == K_DELETE || id == K_STATIC)
-			return 2; // func
-	}
-	int type;
-	tokenizer::Pos pos = t.GetPos();
-	GetVarType(false);
-	if(t.IsSymbol('('))
-		type = 1; // ctor
-	else if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
-		type = 3; // operator
-	else if(t.IsItem())
-	{
-		t.Next();
-		if(t.IsSymbol('('))
-			type = 2; // func
+			return NT_FUNC;
 		else
-			type = 0; // var
+			return NT_INVALID;
+	}
+
+	tokenizer::Pos pos = t.GetPos();
+
+	// dtor
+	if(t.IsSymbol('~'))
+		t.Next();
+
+	// var type
+	if(analyze)
+	{
+		if(!t.IsKeywordGroup(G_VAR) && !t.IsItem())
+		{
+			t.MoveTo(pos);
+			return NT_INVALID;
+		}
+		t.Next();
 	}
 	else
-		type = 4; // type
+		GetVarType(false);
+
+	NextType result;
+
+	if(t.IsSymbol('('))
+	{
+		// ctor or dtor decl
+		// [~] item/type (
+		t.ForceMoveToClosingSymbol('(', ')');
+		t.Next();
+		if(t.IsSymbol('{'))
+			result = NT_FUNC;
+		else
+			result = NT_CALL;
+	}
+	else
+	{
+		if(t.IsSymbol('&'))
+			t.Next();
+
+		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+			result = NT_FUNC;
+		else if(!t.IsItem())
+			result = NT_INVALID;
+		else
+		{
+			t.Next();
+			if(t.IsSymbol('('))
+			{
+				t.ForceMoveToClosingSymbol('(', ')');
+				t.Next();
+				if(t.IsSymbol('{'))
+					result = NT_FUNC;
+				else
+					result = NT_VAR_DECL;
+			}
+			else
+				result = NT_VAR_DECL;
+		}
+	}
+
 	t.MoveTo(pos);
-	return type;
+	return result;
 }
 
 void Parser::AnalyzeCode()
@@ -5206,7 +5375,7 @@ void Parser::AnalyzeCode()
 					}
 				}
 			}
-			CreateDefaultFunctions(type);
+			CreateDefaultFunctions(type, type->have_def_value ? 1 : -1);
 		}
 		else if(t.IsKeyword(K_ENUM, G_KEYWORD))
 			ParseEnum(true);
@@ -5227,16 +5396,43 @@ void Parser::AnalyzeCode()
 				break;
 			}
 			t.ForceMoveToClosingSymbol(c, closing);
+			t.Next();
 		}
 		else
 			AnalyzeType(nullptr);
 	}
 
-	// verify all types are declared
+	// verify all types are declared, member default values
 	for(Type* type : module->tmp_types)
 	{
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
+		if(type->have_def_value)
+		{
+			for(Member* m : type->members)
+			{
+				if(!m->have_def_value)
+					continue;
+				t.MoveTo(m->pos);
+				if(t.IsSymbol('='))
+				{
+					t.Next();
+					NodeRef item = ParseConstExpr();
+					if(!TryCast(item.Get(), m->vartype))
+						t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
+					m->value = item->value;
+				}
+				else
+				{
+					assert(t.IsSymbol('('));
+					ParseNode* node = ParseVarCtor(m->vartype);
+					assert(node->op != CALLU_CTOR && node->op != CALL);
+					m->value = node->value;
+					node->Free();
+				}
+			}
+			CreateDefaultFunctions(type, 0);
+		}
 	}
 
 	// function default values
@@ -5252,144 +5448,167 @@ void Parser::AnalyzeCode()
 
 void Parser::AnalyzeType(Type* type)
 {
-	static string item, func_name;
-	int result = V_SPECIAL;
-	int flags = 0;
-
-	// function modifiers
-	ParseFuncModifiers(type != nullptr, flags);
-
-	// return type
-	if(t.IsKeywordGroup(G_VAR))
-		result = t.GetKeywordId(G_VAR);
-	else if(t.IsItem())
-		item = t.GetItem();
-	else
+	NextType next = GetNextType(true);
+	if(next == NT_FUNC)
 	{
-		t.Next();
-		return;
+		int flags = 0;
+		bool dtor = false;
+
+		// function modifiers
+		ParseFuncModifiers(type != nullptr, flags);
+
+		if(t.IsSymbol('~'))
+		{
+			dtor = true;
+			t.Next();
+		}
+
+		VarType vartype = AnalyzeVarType();
+
+		if(t.IsSymbol('('))
+		{
+			assert(vartype.type != V_REF);
+
+			// ctor/dtor
+			if(!type)
+				t.Throw("%s can only be declared inside class.", dtor ? "Destructor" : "Constructor");
+
+			if(dtor)
+			{
+				if(IS_SET(flags, CommonFunction::F_STATIC))
+					t.Throw("Static destructor not allowed.");
+				AnalyzeArgs(V_VOID, SF_DTOR, type, Format("~%s", type->name.c_str()), flags);
+			}
+			else
+			{
+				if(IS_SET(flags, CommonFunction::F_STATIC))
+					t.Throw("Static constructor not allowed.");
+				AnalyzeArgs(vartype, SF_CTOR, type, type->name.c_str(), flags);
+			}
+		}
+		else
+		{
+			if(dtor)
+				t.Throw("Destructor tag mismatch.");
+
+			if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+			{
+				// operator
+				if(!type)
+					t.Throw("Operator function can be used only inside class.");
+				if(IS_SET(flags, CommonFunction::F_STATIC))
+					t.Throw("Static operator not allowed.");
+				t.Next();
+				if(t.IsItem())
+				{
+					// operator string
+					const string& item = t.GetItem();
+					if(item == "cast")
+					{
+						t.Next();
+						AnalyzeArgs(vartype, SF_CAST, type, "$opCast", flags);
+					}
+					else if(item == "addref" || item == "release")
+						t.Throw("Operator function '%s' can only be registered in code.", item.c_str());
+					else
+						t.ThrowExpecting("operator");
+				}
+				else
+				{
+					// operator symbol
+					BASIC_SYMBOL symbol = GetSymbol(true);
+					if(symbol == BS_MAX)
+						t.ThrowExpecting("symbol");
+					if(!CanOverload(symbol))
+						t.Throw("Can't overload operator '%s'.", basic_symbols[symbol].GetOverloadText());
+					t.Next();
+					ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
+					if(!FindMatchingOverload(*func, symbol))
+						t.Throw("Invalid overload operator definition '%s'.", GetName(func, true, true, &symbol));
+				}
+			}
+			else
+			{
+				// normal function
+				static string func_name;
+				func_name = t.MustGetItem();
+				t.Next();
+
+				t.AssertSymbol('(');
+				AnalyzeArgs(vartype, SF_NO, type, func_name.c_str(), flags);
+			}
+		}
 	}
-
-	t.Next();
-	if(t.IsSymbol('('))
+	else if(next == NT_VAR_DECL)
 	{
-		// ctor
-		if(!type || type->index != result)
+		// var decl
+		if(!type)
 		{
 			t.Next();
 			return;
 		}
-		if(IS_SET(flags, CommonFunction::F_STATIC))
-			t.Throw("Static constructor not allowed.");
-		AnalyzeArgs(VarType(result, 0), SF_CTOR, type, type->name.c_str(), flags);
-	}
-	else
-	{
-		VarType vartype(result, 0);
-		bool is_ref = false;
-		if(t.IsSymbol('&'))
-		{
-			is_ref = true;
-			vartype.subtype = vartype.type;
-			vartype.type = V_REF;
-			t.Next();
-		}
 
-		if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
+		VarType vartype = AnalyzeVarType();
+
+		do
 		{
-			if(!type)
-				t.Throw("Operator function can be used only inside class.");
-			if(IS_SET(flags, CommonFunction::F_STATIC))
-				t.Throw("Static operator not allowed.");
+			Member* m = new Member;
+			m->vartype = vartype;
+			m->name = t.MustGetItem();
+			int index;
+			if(type->FindMember(m->name, index))
+				t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
 			t.Next();
-			if(t.IsItem())
-			{
-				const string& item = t.GetItem();
-				if(item == "cast")
-				{
-					t.Next();
-					AnalyzeMakeType(vartype, item);
-					if(!type)
-					{
-						t.Next();
-						return;
-					}
-					AnalyzeArgs(vartype, SF_CAST, type, "$opCast", flags);
-				}
-				else if(item == "addref" || item == "release")
-					t.Throw("Operator function '%s' can only be registered in code.", item.c_str());
-				else
-					t.Unexpected();
-			}
-			else
-			{
-				BASIC_SYMBOL symbol = GetSymbol(true);
-				if(symbol == BS_MAX || !CanOverload(symbol))
-				{
-					t.Next();
-					return;
-				}
-				t.Next();
-				AnalyzeMakeType(vartype, item);
-				ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
-				if(!FindMatchingOverload(*func, symbol))
-					t.Throw("Invalid overload operator definition '%s'.", GetName(func, true, true, &symbol));
-			}
-		}
-		else if(t.IsItem())
-		{
-			func_name = t.GetItem();
-			t.Next();
+			m->index = type->members.size();
+			m->have_def_value = true;
+			type->members.push_back(m);
 
 			if(t.IsSymbol('('))
 			{
-				AnalyzeMakeType(vartype, item);
-				AnalyzeArgs(vartype, SF_NO, type, func_name.c_str(), flags);
+				m->have_def_value = true;
+				m->pos = t.GetPos();
+				type->have_def_value = true;
+				t.ForceMoveToClosingSymbol('(', ')');
+				t.Next();
 			}
-			else if(type)
+			else if(t.IsSymbol('='))
 			{
-				// members
-				if(flags != 0)
-					t.AssertSymbol('(');
-				AnalyzeMakeType(vartype, item);
-				bool first = true;
-				do
+				m->have_def_value = true;
+				m->pos = t.GetPos();
+				type->have_def_value = true;
+				if(!t.SkipTo([](Tokenizer& t)
 				{
-					Member* m = new Member;
-					m->vartype = vartype;
-					if(first)
-						m->name = func_name;
-					else
-						m->name = t.MustGetItem();
-					int index;
-					if(type->FindMember(m->name, index))
-						t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
-					if(first)
-						first = false;
-					else
-						t.Next();
-					m->index = type->members.size();
-					type->members.push_back(m);
-
-					if(t.IsSymbol('='))
+					if(t.IsSymbol())
 					{
-						t.Next();
-						NodeRef item = ParseConstItem();
-						if(!TryCast(item.Get(), vartype))
-							t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
-						m->value = item->value;
-						m->have_def_value = true;
+						switch(t.GetSymbol())
+						{
+						case '(':
+						case '{':
+						case '[':
+							t.ForceMoveToClosingSymbol(t.GetSymbol());
+							break;
+						case ',':
+						case ';':
+							return true;
+						}
 					}
-					else
-						m->have_def_value = false;
-
-					if(t.IsSymbol(';'))
-						break;
-					t.AssertSymbol(',');
-					t.Next();
-				} while(1);
+					return false;
+				}))
+					t.Throw("Broken member declaration, can't find end.");
 			}
-		}
+			else
+				m->have_def_value = false;
+
+			if(t.IsSymbol(';'))
+				break;
+			t.AssertSymbol(',');
+			t.Next();
+		} while(1);
+	}
+	else
+	{
+		t.Next();
+		return;
 	}
 }
 
@@ -5459,6 +5678,14 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 		t.Next();
 	}
 
+	if(special == SF_DTOR)
+	{
+		if(func->arg_infos.size() != 1u)
+			t.Throw("Destructor can't have arguments.");
+		if(type->dtor)
+			t.Throw("Type '%s' have already declared destructor.", type->name.c_str());
+		type->dtor = func.Get();
+	}
 	if(type)
 	{
 		if(FindEqualFunction(type, AnyFunction(func)))
@@ -5471,6 +5698,9 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 			t.Throw("Function '%s' already exists.", GetName(func));
 	}
 
+#ifdef _DEBUG
+	func->decl = GetName(func);
+#endif
 	ufuncs.push_back(func);
 	return func.Pin();
 }
@@ -5529,8 +5759,8 @@ void Parser::AnalyzeMakeType(VarType& vartype, const string& name)
 }
 
 // create default functions for type if they are not declared
-// return flags for builtin functions to declare in module (0x01 - 
-int Parser::CreateDefaultFunctions(Type* type)
+// return flags for builtin functions to declare in module
+int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 {
 	assert(type);
 	VarType vartype(type->index, 0);
@@ -5538,20 +5768,36 @@ int Parser::CreateDefaultFunctions(Type* type)
 
 	// ctor
 	AnyFunction f = FindSpecialFunction(type, SF_CTOR, [](AnyFunction& f) { return true; });
+	bool apply_ctor_code = false;
 	if(!f)
 	{
+		// decl
 		ParseFunction* func = new ParseFunction;
 		func->name = type->name;
 		func->result = vartype;
 		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
 		func->block = nullptr;
 		func->flags = CommonFunction::F_DEFAULT;
-		if(IS_SET(type->flags, Type::Code))
-			func->flags |= CommonFunction::F_CODE;
 		func->index = ufuncs.size();
 		func->type = type->index;
 		func->required_args = 1;
 		func->special = SF_CTOR;
+#ifdef _DEBUG
+		func->decl = GetName(func);
+#endif
+		ufuncs.push_back(func);
+		type->ufuncs.push_back(func);
+		if(define_ctor == -1)
+			apply_ctor_code = true;
+		f = func;
+	}
+	else if(define_ctor == 0 && f.pf->IsDefault())
+		apply_ctor_code = true;
+	if(apply_ctor_code)
+	{
+		// code
+		assert(f.IsParse());
+		ParseFunction* func = f.pf;
 		ParseNode* group = ParseNode::Get();
 		group->result = vartype;
 		group->pseudo_op = INTERNAL_GROUP;
@@ -5565,8 +5811,39 @@ int Parser::CreateDefaultFunctions(Type* type)
 		}
 		group->push(RET);
 		func->node = group;
-		ufuncs.push_back(func);
-		type->ufuncs.push_back(func);
+	}
+	if(define_ctor == 0)
+		return 0;
+
+	// copy ctor
+	if(type->IsStruct())
+	{
+		f = FindSpecialFunction(type, SF_CTOR, [vartype](AnyFunction& f)
+		{
+			uint offset = (f.cf->IsCode() ? 0 : 1);
+			return f.cf->arg_infos.size() == offset + 1 && In(f.cf->arg_infos[offset].vartype, { vartype, VarType(V_REF, vartype.type) });
+		});
+		if(!f)
+		{
+			// decl
+			ParseFunction* func = new ParseFunction;
+			func->name = type->name;
+			func->result = vartype;
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->block = nullptr;
+			func->flags = CommonFunction::F_DEFAULT | CommonFunction::F_BUILTIN;
+			func->index = ufuncs.size();
+			func->type = type->index;
+			func->required_args = 2;
+			func->special = SF_CTOR;
+			func->node = nullptr;
+#ifdef _DEBUG
+			func->decl = GetName(func);
+#endif
+			ufuncs.push_back(func);
+			type->ufuncs.push_back(func);
+		}
 	}
 
 	// assign
@@ -5590,8 +5867,6 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				if(IS_SET(type->flags, Type::Code))
-					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
 				for(Member* m : type->members)
 				{
@@ -5619,6 +5894,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
+#ifdef _DEBUG
+			func->decl = GetName(func);
+#endif
 			ufuncs.push_back(func);
 			type->ufuncs.push_back(func);
 		}
@@ -5645,8 +5923,6 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				if(IS_SET(type->flags, Type::Code))
-					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
 				bool first = true;
 				for(Member* m : type->members)
@@ -5671,6 +5947,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
+#ifdef _DEBUG
+			func->decl = GetName(func);
+#endif
 			ufuncs.push_back(func);
 			type->ufuncs.push_back(func);
 		}
@@ -5697,8 +5976,6 @@ int Parser::CreateDefaultFunctions(Type* type)
 			func->flags = CommonFunction::F_DEFAULT;
 			if(type->IsStruct())
 			{
-				if(IS_SET(type->flags, Type::Code))
-					func->flags |= CommonFunction::F_CODE;
 				ParseNode* group = ParseNode::Get();
 				bool first = true;
 				for(Member* m : type->members)
@@ -5723,6 +6000,9 @@ int Parser::CreateDefaultFunctions(Type* type)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
+#ifdef _DEBUG
+			func->decl = GetName(func);
+#endif
 			ufuncs.push_back(func);
 			type->ufuncs.push_back(func);
 		}
@@ -5870,4 +6150,17 @@ void Parser::FreeTmpStr(string* str)
 {
 	RemoveElement(tmp_strs, str);
 	StringPool.Free(str);
+}
+
+bool Parser::IsCtor(ParseNode* node)
+{
+	if(node->op == CALLU_CTOR || node->op == COPY)
+		return true;
+	else if(node->op == CALL)
+	{
+		Function* f = GetFunction(node->value);
+		return f->special == SF_CTOR;
+	}
+	else
+		return false;
 }

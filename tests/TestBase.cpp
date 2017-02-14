@@ -329,3 +329,8 @@ void SetResetParser(bool _reset_parser)
 {
 	reset_parser = _reset_parser;
 }
+
+void WriteOutput(cstring msg)
+{
+	s_output << msg;
+}

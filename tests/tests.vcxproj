@@ -124,6 +124,7 @@
     <Text Include="..\cases\class_ref.txt" />
     <Text Include="..\cases\comp_operators.txt" />
     <Text Include="..\cases\def_value.txt" />
+    <Text Include="..\cases\dtor.txt" />
     <Text Include="..\cases\enum.txt" />
     <Text Include="..\cases\float.txt" />
     <Text Include="..\cases\for.txt" />

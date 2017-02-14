@@ -134,7 +134,6 @@ TEST_METHOD(StaticMethods)
 
 TEST_METHOD(EnumGlobalReturnValue)
 {
-	SetDecompile(true);
 	SetResetParser(false);
 	RunTest("enum E{A=2,B=4,C=6} return E.B;");
 	retval.IsEnum("E", 4);
@@ -225,6 +224,50 @@ TEST_METHOD(ComplexSubscriptOperator)
 		y = getint();
 		println(aa[x,y]);
 	)code", "0 2 2 4", "s\nr\n");
+}
+
+TEST_METHOD(NewVarCtorSyntax)
+{
+	RunTest(R"code(
+		int a(4);
+		int b = int(5);
+		int c = int(2) * int(3);
+		class A
+		{
+			int d(7), e = int(3) * int(4);
+		}
+		Assert_AreEqual(4, a);
+		Assert_AreEqual(5, b);
+		Assert_AreEqual(6, c);
+		A o;
+		Assert_AreEqual(7, o.d);
+		Assert_AreEqual(12, o.e);
+	)code");
+}
+
+TEST_METHOD(CopyCtor)
+{
+	RunTest(R"code(
+		struct Def
+		{
+			int x,y,z;
+		}
+
+		Def a;
+		Def b = Def(a);
+		Def b2 = a;
+
+		struct ND
+		{
+			int x,y,z;
+			ND() {println("ctor");}
+			ND(ND n) {println("copy");}
+		}
+
+		ND n;
+		ND n1 = ND(n);
+		ND n2 = n;
+	)code", "", "ctor\ncopy\ncopy\n");
 }
 
 CA_TEST_CLASS_END();
