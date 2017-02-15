@@ -1,17 +1,9 @@
 class A
 {
-	int i;
-	
-	A(int _i)
-	{
-		i = _i;
-	}
-	
-	void operator += (int x)
-	{
-		println(i+"+="+x);
-	}
+	string str;
 }
 
-A(1) += 4;
+A a;
+a.str = "123";
+println(a.str);
 pause();

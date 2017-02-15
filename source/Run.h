@@ -112,7 +112,7 @@ struct Class
 		}
 		if(is_code)
 		{
-			if(IS_SET(type->flags, Type::RefCount))
+			if(type->IsRefCounted())
 				ReleaseClass(this, false);
 			if(!mem_free)
 				delete this;

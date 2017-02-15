@@ -1,5 +1,3 @@
-? ctor tests for diffrent types (void, int, string, class); ctor in ParseLine makes no sense and require ; - what about "A(1) += 4;"
-
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
 + ParseFunctionArgs -> ParseConstExpr

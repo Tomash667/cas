@@ -63,6 +63,8 @@ struct CommonFunction
 	inline bool IsCode() const { return IS_SET(flags, F_CODE); }
 	inline bool IsStatic() const { return IS_SET(flags, F_STATIC); }
 	inline bool IsDefault() const { return IS_SET(flags, F_DEFAULT); }
+	inline bool IsDeleted() const { return IS_SET(flags, F_DELETE); }
+	inline bool IsImplicit() const { return IS_SET(flags, F_IMPLICIT); }
 
 	// Should function pass this as first argument, 
 	// Non static methods, except code ctors

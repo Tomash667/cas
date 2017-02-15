@@ -141,7 +141,7 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 		f->flags |= CommonFunction::F_CODE;
 		if(f->special == SF_CTOR)
 		{
-			if(IS_SET(type->flags, Type::PassByValue))
+			if(type->IsPassByValue())
 			{
 				if(func_info.return_pointer_or_reference)
 				{
@@ -416,11 +416,11 @@ bool Module::BuildModule()
 
 	for(Type* type : types)
 	{
-		if(!IS_SET(type->flags, Type::Code) || type->built)
+		if(!type->IsCode() || type->built)
 			continue;
 
 		// verify type
-		if(IS_SET(type->flags, Type::RefCount))
+		if(type->IsRefCounted())
 		{
 			bool error = false;
 			if(!type->FindSpecialCodeFunction(SF_ADDREF))

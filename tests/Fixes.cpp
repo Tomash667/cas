@@ -278,4 +278,17 @@ TEST_METHOD(EmptyConstructorWithMembers)
 	RunTest("class A{int x;A(){}}");
 }
 
+TEST_METHOD(CompoundAssignmentOnReturnClass)
+{
+	RunTest(R"code(
+		class A
+		{
+			int i;
+			A(int _i) { i = _i; }
+			void operator += (int x) { print(i+"+="+x); }
+		}
+		A(1) += 4;
+	)code", "", "1+=4");
+}
+
 CA_TEST_CLASS_END();
