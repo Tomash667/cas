@@ -164,15 +164,19 @@ private:
 	NextType GetNextType(bool analyze);
 	void FreeTmpStr(string* str);
 	bool IsCtor(ParseNode* node);
+	int GetEmptyString();
 
 	void AnalyzeCode();
-	void AnalyzeType(Type* type);
+	void AnalyzeClass();
+	void AnalyzeLine(Type* type);
 	ParseFunction* AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name, int flags);
 	VarType AnalyzeVarType();
 	Type* AnalyzeAddType(const string& name);
 	void AnalyzeMakeType(VarType& vartype, const string& name);
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
 	bool HasSideEffects(ParseNode* node);
+	void VerifyAllTypes();
+	void VerifyFunctionsDefaultArguments();
 	void AnalyzeArgsDefaultValues(ParseFunction* f);
 	
 	Tokenizer t;

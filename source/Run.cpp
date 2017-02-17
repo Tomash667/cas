@@ -587,6 +587,43 @@ void PushStackFrame(StackFrame& frame)
 	stack_frames.push_back(frame);
 }
 
+void SetMemberValue(Class* c, Member* m, Var& v)
+{
+	switch(m->vartype.type)
+	{
+	case V_BOOL:
+		c->at<bool>(m->offset) = v.bvalue;
+		break;
+	case V_CHAR:
+		c->at<char>(m->offset) = v.cvalue;
+		break;
+	case V_INT:
+		c->at<int>(m->offset) = v.value;
+		break;
+	case V_FLOAT:
+		c->at<float>(m->offset) = v.fvalue;
+		break;
+	case V_STRING:
+		if(c->type->IsCode())
+		{
+			string& str = c->at<string>(m->offset);
+			str = v.str->s;
+		}
+		else
+		{
+			Str*& str = c->at<Str*>(m->offset);
+			if(str)
+				str->Release();
+			str = v.str;
+			str->refs++;
+		}
+		break;
+	default:
+		assert(0);
+		break;
+	}
+}
+
 void RunInternal()
 {
 	int*& c = ctx.code_pos;
@@ -729,6 +766,19 @@ void RunInternal()
 					break;
 				case V_FLOAT:
 					stack.push_back(Var(c->at<float>(m->offset)));
+					break;
+				case V_STRING:
+					if(c->type->IsCode())
+					{
+						string& str = c->at<string>(m->offset);
+						stack.push_back(Var(CreateStr(str.c_str())));
+					}
+					else
+					{
+						Str* str = c->at<Str*>(m->offset);
+						str->refs++;
+						stack.push_back(Var(str));
+					}
 					break;
 				default:
 					assert(0);
@@ -902,24 +952,7 @@ void RunInternal()
 				assert(v.vartype.type == m->vartype.type);
 				Class* c = cv.clas;
 
-				switch(m->vartype.type)
-				{
-				case V_BOOL:
-					c->at<bool>(m->offset) = v.bvalue;
-					break;
-				case V_CHAR:
-					c->at<char>(m->offset) = v.cvalue;
-					break;
-				case V_INT:
-					c->at<int>(m->offset) = v.value;
-					break;
-				case V_FLOAT:
-					c->at<float>(m->offset) = v.fvalue;
-					break;
-				default:
-					assert(0);
-					break;
-				}
+				SetMemberValue(c, m, v);
 
 				c->Release();
 				stack.back() = v;
@@ -943,24 +976,7 @@ void RunInternal()
 				Class* c = vl.clas;
 				Member* m = type->members[member_index];
 
-				switch(m->vartype.type)
-				{
-				case V_BOOL:
-					c->at<bool>(m->offset) = v.bvalue;
-					break;
-				case V_CHAR:
-					c->at<char>(m->offset) = v.cvalue;
-					break;
-				case V_INT:
-					c->at<int>(m->offset) = v.value;
-					break;
-				case V_FLOAT:
-					c->at<float>(m->offset) = v.fvalue;
-					break;
-				default:
-					assert(0);
-					break;
-				}
+				SetMemberValue(c, m, v);
 			}
 			break;
 		case SET_TMP:

@@ -1083,8 +1083,16 @@ Member* Parser::ParseMemberDecl(cstring decl)
 void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 {
 	VarType vartype = GetVarTypeForMember();
-	uint var_size = GetType(vartype.type)->size;
-	assert(var_size == 1 || var_size == 4);
+	Type* var_type = GetType(vartype.type);
+	uint var_size;
+	if(vartype.type == V_STRING)
+	{
+		var_size = 4u; // stored as pointer to Str
+		type->have_complex_member = true;
+	}
+	else
+		var_size = var_type->size;
+	assert(var_size != 0 && (var_size == 1 || var_size % 4 == 0));
 
 	do
 	{
@@ -1528,15 +1536,7 @@ ParseNode* Parser::GetDefaultValueForVarDecl(VarType vartype)
 	case V_STRING:
 		expr->result = V_STRING;
 		expr->op = PUSH_STRING;
-		if(empty_string == -1)
-		{
-			empty_string = module->strs.size();
-			Str* str = Str::Get();
-			str->s = "";
-			str->refs = 1;
-			module->strs.push_back(str);
-		}
-		expr->value = empty_string;
+		expr->value = GetEmptyString();
 		break;
 	case V_REF:
 		t.Throw("Uninitialized reference variable.");
@@ -2793,8 +2793,6 @@ VarType Parser::GetVarTypeForMember()
 		cstring name = nullptr;
 		if(vartype.type == V_REF)
 			name = "reference";
-		else if(vartype.type == V_STRING)
-			name = "string";
 		else
 		{
 			Type* type = GetType(vartype.type);
@@ -5331,6 +5329,38 @@ NextType Parser::GetNextType(bool analyze)
 	return result;
 }
 
+void Parser::FreeTmpStr(string* str)
+{
+	RemoveElement(tmp_strs, str);
+	StringPool.Free(str);
+}
+
+bool Parser::IsCtor(ParseNode* node)
+{
+	if(node->op == CALLU_CTOR || node->op == COPY)
+		return true;
+	else if(node->op == CALL)
+	{
+		Function* f = GetFunction(node->value);
+		return f->special == SF_CTOR;
+	}
+	else
+		return false;
+}
+
+int Parser::GetEmptyString()
+{
+	if(empty_string == -1)
+	{
+		empty_string = module->strs.size();
+		Str* str = Str::Get();
+		str->s = "";
+		str->refs = 1;
+		module->strs.push_back(str);
+	}
+	return empty_string;
+}
+
 void Parser::AnalyzeCode()
 {
 	string str;
@@ -5339,114 +5369,69 @@ void Parser::AnalyzeCode()
 	while(!t.IsEof())
 	{
 		if(t.IsKeyword(K_CLASS, G_KEYWORD) || t.IsKeyword(K_STRUCT, G_KEYWORD))
-		{
-			bool is_class = (t.GetKeywordId(G_KEYWORD) == (int)K_CLASS);
-			t.Next();
-			Type* type;
-			if(t.IsItem())
-				type = AnalyzeAddType(t.GetItem());
-			else if(t.IsKeywordGroup(G_VAR))
-			{
-				type = GetType(t.GetKeywordId(G_VAR));
-				if(type->declared)
-					t.Throw("Can't declare %s '%s', type is already declared.", is_class ? "class" : "struct", t.GetTokenString().c_str());
-			}
-			else
-				t.Unexpected(tokenizer::T_ITEM);
-			type->declared = true;
-			type->flags = Type::Class;
-			if(is_class)
-				type->flags |= Type::Ref;
-			else
-				type->flags |= Type::PassByValue;
-			type->SetGenericType();
-			t.Next();
-			t.AssertSymbol('{');
-			t.Next();
-			if(!t.IsSymbol('}'))
-			{
-				while(true)
-				{
-					AnalyzeType(type);
-					if(t.IsSymbol('}'))
-					{
-						t.Next();
-						break;
-					}
-				}
-			}
-			CreateDefaultFunctions(type, type->have_def_value ? 1 : -1);
-		}
+			AnalyzeClass();
 		else if(t.IsKeyword(K_ENUM, G_KEYWORD))
 			ParseEnum(true);
 		else if(t.IsSymbol("([{", &c))
 		{
-			char closing;
-			switch(c)
-			{
-			case '(':
-				closing = ')';
-				break;
-			case '[':
-				closing = ']';
-				break;
-			case '{':
-			default:
-				closing = '}';
-				break;
-			}
-			t.ForceMoveToClosingSymbol(c, closing);
+			t.ForceMoveToClosingSymbol(c);
 			t.Next();
 		}
 		else
-			AnalyzeType(nullptr);
+			AnalyzeLine(nullptr);
 	}
 
-	// verify all types are declared, member default values
-	for(Type* type : module->tmp_types)
-	{
-		if(!type->declared)
-			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
-		if(type->have_def_value)
-		{
-			for(Member* m : type->members)
-			{
-				if(!m->have_def_value)
-					continue;
-				t.MoveTo(m->pos);
-				if(t.IsSymbol('='))
-				{
-					t.Next();
-					NodeRef item = ParseConstExpr();
-					if(!TryCast(item.Get(), m->vartype))
-						t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
-					m->value = item->value;
-				}
-				else
-				{
-					assert(t.IsSymbol('('));
-					ParseNode* node = ParseVarCtor(m->vartype);
-					assert(node->op != CALLU_CTOR && node->op != CALL);
-					m->value = node->value;
-					node->Free();
-				}
-			}
-			CreateDefaultFunctions(type, 0);
-		}
-	}
-
-	// function default values
-	for(ParseFunction* f : ufuncs)
-	{
-		if(f->required_args == f->arg_infos.size() || f->IsDefault())
-			continue;
-		AnalyzeArgsDefaultValues(f);
-	}
+	VerifyAllTypes();
+	VerifyFunctionsDefaultArguments();
 
 	t.Reset();
 }
 
-void Parser::AnalyzeType(Type* type)
+void Parser::AnalyzeClass()
+{
+	bool is_class = (t.GetKeywordId(G_KEYWORD) == (int)K_CLASS);
+	t.Next();
+
+	Type* type;
+	if(t.IsItem())
+		type = AnalyzeAddType(t.GetItem());
+	else if(t.IsKeywordGroup(G_VAR))
+	{
+		type = GetType(t.GetKeywordId(G_VAR));
+		if(type->declared)
+			t.Throw("Can't declare %s '%s', type is already declared.", is_class ? "class" : "struct", t.GetTokenString().c_str());
+	}
+	else
+		t.Unexpected(tokenizer::T_ITEM);
+
+	type->declared = true;
+	type->flags = Type::Class;
+	if(is_class)
+		type->flags |= Type::Ref;
+	else
+		type->flags |= Type::PassByValue;
+	type->SetGenericType();
+
+	t.Next();
+	t.AssertSymbol('{');
+	t.Next();
+	if(!t.IsSymbol('}'))
+	{
+		while(true)
+		{
+			AnalyzeLine(type);
+			if(t.IsSymbol('}'))
+			{
+				t.Next();
+				break;
+			}
+		}
+	}
+
+	CreateDefaultFunctions(type, type->have_def_value ? 1 : -1);
+}
+
+void Parser::AnalyzeLine(Type* type)
 {
 	NextType next = GetNextType(true);
 	if(next == NT_FUNC)
@@ -6033,6 +6018,10 @@ void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
 			node->op = PUSH_FLOAT;
 			node->fvalue = m->fvalue;
 			break;
+		case V_STRING:
+			node->op = PUSH_STRING;
+			node->value = m->value;
+			break;
 		default:
 			// will write error in parsing phase
 			break;
@@ -6057,6 +6046,10 @@ void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
 		case V_FLOAT:
 			node->op = PUSH_FLOAT;
 			node->fvalue = 0;
+			break;
+		case V_STRING:
+			node->op = PUSH_STRING;
+			node->value = GetEmptyString();
 			break;
 		default:
 			// will write error in parsing phase
@@ -6100,12 +6093,59 @@ bool Parser::HasSideEffects(ParseNode* node)
 	}
 }
 
+void Parser::VerifyAllTypes()
+{
+	// verify all types are declared, member default values
+	for(Type* type : module->tmp_types)
+	{
+		if(!type->declared)
+			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
+		if(type->have_def_value)
+		{
+			for(Member* m : type->members)
+			{
+				if(!m->have_def_value)
+					continue;
+				t.MoveTo(m->pos);
+				if(t.IsSymbol('='))
+				{
+					t.Next();
+					NodeRef item = ParseConstExpr();
+					if(!TryCast(item.Get(), m->vartype))
+						t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
+					m->value = item->value;
+				}
+				else
+				{
+					assert(t.IsSymbol('('));
+					ParseNode* node = ParseVarCtor(m->vartype);
+					assert(node->op != CALLU_CTOR && node->op != CALL);
+					m->value = node->value;
+					node->Free();
+				}
+			}
+			CreateDefaultFunctions(type, 0);
+		}
+	}
+}
+
+void Parser::VerifyFunctionsDefaultArguments()
+{
+	// function default values
+	for(ParseFunction* f : ufuncs)
+	{
+		if(f->required_args == f->arg_infos.size() || f->IsDefault())
+			continue;
+		AnalyzeArgsDefaultValues(f);
+	}
+}
+
 void Parser::AnalyzeArgsDefaultValues(ParseFunction* f)
 {
 	t.MoveTo(f->start_pos);
 	uint offset = (f->special == SF_CTOR ? 1u : 0u);
-	
-	for(uint i=offset, count = f->arg_infos.size(); i <= count; ++i)
+
+	for(uint i = offset, count = f->arg_infos.size(); i <= count; ++i)
 	{
 		VarType vartype = AnalyzeVarType();
 		t.AssertItem();
@@ -6144,23 +6184,4 @@ void Parser::AnalyzeArgsDefaultValues(ParseFunction* f)
 		t.AssertSymbol(',');
 		t.Next();
 	}
-}
-
-void Parser::FreeTmpStr(string* str)
-{
-	RemoveElement(tmp_strs, str);
-	StringPool.Free(str);
-}
-
-bool Parser::IsCtor(ParseNode* node)
-{
-	if(node->op == CALLU_CTOR || node->op == COPY)
-		return true;
-	else if(node->op == CALL)
-	{
-		Function* f = GetFunction(node->value);
-		return f->special == SF_CTOR;
-	}
-	else
-		return false;
 }

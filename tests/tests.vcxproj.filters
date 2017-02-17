@@ -175,6 +175,9 @@
     <Text Include="..\cases\dtor.txt">
       <Filter>Cases</Filter>
     </Text>
+    <Text Include="..\cases\string_member.txt">
+      <Filter>Cases</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint">

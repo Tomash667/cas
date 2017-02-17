@@ -1,9 +1,8 @@
-class A
-{
-	string str;
-}
+void f(string& s) { s += "LoL"; }
 
 A a;
-a.str = "123";
-println(a.str);
-pause();
+a.val = 3;
+a.str = "do";
+a.str += "da";
+f(a.str);
+inspect(a);

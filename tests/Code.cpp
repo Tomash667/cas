@@ -917,6 +917,53 @@ TEST_METHOD(GlobalReturnString)
 }
 
 //=========================================================================================
+class ClassStrMember
+{
+public:
+	int val;
+	string str;
+};
+
+struct StructStrMember
+{
+public:
+};
+
+static void inspect(ClassStrMember& c)
+{
+	Assert::AreEqual(3, c.val);
+	Assert::AreEqual("dodaLoLxD", c.str.c_str());
+}
+
+static string& do_smth_on_str(string& s)
+{
+	s += "xD";
+	return s;
+}
+
+TEST_METHOD(CodeClassStringMember)
+{
+	SetDecompile(true);
+
+	auto type = module->AddType<ClassStrMember>("A");
+	type->AddMember("string str", offsetof(ClassStrMember, str));
+	type->AddMember("int val", offsetof(ClassStrMember, val));
+	module->AddFunction("void f(string& str)", do_smth_on_str);
+	module->AddFunction("void inspect(A& a)", inspect);
+
+	RunTest(R"code(
+		void f(string& s) { s += "LoL"; }
+
+		A a;
+		a.val = 3;
+		a.str = "do";
+		a.str += "da";
+		f(a.str);
+		inspect(a);
+	)code");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

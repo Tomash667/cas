@@ -1,3 +1,23 @@
+- same function name in code & script
+	module->AddFunction("void f(string& str)", do_smth_on_str);
+	void f(string& s) { s += "LoL"; }
+
++ class string member, tests:
+	+ get
+	+ set
+	+ compound
+	+ dtor (struct/class), have dtor/no
+	+ pass reference to func
+	+ default ctor
+	+ copy ctor
+	+ assign
+	+ COPY
+	+ code
+	+ return reference to passed string member
++ string arg default value
++ struct/class member
+	+ detect loop
+
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value
 + ParseFunctionArgs -> ParseConstExpr
@@ -18,7 +38,7 @@ IMPROVEMENT/VERIFY:
 + reference types (temporary, member, global)
 + better line markers, option in settings
 + Assert_AreEqual(T,T)
-+ return reference to passed class/struct/string member/index
++ return reference to passed class/struct/index
 + type_index - bit for class/struct
 + better Type* handling, not passing magic index
 + remove not required interactions between Module/Parser and Decompile/Parser (for example ParserMethod/FindEqualFunction should be inside RegisterMethod)
@@ -88,7 +108,6 @@ FEATURE:
 	+ static constructor
 	+ static destructor
 	+ static member
-	+ string member
 	+ class member (detect recursion), allow declare member of same type as class (but prevent it until nullable type, just don't show error of unknown item)
 		+ member ctor decl
 	+ properties
@@ -98,7 +117,6 @@ FEATURE:
 	+ allow call ctor from ctor
 + is operator
 	+ compare object and type if(a is INT2)
-+ default string arg for code function
 + string oper
 + allow reuse variable name
 + object/string deconstruction
@@ -139,6 +157,7 @@ FEATURE:
 	+ first/second pass do same thing twice for parsing func args
 	+ get rid of many GetType...
 	+ operator += cause [push_global 0, push_global 0] instead of [push_global 0, push]
+	+ Str can point to code member string
 + shorter class initialization: A b(3,4) ?
 + await/async for spawning units
 	+ wait for spawn

@@ -277,6 +277,8 @@ bool Module::AddMember(Type* type, cstring decl, int offset)
 	}
 	assert(offset + parser->GetType(m->vartype.type)->size <= type->size);
 	m->index = type->members.size();
+	if(m->vartype.type == V_STRING)
+		type->have_complex_member = true;
 	type->members.push_back(m);
 	return true;
 }

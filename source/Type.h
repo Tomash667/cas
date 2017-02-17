@@ -137,9 +137,9 @@ struct Type : public cas::IClass, public cas::IEnum
 	Enum* enu;
 	int size, index, flags;
 	uint first_line, first_charpos;
-	bool declared, built, have_def_value;
+	bool declared, built, have_def_value, have_complex_member;
 
-	inline Type() : enu(nullptr), dtor(nullptr), have_def_value(false) {}
+	inline Type() : enu(nullptr), dtor(nullptr), have_def_value(false), have_complex_member(false) {}
 	~Type();
 	Member* FindMember(const string& name, int& index);
 	Function* FindCodeFunction(cstring name);

@@ -49,6 +49,17 @@ struct Class
 		c->is_code = false;
 		c->adr = ((int*)&c->adr) + 1;
 		memset(c->adr, 0, type->size);
+		if(type->have_complex_member && type->IsCode())
+		{
+			for(Member* m : type->members)
+			{
+				if(m->vartype.type == V_STRING)
+				{
+					string* str = &c->at<string>(m->offset);
+					new(str) string;
+				}
+			}
+		}
 #ifdef CHECK_LEAKS
 		all_classes.push_back(c);
 #endif
@@ -80,6 +91,17 @@ struct Class
 		c->is_code = false;
 		c->adr = ((int*)&c->adr) + 1;
 		memcpy(c->adr, base->adr, type->size);
+		if(type->have_complex_member)
+		{
+			for(Member* m : type->members)
+			{
+				if(m->vartype.type == V_STRING)
+				{
+					Str* str = c->at<Str*>(m->offset);
+					str->refs++;
+				}
+			}
+		}
 #ifdef CHECK_LEAKS
 		all_classes.push_back(c);
 #endif
@@ -119,6 +141,25 @@ struct Class
 		}
 		else if(!mem_free)
 		{
+			if(type->have_complex_member)
+			{
+				for(Member* m : type->members)
+				{
+					if(m->vartype.type == V_STRING)
+					{
+						if(!type->IsCode())
+						{
+							Str* str = at<Str*>(m->offset);
+							str->Release();
+						}
+						else
+						{
+							string& str = at<string>(m->offset);
+							str.~basic_string();
+						}
+					}
+				}
+			}
 			byte* data = (byte*)this;
 			delete[] data;
 		}

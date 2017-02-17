@@ -1,0 +1,34 @@
+class A
+{
+	string str = "dada";
+}
+
+struct B
+{
+	string str;
+}
+
+void f(string& s)
+{
+	s += "789";
+}
+
+void copy(B b)
+{
+	B bc = b;
+	bc.str = "2";
+	Assert_AreEqual("1", b.str);
+	Assert_AreEqual("2", bc.str);
+}
+
+A a;
+Assert_AreEqual("dada", a.str);
+a.str = "123";
+a.str += "456";
+Assert_AreEqual("123456", a.str);
+f(a.str);
+Assert_AreEqual("123456789", a.str);
+
+B b;
+b.str = "1";
+copy(b);

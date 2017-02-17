@@ -105,7 +105,7 @@ TEST_METHOD(InvalidDefaultValue)
 TEST_METHOD(UnsupportedClassMembers)
 {
 	RunFailureTest("class A{} class B{A a;}", "Member of 'class' type not allowed yet.");
-	RunFailureTest("class A{string s;}", "Member of 'string' type not allowed yet.");
+	RunFailureTest("struct A{} class B{A a;}", "Member of 'struct' type not allowed yet.");
 }
 
 TEST_METHOD(InvalidBreak)
@@ -661,6 +661,12 @@ TEST_METHOD(ConstructorDestructorOutsideClass)
 TEST_METHOD(StackOverflow)
 {
 	RunFailureTest("void f(){f();}();", "Exception: Stack overflow.");
+}
+
+TEST_METHOD(AAA)
+{
+	module->AddFunction("void f(string& s)", f);
+	RunFailureTest("void f(string& s){}", "fofxi");
 }
 
 CA_TEST_CLASS_END();

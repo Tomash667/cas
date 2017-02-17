@@ -245,4 +245,9 @@ A =, 30->35
 )result");
 }
 
+TestMethod(StringMember)
+{
+	RunFileTest("string_member.txt");
+}
+
 CA_TEST_CLASS_END();
