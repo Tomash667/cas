@@ -1,8 +1,4 @@
-void f(string& s) { s += "LoL"; }
-
-A a;
-a.val = 3;
-a.str = "do";
-a.str += "da";
-f(a.str);
-inspect(a);
+string s = reverse();
+Assert_AreEqual("54321", s);
+s = reverse("tester");
+Assert_AreEqual("retset", s);

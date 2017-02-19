@@ -990,6 +990,26 @@ TEST_METHOD(CodeClassStringMember)
 }
 
 //=========================================================================================
+static string reverse(string& str)
+{
+	string rev;
+	rev.reserve(str.length());
+	for(auto it = str.rbegin(), end = str.rend(); it != end; ++it)
+		rev.push_back(*it);
+	return rev;
+}
+TEST_METHOD(FunctionDefaultStringArg)
+{
+	module->AddFunction("string reverse(string& str = \"12345\")", reverse);
+	RunTest(R"code(
+		string s = reverse();
+		Assert_AreEqual("54321", s);
+		s = reverse("tester");
+		Assert_AreEqual("retset", s);
+	)code");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

@@ -72,6 +72,7 @@ public:
 	bool Parse(ParseSettings& settigns);
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
 	int CreateDefaultFunctions(Type* type, int define_ctor = -1);
+	bool CheckTypeLoop(Type* type);
 	void Reset();
 
 private:

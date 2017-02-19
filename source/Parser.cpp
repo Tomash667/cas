@@ -6014,6 +6014,11 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 	return result;
 }
 
+bool Parser::CheckTypeLoop(Type* type)
+{
+	return false;
+}
+
 void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
 {
 	if(m->have_def_value)

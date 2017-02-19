@@ -63,6 +63,7 @@ namespace Microsoft
 const bool CI_MODE = ((_CI_MODE - 1) == 0);
 
 extern IModule* current_module;
+extern bool first_run;
 
 struct TestSettings
 {
@@ -207,6 +208,7 @@ TEST_CLASS(Name) 											\
 															\
 	TEST_METHOD_INITIALIZE(OnTestSetup) 					\
 	{ 														\
+		first_run = true;									\
 		CleanupErrors();									\
 		module = CreateModule();							\
 		current_module = module;                            \

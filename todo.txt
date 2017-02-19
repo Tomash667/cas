@@ -1,4 +1,5 @@
-+ string arg default value
+- CleanupParser clear strs, which are used as code function default string value
+
 + struct/class member
 	+ detect loop
 	+ tests:
@@ -13,6 +14,7 @@
 	+ COPY
 	+ code
 	+ return reference to passed string member
+	? CreateDefaultFunctions - class with struct member with custom assign, compare operator
 
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value

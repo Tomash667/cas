@@ -10,7 +10,7 @@ ostringstream s_output;
 string event_output, content;
 IModule* current_module;
 int reg_errors;
-bool decompile, reset_parser = true;
+bool decompile, reset_parser = true, first_run;
 
 enum Result
 {
@@ -187,8 +187,9 @@ unsigned __stdcall ThreadStart(void* data)
 
 Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 {
-	if(reset_parser && content)
+	if(reset_parser && content && !first_run)
 		module->ResetParser();
+	first_run = false;
 
 	if(IsDebuggerPresent())
 		return ParseAndRunChecked(module, content, optimize);

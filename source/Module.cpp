@@ -431,6 +431,12 @@ bool Module::BuildModule()
 				return false;
 		}
 
+		if(!parser->CheckTypeLoop(type))
+		{
+			ERROR(Format("Type '%s' have members loop.", type->name.c_str()));
+			return false;
+		}
+
 		// create default functions
 		int result = parser->CreateDefaultFunctions(type);
 		if(IS_SET(result, BF_ASSIGN))
