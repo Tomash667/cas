@@ -187,7 +187,7 @@ bool CommonFunction::Equal(CommonFunction& f) const
 		return false;
 	for(uint i = 0, count = arg_infos.size(); i < count; ++i)
 	{
-		if(arg_infos[i].vartype != f.arg_infos[i].vartype)
+		if(arg_infos[i].GetDeclaredVarType() != f.arg_infos[i].GetDeclaredVarType())
 			return false;
 	}
 	return true;

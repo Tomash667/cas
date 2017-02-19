@@ -20,6 +20,17 @@ struct ArgInfo
 	ArgInfo(int value) : vartype(V_INT), value(value), have_def_value(true), pass_by_ref(false) {}
 	ArgInfo(float fvalue) : vartype(V_FLOAT), fvalue(fvalue), have_def_value(true), pass_by_ref(false) {}
 	ArgInfo(VarType vartype, int value, bool have_def_value) : vartype(vartype), value(value), have_def_value(have_def_value), pass_by_ref(false) {}
+
+	inline VarType GetDeclaredVarType() const
+	{
+		VarType v = vartype;
+		if(pass_by_ref)
+		{
+			v.subtype = v.type;
+			v.type = V_REF;
+		}
+		return v;
+	}
 };
 
 // special function type

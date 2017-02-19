@@ -663,10 +663,10 @@ TEST_METHOD(StackOverflow)
 	RunFailureTest("void f(){f();}();", "Exception: Stack overflow.");
 }
 
-TEST_METHOD(AAA)
+TEST_METHOD(RedeclareFunctionWithPassByRef)
 {
 	module->AddFunction("void f(string& s)", f);
-	RunFailureTest("void f(string& s){}", "fofxi");
+	RunFailureTest("void f(string& s){}", "Function 'void f(string&)' already exists.");
 }
 
 CA_TEST_CLASS_END();

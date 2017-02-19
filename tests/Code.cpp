@@ -927,6 +927,7 @@ public:
 struct StructStrMember
 {
 public:
+	string str;
 };
 
 static void inspect(ClassStrMember& c)
@@ -941,25 +942,50 @@ static string& do_smth_on_str(string& s)
 	return s;
 }
 
+static string& do_smth_on_ClassStrMember(ClassStrMember& c)
+{
+	c.str = "2";
+	return c.str;
+}
+
 TEST_METHOD(CodeClassStringMember)
 {
-	SetDecompile(true);
-
 	auto type = module->AddType<ClassStrMember>("A");
 	type->AddMember("string str", offsetof(ClassStrMember, str));
 	type->AddMember("int val", offsetof(ClassStrMember, val));
-	module->AddFunction("void f(string& str)", do_smth_on_str);
+	type->AddMethod("string& f3()", do_smth_on_ClassStrMember);
+	module->AddFunction("string& f(string& str)", do_smth_on_str);
 	module->AddFunction("void inspect(A& a)", inspect);
+	auto type2 = module->AddType<StructStrMember>("B", cas::ValueType);
+	type2->AddMember("string str", offsetof(StructStrMember, str));
 
 	RunTest(R"code(
-		void f(string& s) { s += "LoL"; }
+		void f2(string& s) { s += "LoL"; }
 
 		A a;
 		a.val = 3;
 		a.str = "do";
 		a.str += "da";
-		f(a.str);
+		f2(a.str);
+		string& s = f(a.str);
 		inspect(a);
+
+		s += "1";
+		s -> a.f3();
+		s += "3";
+		Assert_AreEqual("23", s);
+		Assert_AreEqual("23", a.str);
+
+		B b;
+		b.str = "1";
+		B b2 = b;
+		b2.str = "2";
+		B b3;
+		b3 = b2;
+		b3.str = "3";
+		Assert_AreEqual("1", b.str);
+		Assert_AreEqual("2", b2.str);
+		Assert_AreEqual("3", b3.str);
 	)code");
 }
 

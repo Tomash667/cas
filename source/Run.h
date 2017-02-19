@@ -97,8 +97,18 @@ struct Class
 			{
 				if(m->vartype.type == V_STRING)
 				{
-					Str* str = c->at<Str*>(m->offset);
-					str->refs++;
+					if(!type->IsCode())
+					{
+						Str* str = c->at<Str*>(m->offset);
+						str->refs++;
+					}
+					else
+					{
+						string& old_str = base->at<string>(m->offset);
+						string* str = &c->at<string>(m->offset);
+						new(str) string(old_str);
+					}
+					
 				}
 			}
 		}

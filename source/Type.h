@@ -171,7 +171,7 @@ struct Type : public cas::IClass, public cas::IEnum
 struct VarSource
 {
 	int index;
-	bool mod;
+	bool mod, is_code_class;
 };
 
 // class member

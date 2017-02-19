@@ -1028,12 +1028,12 @@ void Parser::ParseEnum(bool forward)
 }
 
 // func_decl
-Function* Parser::ParseFuncDecl(cstring decl, Type* type)
+Function* Parser::ParseFuncDecl(cstring decl, Type* type, bool builtin)
 {
 	assert(decl);
 
 	Function* f = new Function;
-	f->flags = 0;
+	f->flags = (builtin ? CommonFunction::F_BUILTIN : CommonFunction::F_CODE);
 
 	try
 	{
@@ -1319,7 +1319,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		//		code constructors
 		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
 		f->required_args++;
-		if(in_cpp)
+		if(in_cpp && !f->IsBuiltin())
 			f->arg_infos.front().pass_by_ref = true;
 	}
 
@@ -1398,6 +1398,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				arg->subtype = ParseVar::ARG;
 				arg->index = current_function->args.size();
 				arg->mod = false;
+				arg->is_code_class = GetType(vartype.type)->IsCode();
 				arg->referenced = false;
 				current_function->args.push_back(arg);
 			}
@@ -1617,6 +1618,7 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	var->index = current_block->var_offset;
 	var->subtype = (current_function == nullptr ? ParseVar::GLOBAL : ParseVar::LOCAL);
 	var->mod = false;
+	var->is_code_class = GetType(vartype.type)->IsCode();
 	var->referenced = false;
 	current_block->vars.push_back(var);
 	current_block->var_offset++;
@@ -4970,6 +4972,17 @@ AnyFunction Parser::FindEqualFunction(Type* type, AnyFunction _f)
 	return nullptr;
 }
 
+VarType Parser::GetRequiredType(ParseNode* node, ArgInfo& arg)
+{
+	VarType required_type = arg.vartype;
+	if(arg.pass_by_ref && required_type.type == V_STRING && node->result.type == V_STRING && node->source && node->source->is_code_class)
+	{
+		required_type.subtype = required_type.type;
+		required_type.type = V_REF;
+	}
+	return required_type;
+}
+
 // 0 - don't match, 1 - require cast, 2 - require deref/take address, 3 - match
 int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse, bool obj_call)
 {
@@ -4988,8 +5001,10 @@ int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse,
 	bool require_ref = false;
 	for(uint i = node_offset; i < node->childs.size(); ++i)
 	{
-		ArgInfo& a = f.arg_infos[i + offset - node_offset];
-		CastResult c = MayCast(node->childs[i], a.vartype, a.pass_by_ref);
+		ArgInfo& arg = f.arg_infos[i + offset - node_offset];
+		ParseNode* child = node->childs[i];
+		VarType required_type = GetRequiredType(child, arg);
+		CastResult c = MayCast(child, required_type, arg.pass_by_ref);
 		if(c.CantCast())
 			return 0;
 		else
@@ -5140,8 +5155,10 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		{
 			for(uint i = 0; i < node->childs.size(); ++i)
 			{
-				ArgInfo& a = cf.arg_infos[i];
-				Cast(node->childs[i], a.vartype, a.pass_by_ref ? CF_PASS_BY_REF : 0);
+				ArgInfo& arg = cf.arg_infos[i];
+				ParseNode*& child = node->childs[i];
+				VarType required_type = GetRequiredType(child, arg);
+				Cast(child, required_type, arg.pass_by_ref ? CF_PASS_BY_REF : 0);
 			}
 		}
 
@@ -5630,6 +5647,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 			arg->subtype = ParseVar::ARG;
 			arg->index = func->args.size();
 			arg->mod = false;
+			arg->is_code_class = GetType(vartype.type)->IsCode();
 			func->args.push_back(arg);
 			t.Next();
 			

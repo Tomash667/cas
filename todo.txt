@@ -1,8 +1,7 @@
-- same function name in code & script
-	module->AddFunction("void f(string& str)", do_smth_on_str);
-	void f(string& s) { s += "LoL"; }
-
-+ class string member, tests:
++ string arg default value
++ struct/class member
+	+ detect loop
+	+ tests:
 	+ get
 	+ set
 	+ compound
@@ -14,9 +13,6 @@
 	+ COPY
 	+ code
 	+ return reference to passed string member
-+ string arg default value
-+ struct/class member
-	+ detect loop
 
 IMPROVEMENT/VERIFY:
 + ParseConstExpr in switch, default arg value

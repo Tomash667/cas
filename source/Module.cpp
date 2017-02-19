@@ -87,7 +87,7 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 		Event(EventType::Error, Format("Can't use thiscall in function '%s'.", decl));
 		return false;
 	}
-	Function* f = parser->ParseFuncDecl(decl, nullptr);
+	Function* f = parser->ParseFuncDecl(decl, nullptr, func_info.builtin);
 	if(!f)
 	{
 		Event(EventType::Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
@@ -101,10 +101,6 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 		return false;
 	}
 	f->clbk = func_info.ptr;
-	if(func_info.builtin)
-		f->flags |= CommonFunction::F_BUILTIN;
-	else
-		f->flags |= CommonFunction::F_CODE;
 	f->index = (index << 16) | functions.size();
 #ifdef _DEBUG
 	f->decl = parser->GetName(f);
@@ -117,7 +113,7 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 {
 	assert(type && decl);
 	assert(!type->built);
-	Function* f = parser->ParseFuncDecl(decl, type);
+	Function* f = parser->ParseFuncDecl(decl, type, func_info.builtin);
 	if(!f)
 	{
 		Event(EventType::Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
@@ -134,30 +130,24 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 	f->clbk = func_info.ptr;
 	if(func_info.thiscall)
 		f->flags |= CommonFunction::F_THISCALL;
-	if(func_info.builtin)
-		f->flags |= CommonFunction::F_BUILTIN;
-	else
+	if(!func_info.builtin && f->special == SF_CTOR)
 	{
-		f->flags |= CommonFunction::F_CODE;
-		if(f->special == SF_CTOR)
+		if(type->IsPassByValue())
 		{
-			if(type->IsPassByValue())
+			if(func_info.return_pointer_or_reference)
 			{
-				if(func_info.return_pointer_or_reference)
-				{
-					Event(EventType::Error, Format("Struct constructor '%s' must return type by value.", decl));
-					delete f;
-					return false;
-				}
+				Event(EventType::Error, Format("Struct constructor '%s' must return type by value.", decl));
+				delete f;
+				return false;
 			}
-			else
+		}
+		else
+		{
+			if(!func_info.return_pointer_or_reference)
 			{
-				if(!func_info.return_pointer_or_reference)
-				{
-					Event(EventType::Error, Format("Class constructor '%s' must return type by reference/pointer.", decl));
-					delete f;
-					return false;
-				}
+				Event(EventType::Error, Format("Class constructor '%s' must return type by reference/pointer.", decl));
+				delete f;
+				return false;
 			}
 		}
 	}

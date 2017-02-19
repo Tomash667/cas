@@ -62,7 +62,7 @@ public:
 	~Parser();
 
 	bool VerifyTypeName(cstring type_name, int& type_index);
-	Function* ParseFuncDecl(cstring decl, Type* type);
+	Function* ParseFuncDecl(cstring decl, Type* type, bool builtin);
 	Member* ParseMemberDecl(cstring decl);
 	void AddType(Type* type);
 	Function* GetFunction(int index);
@@ -156,6 +156,7 @@ private:
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
 	AnyFunction FindFunction(Type* type, cstring name, delegate<bool(AnyFunction& f)> pred);
 	AnyFunction FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
+	VarType GetRequiredType(ParseNode* node, ArgInfo& arg);
 	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse, bool obj_call);
 	AnyFunction ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor, bool obj_call = false);
 	void CheckFunctionIsDeleted(CommonFunction& cf);

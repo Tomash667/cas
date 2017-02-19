@@ -108,7 +108,7 @@ GetRefData GetRef(Var& v)
 		{
 			Class* c = v.ref->clas;
 			Member* m = c->type->members[v.ref->index];
-			return GetRefData((int*)c->at_data(m->offset), m->vartype);
+			return GetRefData((int*)c->at_data(m->offset), m->vartype, c->type->IsCode());
 		}
 	case RefVar::INDEX:
 		{
@@ -146,9 +146,23 @@ struct PackedValue
 	inline PackedValue(uint offset, Type* type, void* ptr) : offset(offset), type(type), c((Class*)ptr) {}
 };
 
+bool VerifyFunctionArg(Var& v, ArgInfo& arg)
+{
+	if(v.vartype == arg.vartype)
+		return true;
+
+	// pass by ref extra hacks
+	if(arg.pass_by_ref && v.vartype.type == V_REF && v.vartype.subtype == arg.vartype.type)
+	{
+		return v.ref->type == RefVar::CODE
+			|| (v.ref->type == RefVar::MEMBER && v.ref->clas->type->IsCode());
+	}
+
+	return false;
+}
+
 void ExecuteFunction(Function& f)
 {
-	assert(f.arg_infos.size() < 15u);
 	vector<int> packed_args;
 	vector<PackedValue> packed_values;
 	void* retptr = nullptr;
@@ -189,8 +203,7 @@ void ExecuteFunction(Function& f)
 	{
 		Var& v = stack.at(stack.size() - f.arg_infos.size() + i);
 		ArgInfo& arg = f.arg_infos[i];
-		assert(v.vartype == arg.vartype
-			|| (arg.pass_by_ref && v.vartype.type == V_REF && v.vartype.subtype == arg.vartype.type && v.ref->type == RefVar::CODE));
+		assert(VerifyFunctionArg(v, arg));
 		Type* type;
 		bool code_fake_val = (v.vartype != arg.vartype);
 		if(code_fake_val || arg.pass_by_ref || !(type = module->GetType(arg.vartype.type))->IsPassByValue())
