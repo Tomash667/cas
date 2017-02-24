@@ -1,117 +1,16 @@
 #pragma once
 
-#include "cas/IModule.h"
+#include "cas/IType.h"
+#include "AnyFunction.h"
+#include "VarType.h"
 
-class Module;
+class IModuleProxy;
 struct Enum;
-struct Function;
-struct CommonFunction;
 struct Member;
-struct ParseFunction;
-struct Type;
-struct UserFunction;
 enum SpecialFunction;
 
-// code or script function
-struct AnyFunction
-{
-	enum Type
-	{
-		NONE,
-		CODE,
-		PARSE,
-		SCRIPT
-	};
-
-	union
-	{
-		Function* f;
-		ParseFunction* pf;
-		CommonFunction* cf;
-		UserFunction* uf;
-	};
-	Type type;
-
-	inline AnyFunction(std::nullptr_t) : cf(nullptr), type(NONE) {}
-	inline AnyFunction(Function* f) : f(f), type(CODE) {}
-	inline AnyFunction(ParseFunction* pf) : pf(pf), type(PARSE) {}
-	inline AnyFunction(UserFunction* uf) : uf(uf), type(SCRIPT) {}
-	inline AnyFunction(CommonFunction* cf, Type type) : cf(cf), type(type) {}
-
-	inline operator bool() const { return type != NONE; }
-	inline bool operator == (const AnyFunction& f) const { return type == f.type && cf == f.cf; }
-	inline bool operator != (const AnyFunction& f) const { return type != f.type || cf != f.cf; }
-
-	inline bool IsCode() const { return type == CODE; }
-	inline bool IsParse() const { return type == PARSE; }
-	inline bool IsScript() const { return type == SCRIPT; }
-};
-
-// string implementation
-struct Str : ObjectPoolProxy<Str>
-{
-	string s;
-	int refs;
-
-	inline bool Release()
-	{
-		--refs;
-		if(refs == 0)
-		{
-			Free();
-			return true;
-		}
-		else
-			return false;
-	}
-};
-
-// var type
-enum CoreVarType
-{
-	V_VOID,
-	V_BOOL,
-	V_CHAR,
-	V_INT,
-	V_FLOAT,
-	V_STRING,
-	V_REF,
-	V_SPECIAL,
-	V_TYPE,
-	V_MAX
-};
-
-inline bool IsSimple(int type) { return type == V_BOOL || type == V_CHAR || type == V_INT || type == V_FLOAT; }
-
-struct VarType
-{
-	int type, subtype;
-
-	VarType() {}
-	VarType(nullptr_t) : type(0), subtype(0) {}
-	VarType(CoreVarType core) : type(core), subtype(0) {}
-	VarType(int type, int subtype) : type(type), subtype(subtype) {}
-
-	inline bool operator == (const VarType& vartype) const
-	{
-		return type == vartype.type && subtype == vartype.subtype;
-	}
-
-	inline bool operator != (const VarType& vartype) const
-	{
-		return type != vartype.type || subtype != vartype.subtype;
-	}
-
-	inline int GetType() const
-	{
-		if(type == V_REF)
-			return subtype;
-		else
-			return type;
-	}
-};
-
-// type
+// Script type
+// Can be simple type, class, struct or enum
 struct Type : public cas::IClass, public cas::IEnum
 {
 	enum Flags
@@ -128,7 +27,7 @@ struct Type : public cas::IClass, public cas::IEnum
 		BuiltinCtor
 	};
 
-	Module* module;
+	IModuleProxy* module_proxy;
 	string name;
 	vector<Function*> funcs;
 	vector<ParseFunction*> ufuncs;
@@ -139,78 +38,37 @@ struct Type : public cas::IClass, public cas::IEnum
 	uint first_line, first_charpos;
 	bool declared, built, have_def_value, have_complex_member;
 
-	inline Type() : enu(nullptr), dtor(nullptr), have_def_value(false), have_complex_member(false) {}
+	Type() : enu(nullptr), dtor(nullptr), have_def_value(false), have_complex_member(false) {}
 	~Type();
-	Member* FindMember(const string& name, int& index);
-	Function* FindCodeFunction(cstring name);
-	Function* FindSpecialCodeFunction(SpecialFunction special);
-	void SetGenericType();
 
-	inline bool IsClass() const { return IS_SET(flags, Type::Class); }
-	inline bool IsRef() const { return IS_SET(flags, Type::Ref); }
-	inline bool IsStruct() const { return IsClass() && !IsRef(); }
-	inline bool IsRefClass() const { return IsClass() && IsRef(); }
-	inline bool IsPassByValue() const { return IS_SET(flags, Type::PassByValue); }
-	inline bool IsSimple() const { return ::IsSimple(index); }
-	inline bool IsEnum() const { return enu != nullptr; }
-	inline bool IsBuiltin() const { return IsSimple() || index == V_STRING || IsEnum(); }
-	inline bool IsRefCounted() const { return IS_SET(flags, Type::RefCount); }
-	inline bool IsAssignable() const { return IsPassByValue() || IsClass(); }
-	inline bool IsCode() const { return IS_SET(flags, Type::Code); }
-	inline bool IsHidden() const { return IS_SET(flags, Type::Hidden); }
+	// from IType
+	cstring GetName() const override;
 
+	// from IClass
 	bool AddMember(cstring decl, int offset) override;
 	bool AddMethod(cstring decl, const cas::FunctionInfo& func_info) override;
+
+	// from IEnum
 	bool AddValue(cstring name) override;
 	bool AddValue(cstring name, int value) override;
 	bool AddValues(std::initializer_list<cstring> const& items) override;
 	bool AddValues(std::initializer_list<Item> const& items) override;
-	cstring GetName() const override;
-};
 
-struct VarSource
-{
-	int index;
-	bool mod, is_code_class;
-};
+	Function* FindCodeFunction(cstring name);
+	Member* FindMember(const string& name, int& index);
+	Function* FindSpecialCodeFunction(SpecialFunction special);
+	void SetGenericType();
 
-// class member
-struct Member : public VarSource
-{
-	string name;
-	VarType vartype;
-	int offset;
-	union
-	{
-		bool bvalue;
-		char cvalue;
-		int value;
-		float fvalue;
-	};
-	enum UsedMode
-	{
-		No,
-		Used,
-		UsedBeforeSet,
-		Set
-	};
-	UsedMode used;
-	tokenizer::Pos pos;
-	bool have_def_value;
-};
-
-struct Enum
-{
-	Type* type;
-	vector<std::pair<string, int>> values;
-
-	std::pair<string, int>* Find(const string& id)
-	{
-		for(auto& val : values)
-		{
-			if(val.first == id)
-				return &val;
-		}
-		return nullptr;
-	}
+	bool IsClass() const { return IS_SET(flags, Type::Class); }
+	bool IsRef() const { return IS_SET(flags, Type::Ref); }
+	bool IsStruct() const { return IsClass() && !IsRef(); }
+	bool IsRefClass() const { return IsClass() && IsRef(); }
+	bool IsPassByValue() const { return IS_SET(flags, Type::PassByValue); }
+	bool IsSimple() const { return ::IsSimple(index); }
+	bool IsEnum() const { return enu != nullptr; }
+	bool IsBuiltin() const { return IsSimple() || index == V_STRING || IsEnum(); }
+	bool IsRefCounted() const { return IS_SET(flags, Type::RefCount); }
+	bool IsAssignable() const { return IsPassByValue() || IsClass(); }
+	bool IsCode() const { return IS_SET(flags, Type::Code); }
+	bool IsHidden() const { return IS_SET(flags, Type::Hidden); }
 };

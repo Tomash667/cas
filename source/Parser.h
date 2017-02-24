@@ -2,6 +2,7 @@
 
 #include "Function.h"
 
+class Module;
 struct Block;
 struct CastResult;
 struct Enum;
@@ -188,7 +189,7 @@ private:
 	ParseFunction* current_function;
 	Type* current_type;
 	ParseNode* global_node;
-	int breakable_block, empty_string, ufunc_offset, tmp_type_offset;
+	int breakable_block, empty_string, ufunc_offset/*, tmp_type_offset*/;
 	vector<ReturnStructVar*> rsvs;
 	vector<string*> tmp_strs;
 	uint prev_line;

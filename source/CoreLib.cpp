@@ -1,6 +1,7 @@
 #include "Pch.h"
-#include "CasImpl.h"
-#include "Type.h"
+#include "cas/Settings.h"
+#include "CasException.h"
+#include "ICallContextProxy.h"
 #include "Module.h"
 
 // for _getch
@@ -11,7 +12,6 @@
 static std::istream* s_input;
 static std::ostream* s_output;
 static bool s_use_getch;
-static vector<string> asserts;
 
 static void f_print(string& str)
 {
@@ -80,7 +80,7 @@ static int f_int_parse(string& s)
 {
 	int i;
 	if(!TextHelper::ToInt(s.c_str(), i))
-		throw CasException(Format("Invalid int format '%s'.", s.c_str()));
+		throw CasException("Invalid int format '%s'.", s.c_str());
 	return i;
 }
 
@@ -93,7 +93,7 @@ static float f_float_parse(string& s)
 {
 	float f;
 	if(!TextHelper::ToFloat(s.c_str(), f))
-		throw CasException(Format("Invalid float format '%s'.", s.c_str()));
+		throw CasException("Invalid float format '%s'.", s.c_str());
 	return f;
 }
 
@@ -118,7 +118,7 @@ static bool f_bool_parse(string& s)
 {
 	bool b;
 	if(!TextHelper::ToBool(s.c_str(), b))
-		throw CasException(Format("Invalid bool format '%s'.", s.c_str()));
+		throw CasException("Invalid bool format '%s'.", s.c_str());
 	return b;
 }
 
@@ -139,11 +139,11 @@ static char f_char_parse(string& s)
 {
 	char c;
 	if(!f_char_try_parse(s, c))
-		throw CasException(Format("Invalid char format '%s'.", s.c_str()));
+		throw CasException("Invalid char format '%s'.", s.c_str());
 	return c;
 }
 
-static void InitCoreLib(Module& module, Settings& settings)
+static void InitCoreLib(Module& module, cas::Settings& settings)
 {
 	assert(settings.input && settings.output);
 
@@ -194,18 +194,18 @@ static void InitCoreLib(Module& module, Settings& settings)
 	module.AddFunction("float getfloat()", f_getfloat);
 	module.AddFunction("string getstr()", f_getstr);
 	module.AddFunction("void pause()", f_pause);
-	module.AddFunction("char getchar()", f_getchar);
+	module.AddFunction("char getchar()", f_getchar);	
 }
 
 static void AddAssert(cstring msg)
 {
-	auto loc = cas::GetCurrentLocation();
-	cstring formated;
+	auto loc = ICallContextProxy::Current->GetCurrentLocation();
+	cstring formatted;
 	if(loc.second != -1)
-		formated = Format("Function: %s(%d). Message: %s", loc.first, loc.second, msg);
+		formatted = Format("Function: %s(%d). Message: %s", loc.first, loc.second, msg);
 	else
-		formated = Format("Function: %s. Message: %s", loc.first, msg);
-	asserts.push_back(formated);
+		formatted = Format("Function: %s. Message: %s", loc.first, msg);
+	ICallContextProxy::Current->AddAssert(formatted);
 }
 
 static void Assert_AreEqual(bool expected, bool actual)
@@ -285,11 +285,6 @@ static void Assert_Break()
 	DebugBreak();
 }
 
-vector<string>& cas::GetAsserts()
-{
-	return asserts;
-}
-
 static void InitDebugLib(Module& module)
 {
 	module.AddFunction("void Assert_AreEqual(bool expected, bool actual)", AsFunction(Assert_AreEqual, void, (bool, bool)));
@@ -307,7 +302,7 @@ static void InitDebugLib(Module& module)
 	module.AddFunction("void Assert_Break()", Assert_Break);
 }
 
-void InitLib(Module& module, Settings& settings)
+void InitLib(Module& module, cas::Settings& settings)
 {
 	if(settings.use_corelib)
 	{

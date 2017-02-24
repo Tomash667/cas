@@ -4,26 +4,44 @@
     <ClCompile Include="source/Cas.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="source/CoreLib.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="source\Engine.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source\CallContext.cpp">
+      <Filter>Source\CPP</Filter>
     </ClCompile>
     <ClCompile Include="source/Module.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="source/Parser.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\CPP</Filter>
     </ClCompile>
     <ClCompile Include="source/Pch.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\CPP</Filter>
     </ClCompile>
-    <ClCompile Include="source/Run.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="source\Class.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source\RefVar.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source\TTTTTmp.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Enum.cpp">
+      <Filter>Source\CPP</Filter>
     </ClCompile>
     <ClCompile Include="source\Type.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Function.cpp">
+      <Filter>Source\CPP</Filter>
     </ClCompile>
     <ClCompile Include="source\Decompiler.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source/Parser.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source/CoreLib.cpp">
+      <Filter>Source\CPP</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -36,32 +54,104 @@
     <ClInclude Include="source/CasImpl.h">
       <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="source/Function.h">
-      <Filter>Source</Filter>
+    <ClInclude Include="include\cas\ICallContext.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\IEngine.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\Settings.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Engine.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CallContext.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\Common.h">
+      <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="source/Module.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="source/Op.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="source/Parser.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="source/ParserImpl.h">
-      <Filter>Source</Filter>
+      <Filter>Source\H</Filter>
     </ClInclude>
     <ClInclude Include="source/Pch.h">
-      <Filter>Source</Filter>
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\ReturnValue.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\IType.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\FunctionInfo.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="source/Op.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Class.h">
+      <Filter>Source\H</Filter>
     </ClInclude>
     <ClInclude Include="source/Type.h">
-      <Filter>Source</Filter>
+      <Filter>Source\H</Filter>
     </ClInclude>
-    <ClInclude Include="source\Run.h">
-      <Filter>Source</Filter>
+    <ClInclude Include="source\ICallContextProxy.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\RefVar.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Str.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Var.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\StackFrame.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VarType.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\AnyFunction.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VarSource.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Member.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Enum.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\IModuleProxy.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VectorOffset.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CasException.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source/Function.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Event.h">
+      <Filter>Source\H</Filter>
     </ClInclude>
     <ClInclude Include="source\Decompiler.h">
-      <Filter>Source</Filter>
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source/Parser.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source/ParserImpl.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="source\EventLogger.h">
+      <Filter>Source\H</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -73,6 +163,12 @@
     </Filter>
     <Filter Include="Source">
       <UniqueIdentifier>{e151f593-22e9-43a0-9610-10f2de1718d9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\CPP">
+      <UniqueIdentifier>{5d4ebc83-891c-4152-a62e-404b8f0c4e46}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\H">
+      <UniqueIdentifier>{d9b068c0-98bc-4d93-8471-e220087bdb32}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

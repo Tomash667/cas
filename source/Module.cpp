@@ -1,38 +1,33 @@
 #include "Pch.h"
-#include "CasImpl.h"
+#include "CallContext.h"
+#include "Decompiler.h"
+#include "Enum.h"
+#include "Event.h"
+#include "Member.h"
 #include "Module.h"
-#include "Function.h"
 #include "Parser.h"
 
-vector<Module*> Module::all_modules;
-bool Module::all_modules_shutdown;
-cas::ReturnValue return_value;
-
-Module::Module(int index, Module* parent_module) : inherited(false), parser(nullptr), index(index), refs(1), released(false), built(false)
+/*Module::Module() : released(false), built(false)
 {
+}*/
+
+Module::Module(int index, cstring name) : index(index), parser(nullptr), refs(1)
+{
+	modules[index] = this;
+	SetName(name);
+
 	Options default_options;
 	SetOptions(default_options);
-
-	modules[index] = this;
-	if(parent_module)
-		AddParentModule(parent_module);
-
-	parser = new Parser(this);
-
-	all_modules.push_back(this);
 }
 
 Module::~Module()
 {
 	Cleanup(true);
-
-	if(!all_modules_shutdown)
-		RemoveElement(all_modules, this);
 }
 
 void Module::Cleanup(bool dtor)
 {
-	CleanupReturnValue();
+	/*CleanupReturnValue();
 
 	for(Str* s : strs)
 	{
@@ -56,10 +51,10 @@ void Module::Cleanup(bool dtor)
 		code.clear();
 	}
 
-	DeleteElements(tmp_types);
+	DeleteElements(tmp_types);*/
 }
 
-void Module::RemoveRef(bool release)
+/*void Module::RemoveRef(bool release)
 {
 	if(release)
 	{
@@ -77,26 +72,55 @@ void Module::RemoveRef(bool release)
 		}
 		delete this;
 	}
+}*/
+
+//==========
+cas::IEnum* Module::AddEnum(cstring type_name)
+{
+	assert(type_name);
+
+	if(!VerifyTypeName(type_name))
+		return nullptr;
+
+	Type* type = new Type;
+	type->module_proxy = this;
+	type->name = type_name;
+	type->size = sizeof(int);
+	type->flags = Type::Code;
+	type->index = types.size() | (index << 16);
+	type->declared = true;
+	type->built = false;
+	type->enu = new Enum;
+	type->enu->type = type;
+	type->SetGenericType();
+	types.push_back(type);
+	AddParserType(type);
+
+	built = false;
+	return type;
 }
 
-bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
+bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 {
+	Info("test", 1, 2, 3);
+	Info("test2");
+
 	assert(decl);
 	if(func_info.thiscall)
 	{
-		Event(EventType::Error, Format("Can't use thiscall in function '%s'.", decl));
+		Error("Can't use thiscall in function '%s'.", decl);
 		return false;
 	}
 	Function* f = parser->ParseFuncDecl(decl, nullptr, func_info.builtin);
 	if(!f)
 	{
-		Event(EventType::Error, Format("Failed to parse function declaration for AddFunction '%s'.", decl));
+		Error("Failed to parse function declaration for AddFunction '%s'.", decl);
 		return false;
 	}
 	f->type = V_VOID;
 	if(FindEqualFunction(*f))
 	{
-		Event(EventType::Error, Format("Function '%s' already exists.", parser->GetName(f)));
+		Error("Function '%s' already exists.", parser->GetName(f));
 		delete f;
 		return false;
 	}
@@ -109,21 +133,46 @@ bool Module::AddFunction(cstring decl, const FunctionInfo& func_info)
 	return true;
 }
 
-bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
+bool Module::AddParentModule(cas::IModule* _module)
+{
+	Module* module = (Module*)_module;
+
+	// is already added?
+	if(modules.find(module->index) != modules.end())
+		return true;
+
+	// detect circular dependency
+
+	// add
+	module->child_modules.push_back(this);
+	modules[module->index] = module;
+	for(auto m : module->modules)
+	{
+		modules[m.first] = m.second;
+		if(parser)
+		{
+			//f
+		}
+	}
+
+	return true;
+}
+
+bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_info)
 {
 	assert(type && decl);
 	assert(!type->built);
 	Function* f = parser->ParseFuncDecl(decl, type, func_info.builtin);
 	if(!f)
 	{
-		Event(EventType::Error, Format("Failed to parse function declaration for AddMethod '%s'.", decl));
+		Error("Failed to parse function declaration for AddMethod '%s'.", decl);
 		return false;
 	}
 	f->type = type->index;
 	if(parser->FindEqualFunction(type, AnyFunction(f)))
 	{
-		Event(EventType::Error, Format("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
-			parser->GetName(f, true, false), type->name.c_str()));
+		Error("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
+			parser->GetName(f, true, false), type->name.c_str());
 		delete f;
 		return false;
 	}
@@ -136,7 +185,7 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 		{
 			if(func_info.return_pointer_or_reference)
 			{
-				Event(EventType::Error, Format("Struct constructor '%s' must return type by value.", decl));
+				Error("Struct constructor '%s' must return type by value.", decl);
 				delete f;
 				return false;
 			}
@@ -145,7 +194,7 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 		{
 			if(!func_info.return_pointer_or_reference)
 			{
-				Event(EventType::Error, Format("Class constructor '%s' must return type by reference/pointer.", decl));
+				Error("Class constructor '%s' must return type by reference/pointer.", decl);
 				delete f;
 				return false;
 			}
@@ -162,9 +211,9 @@ bool Module::AddMethod(Type* type, cstring decl, const FunctionInfo& func_info)
 
 bool VerifyFlags(int flags)
 {
-	if(IS_SET(flags, ValueType))
+	if(IS_SET(flags, cas::ValueType))
 	{
-		if(IS_SET(flags, RefCount))
+		if(IS_SET(flags, cas::RefCount))
 			return false; // struct can't have reference counting
 	}
 	return true;
@@ -176,9 +225,9 @@ bool Module::VerifyTypeName(cstring type_name)
 	if(!parser->VerifyTypeName(type_name, type_index))
 	{
 		if(type_index == -1)
-			Event(EventType::Error, Format("Can't declare type '%s', name is keyword.", type_name));
+			Error("Can't declare type '%s', name is keyword.", type_name);
 		else
-			Event(EventType::Error, Format("Type '%s' already declared.", type_name));
+			Error("Type '%s' already declared.", type_name);
 		return false;
 	}
 	else
@@ -188,14 +237,13 @@ bool Module::VerifyTypeName(cstring type_name)
 cas::IClass* Module::AddType(cstring type_name, int size, int flags)
 {
 	assert(type_name && size > 0);
-	assert(!inherited); // can't add types to inherited module (until fixed)
 	assert(VerifyFlags(flags));
 
 	if(!VerifyTypeName(type_name))
 		return nullptr;
 
 	Type* type = new Type;
-	type->module = this;
+	type->module_proxy = this;
 	type->name = type_name;
 	type->size = size;
 	type->flags = Type::Class | Type::Code;
@@ -214,33 +262,7 @@ cas::IClass* Module::AddType(cstring type_name, int size, int flags)
 	type->built = false;
 	type->SetGenericType();
 	types.push_back(type);
-	parser->AddType(type);
-
-	built = false;
-	return type;
-}
-
-cas::IEnum* Module::AddEnum(cstring type_name)
-{
-	assert(type_name);
-	assert(!inherited); // can't add types to inherited module (until fixed)
-
-	if(!VerifyTypeName(type_name))
-		return nullptr;
-
-	Type* type = new Type;
-	type->module = this;
-	type->name = type_name;
-	type->size = sizeof(int);
-	type->flags = Type::Code;
-	type->index = types.size() | (index << 16);
-	type->declared = true;
-	type->built = false;
-	type->enu = new Enum;
-	type->enu->type = type;
-	type->SetGenericType();
-	types.push_back(type);
-	parser->AddType(type);
+	AddParserType(type);
 
 	built = false;
 	return type;
@@ -253,7 +275,7 @@ bool Module::AddMember(Type* type, cstring decl, int offset)
 	Member* m = parser->ParseMemberDecl(decl);
 	if(!m)
 	{
-		Event(EventType::Error, Format("Failed to parse member declaration for type '%s' AddMember '%s'.", type->name.c_str(), decl));
+		Error("Failed to parse member declaration for type '%s' AddMember '%s'.", type->name.c_str(), decl);
 		return false;
 	}
 	m->offset = offset;
@@ -261,7 +283,7 @@ bool Module::AddMember(Type* type, cstring decl, int offset)
 	int m_index;
 	if(type->FindMember(m->name, m_index))
 	{
-		Event(EventType::Error, Format("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str()));
+		Error("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
 		delete m;
 		return false;
 	}
@@ -273,47 +295,13 @@ bool Module::AddMember(Type* type, cstring decl, int offset)
 	return true;
 }
 
-ReturnValue Module::GetReturnValue()
-{
-	return return_value;
-}
-
-cstring Module::GetException()
-{
-	return exc.c_str();
-}
-
-IModule::ExecutionResult Module::ParseAndRun(cstring input, bool decompile)
-{
-	// build
-	if(!BuildModule())
-		return ExecutionResult::ValidationError;
-
-	// parse
-	ParseSettings settings;
-	settings.input = input;
-	settings.optimize = optimize;
-	if(!parser->Parse(settings))
-		return ExecutionResult::ParsingError;
-
-	// decompile
-	if(decompile)
-		Decompiler::Get().Decompile(*this);
-		
-	// run
-	bool ok = ::Run(*this);
-
-	return (ok ? ExecutionResult::Ok : ExecutionResult::Exception);
-}
-
 Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags)
 {
 	// can only be used in core module
 	assert(index == 0);
-	assert(!inherited);
 
 	Type* type = new Type;
-	type->module = this;
+	type->module_proxy = this;
 	type->name = type_name;
 	type->size = size;
 	type->index = types.size();
@@ -324,7 +312,7 @@ Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int
 	type->SetGenericType();
 	types.push_back(type);
 	if(!IS_SET(flags, Type::Hidden))
-		parser->AddType(type);
+		AddParserType(type);
 	built = false;
 
 	return type;
@@ -364,18 +352,10 @@ Type* Module::GetType(int index)
 {
 	int module_index = (index & 0xFFFF0000) >> 16;
 	int type_index = (index & 0xFFFF);
-	if(module_index == 0xFFFF)
-	{
-		assert(type_index < (int)tmp_types.size());
-		return tmp_types[type_index];
-	}
-	else
-	{
-		assert(modules.find(module_index) != modules.end());
-		Module* m = modules[module_index];
-		assert(type_index < (int)m->types.size());
-		return m->types[type_index];
-	}
+	assert(modules.find(module_index) != modules.end());
+	Module* m = modules[module_index];
+	assert(type_index < (int)m->types.size());
+	return m->types[type_index];
 }
 
 Function* Module::GetFunction(int index)
@@ -397,7 +377,7 @@ void Module::AddParentModule(Module* parent_module)
 		assert(m.first != index); // circular dependency!
 		modules[m.first] = m.second;
 		m.second->refs++;
-		m.second->inherited = true;
+		//m.second->inherited = true;
 	}
 }
 
@@ -458,13 +438,13 @@ bool Module::AddEnumValue(Type* type, cstring name, int value)
 	int type_index;
 	if(!parser->VerifyTypeName(name, type_index))
 	{
-		Event(EventType::Error, Format("Enumerator name '%s' already used as %s.", name, type_index == -1 ? "keyword" : "type"));
+		Error("Enumerator name '%s' already used as %s.", name, type_index == -1 ? "keyword" : "type");
 		return false;
 	}
 
 	if(type->enu->Find(name))
 	{
-		Event(EventType::Error, Format("Enumerator '%s.%s' already defined.", type->name.c_str(), name));
+		Error("Enumerator '%s.%s' already defined.", type->name.c_str(), name);
 		return false;
 	}
 
@@ -472,28 +452,20 @@ bool Module::AddEnumValue(Type* type, cstring name, int value)
 	return true;
 }
 
-IModule::ExecutionResult Module::Parse(cstring input)
+cas::IModule::ParseResult Module::Parse(cstring input)
 {
 	// build
 	if(!BuildModule())
-		return ExecutionResult::ValidationError;
+		return ParseResult::ValidationError;
 
 	// parse
 	ParseSettings settings;
 	settings.input = input;
 	settings.optimize = optimize;
 	if(!parser->Parse(settings))
-		return ExecutionResult::ParsingError;
+		return ParseResult::ParsingError;
 
-	return ExecutionResult::Ok;
-}
-
-IModule::ExecutionResult Module::Run()
-{
-	// run
-	bool ok = ::Run(*this);
-
-	return (ok ? ExecutionResult::Ok : ExecutionResult::Exception);
+	return ParseResult::Ok;
 }
 
 void Module::SetOptions(const Options& options)
@@ -501,9 +473,50 @@ void Module::SetOptions(const Options& options)
 	optimize = options.optimize;
 }
 
-void Module::ResetParser()
+bool Module::Release()
 {
-	Cleanup(false);
+	if(!child_modules.empty())
+	{
+		Warn("Can't release module that have child modules.");
+		return false;
+	}
+
+	if(refs > 1)
+	{
+		Warn("Can't release module that have attached call context.");
+		return false;
+	}
+
+	for(auto& m : modules)
+	{
+		if(m.first != index)
+		{
+			RemoveElement(m.second->child_modules, this);
+			--m.second->refs;
+		}
+	}
+
+	delete this;
+
+	return true;
+}
+
+bool Module::Reset()
+{
+	if(!child_modules.empty())
+	{
+		Warn("Can't reset module that have child modules.");
+		return false;
+	}
+
+	if(refs > 1)
+	{
+		Warn("Can't reset module that have attached call context.");
+		return false;
+	}
+
+	//Cleanup(false);
+	return true;
 }
 
 cstring Module::GetFunctionName(uint index, bool is_user)
@@ -517,4 +530,40 @@ cstring Module::GetFunctionName(uint index, bool is_user)
 void Module::Decompile()
 {
 	Decompiler::Get().Decompile(*this);
+}
+
+//======================================================================
+// NEW
+cstring Module::GetName()
+{
+	return name.c_str();
+}
+
+void Module::SetName(cstring new_name)
+{
+	if(new_name)
+		name = new_name;
+	else
+		name = Format("Module%d", index);
+}
+
+Str* Module::GetStr(int index)
+{
+	int module_index = (index & 0xFFFF0000) >> 16;
+	int str_index = (index & 0xFFFF);
+	assert(modules.find(module_index) != modules.end());
+	Module* m = modules[module_index];
+	assert(str_index < (int)m->strs.size());
+	return m->strs[str_index];
+}
+
+void Module::AddParserType(Type* type)
+{
+	if(parser)
+		parser->AddType(type);
+	for(Module* module : child_modules)
+	{
+		if(module->parser)
+			module->parser->AddType(type);
+	}
 }

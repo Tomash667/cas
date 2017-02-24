@@ -2,7 +2,7 @@
 
 #include "Type.h"
 
-// function argument
+// Function argument
 struct ArgInfo
 {
 	VarType vartype;
@@ -21,7 +21,7 @@ struct ArgInfo
 	ArgInfo(float fvalue) : vartype(V_FLOAT), fvalue(fvalue), have_def_value(true), pass_by_ref(false) {}
 	ArgInfo(VarType vartype, int value, bool have_def_value) : vartype(vartype), value(value), have_def_value(have_def_value), pass_by_ref(false) {}
 
-	inline VarType GetDeclaredVarType() const
+	VarType GetDeclaredVarType() const
 	{
 		VarType v = vartype;
 		if(pass_by_ref)
@@ -33,7 +33,7 @@ struct ArgInfo
 	}
 };
 
-// special function type
+// Special function type
 enum SpecialFunction
 {
 	SF_NO,
@@ -44,7 +44,7 @@ enum SpecialFunction
 	SF_RELEASE
 };
 
-// common for parse & code function
+// Common for parse & code function
 struct CommonFunction
 {
 	enum FLAGS
@@ -70,29 +70,29 @@ struct CommonFunction
 
 	bool Equal(CommonFunction& f) const;
 
-	inline bool IsBuiltin() const { return IS_SET(flags, F_BUILTIN); }
-	inline bool IsCode() const { return IS_SET(flags, F_CODE); }
-	inline bool IsStatic() const { return IS_SET(flags, F_STATIC); }
-	inline bool IsDefault() const { return IS_SET(flags, F_DEFAULT); }
-	inline bool IsDeleted() const { return IS_SET(flags, F_DELETE); }
-	inline bool IsImplicit() const { return IS_SET(flags, F_IMPLICIT); }
+	bool IsBuiltin() const { return IS_SET(flags, F_BUILTIN); }
+	bool IsCode() const { return IS_SET(flags, F_CODE); }
+	bool IsStatic() const { return IS_SET(flags, F_STATIC); }
+	bool IsDefault() const { return IS_SET(flags, F_DEFAULT); }
+	bool IsDeleted() const { return IS_SET(flags, F_DELETE); }
+	bool IsImplicit() const { return IS_SET(flags, F_IMPLICIT); }
+	bool IsThisCall() const { return IS_SET(flags, F_THISCALL); }
 
 	// Should function pass this as first argument, 
 	// Non static methods, except code ctors
-	inline bool PassThis() const
+	bool PassThis() const
 	{
-		
 		return type != V_VOID && !(IsStatic() || (IsCode() && special == SF_CTOR));
 	}
 };
 
-// code function
+// Code function
 struct Function : CommonFunction
 {
 	void* clbk;
 };
 
-// script function
+// Script function
 struct UserFunction
 {
 	string name;

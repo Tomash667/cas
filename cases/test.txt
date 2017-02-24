@@ -1,4 +1,2 @@
-string s = reverse();
-Assert_AreEqual("54321", s);
-s = reverse("tester");
-Assert_AreEqual("retset", s);
+printx();
+pause();

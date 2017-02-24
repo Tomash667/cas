@@ -14,11 +14,3 @@ void InitLib(Module& module, Settings& settings);
 bool Run(Module& module);
 void Event(EventType event_type, cstring msg);
 void CleanupReturnValue();
-
-struct CasException
-{
-	cstring exc;
-	CasException(cstring exc) : exc(exc) {}
-};
-
-#include "Decompiler.h"

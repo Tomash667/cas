@@ -56,7 +56,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CHECK_LEAKS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
       <AdditionalIncludeDirectories>include;cacore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -96,6 +96,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/cas/Cas.h" />
+    <ClInclude Include="include\cas\Common.h" />
+    <ClInclude Include="include\cas\FunctionInfo.h" />
+    <ClInclude Include="include\cas\ICallContext.h" />
+    <ClInclude Include="include\cas\IEngine.h" />
+    <ClInclude Include="include\cas\IType.h" />
+    <ClInclude Include="include\cas\ReturnValue.h" />
+    <ClInclude Include="include\cas\Settings.h" />
     <ClInclude Include="source/CasImpl.h" />
     <ClInclude Include="source/Function.h" />
     <ClInclude Include="include/cas/IModule.h" />
@@ -105,12 +112,31 @@
     <ClInclude Include="source/ParserImpl.h" />
     <ClInclude Include="source/Pch.h" />
     <ClInclude Include="source/Type.h" />
+    <ClInclude Include="source\AnyFunction.h" />
+    <ClInclude Include="source\CallContext.h" />
+    <ClInclude Include="source\CasException.h" />
+    <ClInclude Include="source\Class.h" />
     <ClInclude Include="source\Decompiler.h" />
-    <ClInclude Include="source\Run.h" />
+    <ClInclude Include="source\Engine.h" />
+    <ClInclude Include="source\Enum.h" />
+    <ClInclude Include="source\Event.h" />
+    <ClInclude Include="source\EventLogger.h" />
+    <ClInclude Include="source\ICallContextProxy.h" />
+    <ClInclude Include="source\IModuleProxy.h" />
+    <ClInclude Include="source\Member.h" />
+    <ClInclude Include="source\RefVar.h" />
+    <ClInclude Include="source\StackFrame.h" />
+    <ClInclude Include="source\Str.h" />
+    <ClInclude Include="source\Var.h" />
+    <ClInclude Include="source\VarSource.h" />
+    <ClInclude Include="source\VarType.h" />
+    <ClInclude Include="source\VectorOffset.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source/Cas.cpp" />
     <ClCompile Include="source/CoreLib.cpp" />
+    <ClCompile Include="source\CallContext.cpp" />
+    <ClCompile Include="source\Class.cpp" />
     <ClCompile Include="source\Decompiler.cpp" />
     <ClCompile Include="source/Module.cpp" />
     <ClCompile Include="source/Parser.cpp" />
@@ -118,7 +144,11 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="source/Run.cpp" />
+    <ClCompile Include="source\Engine.cpp" />
+    <ClCompile Include="source\Enum.cpp" />
+    <ClCompile Include="source\Function.cpp" />
+    <ClCompile Include="source\RefVar.cpp" />
+    <ClCompile Include="source\TTTTTmp.cpp" />
     <ClCompile Include="source\Type.cpp" />
   </ItemGroup>
   <ItemGroup>

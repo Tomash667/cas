@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Op.h"
+#include "Function.h"
+#include "VarSource.h"
+#include "VarType.h"
 
 enum GROUP
 {
@@ -213,6 +216,8 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 	int local_index;
 	bool referenced;
 };
+
+struct ParseNode;
 
 struct ReturnStructVar : VarSource
 {

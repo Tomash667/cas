@@ -1,10 +1,9 @@
 #include "Pch.h"
-#include "CasImpl.h"
-#include "Type.h"
-#include "Op.h"
-#include "Parser.h"
-#include "Module.h"
 #include "Decompiler.h"
+#include "Module.h"
+#include "Op.h"
+#include "Str.h"
+#include "VarType.h"
 
 enum EXT_VAR_TYPE
 {
@@ -100,7 +99,7 @@ Decompiler::Decompiler() : s_output(nullptr), decompile_marker(false)
 
 }
 
-void Decompiler::Init(Settings& settings)
+void Decompiler::Init(cas::Settings& settings)
 {
 	s_output = (std::ostream*)settings.output;
 	decompile_marker = settings.decompile_marker;
@@ -187,7 +186,7 @@ void Decompiler::DecompileType(int type, int val)
 		out << Format("%.2g ", union_cast<float>(val));
 		break;
 	case V_STRING:
-		out << Format("\"%s\" ", Escape(module->strs[val]->s.c_str()));
+		out << Format("\"%s\" ", Escape(module->GetStr(val)->s.c_str()));
 		break;
 	case V_FUNCTION:
 		out << Format("%s ", module->GetFunctionName(val, false));

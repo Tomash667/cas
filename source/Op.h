@@ -1,5 +1,6 @@
 #pragma once
 
+// Operands
 enum Op
 {
 	PUSH, // [] ..., x -> ..., x, x

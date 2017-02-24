@@ -1,6 +1,107 @@
 #include "Pch.h"
+#include "Enum.h"
+#include "Function.h"
+#include "IModuleProxy.h"
+#include "Member.h"
 #include "Type.h"
-#include "Module.h"
+
+Type::~Type()
+{
+	delete enu;
+	DeleteElements(members);
+}
+
+cstring Type::GetName() const
+{
+	return name.c_str();
+}
+
+bool Type::AddMember(cstring decl, int offset)
+{
+	return module_proxy->AddMember(this, decl, offset);
+}
+
+bool Type::AddMethod(cstring decl, const cas::FunctionInfo& func_info)
+{
+	return module_proxy->AddMethod(this, decl, func_info);
+}
+
+bool Type::AddValue(cstring name)
+{
+	assert(name);
+	int value;
+	if(enu->values.empty())
+		value = 0;
+	else
+		value = enu->values.back().second + 1;
+	return module_proxy->AddEnumValue(this, name, value);
+}
+
+bool Type::AddValue(cstring name, int value)
+{
+	assert(name);
+	return module_proxy->AddEnumValue(this, name, value);
+}
+
+bool Type::AddValues(std::initializer_list<cstring> const& items)
+{
+	int value;
+	if(enu->values.empty())
+		value = 0;
+	else
+		value = enu->values.back().second + 1;
+	for(cstring name : items)
+	{
+		assert(name);
+		if(!module_proxy->AddEnumValue(this, name, value))
+			return false;
+		++value;
+	}
+	return true;
+}
+
+bool Type::AddValues(std::initializer_list<Item> const& items)
+{
+	for(const Item& item : items)
+	{
+		assert(item.name);
+		if(!module_proxy->AddEnumValue(this, item.name, item.value))
+			return false;
+	}
+	return true;
+}
+
+Function* Type::FindCodeFunction(cstring name)
+{
+	for(Function* f : funcs)
+	{
+		if(f->name == name)
+			return f;
+	}
+	return nullptr;
+}
+
+Member* Type::FindMember(const string& name, int& index)
+{
+	index = 0;
+	for(Member* m : members)
+	{
+		if(m->name == name)
+			return m;
+		++index;
+	}
+	return nullptr;
+}
+
+Function* Type::FindSpecialCodeFunction(SpecialFunction special)
+{
+	for(Function* f : funcs)
+	{
+		if(f->special == special)
+			return f;
+	}
+	return nullptr;
+}
 
 void Type::SetGenericType()
 {
@@ -35,64 +136,4 @@ void Type::SetGenericType()
 			generic_type = GenericType::Invalid;
 		break;
 	}
-}
-
-cstring Type::GetName() const
-{
-	return name.c_str();
-}
-
-bool Type::AddMember(cstring decl, int offset)
-{
-	return module->AddMember(this, decl, offset);
-}
-
-bool Type::AddMethod(cstring decl, const FunctionInfo& func_info)
-{
-	return module->AddMethod(this, decl, func_info);
-}
-
-bool Type::AddValue(cstring name)
-{
-	assert(name);
-	int value;
-	if(enu->values.empty())
-		value = 0;
-	else
-		value = enu->values.back().second + 1;
-	return module->AddEnumValue(this, name, value);
-}
-
-bool Type::AddValue(cstring name, int value)
-{
-	assert(name);
-	return module->AddEnumValue(this, name, value);
-}
-
-bool Type::AddValues(std::initializer_list<cstring> const& items)
-{
-	int value;
-	if(enu->values.empty())
-		value = 0;
-	else
-		value = enu->values.back().second + 1;
-	for(cstring name : items)
-	{
-		assert(name);
-		if(!module->AddEnumValue(this, name, value))
-			return false;
-		++value;
-	}
-	return true;
-}
-
-bool Type::AddValues(std::initializer_list<Item> const& items)
-{
-	for(const Item& item : items)
-	{
-		assert(item.name);
-		if(!module->AddEnumValue(this, item.name, item.value))
-			return false;
-	}
-	return true;
 }

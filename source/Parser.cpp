@@ -1,8 +1,12 @@
 #include "Pch.h"
-#include "CasImpl.h"
+#include "Enum.h"
+#include "Event.h"
+#include "Member.h"
+#include "Module.h"
+#include "Op.h"
 #include "Parser.h"
 #include "ParserImpl.h"
-#include "Module.h"
+#include "Str.h"
 
 #define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
 
@@ -208,7 +212,7 @@ bool Parser::Parse(ParseSettings& settings)
 	}
 	catch(const Tokenizer::Exception& e)
 	{
-		Event(EventType::Error, e.ToString());
+		Error(e.ToString());
 		Cleanup();
 
 		return false;
@@ -1046,7 +1050,7 @@ Function* Parser::ParseFuncDecl(cstring decl, Type* type, bool builtin)
 	}
 	catch(Tokenizer::Exception& e)
 	{
-		Event(EventType::Error, e.ToString());
+		Error(e.ToString());
 		delete f;
 		f = nullptr;
 	}
@@ -1072,7 +1076,7 @@ Member* Parser::ParseMemberDecl(cstring decl)
 	}
 	catch(Tokenizer::Exception& e)
 	{
-		Event(EventType::Error, e.ToString());
+		Error(e.ToString());
 		delete m;
 		m = nullptr;
 	}
@@ -5735,9 +5739,9 @@ VarType Parser::AnalyzeVarType()
 Type* Parser::AnalyzeAddType(const string& name) 
 {
 	Type* type = new Type;
-	type->module = nullptr;
+	type->module_proxy = module;
 	type->name = name;
-	type->index = (0xFFFF0000 | module->tmp_types.size());
+	type->index = module->types.size() | (module->index << 16);
 	type->declared = false;
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();

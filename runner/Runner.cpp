@@ -35,6 +35,13 @@ void HandleEvents(EventType event_type, cstring msg)
 	cout << '\n';
 }
 
+static void f_printx(string& str)
+{
+	cout << "X:";
+	cout << str;
+	cout << '\n';
+}
+
 int main(int argc, char** argv)
 {
 	SetHandler(HandleEvents);
@@ -114,6 +121,8 @@ int main(int argc, char** argv)
 	}
 
 	IModule* module = CreateModule();
+	module->AddFunction("void printx(string& str = \"hello\")", f_printx);
+	module->ResetParser();
 
 	bool first = true;
 	string content;

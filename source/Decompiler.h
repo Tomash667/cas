@@ -1,12 +1,16 @@
 #pragma once
 
+#include "cas/Settings.h"
+
+class Module;
+
 class Decompiler
 {
 public:
-	void Init(Settings& settings);
+	void Init(cas::Settings& settings);
 	void Decompile(Module& module);
 
-	inline static Decompiler& Get()
+	static Decompiler& Get()
 	{
 		static Decompiler decompiler;
 		return decompiler;
