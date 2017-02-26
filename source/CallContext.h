@@ -18,8 +18,10 @@ public:
 	CallContext(int index, Module& module, cstring name);
 
 	// from ICallContext
+	vector<string>& GetAsserts() override;
 	std::pair<cstring, int> GetCurrentLocation() override;
 	cstring GetException() override;
+	cas::IModule* GetModule() override;
 	cstring GetName() override;
 	cas::ReturnValue GetReturnValue() override;
 	bool Run() override;

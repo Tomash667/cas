@@ -17,6 +17,11 @@ CallContext::CallContext(int index, Module& module, cstring name) : index(index)
 	CleanupReturnValue();
 }
 
+vector<string>& CallContext::GetAsserts()
+{
+	return asserts;
+}
+
 std::pair<cstring, int> CallContext::GetCurrentLocation()
 {
 	cstring func_name;
@@ -30,6 +35,11 @@ std::pair<cstring, int> CallContext::GetCurrentLocation()
 cstring CallContext::GetException()
 {
 	return exc.c_str();
+}
+
+cas::IModule* CallContext::GetModule()
+{
+	return module;
 }
 
 cstring CallContext::GetName()

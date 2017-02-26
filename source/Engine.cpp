@@ -8,13 +8,13 @@
 // cin/cout
 #include <iostream>
 
-Engine* Engine::g_engine;
+static Engine* g_engine;
 
 void InitLib(Module& module, cas::Settings& settings);
 
 void Event(cas::EventType event_type, cstring msg)
 {
-	Engine::Get().HandleEvent(event_type, msg);
+	g_engine->HandleEvent(event_type, msg);
 }
 
 void AssertEventHandler(cstring msg, cstring file, uint line)
@@ -24,25 +24,25 @@ void AssertEventHandler(cstring msg, cstring file, uint line)
 		DebugBreak();
 #endif
 	cstring formatted = Format("Assert failed in '%s(%u)', expression '%s'.", file, line, msg);
-	Engine::Get().HandleEvent(cas::EventType::Assert, formatted);
+	g_engine->HandleEvent(cas::EventType::Assert, formatted);
 }
 
-cas::IEngine* cas::IEngine::Create(cas::Settings* settings)
+cas::IEngine* cas::IEngine::Create()
 {
-	if(Engine::g_engine)
+	if(g_engine)
 		return nullptr;
-	g_engine = new Engine(settings);
-	return g_engine;
+	return new Engine;
 }
 
-Engine::Engine(cas::Settings* settings) : refs(1), core_module(nullptr), handler(nullptr), logger(nullptr), module_counter(0), callcontext_counter(0),
-	initialized(false)
+Engine::Engine() : core_module(nullptr), handler(nullptr), logger(nullptr), module_counter(0), callcontext_counter(0), initialized(false)
 {
+	g_engine = this;
 }
 
 Engine::~Engine()
 {
-	assert(refs == 1);
+	delete core_module;
+	delete logger;
 	g_engine = nullptr;
 }
 
@@ -68,9 +68,11 @@ cas::EventHandler Engine::GetHandler()
 	return handler;
 }
 
-void Engine::Initialize(cas::Settings* new_settings)
+bool Engine::Initialize(cas::Settings* new_settings)
 {
-	if(initizli)
+	if(initialized)
+		return false;
+
 	cas::Settings settings;
 	settings.input = &std::cin;
 	settings.output = &std::cout;
@@ -95,44 +97,12 @@ void Engine::Initialize(cas::Settings* new_settings)
 
 	initialized = true;
 	return true;
-
-	/*assert(!initialized);
-	if(initialized)
-	return false;
-
-	Settings _settings;
-	_settings.input = &cin;
-	_settings.output = &cout;
-	if(settings)
-	_settings = *settings;
-	if(_settings.use_assert_handler)
-	set_assert_handler(AssertEventHandler);
-	if(_settings.use_logger_handler)
-	{
-	logger = new EventLogger;
-	using_event_logger = true;
-	}
-
-	module_index = 1;
-	core_module = new Module(0, nullptr);
-
-	have_errors = false;
-	InitLib(*core_module, _settings);
-	if(have_errors)
-	{
-	delete core_module;
-	return false;
-	}
-
-	Decompiler::Get().Init(_settings);
-
-	initialized = true;
-	return true;*/
 }
 
 bool Engine::Release()
 {
-
+	delete this;
+	return true;
 }
 
 void Engine::SetHandler(cas::EventHandler new_handler)
@@ -146,24 +116,6 @@ void Engine::HandleEvent(cas::EventType event_type, cstring msg)
 		have_errors = true;
 	if(handler)
 		handler(event_type, msg);
-}
-
-
-
-void Engine::Shutdown()
-{
-	/*assert(initialized);
-	if(!initialized)
-		return;
-
-	initialized = false;
-	Module::all_modules_shutdown = true;
-	for(Module* m : Module::all_modules)
-		delete m;
-	Module::all_modules.clear();
-	if(using_event_logger)*/
-		
-	delete logger;
 }
 
 /*

@@ -16,13 +16,13 @@ class Module : public cas::IModule, public IModuleProxy
 public:
 	Module(int index, cstring name);
 	~Module();
-	//void RemoveRef(bool release);
 
 	// from IModule
 	cas::IEnum* AddEnum(cstring type_name) override;
 	bool AddFunction(cstring decl, const cas::FunctionInfo& func_info) override;
 	bool AddParentModule(IModule* module) override;
 	cas::IClass* AddType(cstring type_name, int size, int flags) override;
+	cas::ICallContext* CreateCallContext(cstring name) override;
 	void Decompile() override;
 	cstring GetName() override;
 	ParseResult Parse(cstring input) override;
@@ -37,19 +37,18 @@ public:
 	bool AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_info);
 
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
-	void AddParentModule(Module* parent_module);
-	bool BuildModule();
 	Function* FindEqualFunction(Function& fc);
-	Type* FindType(cstring type_name);
-	Type* GetType(int index);
 	Function* GetFunction(int index);
 	cstring GetFunctionName(uint index, bool is_user);
 	Str* GetStr(int index);
-	bool VerifyTypeName(cstring type_name);
+	Type* GetType(int index);
 
 private:
-	void Cleanup(bool dtor);
 	void AddParserType(Type* type);
+	bool BuildModule();
+	void Cleanup(bool dtor);
+	bool VerifyFlags(int flags) const;
+	bool VerifyTypeName(cstring type_name) const;
 
 public:
 	Parser* parser;

@@ -74,7 +74,7 @@ public:
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
 	int CreateDefaultFunctions(Type* type, int define_ctor = -1);
 	bool CheckTypeLoop(Type* type);
-	void Reset();
+	//void Reset();
 
 private:
 	void FinishRunModule();
@@ -192,7 +192,7 @@ private:
 	int breakable_block, empty_string, ufunc_offset/*, tmp_type_offset*/;
 	vector<ReturnStructVar*> rsvs;
 	vector<string*> tmp_strs;
-	uint prev_line;
+	uint prev_line, new_types_offset;
 	Enum* active_enum;
 	bool optimize;
 };

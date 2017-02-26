@@ -16,3 +16,5 @@ inline uint alignto(uint size, uint to)
 		++n;
 	return n * to;
 }
+
+cstring Format(cstring msg, ...);

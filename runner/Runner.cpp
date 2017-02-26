@@ -35,22 +35,17 @@ void HandleEvents(EventType event_type, cstring msg)
 	cout << '\n';
 }
 
-static void f_printx(string& str)
-{
-	cout << "X:";
-	cout << str;
-	cout << '\n';
-}
-
 int main(int argc, char** argv)
 {
-	SetHandler(HandleEvents);
+	IEngine* engine = IEngine::Create();
+	engine->SetHandler(HandleEvents);
 	Settings settings;
 	settings.use_debuglib = true;
-	if(!Initialize(&settings))
+	if(!engine->Initialize(&settings))
 	{
 		cout << "Failed to initialize Cas.\n\n(OK)";
 		_getch();
+		engine->Release();
 		return 3;
 	}
 
@@ -116,13 +111,13 @@ int main(int argc, char** argv)
 	{
 		cout << "Missing input file. Use runner.exe -? for help.\n\n(OK)";
 		_getch();
-		Shutdown();
+		engine->Release();
 		return 0;
 	}
 
-	IModule* module = CreateModule();
-	module->AddFunction("void printx(string& str = \"hello\")", f_printx);
-	module->ResetParser();
+	IModule* module = engine->CreateModule();
+	ICallContext* call_context = module->CreateCallContext();
+	vector<string>& asserts = call_context->GetAsserts();
 
 	bool first = true;
 	string content;
@@ -152,29 +147,38 @@ int main(int argc, char** argv)
 		options.optimize = optimize;
 		module->SetOptions(options);
 
-		IModule::ExecutionResult result = module->ParseAndRun(content.c_str(), decompile);
-		vector<string>& asserts = GetAsserts();
+		IModule::ParseResult result = module->Parse(content.c_str());
 		if(result != IModule::Ok)
 		{
-			if(result == IModule::Exception)
-				cout << "\n\nException: " << module->GetException();
 			cout << "\n\n(OK)";
 			_getch();
 		}
-		else if(!asserts.empty())
+		else
 		{
-			cout << Format("\n\nAsserts failed (%u):\n", asserts.size());
-			for(string& s : asserts)
+			if(decompile)
+				module->Decompile();
+			if(!call_context->Run())
 			{
-				cout << s;
-				cout << "\n";
+				cout << "\n\nException: " << call_context->GetException() << "\n\n(OK)";
+				_getch();
 			}
-			cout << "\n(ok)";
-			_getch();
+			else if(!asserts.empty())
+			{
+				cout << Format("\n\nAsserts failed (%u):\n", asserts.size());
+				for(string& s : asserts)
+				{
+					cout << s;
+					cout << "\n";
+				}
+				cout << "\n(ok)";
+				_getch();
+			}
 		}
+
 		asserts.clear();
+		module->Reset();
 	}
 
-	Shutdown();
+	engine->Release();
 	return 0;
 }

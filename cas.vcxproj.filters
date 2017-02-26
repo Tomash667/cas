@@ -22,9 +22,6 @@
     <ClCompile Include="source\RefVar.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>
-    <ClCompile Include="source\TTTTTmp.cpp">
-      <Filter>Source\CPP</Filter>
-    </ClCompile>
     <ClCompile Include="source\Enum.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>

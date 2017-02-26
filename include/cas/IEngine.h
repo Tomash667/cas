@@ -18,5 +18,8 @@ namespace cas
 		virtual bool Initialize(Settings* settings = nullptr) = 0;
 		virtual bool Release() = 0;
 		virtual void SetHandler(EventHandler handler) = 0;
+
+	protected:
+		~IEngine() {}
 	};
 }

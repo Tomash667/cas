@@ -195,7 +195,7 @@ bool Parser::Parse(ParseSettings& settings)
 {
 	optimize = settings.optimize;
 	ufunc_offset = module->ufuncs.size();
-	tmp_type_offset = module->tmp_types.size();
+	new_types_offset = module->types.size();
 	t.FromString(settings.input);
 
 	try
@@ -240,9 +240,9 @@ void Parser::FinishRunModule()
 	}
 
 	// convert types dtor from parse function to script function
-	for(int i = tmp_type_offset, count = (int)module->tmp_types.size(); i < count; ++i)
+	for(uint i = new_types_offset, count = module->types.size(); i < count; ++i)
 	{
-		Type* type = module->tmp_types[i];
+		Type* type = module->types[i];
 		if(!type->dtor)
 			continue;
 		assert(type->dtor.type == AnyFunction::PARSE);
@@ -263,7 +263,7 @@ void Parser::Cleanup()
 	}
 }
 
-void Parser::Reset()
+/*void Parser::Reset()
 {
 	if(main_block)
 	{
@@ -273,7 +273,7 @@ void Parser::Reset()
 	for(Type* type : module->tmp_types)
 		t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
 	DeleteElements(ufuncs);
-}
+}*/
 
 void Parser::ParseCode()
 {
@@ -4550,30 +4550,12 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 
 Type* Parser::GetType(int index)
 {
-	int module_index = (index & 0xFFFF0000) >> 16;
-	int type_index = (index & 0xFFFF);
-	if(module_index == 0xFFFF)
-	{
-		assert(type_index < (int)module->tmp_types.size());
-		return module->tmp_types[type_index];
-	}
-	else
-	{
-		assert(module->modules.find(module_index) != module->modules.end());
-		Module* m = module->modules[module_index];
-		assert(type_index < (int)m->types.size());
-		return m->types[type_index];
-	}
+	return module->GetType(index);
 }
 
 Function* Parser::GetFunction(int index)
 {
-	int module_index = (index & 0xFFFF0000) >> 16;
-	int func_index = (index & 0xFFFF);
-	assert(module->modules.find(module_index) != module->modules.end());
-	Module* m = module->modules[module_index];
-	assert(func_index < (int)m->functions.size());
-	return m->functions[func_index];
+	return module->GetFunction(index);
 }
 
 VarType Parser::GetReturnType(ParseNode* node)
@@ -5746,7 +5728,7 @@ Type* Parser::AnalyzeAddType(const string& name)
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();
 	type->flags = 0;
-	module->tmp_types.push_back(type);
+	module->types.push_back(type);
 	AddType(type);
 	return type;
 }
@@ -6123,8 +6105,9 @@ bool Parser::HasSideEffects(ParseNode* node)
 void Parser::VerifyAllTypes()
 {
 	// verify all types are declared, member default values
-	for(Type* type : module->tmp_types)
+	for(uint i = new_types_offset, count = module->types.size(); i < count; ++i)
 	{
+		Type* type = module->types[i];
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
 		if(type->have_def_value)

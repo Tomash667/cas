@@ -148,7 +148,6 @@
     <ClCompile Include="source\Enum.cpp" />
     <ClCompile Include="source\Function.cpp" />
     <ClCompile Include="source\RefVar.cpp" />
-    <ClCompile Include="source\TTTTTmp.cpp" />
     <ClCompile Include="source\Type.cpp" />
   </ItemGroup>
   <ItemGroup>
