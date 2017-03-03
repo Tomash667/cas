@@ -5,12 +5,16 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 const int DEFAULT_TIMEOUT = (CI_MODE ? 60 : 1);
+
+IEngine* engine;
+IModule* current_module;
+ICallContext* current_call_context;
+Retval* Retval::current;
 istringstream s_input;
 ostringstream s_output;
 string event_output, content;
-IModule* current_module;
 int reg_errors;
-bool decompile, reset_parser = true, first_run;
+bool decompile, reset_parser = true;
 
 enum Result
 {
@@ -66,7 +70,9 @@ void TestEventHandler(EventType event_type, cstring msg)
 
 TEST_MODULE_INITIALIZE(ModuleInitialize)
 {
-	SetHandler(TestEventHandler);
+	engine = engine->Create();
+
+	engine->SetHandler(TestEventHandler);
 	Settings s;
 	s.input = &s_input;
 	s.output = &s_output;
@@ -74,7 +80,7 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 	s.use_assert_handler = !IsDebuggerPresent();
 	s.use_debuglib = true;
 	s.decompile_marker = true;
-	if(!Initialize(&s))
+	if(!engine->Initialize(&s))
 		Assert::IsTrue(event_output.empty(), L"Cas initialization failed.");
 
 	if(CI_MODE)
@@ -85,7 +91,7 @@ TEST_MODULE_INITIALIZE(ModuleInitialize)
 
 TEST_MODULE_CLEANUP(ModuleCleanup)
 {
-	Shutdown();
+	engine->Release();
 }
 
 void WriteDecompileOutput(IModule* module)
@@ -126,56 +132,64 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 	options.optimize = optimize;
 	module->SetOptions(options);
 
-	bool can_decompile = false;
 	Result result;
+	bool can_decompile = false;
+
 	try
 	{
-		IModule::ExecutionResult ex_result;
+		// parse
+		bool ok = true;
 		if(input)
 		{
-			ex_result = module->Parse(input);
-			if(ex_result == IModule::Ok)
-			{
+			IModule::ParseResult parse_result = module->Parse(input);
+			if(parse_result == IModule::Ok)
 				WriteDecompileOutput(module);
-				ex_result = module->Run();
-			}
+			else
+				ok = false;
 		}
 		else
-		{
 			can_decompile = true;
-			ex_result = module->Run();
-		}
 
-		if(ex_result != IModule::Ok)
+		// run
+		if(ok)
 		{
-			if(ex_result == IModule::Exception)
-				event_output = Format("Exception: %s", module->GetException());
-			result = FAILED;
-		}
-		else
-		{
-			vector<string>& asserts = GetAsserts();
-			if(!asserts.empty())
+			ICallContext* call_context = module->CreateCallContext();
+			if(!call_context->Run())
 			{
-				event_output.clear();
-				event_output = Format("Asserts failed (%u):\n", asserts.size());
-				for(string& s : asserts)
-				{
-					event_output += s;
-					event_output += "\n";
-				}
-				result = ASSERT;
+				event_output = Format("Exception: %s", call_context->GetException());
+				result = FAILED;
 			}
 			else
-				result = OK;
+			{
+				vector<string>& asserts = call_context->GetAsserts();
+				if(!asserts.empty())
+				{
+					event_output.clear();
+					event_output = Format("Asserts failed (%u):\n", asserts.size());
+					for(string& s : asserts)
+					{
+						event_output += s;
+						event_output += "\n";
+					}
+					result = ASSERT;
+				}
+				else
+					result = OK;
+			}
+			current_call_context = call_context;
+			Retval::current->call_context = call_context;
 		}
+		else
+			result = FAILED;
 	}
 	catch(cstring)
 	{
+		current_call_context = nullptr;
 		if(can_decompile)
 			WriteDecompileOutput(module);
 		result = ASSERT;
 	}
+
 	return result;
 }
 
@@ -187,10 +201,6 @@ unsigned __stdcall ThreadStart(void* data)
 
 Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
 {
-	if(reset_parser && content && !first_run)
-		module->ResetParser();
-	first_run = false;
-
 	if(IsDebuggerPresent())
 		return ParseAndRunChecked(module, content, optimize);
 
@@ -298,7 +308,7 @@ void RunTest(const TestSettings& s)
 
 	// cleanup
 	if(reset_parser && code)
-		s.module->ResetParser();
+		s.module->Reset();
 	reg_errors = 0;
 	event_output.clear();
 }
@@ -311,7 +321,8 @@ void CleanupErrors()
 
 void CleanupAsserts()
 {
-	GetAsserts().clear();
+	if(current_call_context)
+		current_call_context->GetAsserts().clear();
 }
 
 void AssertError(cstring error)

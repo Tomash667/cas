@@ -3,6 +3,7 @@
 #include "cas/Common.h"
 #include "cas/IEngine.h"
 
+class CallContext;
 class Module;
 
 // Script engine
@@ -12,19 +13,19 @@ public:
 	Engine();
 	~Engine();
 
-	cas::ICallContext* CreateCallContext(cas::IModule* module, cstring name, bool ignoreParsed) override;
 	cas::IModule* CreateModule(cas::IModule* parent_module, cstring name) override;
 	cas::EventHandler GetHandler() override;
 	bool Initialize(cas::Settings* settings) override;
-	bool Release() override;
+	void Release() override;
 	void SetHandler(cas::EventHandler handler) override;
 
+	static Engine& Get();
 	void HandleEvent(cas::EventType event_type, cstring msg);
+	void RemoveModule(Module* module);
 
 private:
 	cas::EventHandler handler;
+	vector<Module*> all_modules;
 	Module* core_module;
-	Logger* logger;
-	int module_counter, callcontext_counter;
 	bool have_errors, initialized;
 };

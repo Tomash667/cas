@@ -32,8 +32,8 @@ namespace cas
 		virtual void Decompile() = 0;
 		virtual cstring GetName() = 0;
 		virtual ParseResult Parse(cstring input) = 0;
-		virtual bool Release() = 0;
-		virtual bool Reset() = 0;
+		virtual void Release() = 0;
+		virtual void Reset() = 0;
 		virtual void SetName(cstring name) = 0;
 		virtual void SetOptions(const Options& options) = 0;
 

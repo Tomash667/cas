@@ -26,8 +26,8 @@ public:
 	void Decompile() override;
 	cstring GetName() override;
 	ParseResult Parse(cstring input) override;
-	bool Release() override;
-	bool Reset() override;
+	void Release() override;
+	void Reset() override;
 	void SetName(cstring name) override;
 	void SetOptions(const Options& options) override;
 
@@ -42,11 +42,13 @@ public:
 	cstring GetFunctionName(uint index, bool is_user);
 	Str* GetStr(int index);
 	Type* GetType(int index);
+	void RemoveCallContext(CallContext* call_context);
 
 private:
 	void AddParserType(Type* type);
 	bool BuildModule();
 	void Cleanup(bool dtor);
+	void RemoveRef();
 	bool VerifyFlags(int flags) const;
 	bool VerifyTypeName(cstring type_name) const;
 
@@ -55,12 +57,13 @@ public:
 	string name;
 	std::map<int, Module*> modules;
 	vector<Module*> child_modules;
+	vector<CallContext*> call_contexts;
 	vector<Function*> functions;
 	vector<UserFunction> ufuncs;
 	vector<Type*> types;
 	vector<Str*> strs;
 	vector<int> code;
-	int index, refs;
+	int index, refs, call_context_counter;
 	uint globals, entry_point;
 	bool released, built, optimize;
 };

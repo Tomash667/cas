@@ -16,6 +16,7 @@ class CallContext : public ICallContextProxy
 {
 public:
 	CallContext(int index, Module& module, cstring name);
+	~CallContext();
 
 	// from ICallContext
 	vector<string>& GetAsserts() override;
@@ -24,6 +25,7 @@ public:
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
 	cas::ReturnValue GetReturnValue() override;
+	void Release() override;
 	bool Run() override;
 	void SetName(cstring name) override;
 

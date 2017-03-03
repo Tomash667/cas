@@ -17,6 +17,10 @@ CallContext::CallContext(int index, Module& module, cstring name) : index(index)
 	CleanupReturnValue();
 }
 
+CallContext::~CallContext()
+{
+}
+
 vector<string>& CallContext::GetAsserts()
 {
 	return asserts;
@@ -39,7 +43,7 @@ cstring CallContext::GetException()
 
 cas::IModule* CallContext::GetModule()
 {
-	return module;
+	return &module;
 }
 
 cstring CallContext::GetName()
@@ -50,6 +54,12 @@ cstring CallContext::GetName()
 cas::ReturnValue CallContext::GetReturnValue()
 {
 	return return_value;
+}
+
+void CallContext::Release()
+{
+	module.RemoveCallContext(this);
+	delete this;
 }
 
 bool CallContext::Run()
@@ -73,6 +83,7 @@ bool CallContext::Run()
 	code_end = code_start + module.code.size();
 	code_pos = code_start + module.entry_point;
 	cleanup_offset = 0;
+	ICallContextProxy::Current = this;
 
 	bool result;
 	try
@@ -95,6 +106,8 @@ bool CallContext::Run()
 		exc = ex.exc;
 		result = false;
 	}
+
+	ICallContextProxy::Current = nullptr;
 
 	return result;
 }

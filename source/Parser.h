@@ -59,7 +59,7 @@ enum NextType
 class Parser
 {
 public:
-	Parser(Module* module);
+	Parser(Module& module);
 	~Parser();
 
 	bool VerifyTypeName(cstring type_name, int& type_index);
@@ -74,7 +74,8 @@ public:
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
 	int CreateDefaultFunctions(Type* type, int define_ctor = -1);
 	bool CheckTypeLoop(Type* type);
-	//void Reset();
+	void Reset();
+	void RemoveKeywords(Module* module);
 
 private:
 	void FinishRunModule();
@@ -167,7 +168,6 @@ private:
 	NextType GetNextType(bool analyze);
 	void FreeTmpStr(string* str);
 	bool IsCtor(ParseNode* node);
-	int GetEmptyString();
 
 	void AnalyzeCode();
 	void AnalyzeClass();
@@ -183,13 +183,13 @@ private:
 	void AnalyzeArgsDefaultValues(ParseFunction* f);
 	
 	Tokenizer t;
-	Module* module;
+	Module& module;
 	vector<ParseFunction*> ufuncs;
 	Block* main_block, *current_block;
 	ParseFunction* current_function;
 	Type* current_type;
 	ParseNode* global_node;
-	int breakable_block, empty_string, ufunc_offset/*, tmp_type_offset*/;
+	int breakable_block, ufunc_offset;
 	vector<ReturnStructVar*> rsvs;
 	vector<string*> tmp_strs;
 	uint prev_line, new_types_offset;

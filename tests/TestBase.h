@@ -39,7 +39,7 @@ namespace Microsoft
 			}
 
 			template<>
-			static wstring ToString(const IModule::ExecutionResult& result)
+			static wstring ToString(const IModule::ParseResult& result)
 			{
 				switch(result)
 				{
@@ -47,8 +47,6 @@ namespace Microsoft
 					return L"ValidationError";
 				case IModule::ParsingError:
 					return L"ParsingError";
-				case IModule::Exception:
-					return L"Exception";
 				case IModule::Ok:
 					return L"Ok";
 				default:
@@ -62,8 +60,9 @@ namespace Microsoft
 
 const bool CI_MODE = ((_CI_MODE - 1) == 0);
 
+extern IEngine* engine;
 extern IModule* current_module;
-extern bool first_run;
+extern ICallContext* current_call_context;
 
 struct TestSettings
 {
@@ -139,48 +138,46 @@ void WriteOutput(cstring msg);
 
 struct Retval
 {
-	Retval(IModule* _module = nullptr)
-	{
-		module = _module;
-	}
+	ICallContext* call_context;
+	static Retval* current;
 	
 	void IsVoid()
 	{
-		ReturnValue ret = module->GetReturnValue();
+		ReturnValue ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Void, ret.type->GetGenericType());
 	}
 
 	void IsBool(bool expected)
 	{
-		ReturnValue ret = module->GetReturnValue();
+		ReturnValue ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Bool, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.bool_value);
 	}
 
 	void IsChar(char expected)
 	{
-		ReturnValue ret = module->GetReturnValue();
+		ReturnValue ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Char, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.char_value);
 	}
 
 	void IsInt(int expected)
 	{
-		ReturnValue ret = module->GetReturnValue();
+		ReturnValue ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Int, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.int_value);
 	}
 
 	void IsFloat(float expected)
 	{
-		ReturnValue ret = module->GetReturnValue();
+		ReturnValue ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Float, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.float_value, 0.01f);
 	}
 
 	void IsEnum(cstring name, int expected)
 	{
-		ReturnValue ret = module->GetReturnValue();
+		ReturnValue ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Enum, ret.type->GetGenericType());
 		Assert::AreEqual(name, ret.type->GetName());
 		Assert::AreEqual(expected, ret.int_value);
@@ -188,13 +185,10 @@ struct Retval
 
 	void IsString(cstring expected)
 	{
-		ReturnValue ret = module->GetReturnValue();
+		ReturnValue ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::String, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.str_value);
 	}
-
-private:
-	IModule* module;
 };
 
 #define CA_TEST_CLASS(Name) 					        	\
@@ -208,19 +202,19 @@ TEST_CLASS(Name) 											\
 															\
 	TEST_METHOD_INITIALIZE(OnTestSetup) 					\
 	{ 														\
-		first_run = true;									\
 		CleanupErrors();									\
-		module = CreateModule();							\
+		module = engine->CreateModule();                    \
 		current_module = module;                            \
-		retval = Retval(module);                            \
+		Retval::current = &retval;                          \
 	}														\
 	TEST_METHOD_CLEANUP(OnTestTeardown) 					\
 	{ 														\
 		CleanupAsserts(); 									\
-		DestroyModule(module);								\
+		module->Release();                                  \
 		current_module = nullptr;                           \
 		SetDecompile(false);								\
 		SetResetParser(true);								\
+		current_call_context = nullptr;                     \
 	}														\
 															\
 	IModule* module;										\

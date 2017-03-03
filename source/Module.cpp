@@ -1,23 +1,32 @@
 #include "Pch.h"
 #include "CallContext.h"
 #include "Decompiler.h"
+#include "Engine.h"
 #include "Enum.h"
 #include "Event.h"
 #include "Member.h"
 #include "Module.h"
 #include "Parser.h"
+#include "Str.h"
 
-/*Module::Module() : released(false)
-{
-}*/
-
-Module::Module(int index, cstring name) : index(index), parser(nullptr), refs(1), built(false)
+Module::Module(int index, cstring name) : index(index), refs(1), built(false), call_context_counter(0), released(false)
 {
 	modules[index] = this;
 	SetName(name);
 
 	Options default_options;
 	SetOptions(default_options);
+
+	parser = new Parser(*this);
+
+	// initialize empty string
+	if(index == 0)
+	{
+		Str* str = Str::Get();
+		str->s = "";
+		str->refs = 1;
+		strs.push_back(str);
+	}
 }
 
 Module::~Module()
@@ -52,9 +61,6 @@ cas::IEnum* Module::AddEnum(cstring type_name)
 
 bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 {
-	Info("test", 1, 2, 3);
-	Info("test2");
-
 	assert(decl);
 	if(func_info.thiscall)
 	{
@@ -85,40 +91,52 @@ bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 
 bool Module::AddParentModule(cas::IModule* _module)
 {
-	Module* module = (Module*)_module;
+	Module* added_module = (Module*)_module;
 
 	// is already added?
-	if(modules.find(module->index) != modules.end())
+	if(modules.find(added_module->index) != modules.end())
 		return true;
 
 	// detect circular dependency
+	if(added_module->modules.find(index) != added_module->modules.end())
+	{
+		Error("Can't add parent module '%s' to module '%s', circular dependency.", added_module->name.c_str(), name.c_str());
+		return false;
+	}
 
 	// add
-	module->child_modules.push_back(this);
-	modules[module->index] = module;
-	for(auto m : module->modules)
+	added_module->refs++;
+	added_module->child_modules.push_back(this);
+	modules[added_module->index] = added_module;
+	for(Type* type : added_module->types)
 	{
+		if(!type->IsHidden())
+			parser->AddType(type);
+	}
+
+	// apply added module parent modules to this module
+	for(auto m : added_module->modules)
+	{
+		if(m.second == added_module || modules.find(m.first) == modules.end())
+			continue;
+		m.second->refs++;
+		m.second->child_modules.push_back(this);
 		modules[m.first] = m.second;
-		if(parser)
+		for(Type* type : m.second->types)
 		{
-			//f
+			if(!type->IsHidden())
+				parser->AddType(type);
 		}
 	}
 
-	return true;
-
-	/*void Module::AddParentModule(Module* parent_module)
-{
-	assert(parent_module);
-
-	for(auto& m : parent_module->modules)
+	// apply to childs
+	for(Module* m : child_modules)
 	{
-		assert(m.first != index); // circular dependency!
-		modules[m.first] = m.second;
-		m.second->refs++;
-		//m.second->inherited = true;
+		if(!m->AddParentModule(added_module))
+			return false;
 	}
-}*/
+
+	return true;
 }
 
 cas::IClass* Module::AddType(cstring type_name, int size, int flags)
@@ -157,7 +175,9 @@ cas::IClass* Module::AddType(cstring type_name, int size, int flags)
 
 cas::ICallContext* Module::CreateCallContext(cstring name)
 {
-	return nullptr;
+	CallContext* context = new CallContext(call_context_counter++, *this, name);
+	call_contexts.push_back(context);
+	return context;
 }
 
 void Module::Decompile()
@@ -186,50 +206,16 @@ cas::IModule::ParseResult Module::Parse(cstring input)
 	return ParseResult::Ok;
 }
 
-bool Module::Release()
+void Module::Release()
 {
-	if(!child_modules.empty())
-	{
-		Warn("Can't release module that have child modules.");
-		return false;
-	}
-
-	if(refs > 1)
-	{
-		Warn("Can't release module that have attached call context.");
-		return false;
-	}
-
-	for(auto& m : modules)
-	{
-		if(m.first != index)
-		{
-			RemoveElement(m.second->child_modules, this);
-			--m.second->refs;
-		}
-	}
-
-	delete this;
-
-	return true;
+	assert(!released);
+	released = true;
+	RemoveRef();
 }
 
-bool Module::Reset()
+void Module::Reset()
 {
-	if(!child_modules.empty())
-	{
-		Warn("Can't reset module that have child modules.");
-		return false;
-	}
-
-	if(refs > 1)
-	{
-		Warn("Can't reset module that have attached call context.");
-		return false;
-	}
-
-	//Cleanup(false);
-	return true;
+	Cleanup(false);
 }
 
 void Module::SetName(cstring new_name)
@@ -417,15 +403,17 @@ Type* Module::GetType(int index)
 	return m->types[type_index];
 }
 
+void Module::RemoveCallContext(CallContext* call_context)
+{
+	assert(call_context);
+	RemoveElement(call_contexts, call_context);
+}
+
 void Module::AddParserType(Type* type)
 {
-	if(parser)
-		parser->AddType(type);
+	parser->AddType(type);
 	for(Module* module : child_modules)
-	{
-		if(module->parser)
-			module->parser->AddType(type);
-	}
+		module->parser->AddType(type);
 }
 
 bool Module::BuildModule()
@@ -490,7 +478,11 @@ bool Module::BuildModule()
 
 void Module::Cleanup(bool dtor)
 {
-	/*CleanupReturnValue();
+	if(!dtor)
+	{
+		for(Module* m : child_modules)
+			m->Cleanup(false);
+	}
 
 	for(Str* s : strs)
 	{
@@ -503,39 +495,40 @@ void Module::Cleanup(bool dtor)
 
 	if(dtor)
 	{
-		DeleteElements(types);
-		DeleteElements(functions);
 		delete parser;
+		DeleteElements(call_contexts);
 	}
 	else
 	{
+		parser->RemoveKeywords(this);
+		for(Module* m : child_modules)
+			m->parser->RemoveKeywords(this);
 		parser->Reset();
 		ufuncs.clear();
 		code.clear();
 	}
 
-	DeleteElements(tmp_types);*/
+	DeleteElements(functions);
+	DeleteElements(types);
 }
 
-/*void Module::RemoveRef(bool release)
+void Module::RemoveRef()
 {
-	if(release)
-	{
-		assert(!released);
-		released = true;
-	}
-
-	--refs;
-	if(refs == 0)
+	if(--refs == 0)
 	{
 		for(auto& m : modules)
 		{
 			if(m.first != index)
-				m.second->RemoveRef(false);
+			{
+				RemoveElement(m.second->child_modules, this);
+				m.second->RemoveRef();
+			}
 		}
+
+		Engine::Get().RemoveModule(this);
 		delete this;
 	}
-}*/
+}
 
 bool Module::VerifyFlags(int flags) const
 {

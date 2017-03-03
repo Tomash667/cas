@@ -808,7 +808,7 @@ TEST_METHOD(ModuleResetParser)
 	RunParsedTest();
 	retval.IsInt(1);
 
-	module->ResetParser();
+	module->Reset();
 	module->Parse("int f(){return 2;} return f();");
 	RunParsedTest();
 	retval.IsInt(2);

@@ -8,6 +8,8 @@
 #include "ParserImpl.h"
 #include "Str.h"
 
+const int EMPTY_STRING = 0;
+
 #define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
 
 // http://en.cppreference.com/w/cpp/language/operator_precedence
@@ -106,8 +108,7 @@ BasicSymbolInfo basic_symbols[] = {
 };
 static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
-Parser::Parser(Module* module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), empty_string(-1),
-main_block(nullptr)
+Parser::Parser(Module& module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), main_block(nullptr)
 {
 	AddKeywords();
 	AddChildModulesKeywords();
@@ -179,9 +180,9 @@ void Parser::AddKeywords()
 
 void Parser::AddChildModulesKeywords()
 {
-	for(auto& m : module->modules)
+	for(auto& m : module.modules)
 	{
-		if(m.first == module->index)
+		if(m.first == module.index)
 			continue;
 		for(Type* type : m.second->types)
 		{
@@ -194,8 +195,8 @@ void Parser::AddChildModulesKeywords()
 bool Parser::Parse(ParseSettings& settings)
 {
 	optimize = settings.optimize;
-	ufunc_offset = module->ufuncs.size();
-	new_types_offset = module->types.size();
+	ufunc_offset = module.ufuncs.size();
+	new_types_offset = module.types.size();
 	t.FromString(settings.input);
 
 	try
@@ -222,11 +223,11 @@ bool Parser::Parse(ParseSettings& settings)
 void Parser::FinishRunModule()
 {
 	// convert parse functions to script functions
-	module->ufuncs.resize(ufunc_offset + ufuncs.size());
+	module.ufuncs.resize(ufunc_offset + ufuncs.size());
 	for(uint i = 0; i < ufuncs.size(); ++i)
 	{
 		ParseFunction& f = *ufuncs[i];
-		UserFunction& uf = module->ufuncs[i + ufunc_offset];
+		UserFunction& uf = module.ufuncs[i + ufunc_offset];
 		uf.index = i + ufunc_offset;
 		uf.name = GetName(&f);
 		uf.pos = f.pos;
@@ -240,16 +241,16 @@ void Parser::FinishRunModule()
 	}
 
 	// convert types dtor from parse function to script function
-	for(uint i = new_types_offset, count = module->types.size(); i < count; ++i)
+	for(uint i = new_types_offset, count = module.types.size(); i < count; ++i)
 	{
-		Type* type = module->types[i];
+		Type* type = module.types[i];
 		if(!type->dtor)
 			continue;
 		assert(type->dtor.type == AnyFunction::PARSE);
-		type->dtor = &module->ufuncs[type->dtor.pf->index + ufunc_offset];
+		type->dtor = &module.ufuncs[type->dtor.pf->index + ufunc_offset];
 	}
 
-	module->globals = main_block->GetMaxVars();
+	module.globals = main_block->GetMaxVars();
 }
 
 void Parser::Cleanup()
@@ -263,17 +264,24 @@ void Parser::Cleanup()
 	}
 }
 
-/*void Parser::Reset()
+void Parser::Reset()
 {
 	if(main_block)
 	{
 		main_block->Free();
 		main_block = nullptr;
 	}
-	for(Type* type : module->tmp_types)
-		t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
 	DeleteElements(ufuncs);
-}*/
+}
+
+void Parser::RemoveKeywords(Module* module)
+{
+	for(Type* type : module->types)
+	{
+		if(!type->IsHidden())
+			t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
+	}
+}
 
 void Parser::ParseCode()
 {
@@ -866,8 +874,12 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 					dup = Format("%g", val->fvalue);
 				break;
 			case V_STRING:
-				if(module->strs[val->value]->s == module->strs[chi->value]->s)
-					dup = module->strs[val->value]->s.c_str();
+				{
+					Str* s1 = module.GetStr(val->value);
+					Str* s2 = module.GetStr(chi->value);
+					if(s1->s == s2->s)
+						dup = s1->s.c_str();
+				}
 				break;
 			default:
 				assert(type->IsEnum());
@@ -1541,7 +1553,7 @@ ParseNode* Parser::GetDefaultValueForVarDecl(VarType vartype)
 	case V_STRING:
 		expr->result = V_STRING;
 		expr->op = PUSH_STRING;
-		expr->value = GetEmptyString();
+		expr->value = EMPTY_STRING;
 		break;
 	case V_REF:
 		t.Throw("Uninitialized reference variable.");
@@ -2684,11 +2696,11 @@ ParseNode* Parser::ParseConstItem()
 	else if(t.IsString())
 	{
 		// string
-		int index = module->strs.size();
+		int index = module.strs.size() | (module.index << 16);
 		Str* str = Str::Get();
 		str->s = t.GetString();
 		str->refs = 1;
-		module->strs.push_back(str);
+		module.strs.push_back(str);
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_STRING;
 		node->value = index;
@@ -4089,35 +4101,35 @@ void Parser::CopyFunctionChangedStructs()
 void Parser::ConvertToBytecode()
 {
 	uint jmp_to_next_section = 0;
-	bool first_script = module->code.empty();
+	bool first_script = module.code.empty();
 	if(!first_script)
 	{
-		module->code.pop_back();
-		module->code.push_back(JMP);
-		jmp_to_next_section = module->code.size();
-		module->code.push_back(0);
+		module.code.pop_back();
+		module.code.push_back(JMP);
+		jmp_to_next_section = module.code.size();
+		module.code.push_back(0);
 	}
 
 	for(ParseFunction* ufunc : ufuncs)
 	{
 		if(ufunc->IsBuiltin())
 			continue;
-		ufunc->pos = module->code.size();
+		ufunc->pos = module.code.size();
 		ufunc->locals = (ufunc->block ? ufunc->block->GetMaxVars() : 0);
-		uint old_size = module->code.size();
+		uint old_size = module.code.size();
 		if(ufunc->node)
-			ToCode(module->code, ufunc->node, nullptr);
-		if(old_size == module->code.size() || module->code.back() != RET)
-			module->code.push_back(RET);
+			ToCode(module.code, ufunc->node, nullptr);
+		if(old_size == module.code.size() || module.code.back() != RET)
+			module.code.push_back(RET);
 	}
 
 	if(first_script)
-		module->entry_point = module->code.size();
+		module.entry_point = module.code.size();
 	else
-		module->code[jmp_to_next_section] = module->code.size();
-	uint old_size = module->code.size();
-	ToCode(module->code, global_node, nullptr);
-	module->code.push_back(RET);
+		module.code[jmp_to_next_section] = module.code.size();
+	uint old_size = module.code.size();
+	ToCode(module.code, global_node, nullptr);
+	module.code.push_back(RET);
 }
 
 void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
@@ -4550,12 +4562,12 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 
 Type* Parser::GetType(int index)
 {
-	return module->GetType(index);
+	return module.GetType(index);
 }
 
 Function* Parser::GetFunction(int index)
 {
-	return module->GetFunction(index);
+	return module.GetFunction(index);
 }
 
 VarType Parser::GetReturnType(ParseNode* node)
@@ -4750,7 +4762,7 @@ FOUND Parser::FindItem(const string& id, Found& found)
 
 Function* Parser::FindFunction(const string& name)
 {
-	for(auto& m : module->modules)
+	for(auto& m : module.modules)
 	{
 		for(Function* f : m.second->functions)
 		{
@@ -4782,7 +4794,7 @@ AnyFunction Parser::FindFunction(Type* type, const string& name)
 
 void Parser::FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items)
 {
-	for(auto& m : module->modules)
+	for(auto& m : module.modules)
 	{
 		for(Function* f : m.second->functions)
 		{
@@ -4888,7 +4900,7 @@ AnyFunction Parser::FindSpecialFunction(Type* type, SpecialFunction spec, delega
 
 AnyFunction Parser::FindEqualFunction(ParseFunction* pf)
 {
-	for(auto& m : module->modules)
+	for(auto& m : module.modules)
 	{
 		for(Function* f : m.second->functions)
 		{
@@ -5351,19 +5363,6 @@ bool Parser::IsCtor(ParseNode* node)
 		return false;
 }
 
-int Parser::GetEmptyString()
-{
-	if(empty_string == -1)
-	{
-		empty_string = module->strs.size();
-		Str* str = Str::Get();
-		str->s = "";
-		str->refs = 1;
-		module->strs.push_back(str);
-	}
-	return empty_string;
-}
-
 void Parser::AnalyzeCode()
 {
 	string str;
@@ -5721,14 +5720,14 @@ VarType Parser::AnalyzeVarType()
 Type* Parser::AnalyzeAddType(const string& name) 
 {
 	Type* type = new Type;
-	type->module_proxy = module;
+	type->module_proxy = &module;
 	type->name = name;
-	type->index = module->types.size() | (module->index << 16);
+	type->index = module.types.size() | (module.index << 16);
 	type->declared = false;
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();
 	type->flags = 0;
-	module->types.push_back(type);
+	module.types.push_back(type);
 	AddType(type);
 	return type;
 }
@@ -6002,7 +6001,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 
 bool Parser::CheckTypeLoop(Type* type)
 {
-	return false;
+	return true;
 }
 
 void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
@@ -6058,7 +6057,7 @@ void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
 			break;
 		case V_STRING:
 			node->op = PUSH_STRING;
-			node->value = GetEmptyString();
+			node->value = EMPTY_STRING;
 			break;
 		default:
 			// will write error in parsing phase
@@ -6105,9 +6104,9 @@ bool Parser::HasSideEffects(ParseNode* node)
 void Parser::VerifyAllTypes()
 {
 	// verify all types are declared, member default values
-	for(uint i = new_types_offset, count = module->types.size(); i < count; ++i)
+	for(uint i = new_types_offset, count = module.types.size(); i < count; ++i)
 	{
-		Type* type = module->types[i];
+		Type* type = module.types[i];
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
 		if(type->have_def_value)

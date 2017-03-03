@@ -9,6 +9,7 @@
 #include <iostream>
 
 static Engine* g_engine;
+Logger* logger;
 
 void InitLib(Module& module, cas::Settings& settings);
 
@@ -34,24 +35,16 @@ cas::IEngine* cas::IEngine::Create()
 	return new Engine;
 }
 
-Engine::Engine() : core_module(nullptr), handler(nullptr), logger(nullptr), module_counter(0), callcontext_counter(0), initialized(false)
+Engine::Engine() : core_module(nullptr), handler(nullptr), initialized(false)
 {
 	g_engine = this;
 }
 
 Engine::~Engine()
 {
-	delete core_module;
+	DeleteElements(all_modules);
 	delete logger;
 	g_engine = nullptr;
-}
-
-cas::ICallContext* Engine::CreateCallContext(cas::IModule* module, cstring name, bool ignore_parsed)
-{
-	assert(initialized);
-	assert(module);
-	CallContext* call_context = new CallContext(callcontext_counter++, (Module&)*module, name);
-	return call_context;
 }
 
 cas::IModule* Engine::CreateModule(cas::IModule* parent_module, cstring name)
@@ -59,7 +52,9 @@ cas::IModule* Engine::CreateModule(cas::IModule* parent_module, cstring name)
 	assert(initialized);
 	if(!parent_module)
 		parent_module = core_module;
-	Module* module = new Module(module_counter++, name);
+	Module* module = new Module(all_modules.size(), name);
+	module->AddParentModule(parent_module);
+	all_modules.push_back(module);
 	return module;
 }
 
@@ -82,8 +77,11 @@ bool Engine::Initialize(cas::Settings* new_settings)
 		set_assert_handler(AssertEventHandler);
 	if(settings.use_logger_handler)
 		logger = new EventLogger;
+	else
+		logger = new NullLogger;
 
-	core_module = new Module(0, nullptr);
+	core_module = new Module(0, "Core");
+	all_modules.push_back(core_module);
 
 	have_errors = false;
 	InitLib(*core_module, settings);
@@ -99,15 +97,20 @@ bool Engine::Initialize(cas::Settings* new_settings)
 	return true;
 }
 
-bool Engine::Release()
+void Engine::Release()
 {
 	delete this;
-	return true;
 }
 
 void Engine::SetHandler(cas::EventHandler new_handler)
 {
 	handler = new_handler;
+}
+
+Engine& Engine::Get()
+{
+	assert(g_engine);
+	return *g_engine;
 }
 
 void Engine::HandleEvent(cas::EventType event_type, cstring msg)
@@ -118,29 +121,8 @@ void Engine::HandleEvent(cas::EventType event_type, cstring msg)
 		handler(event_type, msg);
 }
 
-/*
-IModule* cas::CreateModule()
+void Engine::RemoveModule(Module* module)
 {
-	assert(initialized);
-	if(!initialized)
-		return nullptr;
-
-	Module* module = new Module(module_index, core_module);
-	++module_index;
-
-	return module;
+	assert(module);
+	RemoveElement(all_modules, module);
 }
-
-void cas::DestroyModule(IModule* _module)
-{
-	Module* module = (Module*)_module;
-
-	assert(initialized);
-	assert(module && !module->released);
-	if(!initialized || !module || module->released)
-		return;
-
-	module->RemoveRef(true);
-}
-
-*/
