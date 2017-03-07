@@ -1,3 +1,8 @@
+GetFunctionsList
+IFunction functions
+
+- since mixing is allowed, checking only CodeFunctions when adding CodeFunction is not enought, must check script funcs too
+
 + Module.Reset -> reset call contexts
 + CallContext CleanupReturnValue
 + CheckTypeLoop

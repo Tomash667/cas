@@ -71,9 +71,9 @@ bool Type::AddValues(std::initializer_list<Item> const& items)
 	return true;
 }
 
-Function* Type::FindCodeFunction(cstring name)
+CodeFunction* Type::FindCodeFunction(cstring name)
 {
-	for(Function* f : funcs)
+	for(CodeFunction* f : funcs)
 	{
 		if(f->name == name)
 			return f;
@@ -93,9 +93,9 @@ Member* Type::FindMember(const string& name, int& index)
 	return nullptr;
 }
 
-Function* Type::FindSpecialCodeFunction(SpecialFunction special)
+CodeFunction* Type::FindSpecialCodeFunction(SpecialFunction special)
 {
-	for(Function* f : funcs)
+	for(CodeFunction* f : funcs)
 	{
 		if(f->special == special)
 			return f;

@@ -24,6 +24,7 @@ public:
 	cas::IClass* AddType(cstring type_name, int size, int flags) override;
 	cas::ICallContext* CreateCallContext(cstring name) override;
 	void Decompile() override;
+	cas::IFunction* GetFunction(cstring name_or_decl, int flags) override;
 	cstring GetName() override;
 	ParseResult Parse(cstring input) override;
 	void Release() override;
@@ -37,8 +38,8 @@ public:
 	bool AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_info);
 
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
-	Function* FindEqualFunction(Function& fc);
-	Function* GetFunction(int index);
+	CodeFunction* FindEqualFunction(CodeFunction& fc);
+	CodeFunction* GetFunction(int index);
 	cstring GetFunctionName(uint index, bool is_user);
 	Str* GetStr(int index);
 	Type* GetType(int index);
@@ -48,6 +49,7 @@ private:
 	void AddParserType(Type* type);
 	bool BuildModule();
 	void Cleanup(bool dtor);
+	cas::IFunction* GetFunctionInternal(cstring name, cstring decl, int flags);
 	void RemoveRef();
 	bool VerifyFlags(int flags) const;
 	bool VerifyTypeName(cstring type_name) const;
@@ -58,8 +60,8 @@ public:
 	std::map<int, Module*> modules;
 	vector<Module*> child_modules;
 	vector<CallContext*> call_contexts;
-	vector<Function*> functions;
-	vector<UserFunction> ufuncs;
+	vector<CodeFunction*> functions;
+	vector<ScriptFunction*> ufuncs;
 	vector<Type*> types;
 	vector<Str*> strs;
 	vector<int> code;

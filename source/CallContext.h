@@ -5,8 +5,8 @@
 #include "VectorOffset.h"
 
 class Module;
-struct ArgInfo;
-struct Function;
+struct Arg;
+struct CodeFunction;
 struct Member;
 struct StackFrame;
 struct Str;
@@ -61,8 +61,8 @@ private:
 	void AddRef(Var& v);
 	void Cast(Var& v, VarType vartype);
 	void CleanupReturnValue();
-	void ExecuteFunction(Function& f);
-	void ExecuteSimpleFunction(Function& f, void* _this);
+	void ExecuteFunction(CodeFunction& f);
+	void ExecuteSimpleFunction(CodeFunction& f, void* _this);
 	GetRefData GetRef(Var& v);
 	void MakeSingleInstance(Var& v);
 	void PushStackFrame(StackFrame& frame);
@@ -70,7 +70,7 @@ private:
 	void RunInternal();
 	void SetFromStack(VectorOffset<Var>& vo);
 	void SetMemberValue(Class* c, Member* m, Var& v);
-	bool VerifyFunctionArg(Var& v, ArgInfo& arg);
+	bool VerifyFunctionArg(Var& v, Arg& arg);
 
 	const uint MAX_STACK_DEPTH = 100u;
 

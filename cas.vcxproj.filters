@@ -144,6 +144,9 @@
     <ClInclude Include="source\EventLogger.h">
       <Filter>Source\H</Filter>
     </ClInclude>
+    <ClInclude Include="include\cas\IFunction.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Doc">

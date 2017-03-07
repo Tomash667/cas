@@ -1,9 +1,9 @@
 #pragma once
 
-struct CommonFunction;
+struct CodeFunction;
 struct Function;
 struct ParseFunction;
-struct UserFunction;
+struct ScriptFunction;
 
 // Code or script function
 struct AnyFunction
@@ -19,17 +19,17 @@ struct AnyFunction
 	union
 	{
 		Function* f;
+		CodeFunction* cf;
 		ParseFunction* pf;
-		CommonFunction* cf;
-		UserFunction* uf;
+		ScriptFunction* sf;
 	};
 	Type type;
 
-	AnyFunction(std::nullptr_t) : cf(nullptr), type(NONE) {}
-	AnyFunction(Function* f) : f(f), type(CODE) {}
+	AnyFunction(std::nullptr_t) : f(nullptr), type(NONE) {}
+	AnyFunction(CodeFunction* cf) : cf(cf), type(CODE) {}
 	AnyFunction(ParseFunction* pf) : pf(pf), type(PARSE) {}
-	AnyFunction(UserFunction* uf) : uf(uf), type(SCRIPT) {}
-	AnyFunction(CommonFunction* cf, Type type) : cf(cf), type(type) {}
+	AnyFunction(ScriptFunction* sf) : sf(sf), type(SCRIPT) {}
+	AnyFunction(Function* f, Type type) : f(f), type(type) {}
 
 	operator bool() const { return type != NONE; }
 	bool operator == (const AnyFunction& f) const { return type == f.type && cf == f.cf; }

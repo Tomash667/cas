@@ -6,6 +6,13 @@
 namespace cas
 {
 	class ICallContext;
+	class IFunction;
+
+	enum GetFlags
+	{
+		ByDecl = 1 << 0,
+		IgnoreParent = 1 << 1
+	};
 
 	class IModule
 	{
@@ -30,6 +37,7 @@ namespace cas
 		virtual IClass* AddType(cstring type_name, int size, int flags = 0) = 0;
 		virtual ICallContext* CreateCallContext(cstring name = nullptr) = 0;
 		virtual void Decompile() = 0;
+		virtual IFunction* GetFunction(cstring name_or_decl, int flags = 0) = 0;
 		virtual cstring GetName() = 0;
 		virtual ParseResult Parse(cstring input) = 0;
 		virtual void Release() = 0;

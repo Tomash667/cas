@@ -226,18 +226,14 @@ void Parser::FinishRunModule()
 	module.ufuncs.resize(ufunc_offset + ufuncs.size());
 	for(uint i = 0; i < ufuncs.size(); ++i)
 	{
-		ParseFunction& f = *ufuncs[i];
-		UserFunction& uf = module.ufuncs[i + ufunc_offset];
-		uf.index = i + ufunc_offset;
-		uf.name = GetName(&f);
-		uf.pos = f.pos;
-		uf.locals = f.locals;
-		uf.result = f.result;
-		for(auto& arg : f.arg_infos)
-			uf.args.push_back(arg.vartype);
-		uf.type = f.type;
-		if(f.IsBuiltin())
-			uf.pos = -1;
+		ParseFunction& pf = *ufuncs[i];
+		module.ufuncs[i + ufunc_offset] = new ScriptFunction(pf);
+		ScriptFunction& sf = *module.ufuncs[i + ufunc_offset];
+		sf.index = i + ufunc_offset;
+		sf.pos = pf.pos;
+		sf.locals = pf.locals;
+		if(pf.IsBuiltin())
+			sf.pos = -1;
 	}
 
 	// convert types dtor from parse function to script function
@@ -247,7 +243,7 @@ void Parser::FinishRunModule()
 		if(!type->dtor)
 			continue;
 		assert(type->dtor.type == AnyFunction::PARSE);
-		type->dtor = &module.ufuncs[type->dtor.pf->index + ufunc_offset];
+		type->dtor = module.ufuncs[type->dtor.pf->index + ufunc_offset];
 	}
 
 	module.globals = main_block->GetMaxVars();
@@ -1025,10 +1021,10 @@ void Parser::ParseEnum(bool forward)
 
 	// add compare operator
 	ParseFunction* f = new ParseFunction;
-	f->arg_infos.push_back(ArgInfo(VarType(type->index, 0), 0, false));
-	f->arg_infos.push_back(ArgInfo(VarType(type->index, 0), 0, false));
+	f->args.push_back(Arg(VarType(type->index, 0), 0, false));
+	f->args.push_back(Arg(VarType(type->index, 0), 0, false));
 	f->block = nullptr;
-	f->flags = CommonFunction::F_BUILTIN;
+	f->flags = Function::F_BUILTIN;
 	f->index = ufuncs.size();
 	f->name = "$opAssign";
 	f->node = nullptr;
@@ -1036,20 +1032,18 @@ void Parser::ParseEnum(bool forward)
 	f->result = V_BOOL;
 	f->special = SF_NO;
 	f->type = type->index;
-#ifdef _DEBUG
 	f->decl = GetName(f);
-#endif
 	type->ufuncs.push_back(f);
 	ufuncs.push_back(f);
 }
 
 // func_decl
-Function* Parser::ParseFuncDecl(cstring decl, Type* type, bool builtin)
+CodeFunction* Parser::ParseFuncDecl(cstring decl, Type* type, bool builtin)
 {
 	assert(decl);
 
-	Function* f = new Function;
-	f->flags = (builtin ? CommonFunction::F_BUILTIN : CommonFunction::F_CODE);
+	CodeFunction* f = new CodeFunction;
+	f->flags = (builtin ? Function::F_BUILTIN : Function::F_CODE);
 
 	try
 	{
@@ -1196,21 +1190,21 @@ void Parser::ParseFuncModifiers(bool have_type, int& flags)
 			case K_IMPLICIT:
 				if(!have_type)
 					t.Throw("Implicit can only be used for methods.");
-				if(IS_SET(flags, CommonFunction::F_IMPLICIT))
+				if(IS_SET(flags, Function::F_IMPLICIT))
 					t.Throw("Implicit already declared for this method.");
-				flags |= CommonFunction::F_IMPLICIT;
+				flags |= Function::F_IMPLICIT;
 				break;
 			case K_DELETE:
-				if(IS_SET(flags, CommonFunction::F_DELETE))
+				if(IS_SET(flags, Function::F_DELETE))
 					t.Throw("Delete already declared for this %s.", have_type ? "method" : "function");
-				flags |= CommonFunction::F_DELETE;
+				flags |= Function::F_DELETE;
 				break;
 			case K_STATIC:
 				if(!have_type)
 					t.Throw("Static can only be used for methods.");
-				if(IS_SET(flags, CommonFunction::F_STATIC))
+				if(IS_SET(flags, Function::F_STATIC))
 					t.Throw("Static already declared for this method.");
-				flags |= CommonFunction::F_STATIC;
+				flags |= Function::F_STATIC;
 				break;
 			default:
 				ok = false;
@@ -1226,7 +1220,7 @@ void Parser::ParseFuncModifiers(bool have_type, int& flags)
 	}
 }
 
-void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
+void Parser::ParseFuncInfo(Function* f, Type* type, bool in_cpp)
 {
 	ParseFuncModifiers(type != nullptr, f->flags);
 
@@ -1333,10 +1327,10 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		// pass this for member functions, except for:
 		//		static methods
 		//		code constructors
-		f->arg_infos.insert(f->arg_infos.begin(), ArgInfo(VarType((CoreVarType)type->index), 0, false));
+		f->args.insert(f->args.begin(), Arg(VarType((CoreVarType)type->index), 0, false));
 		f->required_args++;
 		if(in_cpp && !f->IsBuiltin())
-			f->arg_infos.front().pass_by_ref = true;
+			f->args.front().pass_by_ref = true;
 	}
 
 	if(f->IsImplicit())
@@ -1344,7 +1338,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 		if(f->special == SF_CTOR)
 		{
 			uint required = (in_cpp ? 1u : 2u);
-			if(f->arg_infos.size() != required)
+			if(f->args.size() != required)
 				t.Throw("Implicit constructor require single argument.");
 		}
 		else if(f->special != SF_CAST)
@@ -1361,13 +1355,13 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	
 	if(f->special == SF_CAST || f->special == SF_ADDREF || f->special == SF_RELEASE)
 	{
-		if(f->arg_infos.size() != 1u // first arg is this
+		if(f->args.size() != 1u // first arg is this
 			&& (f->special == SF_CAST || f->result.type == V_VOID)) // returns void or is cast
 			t.Throw("Invalid cast operator definition '%s'.", GetName(f));
 	}
 	else if(f->special == SF_DTOR)
 	{
-		if(f->arg_infos.size() != 1u)
+		if(f->args.size() != 1u)
 			t.Throw("Destructor can't have arguments.");
 		if(type->IsRefCounted())
 			t.Throw("Reference counted type can't have destructor.");
@@ -1391,7 +1385,7 @@ void Parser::ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp)
 	}
 }
 
-void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
+void Parser::ParseFunctionArgs(Function* f, bool in_cpp)
 {
 	assert(f);
 	f->required_args = 0;
@@ -1416,7 +1410,7 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				arg->mod = false;
 				arg->is_code_class = GetType(vartype.type)->IsCode();
 				arg->referenced = false;
-				current_function->args.push_back(arg);
+				current_function->arg_vars.push_back(arg);
 			}
 			else
 			{
@@ -1438,22 +1432,22 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 				switch(item->op)
 				{
 				case PUSH_BOOL:
-					f->arg_infos.push_back(ArgInfo(item->bvalue));
+					f->args.push_back(Arg(item->bvalue));
 					break;
 				case PUSH_CHAR:
-					f->arg_infos.push_back(ArgInfo(item->cvalue));
+					f->args.push_back(Arg(item->cvalue));
 					break;
 				case PUSH_INT:
-					f->arg_infos.push_back(ArgInfo(item->value));
+					f->args.push_back(Arg(item->value));
 					break;
 				case PUSH_FLOAT:
-					f->arg_infos.push_back(ArgInfo(item->fvalue));
+					f->args.push_back(Arg(item->fvalue));
 					break;
 				case PUSH_STRING:
-					f->arg_infos.push_back(ArgInfo(VarType(V_STRING), item->value, true));
+					f->args.push_back(Arg(VarType(V_STRING), item->value, true));
 					break;
 				case PUSH_ENUM:
-					f->arg_infos.push_back(ArgInfo(VarType(item->result.type, 0), item->value, true));
+					f->args.push_back(Arg(VarType(item->result.type, 0), item->value, true));
 					break;
 				default:
 					assert(0);
@@ -1464,10 +1458,10 @@ void Parser::ParseFunctionArgs(CommonFunction* f, bool in_cpp)
 			{
 				if(prev_arg_def)
 					t.Throw("Missing default value for argument '%s'.", id.c_str());
-				f->arg_infos.push_back(ArgInfo(vartype, 0, false));
+				f->args.push_back(Arg(vartype, 0, false));
 				f->required_args++;
 			}
-			f->arg_infos.back().pass_by_ref = pass_by_ref;
+			f->args.back().pass_by_ref = pass_by_ref;
 			if(t.IsSymbol(')'))
 				break;
 			t.AssertSymbol(',');
@@ -2562,7 +2556,7 @@ ParseNode* Parser::ParseItem(ParseFunction* func)
 		Found found;
 		FOUND found_type;
 		if(func)
-			found_type = F_USER_FUNC;
+			found_type = F_SCRIPT_FUNC;
 		else
 			found_type = FindItem(id, found);
 		switch(found_type)
@@ -2593,8 +2587,8 @@ ParseNode* Parser::ParseItem(ParseFunction* func)
 				t.Next();
 				return node;
 			}
-		case F_FUNC:
-		case F_USER_FUNC:
+		case F_CODE_FUNC:
+		case F_SCRIPT_FUNC:
 			{
 				vector<AnyFunction> funcs;
 				if(!func)
@@ -2747,7 +2741,7 @@ void Parser::CheckFindItem(const string& id, bool is_func)
 {
 	Found found;
 	FOUND found_type = FindItem(id, found);
-	if(found_type != F_NONE && !(is_func && (found_type == F_FUNC || found_type == F_USER_FUNC)))
+	if(found_type != F_NONE && !(is_func && (found_type == F_CODE_FUNC || found_type == F_SCRIPT_FUNC)))
 		t.Throw("Name '%s' already used as %s.", id.c_str(), found.ToString(found_type));
 }
 
@@ -2765,7 +2759,7 @@ ParseVar* Parser::GetVar(ParseNode* node)
 	case PUSH_ARG:
 	case PUSH_ARG_REF:
 		assert(current_function);
-		return current_function->args[node->value];
+		return current_function->arg_vars[node->value];
 	default:
 		assert(0);
 		return nullptr;
@@ -3045,9 +3039,9 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 			AnyFunction builtin = ApplyFunctionCall(node, funcs, ltype, false);
 			if(builtin)
 			{
-				node->result = builtin.cf->result;
+				node->result = builtin.f->result;
 				node->op = (Op)si.op;
-				Cast(node->childs[1], builtin.cf->arg_infos[1].vartype);
+				Cast(node->childs[1], builtin.f->args[1].vartype);
 			}
 			op_result.over_result = node.Pin();
 			op_result.result = OpResult::OVERLOAD;
@@ -3516,10 +3510,10 @@ bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult*
 		else
 		{
 			// user defined function cast
-			CheckFunctionIsDeleted(*cast_result.cast_func.cf);
+			CheckFunctionIsDeleted(*cast_result.cast_func.f);
 			cast->op = (cast_result.cast_func.IsParse() ? CALLU : CALL);
-			cast->result = cast_result.cast_func.cf->result;
-			cast->value = cast_result.cast_func.cf->index;
+			cast->result = cast_result.cast_func.f->result;
+			cast->value = cast_result.cast_func.f->index;
 		}
 		cast->source = nullptr;
 		cast->push(node);
@@ -3528,11 +3522,11 @@ bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult*
 	else if(IS_SET(cast_result.type, CastResult::IMPLICIT_CTOR))
 	{
 		// ctor cast
-		CheckFunctionIsDeleted(*cast_result.ctor_func.cf);
+		CheckFunctionIsDeleted(*cast_result.ctor_func.f);
 		ParseNode* cast = ParseNode::Get();
 		cast->op = (cast_result.ctor_func.IsParse() ? CALLU_CTOR : CALL);
-		cast->result = cast_result.ctor_func.cf->result;
-		cast->value = cast_result.ctor_func.cf->index;
+		cast->result = cast_result.ctor_func.f->result;
+		cast->value = cast_result.ctor_func.f->index;
 		cast->source = nullptr;
 		cast->push(node);
 		node = cast;
@@ -3674,11 +3668,11 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 		else
 		{
 			// find cast function
-			result.cast_func = FindSpecialFunction(left, SF_CAST, [vartype](AnyFunction& f) {return f.cf->result == vartype; });
+			result.cast_func = FindSpecialFunction(left, SF_CAST, [vartype](AnyFunction& f) {return f.f->result == vartype; });
 			if(!result.cast_func && node->result.type == V_REF)
 			{
 				// find cast function when passed by reference
-				result.cast_func = FindSpecialFunction(GetType(node->result.subtype), SF_CAST, [vartype](AnyFunction& f) {return f.cf->result == vartype; });
+				result.cast_func = FindSpecialFunction(GetType(node->result.subtype), SF_CAST, [vartype](AnyFunction& f) {return f.f->result == vartype; });
 			}
 		}
 
@@ -3686,9 +3680,9 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 		result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
 		{
 			uint required = (f.IsParse() ? 2u : 1u);
-			return f.cf->arg_infos.size() == required
-				&& f.cf->arg_infos[required - 1].vartype == node->result
-				&& f.cf->IsImplicit();
+			return f.f->args.size() == required
+				&& f.f->args[required - 1].vartype == node->result
+				&& f.f->IsImplicit();
 		});
 		if(!result.ctor_func && node->result.type == V_REF)
 		{
@@ -3696,9 +3690,9 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 			result.ctor_func = FindSpecialFunction(right, SF_CTOR, [node](AnyFunction& f)
 			{
 				uint required = (f.IsParse() ? 2u : 1u);
-				return f.cf->arg_infos.size() == required
-					&& f.cf->arg_infos[required - 1].vartype.type == node->result.subtype
-					&& f.cf->IsImplicit();
+				return f.f->args.size() == required
+					&& f.f->args[required - 1].vartype.type == node->result.subtype
+					&& f.f->IsImplicit();
 			});
 		}
 
@@ -3712,11 +3706,11 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 		// mark cast type
 		if(result.cast_func)
 		{
-			if(result.cast_func.cf->IsImplicit())
+			if(result.cast_func.f->IsImplicit())
 				result.type |= CastResult::IMPLICIT_CAST;
 			else
 				result.type |= CastResult::EXPLICIT_CAST;
-			if(result.cast_func.cf->IsBuiltin())
+			if(result.cast_func.f->IsBuiltin())
 				result.type |= CastResult::BUILTIN_CAST;
 		}
 		if(result.ctor_func)
@@ -4079,7 +4073,7 @@ void Parser::CopyFunctionChangedStructs()
 	for(ParseFunction* f : ufuncs)
 	{
 		ParseNode* node = nullptr;
-		for(ParseVar* local : f->args)
+		for(ParseVar* local : f->arg_vars)
 		{
 			if(local->mod && GetType(local->vartype.type)->IsStruct())
 			{
@@ -4565,9 +4559,22 @@ Type* Parser::GetType(int index)
 	return module.GetType(index);
 }
 
-Function* Parser::GetFunction(int index)
+CodeFunction* Parser::GetFunction(int index)
 {
 	return module.GetFunction(index);
+}
+
+bool Parser::GetFunctionNameDecl(cstring decl, string& name, string& real_decl)
+{
+	CodeFunction* f = ParseFuncDecl(decl, nullptr, false);
+	if(!f)
+		return false;
+	else
+	{
+		name = f->name;
+		real_decl = f->decl;
+		return true;
+	}
 }
 
 VarType Parser::GetReturnType(ParseNode* node)
@@ -4584,7 +4591,7 @@ cstring Parser::GetName(ParseVar* var)
 	return Format("%s %s", GetName(var->vartype), var->name.c_str());
 }
 
-cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, BASIC_SYMBOL* symbol)
+cstring Parser::GetName(Function* cf, bool write_result, bool write_type, BASIC_SYMBOL* symbol)
 {
 	assert(cf);
 	LocalString s = "";
@@ -4639,12 +4646,12 @@ cstring Parser::GetName(CommonFunction* cf, bool write_result, bool write_type, 
 		s += ' ';
 	}
 	s += '(';
-	for(uint i = var_offset, count = cf->arg_infos.size(); i < count; ++i)
+	for(uint i = var_offset, count = cf->args.size(); i < count; ++i)
 	{
 		if(i != var_offset)
 			s += ',';
-		s += GetName(cf->arg_infos[i].vartype);
-		if(cf->arg_infos[i].pass_by_ref)
+		s += GetName(cf->args[i].vartype);
+		if(cf->args[i].pass_by_ref)
 			s += '&';
 	}
 	s += ')';
@@ -4704,22 +4711,22 @@ FOUND Parser::FindItem(const string& id, Found& found)
 		{
 			if(f.IsParse())
 			{
-				found.func = f.f;
-				return F_FUNC;
+				found.func = f.cf;
+				return F_CODE_FUNC;
 			}
 			else
 			{
 				found.ufunc = f.pf;
-				return F_USER_FUNC;
+				return F_SCRIPT_FUNC;
 			}
 		}
 	}
 
-	Function* func = FindFunction(id);
+	CodeFunction* func = FindFunction(id);
 	if(func)
 	{
 		found.func = func;
-		return F_FUNC;
+		return F_CODE_FUNC;
 	}
 
 	for(ParseFunction* ufunc : ufuncs)
@@ -4727,7 +4734,7 @@ FOUND Parser::FindItem(const string& id, Found& found)
 		if(ufunc->name == id && ufunc->type == V_VOID)
 		{
 			found.ufunc = ufunc;
-			return F_USER_FUNC;
+			return F_SCRIPT_FUNC;
 		}
 	}
 
@@ -4760,11 +4767,11 @@ FOUND Parser::FindItem(const string& id, Found& found)
 	return F_NONE;
 }
 
-Function* Parser::FindFunction(const string& name)
+CodeFunction* Parser::FindFunction(const string& name)
 {
 	for(auto& m : module.modules)
 	{
-		for(Function* f : m.second->functions)
+		for(CodeFunction* f : m.second->functions)
 		{
 			if(f->name == name && f->type == V_VOID)
 				return f;
@@ -4777,7 +4784,7 @@ AnyFunction Parser::FindFunction(Type* type, const string& name)
 {
 	assert(type);
 
-	for(Function* f : type->funcs)
+	for(CodeFunction* f : type->funcs)
 	{
 		if(f->name == name)
 			return f;
@@ -4796,7 +4803,7 @@ void Parser::FindAllFunctionOverloads(const string& name, vector<AnyFunction>& i
 {
 	for(auto& m : module.modules)
 	{
-		for(Function* f : m.second->functions)
+		for(CodeFunction* f : m.second->functions)
 		{
 			if(f->name == name && f->type == V_VOID)
 				items.push_back(f);
@@ -4821,7 +4828,7 @@ void Parser::FindAllFunctionOverloads(const string& name, vector<AnyFunction>& i
 
 void Parser::FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs)
 {
-	for(Function* f : type->funcs)
+	for(CodeFunction* f : type->funcs)
 	{
 		if(f->name == name)
 			funcs.push_back(f);
@@ -4836,7 +4843,7 @@ void Parser::FindAllFunctionOverloads(Type* type, const string& name, vector<Any
 
 void Parser::FindAllStaticFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs)
 {
-	for(Function* f : type->funcs)
+	for(CodeFunction* f : type->funcs)
 	{
 		if(f->name == name && f->IsStatic())
 			funcs.push_back(f);
@@ -4851,7 +4858,7 @@ void Parser::FindAllStaticFunctionOverloads(Type* type, const string& name, vect
 
 void Parser::FindAllCtors(Type* type, vector<AnyFunction>& funcs)
 {
-	for(Function* f : type->funcs)
+	for(CodeFunction* f : type->funcs)
 	{
 		if(f->special == SF_CTOR)
 			funcs.push_back(f);
@@ -4866,7 +4873,7 @@ void Parser::FindAllCtors(Type* type, vector<AnyFunction>& funcs)
 
 AnyFunction Parser::FindFunction(Type* type, cstring name, delegate<bool(AnyFunction& f)> pred)
 {
-	for(Function* f : type->funcs)
+	for(CodeFunction* f : type->funcs)
 	{
 		if(f->name == name && pred(AnyFunction(f)))
 			return f;
@@ -4883,7 +4890,7 @@ AnyFunction Parser::FindFunction(Type* type, cstring name, delegate<bool(AnyFunc
 
 AnyFunction Parser::FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred)
 {
-	for(Function* f : type->funcs)
+	for(CodeFunction* f : type->funcs)
 	{
 		if(f->special == spec && pred(AnyFunction(f)))
 			return f;
@@ -4902,7 +4909,7 @@ AnyFunction Parser::FindEqualFunction(ParseFunction* pf)
 {
 	for(auto& m : module.modules)
 	{
-		for(Function* f : m.second->functions)
+		for(CodeFunction* f : m.second->functions)
 		{
 			if(f->name == pf->name && f->Equal(*pf))
 				return f;
@@ -4921,48 +4928,48 @@ AnyFunction Parser::FindEqualFunction(ParseFunction* pf)
 AnyFunction Parser::FindEqualFunction(Type* type, AnyFunction _f)
 {
 	assert(type);
-	CommonFunction& cf = *_f.cf;
+	Function& f = *_f.f;
 
-	if(cf.special == SF_NO || cf.special == SF_CTOR)
+	if(f.special == SF_NO || f.special == SF_CTOR)
 	{
-		for(Function* f : type->funcs)
+		for(CodeFunction* cf : type->funcs)
 		{
-			if(f->name == cf.name && f->Equal(cf))
-				return f;
+			if(cf->name == f.name && cf->Equal(f))
+				return cf;
 		}
 
 		for(ParseFunction* pf : type->ufuncs)
 		{
-			if(pf->name == cf.name && pf->Equal(cf))
+			if(pf->name == f.name && pf->Equal(f))
 				return pf;
 		}
 	}
-	else if(cf.special != SF_CAST)
+	else if(f.special != SF_CAST)
 	{
-		for(Function* f : type->funcs)
+		for(CodeFunction* cf : type->funcs)
 		{
-			if(f->special == cf.special)
-				return f;
+			if(cf->special == f.special)
+				return cf;
 		}
 
 		for(ParseFunction* pf : type->ufuncs)
 		{
-			if(pf->special == cf.special)
+			if(pf->special == f.special)
 				return pf;
 		}
 	}
 	else
 	{
-		assert(cf.special == SF_CAST);
-		for(Function* f : type->funcs)
+		assert(f.special == SF_CAST);
+		for(CodeFunction* cf : type->funcs)
 		{
-			if(f->special == cf.special && f->result == cf.result)
-				return f;
+			if(cf->special == f.special && cf->result == f.result)
+				return cf;
 		}
 
 		for(ParseFunction* pf : type->ufuncs)
 		{
-			if(pf->special == cf.special && pf->result == cf.result)
+			if(pf->special == f.special && pf->result == f.result)
 				return pf;
 		}
 	}
@@ -4970,7 +4977,7 @@ AnyFunction Parser::FindEqualFunction(Type* type, AnyFunction _f)
 	return nullptr;
 }
 
-VarType Parser::GetRequiredType(ParseNode* node, ArgInfo& arg)
+VarType Parser::GetRequiredType(ParseNode* node, Arg& arg)
 {
 	VarType required_type = arg.vartype;
 	if(arg.pass_by_ref && required_type.type == V_STRING && node->result.type == V_STRING && node->source && node->source->is_code_class)
@@ -4982,7 +4989,7 @@ VarType Parser::GetRequiredType(ParseNode* node, ArgInfo& arg)
 }
 
 // 0 - don't match, 1 - require cast, 2 - require deref/take address, 3 - match
-int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse, bool obj_call)
+int Parser::MatchFunctionCall(ParseNode* node, Function& f, bool is_parse, bool obj_call)
 {
 	bool is_static = f.IsStatic();
 	uint offset = 0, node_offset = 0;
@@ -4992,14 +4999,14 @@ int Parser::MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse,
 	else if(is_static && obj_call) // static call on type
 		++node_offset;
 
-	if(node->childs.size() + offset - node_offset > f.arg_infos.size() || node->childs.size() + offset < f.required_args)
+	if(node->childs.size() + offset - node_offset > f.args.size() || node->childs.size() + offset < f.required_args)
 		return 0;
 
 	bool require_cast = false;
 	bool require_ref = false;
 	for(uint i = node_offset; i < node->childs.size(); ++i)
 	{
-		ArgInfo& arg = f.arg_infos[i + offset - node_offset];
+		Arg& arg = f.args[i + offset - node_offset];
 		ParseNode* child = node->childs[i];
 		VarType required_type = GetRequiredType(child, arg);
 		CastResult c = MayCast(child, required_type, arg.pass_by_ref);
@@ -5032,7 +5039,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 
 	for(AnyFunction& f : funcs)
 	{
-		int m = MatchFunctionCall(node, *f.f, f.IsParse(), obj_call);
+		int m = MatchFunctionCall(node, *f.cf, f.IsParse(), obj_call);
 		if(m == match_level)
 			match.push_back(f);
 		else if(m > match_level)
@@ -5100,24 +5107,24 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			for(AnyFunction& f : match)
 			{
 				s += "\n\t";
-				s += GetName(f.cf);
+				s += GetName(f.f);
 			}
 		}
 		else
-			s += Format(" '%s'.", GetName(match.front().cf));
+			s += Format(" '%s'.", GetName(match.front().f));
 		t.Throw(s->c_str());
 	}
 	else
 	{
-		AnyFunction f = match.front();
-		CommonFunction& cf = *f.f;
-		CheckFunctionIsDeleted(cf);
-		if(cf.IsBuiltin())
-			return f;
+		AnyFunction func = match.front();
+		Function& f = *func.f;
+		CheckFunctionIsDeleted(f);
+		if(f.IsBuiltin())
+			return func;
 		bool callu_ctor = false;
 
 		// remove push type from static method call or add pop
-		if(cf.IsStatic() && obj_call)
+		if(f.IsStatic() && obj_call)
 		{
 			if(!HasSideEffects(node->childs.front()))
 			{
@@ -5132,17 +5139,17 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			}
 		}
 
-		if(cf.special == SF_CTOR && f.IsParse())
+		if(f.special == SF_CTOR && func.IsParse())
 		{
 			// user constructor call
 			callu_ctor = true;
 		}
-		else if(current_type && cf.type == current_type->index && !cf.IsStatic())
+		else if(current_type && f.type == current_type->index && !f.IsStatic())
 		{
 			// push this
 			ParseNode* thi = ParseNode::Get();
 			thi->op = PUSH_ARG;
-			thi->result = (CoreVarType)cf.type;
+			thi->result = (CoreVarType)f.type;
 			thi->value = 0;
 			thi->source = nullptr;
 			node->childs.insert(node->childs.begin(), thi);
@@ -5153,7 +5160,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		{
 			for(uint i = 0; i < node->childs.size(); ++i)
 			{
-				ArgInfo& arg = cf.arg_infos[i];
+				Arg& arg = f.args[i];
 				ParseNode*& child = node->childs[i];
 				VarType required_type = GetRequiredType(child, arg);
 				Cast(child, required_type, arg.pass_by_ref ? CF_PASS_BY_REF : 0);
@@ -5161,9 +5168,9 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		}
 
 		// fill default params
-		for(uint i = node->childs.size() + (callu_ctor ? 1 : 0); i < cf.arg_infos.size(); ++i)
+		for(uint i = node->childs.size() + (callu_ctor ? 1 : 0); i < f.args.size(); ++i)
 		{
-			ArgInfo& arg = cf.arg_infos[i];
+			Arg& arg = f.args[i];
 			ParseNode* n = ParseNode::Get();
 			n->result = arg.vartype;
 			n->source = nullptr;
@@ -5199,9 +5206,9 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		}
 
 		// apply type
-		node->op = (f.IsParse() ? (callu_ctor ? CALLU_CTOR : CALLU) : CALL);
-		node->result = cf.result;
-		node->value = cf.index;
+		node->op = (func.IsParse() ? (callu_ctor ? CALLU_CTOR : CALLU) : CALL);
+		node->result = f.result;
+		node->value = f.index;
 
 		if(GetType(node->result.type)->IsStruct())
 		{
@@ -5213,7 +5220,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			rsvs.push_back(rsv);
 			node->source = rsv;
 		}
-		else if(node->result.type == V_REF && cf.IsCode())
+		else if(node->result.type == V_REF && f.IsCode())
 		{
 			ReturnStructVar* rsv = new ReturnStructVar;
 			rsv->index = -1;
@@ -5228,7 +5235,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 	return nullptr;
 }
 
-void Parser::CheckFunctionIsDeleted(CommonFunction& cf)
+void Parser::CheckFunctionIsDeleted(Function& cf)
 {
 	if(cf.IsDeleted())
 		t.Throw("Can't call '%s', %s marked as deleted.", GetName(&cf), cf.type != V_VOID ? "method" : "function");
@@ -5249,7 +5256,7 @@ bool Parser::CanOverload(BASIC_SYMBOL symbol)
 	return false;
 }
 
-bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
+bool Parser::FindMatchingOverload(Function& f, BASIC_SYMBOL symbol)
 {
 	BasicSymbolInfo& bsi = basic_symbols[symbol];
 	for(int i = 0; i < 3; ++i)
@@ -5260,7 +5267,7 @@ bool Parser::FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol)
 			SymbolInfo& si = symbols[s];
 			if(!si.op_code)
 				continue;
-			if(si.args == f.arg_infos.size() || s == S_SUBSCRIPT || s == S_CALL)
+			if(si.args == f.args.size() || s == S_SUBSCRIPT || s == S_CALL)
 			{
 				f.name = si.op_code;
 				return true;
@@ -5356,7 +5363,7 @@ bool Parser::IsCtor(ParseNode* node)
 		return true;
 	else if(node->op == CALL)
 	{
-		Function* f = GetFunction(node->value);
+		CodeFunction* f = GetFunction(node->value);
 		return f->special == SF_CTOR;
 	}
 	else
@@ -5462,13 +5469,13 @@ void Parser::AnalyzeLine(Type* type)
 
 			if(dtor)
 			{
-				if(IS_SET(flags, CommonFunction::F_STATIC))
+				if(IS_SET(flags, Function::F_STATIC))
 					t.Throw("Static destructor not allowed.");
 				AnalyzeArgs(V_VOID, SF_DTOR, type, Format("~%s", type->name.c_str()), flags);
 			}
 			else
 			{
-				if(IS_SET(flags, CommonFunction::F_STATIC))
+				if(IS_SET(flags, Function::F_STATIC))
 					t.Throw("Static constructor not allowed.");
 				AnalyzeArgs(vartype, SF_CTOR, type, type->name.c_str(), flags);
 			}
@@ -5483,7 +5490,7 @@ void Parser::AnalyzeLine(Type* type)
 				// operator
 				if(!type)
 					t.Throw("Operator function can be used only inside class.");
-				if(IS_SET(flags, CommonFunction::F_STATIC))
+				if(IS_SET(flags, Function::F_STATIC))
 					t.Throw("Static operator not allowed.");
 				t.Next();
 				if(t.IsItem())
@@ -5512,6 +5519,7 @@ void Parser::AnalyzeLine(Type* type)
 					ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
 					if(!FindMatchingOverload(*func, symbol))
 						t.Throw("Invalid overload operator definition '%s'.", GetName(func, true, true, &symbol));
+					func->decl = GetName(func);
 				}
 			}
 			else
@@ -5609,9 +5617,9 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 	func->index = ufuncs.size();
 	func->required_args = 0;
 	func->special = special;
-	if(type && !IS_SET(flags, CommonFunction::F_STATIC))
+	if(type && !IS_SET(flags, Function::F_STATIC))
 	{
-		func->arg_infos.push_back(ArgInfo(VarType(type->index, 0), 0, false));
+		func->args.push_back(Arg(VarType(type->index, 0), 0, false));
 		func->required_args++;
 	}
 
@@ -5630,25 +5638,25 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 			arg->name = t.MustGetItem();
 			arg->vartype = vartype;
 			arg->subtype = ParseVar::ARG;
-			arg->index = func->args.size();
+			arg->index = func->arg_vars.size();
 			arg->mod = false;
 			arg->is_code_class = GetType(vartype.type)->IsCode();
-			func->args.push_back(arg);
+			func->arg_vars.push_back(arg);
 			t.Next();
 			
 			if(t.IsSymbol('='))
 			{
 				prev_def = true;
 				t.Next();
-				func->arg_infos.push_back(ArgInfo(vartype, 0, true));
+				func->args.push_back(Arg(vartype, 0, true));
 				t.SkipToSymbol("),");
 			}
 			else
 			{
-				func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+				func->args.push_back(Arg(vartype, 0, false));
 				func->required_args++;
 				if(prev_def)
-					t.Throw("Missing default value for argument %u '%s %s'.", func->arg_infos.size(), GetName(vartype), arg->name.c_str());
+					t.Throw("Missing default value for argument %u '%s %s'.", func->args.size(), GetName(vartype), arg->name.c_str());
 			}
 			if(t.IsSymbol(')'))
 				break;
@@ -5658,7 +5666,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 	}
 	t.Next();
 
-	if(!IS_SET(flags, CommonFunction::F_DELETE))
+	if(!IS_SET(flags, Function::F_DELETE))
 	{
 		t.AssertSymbol('{');
 		if(!t.MoveToClosingSymbol('{', '}'))
@@ -5668,7 +5676,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 
 	if(special == SF_DTOR)
 	{
-		if(func->arg_infos.size() != 1u)
+		if(func->args.size() != 1u)
 			t.Throw("Destructor can't have arguments.");
 		if(type->dtor)
 			t.Throw("Type '%s' have already declared destructor.", type->name.c_str());
@@ -5686,9 +5694,8 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 			t.Throw("Function '%s' already exists.", GetName(func));
 	}
 
-#ifdef _DEBUG
-	func->decl = GetName(func);
-#endif
+	if(func->name != "$tmp")
+		func->decl = GetName(func);
 	ufuncs.push_back(func);
 	return func.Pin();
 }
@@ -5763,16 +5770,14 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 		ParseFunction* func = new ParseFunction;
 		func->name = type->name;
 		func->result = vartype;
-		func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+		func->args.push_back(Arg(vartype, 0, false));
 		func->block = nullptr;
-		func->flags = CommonFunction::F_DEFAULT;
+		func->flags = Function::F_DEFAULT;
 		func->index = ufuncs.size();
 		func->type = type->index;
 		func->required_args = 1;
 		func->special = SF_CTOR;
-#ifdef _DEBUG
 		func->decl = GetName(func);
-#endif
 		ufuncs.push_back(func);
 		type->ufuncs.push_back(func);
 		if(define_ctor == -1)
@@ -5808,8 +5813,8 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 	{
 		f = FindSpecialFunction(type, SF_CTOR, [vartype](AnyFunction& f)
 		{
-			uint offset = (f.cf->IsCode() ? 0 : 1);
-			return f.cf->arg_infos.size() == offset + 1 && In(f.cf->arg_infos[offset].vartype, { vartype, VarType(V_REF, vartype.type) });
+			uint offset = (f.f->IsCode() ? 0 : 1);
+			return f.f->args.size() == offset + 1 && In(f.f->args[offset].vartype, { vartype, VarType(V_REF, vartype.type) });
 		});
 		if(!f)
 		{
@@ -5817,18 +5822,16 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			ParseFunction* func = new ParseFunction;
 			func->name = type->name;
 			func->result = vartype;
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
 			func->block = nullptr;
-			func->flags = CommonFunction::F_DEFAULT | CommonFunction::F_BUILTIN;
+			func->flags = Function::F_DEFAULT | Function::F_BUILTIN;
 			func->index = ufuncs.size();
 			func->type = type->index;
 			func->required_args = 2;
 			func->special = SF_CTOR;
 			func->node = nullptr;
-#ifdef _DEBUG
 			func->decl = GetName(func);
-#endif
 			ufuncs.push_back(func);
 			type->ufuncs.push_back(func);
 		}
@@ -5836,7 +5839,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 
 	// assign
 	SymbolInfo* info = &symbols[S_ASSIGN];
-	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.cf->arg_infos[1].vartype.type == type->index; });
+	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.f->args[1].vartype.type == type->index; });
 	if(!f)
 	{
 		if(IS_ALL_SET(type->flags, Type::Code | Type::Ref))
@@ -5848,11 +5851,11 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			func->result = vartype;
 			func->index = ufuncs.size();
 			func->type = type->index;
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
-			func->flags = CommonFunction::F_DEFAULT;
+			func->flags = Function::F_DEFAULT;
 			if(type->IsStruct())
 			{
 				ParseNode* group = ParseNode::Get();
@@ -5878,13 +5881,11 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			}
 			else
 			{
-				func->flags |= CommonFunction::F_BUILTIN;
+				func->flags |= Function::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-#ifdef _DEBUG
 			func->decl = GetName(func);
-#endif
 			ufuncs.push_back(func);
 			type->ufuncs.push_back(func);
 		}
@@ -5892,7 +5893,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 
 	// equal
 	info = &symbols[S_EQUAL];
-	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.cf->arg_infos[1].vartype.type == type->index; });
+	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.f->args[1].vartype.type == type->index; });
 	if(!f)
 	{
 		if(IS_ALL_SET(type->flags, Type::Code | Type::Ref))
@@ -5904,11 +5905,11 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			func->result = V_BOOL;
 			func->index = ufuncs.size();
 			func->type = type->index;
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
-			func->flags = CommonFunction::F_DEFAULT;
+			func->flags = Function::F_DEFAULT;
 			if(type->IsStruct())
 			{
 				ParseNode* group = ParseNode::Get();
@@ -5931,13 +5932,11 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			}
 			else
 			{
-				func->flags |= CommonFunction::F_BUILTIN;
+				func->flags |= Function::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-#ifdef _DEBUG
 			func->decl = GetName(func);
-#endif
 			ufuncs.push_back(func);
 			type->ufuncs.push_back(func);
 		}
@@ -5945,7 +5944,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 
 	// not equal
 	info = &symbols[S_NOT_EQUAL];
-	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.cf->arg_infos[1].vartype.type == type->index; });
+	f = FindFunction(type, info->op_code, [type](AnyFunction& f) { return f.f->args[1].vartype.type == type->index; });
 	if(!f)
 	{
 		if(IS_ALL_SET(type->flags, Type::Code | Type::Ref))
@@ -5957,11 +5956,11 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			func->result = V_BOOL;
 			func->index = ufuncs.size();
 			func->type = type->index;
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
-			func->arg_infos.push_back(ArgInfo(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
+			func->args.push_back(Arg(vartype, 0, false));
 			func->required_args = 2;
 			func->special = SF_NO;
-			func->flags = CommonFunction::F_DEFAULT;
+			func->flags = Function::F_DEFAULT;
 			if(type->IsStruct())
 			{
 				ParseNode* group = ParseNode::Get();
@@ -5984,13 +5983,11 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			}
 			else
 			{
-				func->flags |= CommonFunction::F_BUILTIN;
+				func->flags |= Function::F_BUILTIN;
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-#ifdef _DEBUG
 			func->decl = GetName(func);
-#endif
 			ufuncs.push_back(func);
 			type->ufuncs.push_back(func);
 		}
@@ -6143,7 +6140,7 @@ void Parser::VerifyFunctionsDefaultArguments()
 	// function default values
 	for(ParseFunction* f : ufuncs)
 	{
-		if(f->required_args == f->arg_infos.size() || f->IsDefault())
+		if(f->required_args == f->args.size() || f->IsDefault())
 			continue;
 		AnalyzeArgsDefaultValues(f);
 	}
@@ -6154,7 +6151,7 @@ void Parser::AnalyzeArgsDefaultValues(ParseFunction* f)
 	t.MoveTo(f->start_pos);
 	uint offset = (f->special == SF_CTOR ? 1u : 0u);
 
-	for(uint i = offset, count = f->arg_infos.size(); i <= count; ++i)
+	for(uint i = offset, count = f->args.size(); i <= count; ++i)
 	{
 		VarType vartype = AnalyzeVarType();
 		t.AssertItem();
@@ -6166,7 +6163,7 @@ void Parser::AnalyzeArgsDefaultValues(ParseFunction* f)
 			NodeRef item = ParseConstExpr();
 			if(!TryConstCast(item.Get(), vartype))
 				t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
-			ArgInfo& arg = f->arg_infos[i];
+			Arg& arg = f->args[i];
 			switch(item->op)
 			{
 			case PUSH_BOOL:

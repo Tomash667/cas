@@ -46,8 +46,8 @@ enum FOUND
 {
 	F_NONE,
 	F_VAR,
-	F_FUNC,
-	F_USER_FUNC,
+	F_CODE_FUNC,
+	F_SCRIPT_FUNC,
 	F_MEMBER
 };
 
@@ -365,14 +365,14 @@ struct Block : ObjectPoolProxy<Block>
 	}
 };
 
-struct ParseFunction : CommonFunction
+struct ParseFunction : Function
 {
 	uint pos;
 	uint locals;
 	tokenizer::Pos start_pos;
 	ParseNode* node;
 	Block* block;
-	vector<ParseVar*> args;
+	vector<ParseVar*> arg_vars;
 
 	ParseFunction() : node(nullptr), block(nullptr)
 	{
@@ -385,12 +385,12 @@ struct ParseFunction : CommonFunction
 			node->Free();
 		if(block)
 			block->Free();
-		ParseVar::Free(args);
+		ParseVar::Free(arg_vars);
 	}
 
 	ParseVar* FindArg(const string& name)
 	{
-		for(ParseVar* arg : args)
+		for(ParseVar* arg : arg_vars)
 		{
 			if(arg->name == name)
 				return arg;
@@ -402,7 +402,7 @@ struct ParseFunction : CommonFunction
 union Found
 {
 	ParseVar* var;
-	Function* func;
+	CodeFunction* func;
 	ParseFunction* ufunc;
 	struct
 	{
@@ -427,9 +427,9 @@ union Found
 				assert(0);
 				return "undefined variable";
 			}
-		case F_FUNC:
-			return "function";
-		case F_USER_FUNC:
+		case F_CODE_FUNC:
+			return "code function";
+		case F_SCRIPT_FUNC:
 			return "script function";
 		case F_MEMBER:
 			return "member";

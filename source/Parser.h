@@ -63,12 +63,13 @@ public:
 	~Parser();
 
 	bool VerifyTypeName(cstring type_name, int& type_index);
-	Function* ParseFuncDecl(cstring decl, Type* type, bool builtin);
+	CodeFunction* ParseFuncDecl(cstring decl, Type* type, bool builtin);
 	Member* ParseMemberDecl(cstring decl);
 	void AddType(Type* type);
-	Function* GetFunction(int index);
+	CodeFunction* GetFunction(int index);
+	bool GetFunctionNameDecl(cstring decl, string& name, string& real_decl);
 	Type* GetType(int index);
-	cstring GetName(CommonFunction* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
+	cstring GetName(Function* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
 	cstring GetParserFunctionName(uint index);
 	bool Parse(ParseSettings& settigns);
 	AnyFunction FindEqualFunction(Type* type, AnyFunction f);
@@ -95,8 +96,8 @@ private:
 	void ParseMemberDeclClass(Type* type, uint& pad);
 	ParseNode* ParseFunc();
 	void ParseFuncModifiers(bool have_type, int& flags);
-	void ParseFuncInfo(CommonFunction* f, Type* type, bool in_cpp);
-	void ParseFunctionArgs(CommonFunction* f, bool in_cpp);
+	void ParseFuncInfo(Function* f, Type* type, bool in_cpp);
+	void ParseFunctionArgs(Function* f, bool in_cpp);
 	ParseNode* ParseVarTypeDecl();
 	ParseNode* ParseCond();
 	ParseNode* GetDefaultValueForVarDecl(VarType type);
@@ -150,7 +151,7 @@ private:
 	cstring GetTypeName(ParseNode* node);
 	VarType CommonType(VarType a, VarType b);
 	FOUND FindItem(const string& id, Found& found);
-	Function* FindFunction(const string& name);
+	CodeFunction* FindFunction(const string& name);
 	AnyFunction FindFunction(Type* type, const string& name);
 	void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items);
 	void FindAllFunctionOverloads(Type* type, const string& name, vector<AnyFunction>& funcs);
@@ -159,12 +160,12 @@ private:
 	void FindAllCtors(Type* type, vector<AnyFunction>& funcs);
 	AnyFunction FindFunction(Type* type, cstring name, delegate<bool(AnyFunction& f)> pred);
 	AnyFunction FindSpecialFunction(Type* type, SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
-	VarType GetRequiredType(ParseNode* node, ArgInfo& arg);
-	int MatchFunctionCall(ParseNode* node, CommonFunction& f, bool is_parse, bool obj_call);
+	VarType GetRequiredType(ParseNode* node, Arg& arg);
+	int MatchFunctionCall(ParseNode* node, Function& f, bool is_parse, bool obj_call);
 	AnyFunction ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& funcs, Type* type, bool ctor, bool obj_call = false);
-	void CheckFunctionIsDeleted(CommonFunction& cf);
+	void CheckFunctionIsDeleted(Function& cf);
 	bool CanOverload(BASIC_SYMBOL symbol);
-	bool FindMatchingOverload(CommonFunction& f, BASIC_SYMBOL symbol);
+	bool FindMatchingOverload(Function& f, BASIC_SYMBOL symbol);
 	NextType GetNextType(bool analyze);
 	void FreeTmpStr(string* str);
 	bool IsCtor(ParseNode* node);

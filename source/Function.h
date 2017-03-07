@@ -1,9 +1,10 @@
 #pragma once
 
+#include "cas/IFunction.h"
 #include "Type.h"
 
 // Function argument
-struct ArgInfo
+struct Arg
 {
 	VarType vartype;
 	union
@@ -15,11 +16,11 @@ struct ArgInfo
 	};
 	bool have_def_value, pass_by_ref;
 
-	ArgInfo(bool bvalue) : vartype(V_BOOL), bvalue(bvalue), have_def_value(true), pass_by_ref(false) {}
-	ArgInfo(char cvalue) : vartype(V_CHAR), cvalue(cvalue), have_def_value(true), pass_by_ref(false) {}
-	ArgInfo(int value) : vartype(V_INT), value(value), have_def_value(true), pass_by_ref(false) {}
-	ArgInfo(float fvalue) : vartype(V_FLOAT), fvalue(fvalue), have_def_value(true), pass_by_ref(false) {}
-	ArgInfo(VarType vartype, int value, bool have_def_value) : vartype(vartype), value(value), have_def_value(have_def_value), pass_by_ref(false) {}
+	Arg(bool bvalue) : vartype(V_BOOL), bvalue(bvalue), have_def_value(true), pass_by_ref(false) {}
+	Arg(char cvalue) : vartype(V_CHAR), cvalue(cvalue), have_def_value(true), pass_by_ref(false) {}
+	Arg(int value) : vartype(V_INT), value(value), have_def_value(true), pass_by_ref(false) {}
+	Arg(float fvalue) : vartype(V_FLOAT), fvalue(fvalue), have_def_value(true), pass_by_ref(false) {}
+	Arg(VarType vartype, int value, bool have_def_value) : vartype(vartype), value(value), have_def_value(have_def_value), pass_by_ref(false) {}
 
 	VarType GetDeclaredVarType() const
 	{
@@ -45,7 +46,7 @@ enum SpecialFunction
 };
 
 // Common for parse & code function
-struct CommonFunction
+struct Function : public cas::IFunction
 {
 	enum FLAGS
 	{
@@ -58,17 +59,16 @@ struct CommonFunction
 		F_DEFAULT = 1 << 6
 	};
 
-#ifdef _DEBUG
-	string decl;
-#endif
-	string name;
+	string name, decl;
 	VarType result;
 	int index, type, flags;
-	vector<ArgInfo> arg_infos;
+	vector<Arg> args;
 	uint required_args;
 	SpecialFunction special;
+	
+	cstring GetName() override;
 
-	bool Equal(CommonFunction& f) const;
+	bool Equal(Function& f) const;
 
 	bool IsBuiltin() const { return IS_SET(flags, F_BUILTIN); }
 	bool IsCode() const { return IS_SET(flags, F_CODE); }
@@ -86,19 +86,17 @@ struct CommonFunction
 	}
 };
 
-// Code function
-struct Function : CommonFunction
+// Function added from c++
+struct CodeFunction : public Function
 {
 	void* clbk;
 };
 
-// Script function
-struct UserFunction
+// Function added from cas
+struct ScriptFunction : public Function
 {
-	string name;
 	uint pos;
 	uint locals;
-	VarType result;
-	vector<VarType> args;
-	int type, index;
+
+	ScriptFunction(const Function& f) : Function(f) {}
 };

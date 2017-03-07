@@ -67,7 +67,7 @@ bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 		Error("Can't use thiscall in function '%s'.", decl);
 		return false;
 	}
-	Function* f = parser->ParseFuncDecl(decl, nullptr, func_info.builtin);
+	CodeFunction* f = parser->ParseFuncDecl(decl, nullptr, func_info.builtin);
 	if(!f)
 	{
 		Error("Failed to parse function declaration for AddFunction '%s'.", decl);
@@ -82,9 +82,7 @@ bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 	}
 	f->clbk = func_info.ptr;
 	f->index = (index << 16) | functions.size();
-#ifdef _DEBUG
 	f->decl = parser->GetName(f);
-#endif
 	functions.push_back(f);
 	return true;
 }
@@ -185,6 +183,24 @@ void Module::Decompile()
 	Decompiler::Get().Decompile(*this);
 }
 
+cas::IFunction* Module::GetFunction(cstring name_or_decl, int flags)
+{
+	assert(name_or_decl);
+
+	if(IS_SET(flags, cas::ByDecl))
+	{
+		string name, decl;
+		if(!parser->GetFunctionNameDecl(name_or_decl, name, decl))
+		{
+			Error("Failed to parse function declaration '%s' for GetFunction.", name_or_decl);
+			return nullptr;
+		}
+		return GetFunctionInternal(name.c_str(), decl.c_str(), flags);
+	}
+	else
+		return GetFunctionInternal(name_or_decl, nullptr, flags);
+}
+
 cstring Module::GetName()
 {
 	return name.c_str();
@@ -281,7 +297,7 @@ bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_i
 {
 	assert(type && decl);
 	assert(!type->built);
-	Function* f = parser->ParseFuncDecl(decl, type, func_info.builtin);
+	CodeFunction* f = parser->ParseFuncDecl(decl, type, func_info.builtin);
 	if(!f)
 	{
 		Error("Failed to parse function declaration for AddMethod '%s'.", decl);
@@ -297,7 +313,7 @@ bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_i
 	}
 	f->clbk = func_info.ptr;
 	if(func_info.thiscall)
-		f->flags |= CommonFunction::F_THISCALL;
+		f->flags |= Function::F_THISCALL;
 	if(!func_info.builtin && f->special == SF_CTOR)
 	{
 		if(type->IsPassByValue())
@@ -320,10 +336,8 @@ bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_i
 		}
 	}
 	f->index = (index << 16) | functions.size();
-	type->funcs.push_back(f);
-#ifdef _DEBUG
 	f->decl = parser->GetName(f);
-#endif
+	type->funcs.push_back(f);
 	functions.push_back(f);
 	return true;
 }
@@ -351,11 +365,11 @@ Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int
 	return type;
 }
 
-Function* Module::FindEqualFunction(Function& fc)
+CodeFunction* Module::FindEqualFunction(CodeFunction& fc)
 {
 	for(auto& module : modules)
 	{
-		for(Function* f : module.second->functions)
+		for(CodeFunction* f : module.second->functions)
 		{
 			if(f->name == fc.name && f->type == V_VOID && f->Equal(fc))
 				return f;
@@ -365,7 +379,7 @@ Function* Module::FindEqualFunction(Function& fc)
 	return nullptr;
 }
 
-Function* Module::GetFunction(int index)
+CodeFunction* Module::GetFunction(int index)
 {
 	int module_index = (index & 0xFFFF0000) >> 16;
 	int func_index = (index & 0xFFFF);
@@ -504,12 +518,42 @@ void Module::Cleanup(bool dtor)
 		for(Module* m : child_modules)
 			m->parser->RemoveKeywords(this);
 		parser->Reset();
-		ufuncs.clear();
 		code.clear();
 	}
 
 	DeleteElements(functions);
+	DeleteElements(ufuncs);
 	DeleteElements(types);
+}
+
+cas::IFunction* Module::GetFunctionInternal(cstring name, cstring decl, int flags)
+{
+	for(CodeFunction* cf : functions)
+	{
+		if(cf->type == V_VOID && cf->name == name && (!decl || cf->decl == decl))
+			return cf;
+	}
+
+	for(ScriptFunction* sf : ufuncs)
+	{
+		if(sf->type == V_VOID && sf->name == name && (!decl || sf->decl == decl))
+			return sf;
+	}
+
+	if(!IS_SET(flags, cas::IgnoreParent))
+	{
+		for(auto& m : modules)
+		{
+			if(m.first == index)
+				continue;
+
+			cas::IFunction* func = m.second->GetFunctionInternal(name, decl, flags);
+			if(func)
+				return func;
+		}
+	}
+
+	return nullptr;
 }
 
 void Module::RemoveRef()

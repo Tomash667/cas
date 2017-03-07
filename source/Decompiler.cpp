@@ -221,7 +221,7 @@ void Decompiler::GetNextFunction(int* pos)
 				current_function = -1;
 				break;
 			}
-			if(module->ufuncs[current_function].pos == -1)
+			if(module->ufuncs[current_function]->pos == -1)
 				++current_function;
 			else
 				break;
@@ -250,12 +250,12 @@ void Decompiler::GetNextFunction(int* pos)
 				next_function = -1;
 				break;
 			}
-			if(module->ufuncs[next_function].pos == -1)
+			if(module->ufuncs[next_function]->pos == -1)
 				++next_function;
 			else
 				break;
 		}
-		if(next_function != -1 && offset >= module->ufuncs[next_function].pos)
+		if(next_function != -1 && offset >= module->ufuncs[next_function]->pos)
 		{
 			current_function = next_function;
 			out << "Function " << module->GetFunctionName(current_function, true) << ":\n";

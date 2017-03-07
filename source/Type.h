@@ -29,7 +29,7 @@ struct Type : public cas::IClass, public cas::IEnum
 
 	IModuleProxy* module_proxy;
 	string name;
-	vector<Function*> funcs;
+	vector<CodeFunction*> funcs;
 	vector<ParseFunction*> ufuncs;
 	AnyFunction dtor;
 	vector<Member*> members;
@@ -54,9 +54,9 @@ struct Type : public cas::IClass, public cas::IEnum
 	bool AddValues(std::initializer_list<cstring> const& items) override;
 	bool AddValues(std::initializer_list<Item> const& items) override;
 
-	Function* FindCodeFunction(cstring name);
+	CodeFunction* FindCodeFunction(cstring name);
 	Member* FindMember(const string& name, int& index);
-	Function* FindSpecialCodeFunction(SpecialFunction special);
+	CodeFunction* FindSpecialCodeFunction(SpecialFunction special);
 	void SetGenericType();
 
 	bool IsClass() const { return IS_SET(flags, Type::Class); }
