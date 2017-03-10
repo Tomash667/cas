@@ -24,7 +24,7 @@ public:
 	cstring GetException() override;
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
-	cas::ReturnValue GetReturnValue() override;
+	cas::Value GetReturnValue() override;
 	void Release() override;
 	bool Run() override;
 	void SetName(cstring name) override;
@@ -82,7 +82,7 @@ private:
 	Str* retval_str;
 	string name, exc;
 	Var tmpv;
-	cas::ReturnValue return_value;
+	cas::Value return_value;
 	uint depth;
 	int index, current_function, args_offset, locals_offset, current_line;
 	int* code_start;

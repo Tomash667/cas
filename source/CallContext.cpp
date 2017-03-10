@@ -32,7 +32,7 @@ std::pair<cstring, int> CallContext::GetCurrentLocation()
 	if(current_function == -1)
 		func_name = "<global>";
 	else
-		func_name = module.ufuncs[current_function]->name.c_str();
+		func_name = module.script_funcs[current_function]->name.c_str();
 	return std::pair<cstring, uint>(func_name, current_line);
 }
 
@@ -51,7 +51,7 @@ cstring CallContext::GetName()
 	return name.c_str();
 }
 
-cas::ReturnValue CallContext::GetReturnValue()
+cas::Value CallContext::GetReturnValue()
 {
 	return return_value;
 }
@@ -750,8 +750,8 @@ void CallContext::RunInternal()
 		case PUSH_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < module.ufuncs.size());
-				assert(module.ufuncs[current_function]->locals > local_index);
+				assert(current_function != -1 && (uint)current_function < module.script_funcs.size());
+				assert(module.script_funcs[current_function]->locals > local_index);
 				Var& v = local[locals_offset + local_index];
 				AddRef(v);
 				stack.push_back(v);
@@ -760,8 +760,8 @@ void CallContext::RunInternal()
 		case PUSH_LOCAL_REF:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < module.ufuncs.size());
-				assert(module.ufuncs[current_function]->locals > local_index);
+				assert(current_function != -1 && (uint)current_function < module.script_funcs.size());
+				assert(module.script_funcs[current_function]->locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
 				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
@@ -792,8 +792,8 @@ void CallContext::RunInternal()
 		case PUSH_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < module.ufuncs.size());
-				assert(module.ufuncs[current_function]->args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module.script_funcs.size());
+				assert(module.script_funcs[current_function]->args.size() > arg_index);
 				Var& v = local[args_offset + arg_index];
 				AddRef(v);
 				stack.push_back(v);
@@ -802,8 +802,8 @@ void CallContext::RunInternal()
 		case PUSH_ARG_REF:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < module.ufuncs.size());
-				assert(module.ufuncs[current_function]->args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module.script_funcs.size());
+				assert(module.script_funcs[current_function]->args.size() > arg_index);
 				uint index = args_offset + arg_index;
 				Var& v = local[index];
 				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
@@ -880,8 +880,8 @@ void CallContext::RunInternal()
 			{
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < module.ufuncs.size());
-				ScriptFunction& f = *module.ufuncs[current_function];
+				assert((uint)current_function < module.script_funcs.size());
+				ScriptFunction& f = *module.script_funcs[current_function];
 				Type* type = module.GetType(f.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
@@ -916,8 +916,8 @@ void CallContext::RunInternal()
 			{
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < module.ufuncs.size());
-				ScriptFunction& f = *module.ufuncs[current_function];
+				assert((uint)current_function < module.script_funcs.size());
+				ScriptFunction& f = *module.script_funcs[current_function];
 				Type* type = module.GetType(f.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
@@ -958,8 +958,8 @@ void CallContext::RunInternal()
 		case PUSH_THIS:
 			{
 				assert(current_function != -1);
-				assert((uint)current_function < module.ufuncs.size());
-				ScriptFunction& f = *module.ufuncs[current_function];
+				assert((uint)current_function < module.script_funcs.size());
+				ScriptFunction& f = *module.script_funcs[current_function];
 				Type* type = module.GetType(f.type);
 				assert(type->IsClass());
 				Var& v = local[args_offset];
@@ -986,8 +986,8 @@ void CallContext::RunInternal()
 		case SET_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(current_function != -1 && (uint)current_function < module.ufuncs.size());
-				assert(module.ufuncs[current_function]->locals > local_index);
+				assert(current_function != -1 && (uint)current_function < module.script_funcs.size());
+				assert(module.script_funcs[current_function]->locals > local_index);
 				SetFromStack(VectorOffset<Var>(local, locals_offset + local_index));
 			}
 			break;
@@ -1001,8 +1001,8 @@ void CallContext::RunInternal()
 		case SET_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < module.ufuncs.size());
-				assert(module.ufuncs[current_function]->args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module.script_funcs.size());
+				assert(module.script_funcs[current_function]->args.size() > arg_index);
 				SetFromStack(VectorOffset<Var>(local, args_offset + arg_index));
 			}
 			break;
@@ -1036,8 +1036,8 @@ void CallContext::RunInternal()
 
 				// check is inside script class function
 				assert(current_function != -1);
-				assert((uint)current_function < module.ufuncs.size());
-				ScriptFunction& f = *module.ufuncs[current_function];
+				assert((uint)current_function < module.script_funcs.size());
+				ScriptFunction& f = *module.script_funcs[current_function];
 				Type* type = module.GetType(f.type);
 				assert(type->IsClass());
 				uint member_index = *c++;
@@ -1484,8 +1484,8 @@ void CallContext::RunInternal()
 			}
 			else
 			{
-				assert((uint)current_function < module.ufuncs.size());
-				ScriptFunction& f = *module.ufuncs[current_function];
+				assert((uint)current_function < module.script_funcs.size());
+				ScriptFunction& f = *module.script_funcs[current_function];
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
 				Var& func_mark = *(local.end() - to_pop - 1);
@@ -1532,8 +1532,8 @@ void CallContext::RunInternal()
 				if(current_function != -1)
 				{
 					// checking local stack
-					assert((uint)current_function < module.ufuncs.size());
-					ScriptFunction& f = *module.ufuncs[current_function];
+					assert((uint)current_function < module.script_funcs.size());
+					ScriptFunction& f = *module.script_funcs[current_function];
 					uint count = 1 + f.locals + f.args.size();
 					assert(local.size() >= count - cleanup_offset);
 					Var& d = *(local.end() - (count - cleanup_offset));
@@ -1589,8 +1589,8 @@ void CallContext::RunInternal()
 		case CALLU:
 			{
 				uint f_idx = *c++;
-				assert(f_idx < module.ufuncs.size());
-				ScriptFunction& f = *module.ufuncs[f_idx];
+				assert(f_idx < module.script_funcs.size());
+				ScriptFunction& f = *module.script_funcs[f_idx];
 				// mark function call
 				uint pos = c - code_start;
 				local.push_back(Var(V_SPECIAL));
@@ -1629,8 +1629,8 @@ void CallContext::RunInternal()
 		case CALLU_CTOR:
 			{
 				uint f_idx = *c++;
-				assert(f_idx < module.ufuncs.size());
-				ScriptFunction& f = *module.ufuncs[f_idx];
+				assert(f_idx < module.script_funcs.size());
+				ScriptFunction& f = *module.script_funcs[f_idx];
 				// mark function call
 				uint pos = c - code_start;
 				local.push_back(Var(V_SPECIAL));
@@ -1676,8 +1676,8 @@ void CallContext::RunInternal()
 		case COPY_ARG:
 			{
 				uint arg_index = *c++;
-				assert(current_function != -1 && (uint)current_function < module.ufuncs.size());
-				assert(module.ufuncs[current_function]->args.size() > arg_index);
+				assert(current_function != -1 && (uint)current_function < module.script_funcs.size());
+				assert(module.script_funcs[current_function]->args.size() > arg_index);
 				Var& v = local[args_offset + arg_index];
 				MakeSingleInstance(v);
 			}

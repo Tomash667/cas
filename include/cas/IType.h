@@ -13,6 +13,8 @@ namespace cas
 		RefCount = 1 << 3 // type use addref/release operator
 	};
 
+	class IFunction;
+
 	class IType
 	{
 	public:
@@ -39,6 +41,9 @@ namespace cas
 				|| generic_type == GenericType::Int
 				|| generic_type == GenericType::Float;
 		}
+
+		virtual IFunction* GetFunction(cstring name_or_decl, int flags = 0) = 0;
+		virtual void GetFunctionsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
 		virtual cstring GetName() const = 0;
 
 	protected:

@@ -29,8 +29,7 @@ struct Type : public cas::IClass, public cas::IEnum
 
 	IModuleProxy* module_proxy;
 	string name;
-	vector<CodeFunction*> funcs;
-	vector<ParseFunction*> ufuncs;
+	vector<AnyFunction> funcs;
 	AnyFunction dtor;
 	vector<Member*> members;
 	Enum* enu;
@@ -43,6 +42,8 @@ struct Type : public cas::IClass, public cas::IEnum
 
 	// from IType
 	cstring GetName() const override;
+	cas::IFunction* GetFunction(cstring name_or_decl, int flags) override;
+	void GetFunctionsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
 
 	// from IClass
 	bool AddMember(cstring decl, int offset) override;
@@ -54,9 +55,15 @@ struct Type : public cas::IClass, public cas::IEnum
 	bool AddValues(std::initializer_list<cstring> const& items) override;
 	bool AddValues(std::initializer_list<Item> const& items) override;
 
-	CodeFunction* FindCodeFunction(cstring name);
+	void FindAllCtors(vector<AnyFunction>& funcs);
+	void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& funcs);
+	void FindAllStaticFunctionOverloads(const string& name, vector<AnyFunction>& funcs);
+	AnyFunction FindEqualFunction(AnyFunction _f);
+	AnyFunction FindFunction(const string& name);
+	AnyFunction FindFunction(cstring name, delegate<bool(AnyFunction& f)> pred);
 	Member* FindMember(const string& name, int& index);
 	CodeFunction* FindSpecialCodeFunction(SpecialFunction special);
+	AnyFunction FindSpecialFunction(SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
 	void SetGenericType();
 
 	bool IsClass() const { return IS_SET(flags, Type::Class); }

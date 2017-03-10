@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cas/IModule.h"
 #include "Function.h"
 #include "IModuleProxy.h"
 
@@ -11,7 +10,7 @@ struct Str;
 // Script module
 // Container for code, types and functions
 // Can have child and parent modules
-class Module : public cas::IModule, public IModuleProxy
+class Module : public IModuleProxy
 {
 public:
 	Module(int index, cstring name);
@@ -25,7 +24,9 @@ public:
 	cas::ICallContext* CreateCallContext(cstring name) override;
 	void Decompile() override;
 	cas::IFunction* GetFunction(cstring name_or_decl, int flags) override;
+	void GetFunctionsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
 	cstring GetName() override;
+	cas::IType* GetType(cstring name, int flags) override;
 	ParseResult Parse(cstring input) override;
 	void Release() override;
 	void Reset() override;
@@ -36,13 +37,16 @@ public:
 	bool AddEnumValue(Type* type, cstring name, int value);
 	bool AddMember(Type* type, cstring decl, int offset);
 	bool AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_info);
+	cas::ComplexType GetComplexType(VarType vartype) override;
+	bool GetFunctionDecl(cstring decl, string& real_decl, Type* type) override;
+	Type* GetType(int index) override;
 
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
 	CodeFunction* FindEqualFunction(CodeFunction& fc);
+	AnyFunction FindFunction(const string& name);
 	CodeFunction* GetFunction(int index);
 	cstring GetFunctionName(uint index, bool is_user);
 	Str* GetStr(int index);
-	Type* GetType(int index);
 	void RemoveCallContext(CallContext* call_context);
 
 private:
@@ -60,8 +64,8 @@ public:
 	std::map<int, Module*> modules;
 	vector<Module*> child_modules;
 	vector<CallContext*> call_contexts;
-	vector<CodeFunction*> functions;
-	vector<ScriptFunction*> ufuncs;
+	vector<CodeFunction*> code_funcs;
+	vector<ScriptFunction*> script_funcs;
 	vector<Type*> types;
 	vector<Str*> strs;
 	vector<int> code;

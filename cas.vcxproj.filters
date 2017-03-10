@@ -69,9 +69,6 @@
     <ClInclude Include="source/Pch.h">
       <Filter>Source\H</Filter>
     </ClInclude>
-    <ClInclude Include="include\cas\ReturnValue.h">
-      <Filter>Include</Filter>
-    </ClInclude>
     <ClInclude Include="include\cas\IType.h">
       <Filter>Include</Filter>
     </ClInclude>

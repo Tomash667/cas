@@ -25,6 +25,7 @@ struct AnyFunction
 	};
 	Type type;
 
+	AnyFunction() {}
 	AnyFunction(std::nullptr_t) : f(nullptr), type(NONE) {}
 	AnyFunction(CodeFunction* cf) : cf(cf), type(CODE) {}
 	AnyFunction(ParseFunction* pf) : pf(pf), type(PARSE) {}

@@ -18,3 +18,27 @@ inline uint alignto(uint size, uint to)
 }
 
 cstring Format(cstring msg, ...);
+
+namespace cas
+{
+	class IType;
+
+	struct Value
+	{
+		IType* type;
+		union
+		{
+			bool bool_value;
+			char char_value;
+			int int_value;
+			float float_value;
+			cstring str_value;
+		};
+	};
+
+	struct ComplexType
+	{
+		IType* type;
+		bool ref;
+	};
+}

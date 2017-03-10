@@ -59,6 +59,7 @@ struct Function : public cas::IFunction
 		F_DEFAULT = 1 << 6
 	};
 
+	IModuleProxy* module_proxy;
 	string name, decl;
 	VarType result;
 	int index, type, flags;
@@ -66,7 +67,14 @@ struct Function : public cas::IFunction
 	uint required_args;
 	SpecialFunction special;
 	
+	uint GetArgCount() override;
+	cas::ComplexType GetArgType(uint index) override;
+	cas::Value GetArgDefaultValue(uint index) override;
+	cas::IType* GetClass() override;
+	cstring GetDecl() override;
+	int GetFlags() override;
 	cstring GetName() override;
+	cas::ComplexType GetReturnType() override;
 
 	bool Equal(Function& f) const;
 

@@ -102,7 +102,6 @@
     <ClInclude Include="include\cas\IEngine.h" />
     <ClInclude Include="include\cas\IFunction.h" />
     <ClInclude Include="include\cas\IType.h" />
-    <ClInclude Include="include\cas\ReturnValue.h" />
     <ClInclude Include="include\cas\Settings.h" />
     <ClInclude Include="source/Function.h" />
     <ClInclude Include="include/cas/IModule.h" />

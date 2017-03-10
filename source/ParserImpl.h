@@ -46,8 +46,7 @@ enum FOUND
 {
 	F_NONE,
 	F_VAR,
-	F_CODE_FUNC,
-	F_SCRIPT_FUNC,
+	F_FUNC,
 	F_MEMBER
 };
 
@@ -402,13 +401,14 @@ struct ParseFunction : Function
 union Found
 {
 	ParseVar* var;
-	CodeFunction* func;
-	ParseFunction* ufunc;
+	AnyFunction func;
 	struct
 	{
 		Member* member;
 		int member_index;
 	};
+
+	Found() : func() {}
 
 	inline cstring ToString(FOUND type)
 	{
@@ -427,10 +427,8 @@ union Found
 				assert(0);
 				return "undefined variable";
 			}
-		case F_CODE_FUNC:
-			return "code function";
-		case F_SCRIPT_FUNC:
-			return "script function";
+		case F_FUNC:
+			return "function";
 		case F_MEMBER:
 			return "member";
 		default:

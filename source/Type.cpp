@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Enum.h"
+#include "Event.h"
 #include "Function.h"
 #include "IModuleProxy.h"
 #include "Member.h"
@@ -14,6 +15,48 @@ Type::~Type()
 cstring Type::GetName() const
 {
 	return name.c_str();
+}
+
+cas::IFunction* Type::GetFunction(cstring name_or_decl, int flags)
+{
+	assert(name_or_decl);
+
+	if(IS_SET(flags, cas::ByDecl))
+	{
+		string decl;
+		if(!module_proxy->GetFunctionDecl(name_or_decl, decl, this))
+		{
+			Error("Failed to parse method declaration '%s' for GetFunction.", name_or_decl);
+			return nullptr;
+		}
+
+		for(AnyFunction& f : funcs)
+		{
+			if(f.f->decl == decl)
+				return f.f;
+		}
+	}
+	else
+	{
+		for(AnyFunction& f : funcs)
+		{
+			if(f.f->name == name_or_decl)
+				return f.f;
+		}
+	}
+
+	return nullptr;
+}
+
+void Type::GetFunctionsList(vector<cas::IFunction*>& _funcs, cstring name, int flags)
+{
+	assert(name);
+
+	for(AnyFunction& f : funcs)
+	{
+		if(f.f->name == name)
+			_funcs.push_back(f.f);
+	}
 }
 
 bool Type::AddMember(cstring decl, int offset)
@@ -71,13 +114,88 @@ bool Type::AddValues(std::initializer_list<Item> const& items)
 	return true;
 }
 
-CodeFunction* Type::FindCodeFunction(cstring name)
+void Type::FindAllCtors(vector<AnyFunction>& _funcs)
 {
-	for(CodeFunction* f : funcs)
+	for(AnyFunction& f : funcs)
 	{
-		if(f->name == name)
+		if(f.f->special == SF_CTOR)
+			_funcs.push_back(f);
+	}
+}
+
+void Type::FindAllFunctionOverloads(const string& name, vector<AnyFunction>& _funcs)
+{
+	for(AnyFunction& f : funcs)
+	{
+		if(f.f->name == name)
+			_funcs.push_back(f);
+	}
+}
+
+void Type::FindAllStaticFunctionOverloads(const string& name, vector<AnyFunction>& _funcs)
+{
+	for(AnyFunction& f : funcs)
+	{
+		if(f.f->IsStatic() && f.f->name == name)
+			_funcs.push_back(f);
+	}
+}
+
+AnyFunction Type::FindEqualFunction(AnyFunction func)
+{
+	Function& f2 = *func.f;
+
+	if(f2.special == SF_NO || f2.special == SF_CTOR)
+	{
+		for(AnyFunction& f : funcs)
+		{
+			if(f.f->name == f2.name && f.f->Equal(f2))
+				return f;
+		}
+	}
+	else if(f2.special != SF_CAST)
+	{
+		for(AnyFunction& f : funcs)
+		{
+			if(f.f->special == f2.special)
+				return f;
+		}
+	}
+	else
+	{
+		assert(f2.special == SF_CAST);
+
+		for(AnyFunction& f : funcs)
+		{
+			if(f.f->special == f2.special && f.f->result == f2.result)
+				return f;
+		}
+	}
+
+	return nullptr;
+}
+
+AnyFunction Type::FindFunction(const string& name)
+{
+	for(AnyFunction& f : funcs)
+	{
+		if(f.f->name == name)
 			return f;
 	}
+
+	return nullptr;
+}
+
+AnyFunction Type::FindFunction(cstring name, delegate<bool(AnyFunction& f)> pred)
+{
+	assert(name);
+
+	for(AnyFunction& f : funcs)
+	{
+		if(f.f->name == name && pred(f))
+			return f;
+	}
+
 	return nullptr;
 }
 
@@ -95,11 +213,22 @@ Member* Type::FindMember(const string& name, int& index)
 
 CodeFunction* Type::FindSpecialCodeFunction(SpecialFunction special)
 {
-	for(CodeFunction* f : funcs)
+	for(AnyFunction& f : funcs)
 	{
-		if(f->special == special)
+		if(f.IsCode() && f.f->special == special)
+			return f.cf;
+	}
+	return nullptr;
+}
+
+AnyFunction Type::FindSpecialFunction(SpecialFunction spec, delegate<bool(AnyFunction& f)> pred)
+{
+	for(AnyFunction& f : funcs)
+	{
+		if(f.f->special == spec && pred(f))
 			return f;
 	}
+
 	return nullptr;
 }
 

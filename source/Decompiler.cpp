@@ -216,12 +216,12 @@ void Decompiler::GetNextFunction(int* pos)
 		current_function = 0;
 		while(1)
 		{
-			if(current_function == (int)module->ufuncs.size())
+			if(current_function == (int)module->script_funcs.size())
 			{
 				current_function = -1;
 				break;
 			}
-			if(module->ufuncs[current_function]->pos == -1)
+			if(module->script_funcs[current_function]->pos == -1)
 				++current_function;
 			else
 				break;
@@ -245,17 +245,17 @@ void Decompiler::GetNextFunction(int* pos)
 		int next_function = current_function + 1;
 		while(true)
 		{
-			if(next_function == (int)module->ufuncs.size())
+			if(next_function == (int)module->script_funcs.size())
 			{
 				next_function = -1;
 				break;
 			}
-			if(module->ufuncs[next_function]->pos == -1)
+			if(module->script_funcs[next_function]->pos == -1)
 				++next_function;
 			else
 				break;
 		}
-		if(next_function != -1 && offset >= module->ufuncs[next_function]->pos)
+		if(next_function != -1 && offset >= module->script_funcs[next_function]->pos)
 		{
 			current_function = next_function;
 			out << "Function " << module->GetFunctionName(current_function, true) << ":\n";

@@ -38,7 +38,9 @@ namespace cas
 		virtual ICallContext* CreateCallContext(cstring name = nullptr) = 0;
 		virtual void Decompile() = 0;
 		virtual IFunction* GetFunction(cstring name_or_decl, int flags = 0) = 0;
+		virtual void GetFunctionsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
 		virtual cstring GetName() = 0;
+		virtual IType* GetType(cstring name, int flags = 0) = 0;
 		virtual ParseResult Parse(cstring input) = 0;
 		virtual void Release() = 0;
 		virtual void Reset() = 0;

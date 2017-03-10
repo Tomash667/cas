@@ -143,41 +143,41 @@ struct Retval
 	
 	void IsVoid()
 	{
-		ReturnValue ret = call_context->GetReturnValue();
+		Value ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Void, ret.type->GetGenericType());
 	}
 
 	void IsBool(bool expected)
 	{
-		ReturnValue ret = call_context->GetReturnValue();
+		Value ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Bool, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.bool_value);
 	}
 
 	void IsChar(char expected)
 	{
-		ReturnValue ret = call_context->GetReturnValue();
+		Value ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Char, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.char_value);
 	}
 
 	void IsInt(int expected)
 	{
-		ReturnValue ret = call_context->GetReturnValue();
+		Value ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Int, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.int_value);
 	}
 
 	void IsFloat(float expected)
 	{
-		ReturnValue ret = call_context->GetReturnValue();
+		Value ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Float, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.float_value, 0.01f);
 	}
 
 	void IsEnum(cstring name, int expected)
 	{
-		ReturnValue ret = call_context->GetReturnValue();
+		Value ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::Enum, ret.type->GetGenericType());
 		Assert::AreEqual(name, ret.type->GetName());
 		Assert::AreEqual(expected, ret.int_value);
@@ -185,7 +185,7 @@ struct Retval
 
 	void IsString(cstring expected)
 	{
-		ReturnValue ret = call_context->GetReturnValue();
+		Value ret = call_context->GetReturnValue();
 		Assert::AreEqual(IType::GenericType::String, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.str_value);
 	}

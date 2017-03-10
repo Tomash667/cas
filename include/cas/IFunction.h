@@ -9,7 +9,7 @@ namespace cas
 	class IFunction
 	{
 	public:
-		/*enum Flags
+		enum Flags
 		{
 			F_THISCALL = 1 << 0,
 			F_IMPLICIT = 1 << 1,
@@ -20,14 +20,13 @@ namespace cas
 			F_DEFAULT = 1 << 6
 		};
 
-		virtual int GetArgCount() = 0;
-		virtual IType* GetArgType(int index) = 0;
-		virtual Value GetArgDefaultValue(int index) = 0;
-		virtual cstring GetArgName(int index) = 0;
+		virtual uint GetArgCount() = 0;
+		virtual ComplexType GetArgType(uint index) = 0;
+		virtual Value GetArgDefaultValue(uint index) = 0;
+		virtual IType* GetClass() = 0;
 		virtual cstring GetDecl() = 0;
-		virtual int GetFlags() = 0;*/
+		virtual int GetFlags() = 0;
 		virtual cstring GetName() = 0;
-		/*virtual IType* GetReturnType() = 0;
-		virtual IType* GetType() = 0;*/
+		virtual ComplexType GetReturnType() = 0;
 	};
 }
