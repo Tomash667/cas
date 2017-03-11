@@ -42,8 +42,8 @@ struct Type : public cas::IClass, public cas::IEnum
 
 	// from IType
 	cstring GetName() const override;
-	cas::IFunction* GetFunction(cstring name_or_decl, int flags) override;
-	void GetFunctionsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
+	cas::IFunction* GetMethod(cstring name_or_decl, int flags) override;
+	void GetMethodsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
 
 	// from IClass
 	bool AddMember(cstring decl, int offset) override;
@@ -58,7 +58,7 @@ struct Type : public cas::IClass, public cas::IEnum
 	void FindAllCtors(vector<AnyFunction>& funcs);
 	void FindAllFunctionOverloads(const string& name, vector<AnyFunction>& funcs);
 	void FindAllStaticFunctionOverloads(const string& name, vector<AnyFunction>& funcs);
-	AnyFunction FindEqualFunction(AnyFunction _f);
+	AnyFunction FindEqualFunction(Function* f);
 	AnyFunction FindFunction(const string& name);
 	AnyFunction FindFunction(cstring name, delegate<bool(AnyFunction& f)> pred);
 	Member* FindMember(const string& name, int& index);

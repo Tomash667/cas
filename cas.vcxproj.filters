@@ -37,6 +37,9 @@
     <ClCompile Include="source/CoreLib.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>
+    <ClCompile Include="source\Symbol.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/cas/Cas.h">
@@ -143,6 +146,9 @@
     </ClInclude>
     <ClInclude Include="include\cas\IFunction.h">
       <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Symbol.h">
+      <Filter>Source\H</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

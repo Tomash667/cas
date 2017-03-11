@@ -7,8 +7,8 @@
 
 enum EXT_VAR_TYPE
 {
-	V_FUNCTION = V_MAX,
-	V_USER_FUNCTION
+	V_CODE_FUNCTION = V_MAX,
+	V_SCRIPT_FUNCTION
 };
 
 struct OpInfo
@@ -23,6 +23,7 @@ struct OpInfo
 #define Args2(arg1, arg2) arg1, arg2
 
 OpInfo ops[] = {
+	NOP, "nop", Args0(),
 	PUSH, "push", Args0(),
 	PUSH_TRUE, "push_true", Args0(),
 	PUSH_FALSE, "push_false", Args0(),
@@ -82,9 +83,9 @@ OpInfo ops[] = {
 	JMP, "jmp", Args1(V_INT),
 	TJMP, "tjmp", Args1(V_INT),
 	FJMP, "fjmp", Args1(V_INT),
-	CALL, "call", Args1(V_FUNCTION),
-	CALLU, "callu", Args1(V_USER_FUNCTION),
-	CALLU_CTOR, "callu_ctor", Args1(V_USER_FUNCTION),
+	CALL, "call", Args1(V_CODE_FUNCTION),
+	CALLU, "callu", Args1(V_SCRIPT_FUNCTION),
+	CALLU_CTOR, "callu_ctor", Args1(V_SCRIPT_FUNCTION),
 	RET, "ret", Args0(),
 	COPY, "copy", Args0(),
 	COPY_ARG, "copy_arg", Args1(V_INT),
@@ -111,8 +112,8 @@ void Decompiler::Decompile(Module& _module)
 
 	module = &_module;
 	std::ostream& out = *s_output;
-	int* c = module->code.data();
-	int* end = c + module->code.size();
+	int* c = module->GetBytecode().data();
+	int* end = c + module->GetBytecode().size();
 	current_function = -2;
 
 	if(decompile_marker)
@@ -188,11 +189,11 @@ void Decompiler::DecompileType(int type, int val)
 	case V_STRING:
 		out << Format("\"%s\" ", Escape(module->GetStr(val)->s.c_str()));
 		break;
-	case V_FUNCTION:
-		out << Format("%s ", module->GetFunctionName(val, false));
+	case V_CODE_FUNCTION:
+		out << Format("%s ", module->GetCodeFunction(val)->GetFormattedName(false));
 		break;
-	case V_USER_FUNCTION:
-		out << Format("%s ", module->GetFunctionName(val, true));
+	case V_SCRIPT_FUNCTION:
+		out << Format("%s ", module->GetScriptFunction(val)->GetFormattedName(false));
 		break;
 	case V_TYPE:
 		out << Format("%s ", module->GetType(val)->name.c_str());
@@ -216,12 +217,12 @@ void Decompiler::GetNextFunction(int* pos)
 		current_function = 0;
 		while(1)
 		{
-			if(current_function == (int)module->script_funcs.size())
+			if(current_function == (int)module->GetScriptFunctions().size())
 			{
 				current_function = -1;
 				break;
 			}
-			if(module->script_funcs[current_function]->pos == -1)
+			if(module->GetScriptFunction(current_function, true)->pos == -1)
 				++current_function;
 			else
 				break;
@@ -229,13 +230,13 @@ void Decompiler::GetNextFunction(int* pos)
 		if(current_function == -1)
 			out << "Main:\n";
 		else
-			out << "Function " << module->GetFunctionName(current_function, true) << ":\n";
+			out << "Function " << module->GetScriptFunction(current_function, true)->GetFormattedName(false) << ":\n";
 		return;
 	}
 	
 	// find next function in bytecode
-	uint offset = pos - module->code.data();
-	if(offset >= module->entry_point)
+	uint offset = pos - module->GetBytecode().data();
+	if(offset >= module->GetEntryPoint())
 	{
 		current_function = -1;
 		out << "Main:\n";
@@ -245,20 +246,20 @@ void Decompiler::GetNextFunction(int* pos)
 		int next_function = current_function + 1;
 		while(true)
 		{
-			if(next_function == (int)module->script_funcs.size())
+			if(next_function == (int)module->GetScriptFunctions().size())
 			{
 				next_function = -1;
 				break;
 			}
-			if(module->script_funcs[next_function]->pos == -1)
+			if(module->GetScriptFunction(next_function, true)->pos == -1)
 				++next_function;
 			else
 				break;
 		}
-		if(next_function != -1 && offset >= module->script_funcs[next_function]->pos)
+		if(next_function != -1 && offset >= module->GetScriptFunction(next_function, true)->pos)
 		{
 			current_function = next_function;
-			out << "Function " << module->GetFunctionName(current_function, true) << ":\n";
+			out << "Function " << module->GetScriptFunction(current_function, true)->GetFormattedName(false) << ":\n";
 		}
 	}
 }

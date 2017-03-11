@@ -42,8 +42,8 @@ namespace cas
 				|| generic_type == GenericType::Float;
 		}
 
-		virtual IFunction* GetFunction(cstring name_or_decl, int flags = 0) = 0;
-		virtual void GetFunctionsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
+		virtual IFunction* GetMethod(cstring name_or_decl, int flags = 0) = 0;
+		virtual void GetMethodsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
 		virtual cstring GetName() const = 0;
 
 	protected:

@@ -13,5 +13,6 @@ public:
 	virtual	bool AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_info) = 0;
 	virtual cas::ComplexType GetComplexType(VarType vartype) = 0;
 	virtual bool GetFunctionDecl(cstring decl, string& real_decl, Type* type) = 0;
+	virtual cstring GetName(VarType vartype) = 0;
 	virtual Type* GetType(int index) = 0;
 };

@@ -3,6 +3,8 @@
 #include "cas/IFunction.h"
 #include "Type.h"
 
+enum BASIC_SYMBOL;
+
 // Function argument
 struct Arg
 {
@@ -77,6 +79,7 @@ struct Function : public cas::IFunction
 	cas::ComplexType GetReturnType() override;
 
 	bool Equal(Function& f) const;
+	cstring GetFormattedName(bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
 
 	bool IsBuiltin() const { return IS_SET(flags, F_BUILTIN); }
 	bool IsCode() const { return IS_SET(flags, F_CODE); }

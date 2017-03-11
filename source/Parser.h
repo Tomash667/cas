@@ -66,11 +66,7 @@ public:
 	CodeFunction* ParseFuncDecl(cstring decl, Type* type, bool builtin);
 	Member* ParseMemberDecl(cstring decl);
 	void AddType(Type* type);
-	CodeFunction* GetFunction(int index);
 	bool GetFunctionNameDecl(cstring decl, string* name, string* real_decl, Type* type);
-	Type* GetType(int index);
-	cstring GetName(Function* cf, bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
-	cstring GetParserFunctionName(uint index);
 	bool Parse(ParseSettings& settigns);
 	int CreateDefaultFunctions(Type* type, int define_ctor = -1);
 	bool CheckTypeLoop(Type* type);
@@ -132,6 +128,7 @@ private:
 	bool TryConstCast(ParseNode*& node, VarType type);
 	bool CanTakeRef(ParseNode* node, bool allow_ref = true);
 	Op PushToSet(ParseNode* node);
+	Op GetFunctionOp(AnyFunction& f, bool is_ctor);
 
 	void Optimize();
 	ParseNode* OptimizeTree(ParseNode* node);
@@ -144,9 +141,9 @@ private:
 	void ConvertToBytecode();
 	void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos);
 
+	Type* GetType(int index);
 	VarType GetReturnType(ParseNode* node);
 	cstring GetName(ParseVar* var);
-	cstring GetName(VarType vartype);
 	cstring GetTypeName(ParseNode* node);
 	VarType CommonType(VarType a, VarType b);
 	FOUND FindItem(const string& id, Found& found);

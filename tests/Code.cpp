@@ -795,7 +795,6 @@ TEST_METHOD(CodeEnum)
 //=========================================================================================
 TEST_METHOD(TwoScriptsCombined)
 {
-	SetDecompile(true);
 	module->Parse("int f() { return 4; }");
 	module->Parse("return f();");
 	RunParsedTest();

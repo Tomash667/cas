@@ -85,7 +85,6 @@ struct INT2
 };
 TEST_METHOD(ReturnReferenceToPassedStruct)
 {
-	SetDecompile(true);
 	auto type = module->AddType<INT2>("INT2", cas::ValueType);
 	type->AddMember("int x", offsetof(INT2, x));
 	type->AddMember("int y", offsetof(INT2, y));

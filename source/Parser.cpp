@@ -7,106 +7,11 @@
 #include "Parser.h"
 #include "ParserImpl.h"
 #include "Str.h"
+#include "Symbol.h"
 
 const int EMPTY_STRING = 0;
 
 #define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
-
-// http://en.cppreference.com/w/cpp/language/operator_precedence
-SymbolInfo symbols[] = {
-	S_ADD, "add", 6, true, 2, ADD, ST_NONE, "$opAdd", "+",
-	S_SUB, "subtract", 6, true, 2, SUB, ST_NONE, "$opSub", "-",
-	S_MUL, "multiply", 5, true, 2, MUL, ST_NONE, "$opMul", "*",
-	S_DIV, "divide", 5, true, 2, DIV, ST_NONE, "$opDiv", "/",
-	S_MOD, "modulo", 5, true, 2, MOD, ST_NONE, "$opMod", "%",
-	S_BIT_AND, "bit and", 10, true, 2, BIT_AND, ST_NONE, "$opBitAnd", "&",
-	S_BIT_OR, "bit or", 12, true, 2, BIT_OR, ST_NONE, "$opBitOr", "|",
-	S_BIT_XOR, "bit xor", 11, true, 2, BIT_XOR, ST_NONE, "$opBitXor", "^",
-	S_BIT_LSHIFT, "bit left shift", 7, true, 2, BIT_LSHIFT, ST_NONE, "$opBitLshift", "<<",
-	S_BIT_RSHIFT, "bit right shift", 7, true, 2, BIT_RSHIFT, ST_NONE, "$opBitRshift", ">>",
-	S_PLUS, "unary plus", 3, false, 1, NOP, ST_NONE, "$opPlus", "+",
-	S_MINUS, "unary minus", 3, false, 1, NEG, ST_NONE, "$opMinus", "-",
-	S_EQUAL, "equal", 9, true, 2, EQ, ST_NONE, "$opEqual", "==",
-	S_NOT_EQUAL, "not equal", 9, true, 2, NOT_EQ, ST_NONE, "$opNotEqual", "!=",
-	S_GREATER, "greater", 8, true, 2, GR, ST_NONE, "$opGreater", ">",
-	S_GREATER_EQUAL, "greater equal", 8, true, 2, GR_EQ, ST_NONE, "$opGreaterEqual", ">=",
-	S_LESS, "less", 8, true, 2, LE, ST_NONE, "$opLess", "<",
-	S_LESS_EQUAL, "less equal", 8, true, 2, LE_EQ, ST_NONE, "$opLessEqual", "<=",
-	S_AND, "and", 13, true, 2, AND, ST_NONE, nullptr, "&&",
-	S_OR, "or", 14, true, 2, OR, ST_NONE, nullptr, "||",
-	S_NOT, "not", 3, false, 1, NOT, ST_NONE,  "$opNot", "!",
-	S_BIT_NOT, "bit not", 3, false, 1, BIT_NOT, ST_NONE, "$opBitNot", "~",
-	S_MEMBER_ACCESS, "member access", 2, true, 2, NOP, ST_NONE, nullptr, ".",
-	S_ASSIGN, "assign", 15, false, 2, NOP, ST_ASSIGN, "$opAssign", "=",
-	S_ASSIGN_ADD, "assign add", 15, false, 2, S_ADD, ST_ASSIGN, "$opAssignAdd", "+=",
-	S_ASSIGN_SUB, "assign subtract", 15, false, 2, S_SUB, ST_ASSIGN, "$opAssignSub", "-=",
-	S_ASSIGN_MUL, "assign multiply", 15, false, 2, S_MUL, ST_ASSIGN, "$opAssignMul", "*=",
-	S_ASSIGN_DIV, "assign divide", 15, false, 2, S_DIV, ST_ASSIGN, "$opAssignDiv", "/=",
-	S_ASSIGN_MOD, "assign modulo", 15, false, 2, S_MOD, ST_ASSIGN, "$opAssignMod", "%=",
-	S_ASSIGN_BIT_AND, "assign bit and", 15, false, 2, S_BIT_AND, ST_ASSIGN, "$opAssignBitAnd", "&=",
-	S_ASSIGN_BIT_OR, "assign bit or", 15, false, 2, S_BIT_OR, ST_ASSIGN, "$opAssignBitOr", "|=",
-	S_ASSIGN_BIT_XOR, "assign bit xor", 15, false, 2, S_BIT_XOR, ST_ASSIGN, "$opAssignBitXor", "^=",
-	S_ASSIGN_BIT_LSHIFT, "assign bit left shift", 15, false, 2, S_BIT_LSHIFT, ST_ASSIGN, "$opAssignBitLshift", "<<=",
-	S_ASSIGN_BIT_RSHIFT, "assign bit right shift", 15, false, 2, S_BIT_RSHIFT, ST_ASSIGN, "$opAssignBitRshift", ">>=",
-	S_PRE_INC, "pre increment", 3, false, 1, INC, ST_INC_DEC, "$opPreInc", "++",
-	S_PRE_DEC, "pre decrement", 3, false, 1, DEC, ST_INC_DEC, "$opPreDec", "--",
-	S_POST_INC, "post increment", 2, true, 1, INC, ST_INC_DEC, "$opPostInc", "++",
-	S_POST_DEC, "post decrement", 2, true, 1, DEC, ST_INC_DEC, "$opPostDec", "--",
-	S_IS, "reference equal", 8, true, 2, IS, ST_NONE, nullptr, "is",
-	S_AS, "cast", 8, true, 2, CAST, ST_NONE, nullptr, "as",
-	S_SUBSCRIPT, "subscript", 2, true, 1, NOP, ST_SUBSCRIPT, "$opIndex", "[]",
-	S_CALL, "function call", 2, true, 1, NOP, ST_CALL, "$opCall", "()",
-	S_TERNARY, "ternary", 15, false, 2, NOP, ST_NONE, nullptr, "?:",
-	S_SET_REF, "assign reference", 15, false, 2, NOP, ST_NONE, nullptr, "->",
-	S_SET_LONG_REF, "assign long reference", 15, false, 2, NOP, ST_NONE, nullptr, "-->",
-	S_INVALID, "invalid", 99, true, 0, NOP, ST_NONE, nullptr, ""
-};
-static_assert(sizeof(symbols) / sizeof(SymbolInfo) == S_MAX, "Missing symbols.");
-
-BasicSymbolInfo basic_symbols[] = {
-	BS_INC, "+", S_PLUS, S_INVALID, S_ADD, nullptr,
-	BS_DEC, "-", S_MINUS, S_INVALID, S_SUB,  nullptr,
-	BS_MUL, "*", S_INVALID, S_INVALID, S_MUL, nullptr,
-	BS_DIV, "/", S_INVALID, S_INVALID, S_DIV, nullptr,
-	BS_MOD, "%", S_INVALID, S_INVALID, S_MOD, nullptr,
-	BS_BIT_AND, "&", S_INVALID, S_INVALID, S_BIT_AND, nullptr,
-	BS_BIT_OR, "|", S_INVALID, S_INVALID, S_BIT_OR, nullptr,
-	BS_BIT_XOR, "^", S_INVALID, S_INVALID, S_BIT_XOR, nullptr,
-	BS_BIT_LSHIFT, "<<", S_INVALID, S_INVALID, S_BIT_LSHIFT, nullptr,
-	BS_BIT_RSHIFT, ">>", S_INVALID, S_INVALID, S_BIT_RSHIFT, nullptr,
-	BS_EQUAL, "==", S_INVALID, S_INVALID, S_EQUAL, nullptr,
-	BS_NOT_EQUAL, "!=", S_INVALID, S_INVALID, S_NOT_EQUAL, nullptr,
-	BS_GREATER, ">", S_INVALID, S_INVALID, S_GREATER, nullptr,
-	BS_GREATER_EQUAL, ">=", S_INVALID, S_INVALID, S_GREATER_EQUAL, nullptr,
-	BS_LESS, "<", S_INVALID, S_INVALID, S_LESS, nullptr,
-	BS_LESS_EQUAL, "<=", S_INVALID, S_INVALID, S_LESS_EQUAL, nullptr,
-	BS_AND, "&&", S_INVALID, S_INVALID, S_AND, nullptr,
-	BS_OR, "||", S_INVALID, S_INVALID, S_OR, nullptr,
-	BS_NOT, "!", S_NOT, S_INVALID, S_INVALID, nullptr,
-	BS_BIT_NOT, "~", S_BIT_NOT, S_INVALID, S_INVALID, nullptr,
-	BS_ASSIGN, "=", S_INVALID, S_INVALID, S_ASSIGN, nullptr,
-	BS_ASSIGN_ADD, "+=", S_INVALID, S_INVALID, S_ASSIGN_ADD, nullptr,
-	BS_ASSIGN_SUB, "-=", S_INVALID, S_INVALID, S_ASSIGN_SUB, nullptr,
-	BS_ASSIGN_MUL, "*=", S_INVALID, S_INVALID, S_ASSIGN_MUL, nullptr,
-	BS_ASSIGN_DIV, "/=", S_INVALID, S_INVALID, S_ASSIGN_DIV, nullptr,
-	BS_ASSIGN_MOD, "%=", S_INVALID, S_INVALID, S_ASSIGN_MOD, nullptr,
-	BS_ASSIGN_BIT_AND, "&=", S_INVALID, S_INVALID, S_ASSIGN_BIT_AND, nullptr,
-	BS_ASSIGN_BIT_OR, "|=", S_INVALID, S_INVALID, S_ASSIGN_BIT_OR, nullptr,
-	BS_ASSIGN_BIT_XOR, "^=", S_INVALID, S_INVALID, S_ASSIGN_BIT_XOR, nullptr,
-	BS_ASSIGN_BIT_LSHIFT, "<<=", S_INVALID, S_INVALID, S_ASSIGN_BIT_LSHIFT, nullptr,
-	BS_ASSIGN_BIT_RSHIFT, ">>=", S_INVALID, S_INVALID, S_ASSIGN_BIT_RSHIFT, nullptr,
-	BS_DOT, ".", S_INVALID, S_INVALID, S_MEMBER_ACCESS, nullptr,
-	BS_INC, "++", S_PRE_INC, S_POST_INC, S_INVALID, nullptr,
-	BS_DEC, "--", S_PRE_DEC, S_POST_DEC, S_INVALID, nullptr,
-	BS_IS, "is", S_INVALID, S_INVALID, S_IS, nullptr,
-	BS_AS, "as", S_INVALID, S_INVALID, S_AS, nullptr,
-	BS_SUBSCRIPT, "[", S_INVALID, S_SUBSCRIPT, S_INVALID, "[]",
-	BS_CALL, "(", S_INVALID, S_CALL, S_INVALID, "()",
-	BS_TERNARY, "?", S_INVALID, S_INVALID, S_INVALID, nullptr,
-	BS_SET_REF, "->", S_INVALID, S_INVALID, S_SET_REF, nullptr,
-	BS_SET_LONG_REF, "-->", S_INVALID, S_INVALID, S_SET_LONG_REF, nullptr
-};
-static_assert(sizeof(basic_symbols) / sizeof(BasicSymbolInfo) == BS_MAX, "Missing basic symbols.");
 
 Parser::Parser(Module& module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), main_block(nullptr)
 {
@@ -179,11 +84,11 @@ void Parser::AddKeywords()
 
 void Parser::AddChildModulesKeywords()
 {
-	for(auto& m : module.modules)
+	for(auto& m : module.GetModules())
 	{
-		if(m.first == module.index)
+		if(m.first == module.GetIndex())
 			continue;
-		for(Type* type : m.second->types)
+		for(Type* type : m.second->GetTypes())
 		{
 			if(!type->IsHidden())
 				AddType(type);
@@ -194,8 +99,8 @@ void Parser::AddChildModulesKeywords()
 bool Parser::Parse(ParseSettings& settings)
 {
 	optimize = settings.optimize;
-	parse_func_offset = module.script_funcs.size();
-	new_types_offset = module.types.size();
+	parse_func_offset = module.GetScriptFunctions().size();
+	new_types_offset = module.GetTypes().size();
 	t.FromString(settings.input);
 
 	try
@@ -222,13 +127,14 @@ bool Parser::Parse(ParseSettings& settings)
 void Parser::FinishRunModule()
 {
 	// convert parse functions to script functions
-	module.script_funcs.resize(parse_func_offset + parse_funcs.size());
+	vector<ScriptFunction*>& script_funcs = module.GetScriptFunctions();
+	script_funcs.resize(parse_func_offset + parse_funcs.size());
 	for(uint i = 0; i < parse_funcs.size(); ++i)
 	{
 		ParseFunction& pf = *parse_funcs[i];
-		module.script_funcs[i + parse_func_offset] = new ScriptFunction(pf);
-		ScriptFunction& sf = *module.script_funcs[i + parse_func_offset];
-		sf.index = i + parse_func_offset;
+		script_funcs[i + parse_func_offset] = new ScriptFunction(pf);
+		ScriptFunction& sf = *script_funcs[i + parse_func_offset];
+		sf.index = i + parse_func_offset + (module.GetIndex() << 16);
 		sf.pos = pf.pos;
 		sf.locals = pf.locals;
 		if(pf.IsBuiltin())
@@ -248,16 +154,17 @@ void Parser::FinishRunModule()
 	}
 
 	// convert types dtor from parse function to script function
-	for(uint i = new_types_offset, count = module.types.size(); i < count; ++i)
+	vector<Type*>& types = module.GetTypes();
+	for(uint i = new_types_offset, count = types.size(); i < count; ++i)
 	{
-		Type* type = module.types[i];
+		Type* type = types[i];
 		if(!type->dtor)
 			continue;
 		assert(type->dtor.type == AnyFunction::PARSE);
-		type->dtor = module.script_funcs[type->dtor.pf->index + parse_func_offset];
+		type->dtor = module.GetScriptFunctions()[type->dtor.pf->index + parse_func_offset];
 	}
 
-	module.globals = main_block->GetMaxVars();
+	module.SetGlobalsCount(main_block->GetMaxVars());
 	DeleteElements(parse_funcs);
 }
 
@@ -284,7 +191,7 @@ void Parser::Reset()
 
 void Parser::RemoveKeywords(Module* module)
 {
-	for(Type* type : module->types)
+	for(Type* type : module->GetTypes())
 	{
 		if(!type->IsHidden())
 			t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
@@ -658,13 +565,15 @@ ParseNode* Parser::ParseReturn()
 			if(!TryCast(r, req_type))
 			{
 				ok = false;
-				type_name = GetName(r->result);
+				type_name = module.GetName(r->result);
 			}
 		}
 
 		if(!ok)
+		{
 			t.Throw("Invalid return type '%s', %s '%s' require '%s' type.", type_name, current_function->type == V_VOID ? "function" : "method",
-				GetName(current_function), GetName(req_type));
+				current_function->GetFormattedName(), module.GetName(req_type));
+		}
 	}
 	else
 	{
@@ -673,7 +582,9 @@ ParseNode* Parser::ParseReturn()
 			ParseNode* r = ret->childs[0];
 			if(r->result.type != V_BOOL && r->result.type != V_CHAR && r->result.type != V_INT && r->result.type != V_FLOAT && r->result.type != V_STRING
 				&& !GetType(r->result.type)->IsEnum())
-				t.Throw("Invalid type '%s' for global return.", GetName(r->result));
+			{
+				t.Throw("Invalid type '%s' for global return.", module.GetName(r->result));
+			}
 		}
 	}
 	t.Next();
@@ -719,7 +630,7 @@ void Parser::ParseClass(bool is_struct)
 
 				ParseFuncInfo(f, type, false);
 
-				AnyFunction af = type->FindEqualFunction(AnyFunction(f));
+				AnyFunction af = type->FindEqualFunction(f);
 				assert(af.IsParse());
 
 				// block
@@ -792,7 +703,7 @@ ParseNode* Parser::ParseSwitch()
 	swi->push(ParseExpr());
 	int type = swi->childs[0]->result.type;
 	if(type != V_BOOL && type != V_CHAR && type != V_INT && type != V_FLOAT && type != V_STRING && !GetType(type)->IsEnum())
-		t.Throw("Invalid switch type '%s'.", GetName(swi->childs[0]->result));
+		t.Throw("Invalid switch type '%s'.", module.GetName(swi->childs[0]->result));
 	t.AssertSymbol(')');
 	t.Next();
 
@@ -852,7 +763,7 @@ ParseNode* Parser::ParseCase(ParseNode* swi)
 		Type* type = GetType(val->result.type);
 		if(val->result != V_BOOL && val->result != V_CHAR && val->result != V_INT && val->result != V_FLOAT && val->result != V_STRING
 			&& !type->IsEnum())
-			t.Throw("Invalid case type '%s'.", GetName(val->result));
+			t.Throw("Invalid case type '%s'.", module.GetName(val->result));
 		if(!TryConstCast(val.Get(), swi->childs[0]->result))
 			t.Throw("Can't cast case value from '%s' to '%s'.", GetTypeName(val), GetTypeName(swi->childs[0]));
 		assert(val->op != CAST);
@@ -1045,7 +956,7 @@ void Parser::ParseEnum(bool forward)
 	f->result = V_BOOL;
 	f->special = SF_NO;
 	f->type = type->index;
-	f->decl = GetName(f);
+	f->decl = f->GetFormattedName();
 	type->funcs.push_back(f);
 	parse_funcs.push_back(f);
 }
@@ -1371,7 +1282,9 @@ void Parser::ParseFuncInfo(Function* f, Type* type, bool in_cpp)
 	{
 		if(f->args.size() != 1u // first arg is this
 			&& (f->special == SF_CAST || f->result.type == V_VOID)) // returns void or is cast
-			t.Throw("Invalid cast operator definition '%s'.", GetName(f));
+		{
+			t.Throw("Invalid cast operator definition '%s'.", f->GetFormattedName());
+		}
 	}
 	else if(f->special == SF_DTOR)
 	{
@@ -1395,7 +1308,7 @@ void Parser::ParseFuncInfo(Function* f, Type* type, bool in_cpp)
 	if(symbol != BS_MAX)
 	{
 		if(!FindMatchingOverload(*f, symbol))
-			t.Throw("Invalid overload operator definition '%s'.", GetName(f, true, true, &symbol));
+			t.Throw("Invalid overload operator definition '%s'.", f->GetFormattedName(true, true, &symbol));
 	}
 }
 
@@ -1442,7 +1355,7 @@ void Parser::ParseFunctionArgs(Function* f, bool in_cpp)
 				t.Next();
 				NodeRef item = ParseConstExpr();
 				if(!TryConstCast(item.Get(), vartype))
-					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
+					t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), module.GetName(vartype));
 				switch(item->op)
 				{
 				case PUSH_BOOL:
@@ -1608,7 +1521,7 @@ ParseNode* Parser::ParseVarCtor(VarType vartype)
 		else if(node->childs.size() == 1u)
 		{
 			if(!TryCast(node->childs[0], vartype))
-				t.Throw("Can't assign type '%s' to type '%s'.", GetTypeName(node->childs[0]), GetName(vartype));
+				t.Throw("Can't assign type '%s' to type '%s'.", GetTypeName(node->childs[0]), module.GetName(vartype));
 			ParseNode* result = node->childs[0];
 			node->childs.clear();
 			return result;
@@ -2703,11 +2616,11 @@ ParseNode* Parser::ParseConstItem()
 	else if(t.IsString())
 	{
 		// string
-		int index = module.strs.size() | (module.index << 16);
+		int index = module.GetStrs().size() | (module.GetIndex() << 16);
 		Str* str = Str::Get();
 		str->s = t.GetString();
 		str->refs = 1;
-		module.strs.push_back(str);
+		module.GetStrs().push_back(str);
 		ParseNode* node = ParseNode::Get();
 		node->op = PUSH_STRING;
 		node->value = index;
@@ -3017,7 +2930,7 @@ OpResult Parser::CanOp(SYMBOL symbol, SYMBOL real_symbol, ParseNode* lnode, Pars
 		VarType vartype(rnode->value, 0);
 		op_result.cast_result = MayCast(lnode, vartype, false);
 		if(op_result.cast_result.CantCast())
-			t.Throw("Can't cast from '%s' to '%s'.", GetTypeName(lnode), GetName(vartype));
+			t.Throw("Can't cast from '%s' to '%s'.", GetTypeName(lnode), module.GetName(vartype));
 		op_result.result = OpResult::CAST;
 		return op_result;
 	}
@@ -3524,7 +3437,7 @@ bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult*
 		{
 			// user defined function cast
 			CheckFunctionIsDeleted(*cast_result.cast_func.f);
-			cast->op = (cast_result.cast_func.IsCode() ? CALL : CALLU);
+			cast->op = GetFunctionOp(cast_result.cast_func, false);
 			cast->result = cast_result.cast_func.f->result;
 			cast->value = cast_result.cast_func.f->index;
 		}
@@ -3537,7 +3450,7 @@ bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult*
 		// ctor cast
 		CheckFunctionIsDeleted(*cast_result.ctor_func.f);
 		ParseNode* cast = ParseNode::Get();
-		cast->op = (cast_result.ctor_func.IsCode() ? CALL : CALLU_CTOR);
+		cast->op = GetFunctionOp(cast_result.ctor_func, true);
 		cast->result = cast_result.ctor_func.f->result;
 		cast->value = cast_result.ctor_func.f->index;
 		cast->source = nullptr;
@@ -3756,7 +3669,7 @@ CastResult Parser::MayCast(ParseNode* node, VarType vartype, bool pass_by_ref)
 void Parser::ForceCast(ParseNode*& node, VarType vartype, cstring op)
 {
 	if(!TryCast(node, vartype))
-		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), GetName(vartype), op);
+		t.Throw("Can't cast return value from '%s' to '%s' for operation '%s'.", GetTypeName(node), module.GetName(vartype), op);
 }
 
 bool Parser::TryConstCast(ParseNode*& node, VarType type)
@@ -3791,6 +3704,21 @@ Op Parser::PushToSet(ParseNode* node)
 		}
 	default:
 		return (Op)NOP;
+	}
+}
+
+Op Parser::GetFunctionOp(AnyFunction& f, bool is_ctor)
+{
+	switch(f.type)
+	{
+	default:
+		assert(0);
+	case AnyFunction::CODE:
+		return CALL;
+	case AnyFunction::SCRIPT:
+		return is_ctor ? CALLU_CTOR : CALLU;
+	case AnyFunction::PARSE:
+		return (Op)(is_ctor ? CALL_PARSE_CTOR : CALL_PARSE);
 	}
 }
 
@@ -4017,7 +3945,7 @@ void Parser::VerifyFunctionReturnValue(ParseFunction* f)
 	else if(f->IsBuiltin())
 		return;
 
-	t.Throw("%s '%s' not always return value.", f->type == V_VOID ? "Function" : "Method", GetName(f));
+	t.Throw("%s '%s' not always return value.", f->type == V_VOID ? "Function" : "Method", f->GetFormattedName());
 }
 
 RETURN_INFO Parser::VerifyNodeReturnValue(ParseNode* node, bool in_switch)
@@ -4107,36 +4035,38 @@ void Parser::CopyFunctionChangedStructs()
 
 void Parser::ConvertToBytecode()
 {
+	vector<int>& code = module.GetBytecode();
+
 	uint jmp_to_next_section = 0;
-	bool first_script = module.code.empty();
+	bool first_script = code.empty();
 	if(!first_script)
 	{
-		module.code.pop_back();
-		module.code.push_back(JMP);
-		jmp_to_next_section = module.code.size();
-		module.code.push_back(0);
+		code.pop_back();
+		code.push_back(JMP);
+		jmp_to_next_section = code.size();
+		code.push_back(0);
 	}
 
 	for(ParseFunction* pf : parse_funcs)
 	{
 		if(pf->IsBuiltin())
 			continue;
-		pf->pos = module.code.size();
+		pf->pos = code.size();
 		pf->locals = (pf->block ? pf->block->GetMaxVars() : 0);
-		uint old_size = module.code.size();
+		uint old_size = code.size();
 		if(pf->node)
-			ToCode(module.code, pf->node, nullptr);
-		if(old_size == module.code.size() || module.code.back() != RET)
-			module.code.push_back(RET);
+			ToCode(code, pf->node, nullptr);
+		if(old_size == code.size() || code.back() != RET)
+			code.push_back(RET);
 	}
 
 	if(first_script)
-		module.entry_point = module.code.size();
+		module.SetEntryPoint(code.size());
 	else
-		module.code[jmp_to_next_section] = module.code.size();
-	uint old_size = module.code.size();
-	ToCode(module.code, global_node, nullptr);
-	module.code.push_back(RET);
+		code[jmp_to_next_section] = code.size();
+	uint old_size = code.size();
+	ToCode(code, global_node, nullptr);
+	code.push_back(RET);
 }
 
 void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
@@ -4464,13 +4394,20 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case CALL:
 	case CALLU:
 	case CALLU_CTOR:
+	case CALL_PARSE:
+	case CALL_PARSE_CTOR:
 		{
-			code.push_back(node->op);
+			int real_op = node->op;
+			if(node->op == CALL_PARSE)
+				real_op = CALLU;
+			else if(node->op == CALL_PARSE_CTOR)
+				real_op = CALLU_CTOR;
+			code.push_back(real_op);
 			int f_idx = node->value;
-			if(node->op != CALL) // jeœli jest Script to nie dodawaj !!!!!!!
-				f_idx += parse_func_offset;
+			if(node->op == CALL_PARSE || node->op == CALL_PARSE_CTOR)
+				f_idx += parse_func_offset + (module.GetIndex() << 16);
 			code.push_back(f_idx);
-			if(node->op != CALLU_CTOR && node->source && node->source->mod && node->source->index == -1 && !((ReturnStructVar*)node->source)->code_result)
+			if(real_op != CALLU_CTOR && node->source && node->source->mod && node->source->index == -1 && !((ReturnStructVar*)node->source)->code_result)
 				code.push_back(COPY);
 		}
 		break;
@@ -4572,11 +4509,6 @@ Type* Parser::GetType(int index)
 	return module.GetType(index);
 }
 
-CodeFunction* Parser::GetFunction(int index)
-{
-	return module.GetFunction(index);
-}
-
 bool Parser::GetFunctionNameDecl(cstring decl, string* name, string* real_decl, Type* type)
 {
 	CodeFunction* f = ParseFuncDecl(decl, type, false);
@@ -4593,105 +4525,15 @@ bool Parser::GetFunctionNameDecl(cstring decl, string* name, string* real_decl, 
 	}
 }
 
-VarType Parser::GetReturnType(ParseNode* node)
-{
-	if(node->childs.empty())
-		return V_VOID;
-	else
-		return node->childs.front()->result;
-}
-
 cstring Parser::GetName(ParseVar* var)
 {
 	assert(var);
-	return Format("%s %s", GetName(var->vartype), var->name.c_str());
-}
-
-cstring Parser::GetName(Function* cf, bool write_result, bool write_type, BASIC_SYMBOL* symbol)
-{
-	assert(cf);
-	LocalString s = "";
-	if(write_result && cf->special != SF_CTOR && cf->special != SF_DTOR)
-	{
-		s += GetName(cf->result);
-		s += ' ';
-	}
-	uint var_offset = 0;
-	if(cf->type != V_VOID)
-	{
-		if(write_type)
-		{
-			s += GetType(cf->type)->name;
-			s += '.';
-		}
-		if(cf->PassThis())
-			++var_offset;
-	}
-	if(!symbol)
-	{
-		if(cf->name[0] == '$')
-		{
-			if(cf->name == "$opCast")
-				s += "operator cast";
-			else if(cf->name == "$opAddref")
-				s += "operator addref";
-			else if(cf->name == "$opRelease")
-				s += "operator release";
-			else
-			{
-				for(int i = 0; i < S_MAX; ++i)
-				{
-					SymbolInfo& si = symbols[i];
-					if(si.op_code && strcmp(si.op_code, cf->name.c_str()) == 0)
-					{
-						s += "operator ";
-						s += si.oper;
-						s += ' ';
-						break;
-					}
-				}
-			}
-		}
-		else
-			s += cf->name;
-	}
-	else
-	{
-		s += "operator ";
-		s += basic_symbols[*symbol].GetOverloadText();
-		s += ' ';
-	}
-	s += '(';
-	for(uint i = var_offset, count = cf->args.size(); i < count; ++i)
-	{
-		if(i != var_offset)
-			s += ',';
-		s += GetName(cf->args[i].vartype);
-		if(cf->args[i].pass_by_ref)
-			s += '&';
-	}
-	s += ')';
-	return Format("%s", s->c_str());
-}
-
-cstring Parser::GetName(VarType vartype)
-{
-	Type* t = GetType(vartype.type == V_REF ? vartype.subtype : vartype.type);
-	if(vartype.type != V_REF)
-		return t->name.c_str();
-	else
-		return Format("%s&", t->name.c_str());
+	return Format("%s %s", module.GetName(var->vartype), var->name.c_str());
 }
 
 cstring Parser::GetTypeName(ParseNode* node)
 {
-	return GetName(node->result);
-}
-
-cstring Parser::GetParserFunctionName(uint index)
-{
-	assert(index < parse_funcs.size());
-	return GetName(parse_funcs[index], false);
+	return module.GetName(node->result);
 }
 
 VarType Parser::CommonType(VarType a, VarType b)
@@ -4777,15 +4619,15 @@ FOUND Parser::FindItem(const string& id, Found& found)
 
 void Parser::FindAllFunctionOverloads(const string& name, vector<AnyFunction>& items)
 {
-	for(auto& m : module.modules)
+	for(auto& m : module.GetModules())
 	{
-		for(CodeFunction* cf : m.second->code_funcs)
+		for(CodeFunction* cf : m.second->GetCodeFunctions())
 		{
 			if(cf->name == name && cf->type == V_VOID)
 				items.push_back(cf);
 		}
 
-		for(ScriptFunction* sf : m.second->script_funcs)
+		for(ScriptFunction* sf : m.second->GetScriptFunctions())
 		{
 			if(sf->name == name && sf->type == V_VOID)
 				items.push_back(sf);
@@ -4810,21 +4652,10 @@ void Parser::FindAllFunctionOverloads(const string& name, vector<AnyFunction>& i
 
 AnyFunction Parser::FindEqualFunction(ParseFunction* f)
 {
-	for(auto& m : module.modules)
-	{
-		for(CodeFunction* cf : m.second->code_funcs)
-		{
-			if(cf->name == f->name && cf->Equal(*f))
-				return cf;
-		}
-
-		for(ScriptFunction* sf : m.second->script_funcs)
-		{
-			if(sf->name == f->name && sf->Equal(*f))
-				return sf;
-		}
-	}
-
+	AnyFunction found = module.FindEqualFunction(f);
+	if(found)
+		return found;
+	
 	for(ParseFunction* pf : parse_funcs)
 	{
 		if(pf->name == f->name && pf->Equal(*f))
@@ -4953,7 +4784,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 				if(!first)
 					s += ',';
 				first = false;
-				s += GetName(node->childs[i]->result);
+				s += module.GetName(node->childs[i]->result);
 			}
 			s += ')';
 		}
@@ -4964,11 +4795,11 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 			for(AnyFunction& f : match)
 			{
 				s += "\n\t";
-				s += GetName(f.f);
+				s += f.f->GetFormattedName();
 			}
 		}
 		else
-			s += Format(" '%s'.", GetName(match.front().f));
+			s += Format(" '%s'.", match.front().f->GetFormattedName());
 		t.Throw(s->c_str());
 	}
 	else
@@ -5063,7 +4894,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 		}
 
 		// apply type
-		node->op = (func.IsCode() ? CALL : (callu_ctor ? CALLU_CTOR : CALLU));
+		node->op = GetFunctionOp(func, callu_ctor);
 		node->result = f.result;
 		node->value = f.index;
 
@@ -5095,7 +4926,7 @@ AnyFunction Parser::ApplyFunctionCall(ParseNode* node, vector<AnyFunction>& func
 void Parser::CheckFunctionIsDeleted(Function& cf)
 {
 	if(cf.IsDeleted())
-		t.Throw("Can't call '%s', %s marked as deleted.", GetName(&cf), cf.type != V_VOID ? "method" : "function");
+		t.Throw("Can't call '%s', %s marked as deleted.", cf.GetFormattedName(), cf.type != V_VOID ? "method" : "function");
 }
 
 bool Parser::CanOverload(BASIC_SYMBOL symbol)
@@ -5216,11 +5047,11 @@ void Parser::FreeTmpStr(string* str)
 
 bool Parser::IsCtor(ParseNode* node)
 {
-	if(node->op == CALLU_CTOR || node->op == COPY)
+	if(node->op == CALLU_CTOR || node->op == CALL_PARSE_CTOR || node->op == COPY)
 		return true;
 	else if(node->op == CALL)
 	{
-		CodeFunction* f = GetFunction(node->value);
+		CodeFunction* f = module.GetCodeFunction(node->value);
 		return f->special == SF_CTOR;
 	}
 	else
@@ -5375,8 +5206,8 @@ void Parser::AnalyzeLine(Type* type)
 					t.Next();
 					ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
 					if(!FindMatchingOverload(*func, symbol))
-						t.Throw("Invalid overload operator definition '%s'.", GetName(func, true, true, &symbol));
-					func->decl = GetName(func);
+						t.Throw("Invalid overload operator definition '%s'.", func->GetFormattedName(true, true, &symbol));
+					func->decl = func->GetFormattedName();
 				}
 			}
 			else
@@ -5514,7 +5345,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 				func->args.push_back(Arg(vartype, 0, false));
 				func->required_args++;
 				if(prev_def)
-					t.Throw("Missing default value for argument %u '%s %s'.", func->args.size(), GetName(vartype), arg->name.c_str());
+					t.Throw("Missing default value for argument %u '%s %s'.", func->args.size(), module.GetName(vartype), arg->name.c_str());
 			}
 			if(t.IsSymbol(')'))
 				break;
@@ -5542,18 +5373,18 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 	}
 	if(type)
 	{
-		if(type->FindEqualFunction(AnyFunction(func)))
-			t.Throw("Method '%s' already exists.", GetName(func));
+		if(type->FindEqualFunction(func))
+			t.Throw("Method '%s' already exists.", func->GetFormattedName());
 		type->funcs.push_back(func.Get());
 	}
 	else
 	{
 		if(FindEqualFunction(func))
-			t.Throw("Function '%s' already exists.", GetName(func));
+			t.Throw("Function '%s' already exists.", func->GetFormattedName());
 	}
 
 	if(func->name != "$tmp")
-		func->decl = GetName(func);
+		func->decl = func->GetFormattedName();
 	parse_funcs.push_back(func);
 	return func.Pin();
 }
@@ -5587,12 +5418,12 @@ Type* Parser::AnalyzeAddType(const string& name)
 	Type* type = new Type;
 	type->module_proxy = &module;
 	type->name = name;
-	type->index = module.types.size() | (module.index << 16);
+	type->index = module.GetTypes().size() | (module.GetIndex() << 16);
 	type->declared = false;
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();
 	type->flags = 0;
-	module.types.push_back(type);
+	module.GetTypes().push_back(type);
 	AddType(type);
 	return type;
 }
@@ -5636,7 +5467,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 		func->type = type->index;
 		func->required_args = 1;
 		func->special = SF_CTOR;
-		func->decl = GetName(func);
+		func->decl = func->GetFormattedName();
 		parse_funcs.push_back(func);
 		type->funcs.push_back(func);
 		if(define_ctor == -1)
@@ -5691,7 +5522,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			func->required_args = 2;
 			func->special = SF_CTOR;
 			func->node = nullptr;
-			func->decl = GetName(func);
+			func->decl = func->GetFormattedName();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}
@@ -5746,7 +5577,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-			func->decl = GetName(func);
+			func->decl = func->GetFormattedName();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}
@@ -5798,7 +5629,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-			func->decl = GetName(func);
+			func->decl = func->GetFormattedName();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}
@@ -5850,7 +5681,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-			func->decl = GetName(func);
+			func->decl = func->GetFormattedName();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}
@@ -5964,9 +5795,9 @@ bool Parser::HasSideEffects(ParseNode* node)
 void Parser::VerifyAllTypes()
 {
 	// verify all types are declared, member default values
-	for(uint i = new_types_offset, count = module.types.size(); i < count; ++i)
+	for(uint i = new_types_offset, count = module.GetTypes().size(); i < count; ++i)
 	{
-		Type* type = module.types[i];
+		Type* type = module.GetTypes()[i];
 		if(!type->declared)
 			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
 		if(type->have_def_value)
@@ -5988,7 +5819,7 @@ void Parser::VerifyAllTypes()
 				{
 					assert(t.IsSymbol('('));
 					ParseNode* node = ParseVarCtor(m->vartype);
-					assert(node->op != CALLU_CTOR && node->op != CALL);
+					assert(node->op != CALLU_CTOR && node->op != CALL_PARSE_CTOR && node->op != CALL);
 					m->value = node->value;
 					node->Free();
 				}
@@ -6025,7 +5856,7 @@ void Parser::AnalyzeArgsDefaultValues(ParseFunction* pf)
 			t.Next();
 			NodeRef item = ParseConstExpr();
 			if(!TryConstCast(item.Get(), vartype))
-				t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), GetName(vartype));
+				t.Throw("Invalid default value of type '%s', required '%s'.", GetTypeName(item), module.GetName(vartype));
 			Arg& arg = pf->args[i];
 			switch(item->op)
 			{

@@ -104,6 +104,7 @@
     <ClCompile Include="Code.cpp" />
     <ClCompile Include="Failures.cpp" />
     <ClCompile Include="Fixes.cpp" />
+    <ClCompile Include="Reflection.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

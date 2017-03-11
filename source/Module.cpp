@@ -74,15 +74,15 @@ bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 		return false;
 	}
 	f->type = V_VOID;
-	if(FindEqualFunction(*f))
+	if(FindEqualFunction(f))
 	{
-		Error("Function '%s' already exists.", parser->GetName(f));
+		Error("Function '%s' already exists.", f->GetFormattedName());
 		delete f;
 		return false;
 	}
 	f->clbk = func_info.ptr;
 	f->index = (index << 16) | code_funcs.size();
-	f->decl = parser->GetName(f);
+	f->decl = f->GetFormattedName();
 	code_funcs.push_back(f);
 	return true;
 }
@@ -350,7 +350,7 @@ bool Module::AddMember(Type* type, cstring decl, int offset)
 		delete m;
 		return false;
 	}
-	assert(offset + parser->GetType(m->vartype.type)->size <= type->size);
+	assert(offset + GetType(m->vartype.type)->size <= type->size);
 	m->index = type->members.size();
 	if(m->vartype.type == V_STRING)
 		type->have_complex_member = true;
@@ -369,10 +369,10 @@ bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_i
 		return false;
 	}
 	f->type = type->index;
-	if(type->FindEqualFunction(AnyFunction(f)))
+	if(type->FindEqualFunction(f))
 	{
 		Error("%s '%s' for type '%s' already exists.", f->special <= SF_CTOR ? "Method" : "Special method",
-			parser->GetName(f, true, false), type->name.c_str());
+			f->GetFormattedName(true, false), type->name.c_str());
 		delete f;
 		return false;
 	}
@@ -401,7 +401,7 @@ bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_i
 		}
 	}
 	f->index = (index << 16) | code_funcs.size();
-	f->decl = parser->GetName(f);
+	f->decl = f->GetFormattedName();
 	type->funcs.push_back(f);
 	code_funcs.push_back(f);
 	return true;
@@ -427,6 +427,15 @@ cas::ComplexType Module::GetComplexType(VarType vartype)
 bool Module::GetFunctionDecl(cstring decl, string& real_decl, Type* type)
 {
 	return parser->GetFunctionNameDecl(decl, nullptr, &real_decl, type);
+}
+
+cstring Module::GetName(VarType vartype)
+{
+	Type* t = GetType(vartype.type == V_REF ? vartype.subtype : vartype.type);
+	if(vartype.type != V_REF)
+		return t->name.c_str();
+	else
+		return Format("%s&", t->name.c_str());
 }
 
 Type* Module::GetType(int index)
@@ -462,14 +471,20 @@ Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int
 	return type;
 }
 
-CodeFunction* Module::FindEqualFunction(CodeFunction& f)
+AnyFunction Module::FindEqualFunction(Function* f)
 {
 	for(auto& module : modules)
 	{
 		for(CodeFunction* cf : module.second->code_funcs)
 		{
-			if(cf->name == f.name && cf->type == V_VOID && cf->Equal(f))
+			if(cf->name == f->name && cf->type == V_VOID && cf->Equal(*f))
 				return cf;
+		}
+
+		for(ScriptFunction* sf : module.second->script_funcs)
+		{
+			if(sf->name == f->name && sf->type == V_VOID && sf->Equal(*f))
+				return sf;
 		}
 	}
 
@@ -496,7 +511,7 @@ AnyFunction Module::FindFunction(const string& name)
 	return nullptr;
 }
 
-CodeFunction* Module::GetFunction(int index)
+CodeFunction* Module::GetCodeFunction(int index)
 {
 	int module_index = (index & 0xFFFF0000) >> 16;
 	int func_index = (index & 0xFFFF);
@@ -506,12 +521,22 @@ CodeFunction* Module::GetFunction(int index)
 	return m->code_funcs[func_index];
 }
 
-cstring Module::GetFunctionName(uint index, bool is_user)
+ScriptFunction* Module::GetScriptFunction(int index, bool local)
 {
-	if(is_user)
-		return parser->GetParserFunctionName(index);
+	if(local)
+	{
+		assert(index < (int)script_funcs.size());
+		return script_funcs[index];
+	}
 	else
-		return parser->GetName(parser->GetFunction(index));
+	{
+		int module_index = (index & 0xFFFF0000) >> 16;
+		int func_index = (index & 0xFFFF);
+		assert(modules.find(module_index) != modules.end());
+		Module* m = modules[module_index];
+		assert(func_index < (int)m->script_funcs.size());
+		return m->script_funcs[func_index];
+	}
 }
 
 Str* Module::GetStr(int index)

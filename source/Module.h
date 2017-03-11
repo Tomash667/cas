@@ -39,15 +39,27 @@ public:
 	bool AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_info);
 	cas::ComplexType GetComplexType(VarType vartype) override;
 	bool GetFunctionDecl(cstring decl, string& real_decl, Type* type) override;
+	cstring GetName(VarType vartype) override;
 	Type* GetType(int index) override;
 
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
-	CodeFunction* FindEqualFunction(CodeFunction& fc);
+	AnyFunction FindEqualFunction(Function* f);
 	AnyFunction FindFunction(const string& name);
-	CodeFunction* GetFunction(int index);
-	cstring GetFunctionName(uint index, bool is_user);
+	vector<int>& GetBytecode() { return code; }
+	CodeFunction* GetCodeFunction(int index);
+	vector<CodeFunction*>& GetCodeFunctions() { return code_funcs; }
+	uint GetEntryPoint() { return entry_point; }
+	uint GetGlobalsCount() { return globals; }
+	int GetIndex() { return index; }
+	std::map<int, Module*>& GetModules() { return modules; }
+	ScriptFunction* GetScriptFunction(int index, bool local = false);
+	vector<ScriptFunction*>& GetScriptFunctions() { return script_funcs; }
 	Str* GetStr(int index);
+	vector<Str*>& GetStrs() { return strs; }
+	vector<Type*>& GetTypes() { return types; }
 	void RemoveCallContext(CallContext* call_context);
+	void SetEntryPoint(uint new_entry_point) { entry_point = new_entry_point; }
+	void SetGlobalsCount(uint new_globals) { globals = new_globals; }
 
 private:
 	void AddParserType(Type* type);
@@ -58,7 +70,6 @@ private:
 	bool VerifyFlags(int flags) const;
 	bool VerifyTypeName(cstring type_name) const;
 
-public:
 	Parser* parser;
 	string name;
 	std::map<int, Module*> modules;

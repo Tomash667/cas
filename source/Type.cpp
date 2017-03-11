@@ -17,7 +17,7 @@ cstring Type::GetName() const
 	return name.c_str();
 }
 
-cas::IFunction* Type::GetFunction(cstring name_or_decl, int flags)
+cas::IFunction* Type::GetMethod(cstring name_or_decl, int flags)
 {
 	assert(name_or_decl);
 
@@ -48,7 +48,7 @@ cas::IFunction* Type::GetFunction(cstring name_or_decl, int flags)
 	return nullptr;
 }
 
-void Type::GetFunctionsList(vector<cas::IFunction*>& _funcs, cstring name, int flags)
+void Type::GetMethodsList(vector<cas::IFunction*>& _funcs, cstring name, int flags)
 {
 	assert(name);
 
@@ -141,9 +141,9 @@ void Type::FindAllStaticFunctionOverloads(const string& name, vector<AnyFunction
 	}
 }
 
-AnyFunction Type::FindEqualFunction(AnyFunction func)
+AnyFunction Type::FindEqualFunction(Function* func)
 {
-	Function& f2 = *func.f;
+	Function& f2 = *func;
 
 	if(f2.special == SF_NO || f2.special == SF_CTOR)
 	{

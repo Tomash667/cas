@@ -3,6 +3,7 @@
 // Operands
 enum Op
 {
+	NOP,
 	PUSH, // [] ..., x -> ..., x, x
 	PUSH_TRUE, // [] ... -> ..., true
 	PUSH_FALSE, // [] ... -> ..., false
