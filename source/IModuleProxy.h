@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cas/IModule.h"
+#include "VarType.h"
 
 struct Type;
 

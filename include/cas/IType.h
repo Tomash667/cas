@@ -14,26 +14,28 @@ namespace cas
 	};
 
 	class IFunction;
+	class IMember;
+	class IModule;
+
+	enum class GenericType
+	{
+		Void,
+		Bool,
+		Char,
+		Int,
+		Float,
+		String,
+		Class,
+		Struct,
+		Enum,
+		Invalid
+	};
 
 	class IType
 	{
 	public:
-		enum class GenericType
-		{
-			Void,
-			Bool,
-			Char,
-			Int,
-			Float,
-			String,
-			Class,
-			Struct,
-			Enum,
-			Invalid
-		};
-
 		GenericType GetGenericType() const { return generic_type; }
-		inline bool IsSimple() const
+		bool IsSimple() const
 		{
 			return generic_type == GenericType::Void
 				|| generic_type == GenericType::Bool
@@ -42,9 +44,14 @@ namespace cas
 				|| generic_type == GenericType::Float;
 		}
 
+		virtual const vector<std::pair<string, int>>& GetEnumValues() = 0;
+		virtual IMember* GetMember(cstring name) = 0;
 		virtual IFunction* GetMethod(cstring name_or_decl, int flags = 0) = 0;
 		virtual void GetMethodsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
+		virtual IModule* GetModule() = 0;
 		virtual cstring GetName() const = 0;
+		virtual void QueryMembers(delegate<bool(IMember*)> pred) = 0;
+		virtual void QueryMethods(delegate<bool(IFunction*)> pred) = 0;
 
 	protected:
 		GenericType generic_type;
@@ -57,7 +64,7 @@ namespace cas
 		virtual bool AddMethod(cstring decl, const FunctionInfo& func_info) = 0;
 
 		template<typename T, typename... Args>
-		inline bool AddCtor(cstring decl)
+		bool AddCtor(cstring decl)
 		{
 			FunctionInfo info = (generic_type == GenericType::Struct) ?
 				FunctionInfo(internal::CtorDtorHelper::Create<T, Args...>) : FunctionInfo(internal::CtorDtorHelper::CreateNew<T, Args...>);
@@ -65,7 +72,7 @@ namespace cas
 		}
 
 		template<typename T>
-		inline bool AddDtor()
+		bool AddDtor()
 		{
 			FunctionInfo info = (generic_type == GenericType::Struct) ?
 				FunctionInfo(internal::CtorDtorHelper::Destroy<T>) : FunctionInfo(internal::CtorDtorHelper::DestroyNew<T>);
@@ -78,12 +85,12 @@ namespace cas
 	{
 	public:
 		template<typename... Args>
-		inline bool AddCtor(cstring decl)
+		bool AddCtor(cstring decl)
 		{
 			return IClass::AddCtor<T, Args...>(decl);
 		}
 
-		inline bool AddDtor()
+		bool AddDtor()
 		{
 			return IClass::AddDtor<T>();
 		}
@@ -113,7 +120,7 @@ namespace cas
 		virtual bool AddValues(std::initializer_list<Item> const& items) = 0;
 
 		template<typename T>
-		inline bool AddEnums(std::initializer_list<EnumClassItem<T>> const& items)
+		bool AddEnums(std::initializer_list<EnumClassItem<T>> const& items)
 		{
 			return AddValues((std::initializer_list<Item> const&)items);
 		}

@@ -4,6 +4,7 @@
 #include "Engine.h"
 #include "Enum.h"
 #include "Event.h"
+#include "Global.h"
 #include "Member.h"
 #include "Module.h"
 #include "Parser.h"
@@ -82,7 +83,7 @@ bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 	}
 	f->clbk = func_info.ptr;
 	f->index = (index << 16) | code_funcs.size();
-	f->decl = f->GetFormattedName();
+	f->BuildDecl();
 	code_funcs.push_back(f);
 	return true;
 }
@@ -115,7 +116,7 @@ bool Module::AddParentModule(cas::IModule* _module)
 	// apply added module parent modules to this module
 	for(auto m : added_module->modules)
 	{
-		if(m.second == added_module || modules.find(m.first) == modules.end())
+		if(m.second == added_module || modules.find(m.first) != modules.end())
 			continue;
 		m.second->refs++;
 		m.second->child_modules.push_back(this);
@@ -239,6 +240,34 @@ void Module::GetFunctionsList(vector<cas::IFunction*>& funcs, cstring name, int 
 	}
 }
 
+cas::IGlobal* Module::GetGlobal(cstring name, int flags)
+{
+	assert(name);
+
+	for(Global* g : globals)
+	{
+		if(g->name == name)
+			return g;
+	}
+
+	if(!IS_SET(flags, cas::IgnoreParent))
+	{
+		for(auto& m : modules)
+		{
+			if(m.first == index)
+				continue;
+
+			for(Global* g : m.second->globals)
+			{
+				if(g->name == name)
+					return g;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 cstring Module::GetName()
 {
 	return name.c_str();
@@ -285,6 +314,39 @@ cas::IModule::ParseResult Module::Parse(cstring input)
 		return ParseResult::ParsingError;
 
 	return ParseResult::Ok;
+}
+
+void Module::QueryFunctions(delegate<bool(cas::IFunction*)> pred)
+{
+	for(CodeFunction* cf : code_funcs)
+	{
+		if(!pred(cf))
+			return;
+	}
+
+	for(ScriptFunction* sf : script_funcs)
+	{
+		if(!pred(sf))
+			return;
+	}
+}
+
+void Module::QueryGlobals(delegate<bool(cas::IGlobal*)> pred)
+{
+	for(Global* g : globals)
+	{
+		if(!pred(g))
+			return;
+	}
+}
+
+void Module::QueryTypes(delegate<bool(cas::IType*)> pred)
+{
+	for(Type* t : types)
+	{
+		if(!pred(t))
+			return;
+	}
 }
 
 void Module::Release()
@@ -341,6 +403,7 @@ bool Module::AddMember(Type* type, cstring decl, int offset)
 		Error("Failed to parse member declaration for type '%s' AddMember '%s'.", type->name.c_str(), decl);
 		return false;
 	}
+	m->type = type;
 	m->offset = offset;
 	m->have_def_value = false;
 	int m_index;
@@ -401,7 +464,7 @@ bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_i
 		}
 	}
 	f->index = (index << 16) | code_funcs.size();
-	f->decl = f->GetFormattedName();
+	f->BuildDecl();
 	type->funcs.push_back(f);
 	code_funcs.push_back(f);
 	return true;
@@ -656,6 +719,7 @@ void Module::Cleanup(bool dtor)
 	DeleteElements(code_funcs);
 	DeleteElements(script_funcs);
 	DeleteElements(types);
+	DeleteElements(globals);
 }
 
 cas::IFunction* Module::GetFunctionInternal(cstring name, cstring decl, int flags)

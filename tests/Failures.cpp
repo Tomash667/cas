@@ -135,6 +135,30 @@ TEST_METHOD(FunctionRedeclaration)
 	RunFailureTest("class A{ void f(){} void f(){} }", "Method 'void A.f()' already exists.");
 }
 
+TEST_METHOD(FunctionRedeclarationComplex)
+{
+	bool ok = module->AddFunction("void f()", f);
+	Assert::IsTrue(ok);
+	auto result = module->Parse("void g() {}");
+	Assert::AreEqual(IModule::Ok, result);
+
+	ok = module->AddFunction("void g()", f);
+	Assert::IsFalse(ok);
+	AssertError("Function 'void g()' already exists.");
+	CleanupErrors();
+
+	IModule* module2 = engine->CreateModule(module);
+	ok = module2->AddFunction("void g()", f);
+	Assert::IsFalse(ok);
+	AssertError("Function 'void g()' already exists.");
+	CleanupErrors();
+
+	result = module2->Parse("void f(){}");
+	Assert::AreEqual(IModule::ParsingError, result);
+	AssertError("Function 'void f()' already exists.");
+	module2->Release();
+}
+
 TEST_METHOD(ReferenceVariableUninitialized)
 {
 	RunFailureTest("int& a;", "Uninitialized reference variable.");

@@ -41,9 +41,14 @@ struct Type : public cas::IClass, public cas::IEnum
 	~Type();
 
 	// from IType
-	cstring GetName() const override;
+	const vector<std::pair<string, int>>& GetEnumValues() override;
+	cas::IMember* GetMember(cstring name) override;
 	cas::IFunction* GetMethod(cstring name_or_decl, int flags) override;
 	void GetMethodsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
+	cas::IModule* GetModule() override;
+	cstring GetName() const override;
+	void QueryMembers(delegate<bool(cas::IMember*)> pred) override;
+	void QueryMethods(delegate<bool(cas::IFunction*)> pred) override;
 
 	// from IClass
 	bool AddMember(cstring decl, int offset) override;

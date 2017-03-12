@@ -40,6 +40,12 @@
     <ClCompile Include="source\Symbol.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>
+    <ClCompile Include="source\Member.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Global.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/cas/Cas.h">
@@ -149,6 +155,21 @@
     </ClInclude>
     <ClInclude Include="source\Symbol.h">
       <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\IMember.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\IGlobal.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Global.h">
+      <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\FastFunc.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\IObject.h">
+      <Filter>Include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

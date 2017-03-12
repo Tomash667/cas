@@ -41,6 +41,12 @@ cstring CallContext::GetException()
 	return exc.c_str();
 }
 
+cas::IObject* CallContext::GetGlobal(cas::IGlobal* global)
+{
+	assert(global);
+	return nullptr;
+}
+
 cas::IModule* CallContext::GetModule()
 {
 	return &module;
@@ -69,7 +75,7 @@ bool CallContext::Run()
 	tmpv = Var();
 	stack.clear();
 	global.clear();
-	global.resize(module.GetGlobalsCount());
+	global.resize(module.GetMainStackSize());
 	local.clear();
 	current_function = -1;
 	depth = 0;

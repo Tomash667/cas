@@ -4,6 +4,7 @@
 
 namespace cas
 {
+	class IModule;
 	class IType;
 
 	class IFunction
@@ -26,6 +27,7 @@ namespace cas
 		virtual IType* GetClass() = 0;
 		virtual cstring GetDecl() = 0;
 		virtual int GetFlags() = 0;
+		virtual IModule* GetModule() = 0;
 		virtual cstring GetName() = 0;
 		virtual ComplexType GetReturnType() = 0;
 	};

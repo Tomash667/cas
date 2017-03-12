@@ -97,10 +97,14 @@
   <ItemGroup>
     <ClInclude Include="include/cas/Cas.h" />
     <ClInclude Include="include\cas\Common.h" />
+    <ClInclude Include="include\cas\FastFunc.h" />
     <ClInclude Include="include\cas\FunctionInfo.h" />
     <ClInclude Include="include\cas\ICallContext.h" />
     <ClInclude Include="include\cas\IEngine.h" />
     <ClInclude Include="include\cas\IFunction.h" />
+    <ClInclude Include="include\cas\IMember.h" />
+    <ClInclude Include="include\cas\IGlobal.h" />
+    <ClInclude Include="include\cas\IObject.h" />
     <ClInclude Include="include\cas\IType.h" />
     <ClInclude Include="include\cas\Settings.h" />
     <ClInclude Include="source/Function.h" />
@@ -120,6 +124,7 @@
     <ClInclude Include="source\Enum.h" />
     <ClInclude Include="source\Event.h" />
     <ClInclude Include="source\EventLogger.h" />
+    <ClInclude Include="source\Global.h" />
     <ClInclude Include="source\ICallContextProxy.h" />
     <ClInclude Include="source\IModuleProxy.h" />
     <ClInclude Include="source\Member.h" />
@@ -145,6 +150,8 @@
     <ClCompile Include="source\Engine.cpp" />
     <ClCompile Include="source\Enum.cpp" />
     <ClCompile Include="source\Function.cpp" />
+    <ClCompile Include="source\Global.cpp" />
+    <ClCompile Include="source\Member.cpp" />
     <ClCompile Include="source\RefVar.cpp" />
     <ClCompile Include="source\Symbol.cpp" />
     <ClInclude Include="source\Symbol.h">

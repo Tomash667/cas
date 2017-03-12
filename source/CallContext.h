@@ -22,6 +22,7 @@ public:
 	vector<string>& GetAsserts() override;
 	std::pair<cstring, int> GetCurrentLocation() override;
 	cstring GetException() override;
+	cas::IObject* GetGlobal(cas::IGlobal* global) override;
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
 	cas::Value GetReturnValue() override;

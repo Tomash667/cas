@@ -7,6 +7,7 @@ namespace cas
 {
 	class ICallContext;
 	class IFunction;
+	class IGlobal;
 
 	enum GetFlags
 	{
@@ -39,9 +40,13 @@ namespace cas
 		virtual void Decompile() = 0;
 		virtual IFunction* GetFunction(cstring name_or_decl, int flags = 0) = 0;
 		virtual void GetFunctionsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
+		virtual IGlobal* GetGlobal(cstring name, int flags = 0) = 0;
 		virtual cstring GetName() = 0;
 		virtual IType* GetType(cstring name, int flags = 0) = 0;
 		virtual ParseResult Parse(cstring input) = 0;
+		virtual void QueryFunctions(delegate<bool(IFunction*)> pred) = 0;
+		virtual void QueryGlobals(delegate<bool(IGlobal*)> pred) = 0;
+		virtual void QueryTypes(delegate<bool(IType*)> pred) = 0;
 		virtual void Release() = 0;
 		virtual void Reset() = 0;
 		virtual void SetName(cstring name) = 0;

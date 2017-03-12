@@ -4,17 +4,17 @@
 template<typename T>
 struct VectorOffset
 {
-	inline VectorOffset(vector<T>& _data, uint offset) : data(&_data), offset(offset)
+	VectorOffset(vector<T>& _data, uint offset) : data(&_data), offset(offset)
 	{
 
 	}
 
-	inline T* operator -> ()
+	T* operator -> ()
 	{
 		return &data->at(offset);
 	}
 
-	inline T& operator () ()
+	T& operator () ()
 	{
 		return data->at(offset);
 	}

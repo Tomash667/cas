@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <string>
+#include "FastFunc.h"
 
 using std::string;
 using std::vector;
@@ -41,4 +42,7 @@ namespace cas
 		IType* type;
 		bool ref;
 	};
+
+	template<typename T>
+	using delegate = ssvu::FastFunc<T>;
 }

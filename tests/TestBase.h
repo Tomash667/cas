@@ -10,29 +10,29 @@ namespace Microsoft
 		namespace CppUnitTestFramework
 		{
 			template<>
-			static wstring ToString(const IType::GenericType& generic_type)
+			static wstring ToString(const GenericType& generic_type)
 			{
 				switch(generic_type)
 				{
-				case IType::GenericType::Void:
+				case GenericType::Void:
 					return L"void";
-				case IType::GenericType::Bool:
+				case GenericType::Bool:
 					return L"bool";
-				case IType::GenericType::Char:
+				case GenericType::Char:
 					return L"char";
-				case IType::GenericType::Int:
+				case GenericType::Int:
 					return L"int";
-				case IType::GenericType::Float:
+				case GenericType::Float:
 					return L"float";
-				case IType::GenericType::String:
+				case GenericType::String:
 					return L"string";
-				case IType::GenericType::Class:
+				case GenericType::Class:
 					return L"class";
-				case IType::GenericType::Struct:
+				case GenericType::Struct:
 					return L"struct";
-				case IType::GenericType::Enum:
+				case GenericType::Enum:
 					return L"enum";
-				case IType::GenericType::Invalid:
+				case GenericType::Invalid:
 				default:
 					return L"invalid";
 				}
@@ -144,41 +144,41 @@ struct Retval
 	void IsVoid()
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(IType::GenericType::Void, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Void, ret.type->GetGenericType());
 	}
 
 	void IsBool(bool expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(IType::GenericType::Bool, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Bool, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.bool_value);
 	}
 
 	void IsChar(char expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(IType::GenericType::Char, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Char, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.char_value);
 	}
 
 	void IsInt(int expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(IType::GenericType::Int, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Int, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.int_value);
 	}
 
 	void IsFloat(float expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(IType::GenericType::Float, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Float, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.float_value, 0.01f);
 	}
 
 	void IsEnum(cstring name, int expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(IType::GenericType::Enum, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Enum, ret.type->GetGenericType());
 		Assert::AreEqual(name, ret.type->GetName());
 		Assert::AreEqual(expected, ret.int_value);
 	}
@@ -186,7 +186,7 @@ struct Retval
 	void IsString(cstring expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(IType::GenericType::String, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::String, ret.type->GetGenericType());
 		Assert::AreEqual(expected, ret.str_value);
 	}
 };

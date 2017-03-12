@@ -75,9 +75,11 @@ struct Function : public cas::IFunction
 	cas::IType* GetClass() override;
 	cstring GetDecl() override;
 	int GetFlags() override;
+	cas::IModule* GetModule() override;
 	cstring GetName() override;
 	cas::ComplexType GetReturnType() override;
 
+	void BuildDecl();
 	bool Equal(Function& f) const;
 	cstring GetFormattedName(bool write_result = true, bool write_type = true, BASIC_SYMBOL* symbol = nullptr);
 

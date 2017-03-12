@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Enum.h"
 #include "Event.h"
+#include "Global.h"
 #include "Member.h"
 #include "Module.h"
 #include "Op.h"
@@ -101,6 +102,7 @@ bool Parser::Parse(ParseSettings& settings)
 	optimize = settings.optimize;
 	parse_func_offset = module.GetScriptFunctions().size();
 	new_types_offset = module.GetTypes().size();
+	new_globals_offset = module.GetGlobals().size();
 	t.FromString(settings.input);
 
 	try
@@ -110,7 +112,7 @@ bool Parser::Parse(ParseSettings& settings)
 		CheckReturnValues();
 		CopyFunctionChangedStructs();
 		ConvertToBytecode();
-		FinishRunModule();
+		ConvertParseToScriptItems();
 		Cleanup();
 
 		return true;
@@ -124,7 +126,7 @@ bool Parser::Parse(ParseSettings& settings)
 	}
 }
 
-void Parser::FinishRunModule()
+void Parser::ConvertParseToScriptItems()
 {
 	// convert parse functions to script functions
 	vector<ScriptFunction*>& script_funcs = module.GetScriptFunctions();
@@ -164,12 +166,24 @@ void Parser::FinishRunModule()
 		type->dtor = module.GetScriptFunctions()[type->dtor.pf->index + parse_func_offset];
 	}
 
-	module.SetGlobalsCount(main_block->GetMaxVars());
-	DeleteElements(parse_funcs);
+	// convert globals
+	vector<Global*>& globals = module.GetGlobals();
+	globals.resize(main_block->vars.size());
+	for(uint i = new_globals_offset, count = main_block->vars.size(); i < count; ++i)
+	{
+		ParseVar* var = main_block->vars[i];
+		Global* g = new Global;
+		g->module_proxy = &module;
+		g->name = var->name;
+		g->vartype = var->vartype;
+		globals[i] = g;
+	}
+	module.SetMainStackSize(main_block->GetMaxVars());
 }
 
 void Parser::Cleanup()
 {
+	DeleteElements(parse_funcs);
 	DeleteElements(rsvs);
 	StringPool.Free(tmp_strs);
 	if(global_node)
@@ -956,7 +970,7 @@ void Parser::ParseEnum(bool forward)
 	f->result = V_BOOL;
 	f->special = SF_NO;
 	f->type = type->index;
-	f->decl = f->GetFormattedName();
+	f->BuildDecl();
 	type->funcs.push_back(f);
 	parse_funcs.push_back(f);
 }
@@ -1323,12 +1337,22 @@ void Parser::ParseFunctionArgs(Function* f, bool in_cpp)
 	{
 		while(true)
 		{
+			// var type
 			VarType vartype = GetVarType(true, in_cpp);
 			bool pass_by_ref = false;
-			LocalString id = t.MustGetItem();
-			CheckFindItem(id.get_ref(), false);
+
+			// name
+			LocalString id;
+			if(!t.IsSymbol())
+			{
+				id = t.MustGetItem();
+				CheckFindItem(id.get_ref(), false);
+				t.Next();
+			}
+
 			if(!in_cpp)
 			{
+				// declare parse var
 				ParseVar* arg = ParseVar::Get();
 				arg->name = id;
 				arg->vartype = vartype;
@@ -1341,6 +1365,7 @@ void Parser::ParseFunctionArgs(Function* f, bool in_cpp)
 			}
 			else
 			{
+				// mark as pass by ref if required
 				if(vartype.type == V_REF && IS_SET(GetType(vartype.subtype)->flags, Type::Class | Type::PassByValue))
 				{
 					vartype.type = vartype.subtype;
@@ -1348,7 +1373,8 @@ void Parser::ParseFunctionArgs(Function* f, bool in_cpp)
 					pass_by_ref = true;
 				}
 			}
-			t.Next();
+
+			// default value
 			if(t.IsSymbol('='))
 			{
 				prev_arg_def = true;
@@ -1388,6 +1414,7 @@ void Parser::ParseFunctionArgs(Function* f, bool in_cpp)
 				f->args.push_back(Arg(vartype, 0, false));
 				f->required_args++;
 			}
+
 			f->args.back().pass_by_ref = pass_by_ref;
 			if(t.IsSymbol(')'))
 				break;
@@ -4519,7 +4546,10 @@ bool Parser::GetFunctionNameDecl(cstring decl, string* name, string* real_decl, 
 		if(name)
 			*name = f->name;
 		if(real_decl)
+		{
+			f->BuildDecl();
 			*real_decl = f->decl;
+		}
 		delete f;
 		return true;
 	}
@@ -5207,7 +5237,7 @@ void Parser::AnalyzeLine(Type* type)
 					ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
 					if(!FindMatchingOverload(*func, symbol))
 						t.Throw("Invalid overload operator definition '%s'.", func->GetFormattedName(true, true, &symbol));
-					func->decl = func->GetFormattedName();
+					func->BuildDecl();
 				}
 			}
 			else
@@ -5236,6 +5266,7 @@ void Parser::AnalyzeLine(Type* type)
 		do
 		{
 			Member* m = new Member;
+			m->type = type;
 			m->vartype = vartype;
 			m->name = t.MustGetItem();
 			int index;
@@ -5324,15 +5355,21 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 			VarType vartype = AnalyzeVarType();
 
 			ParseVar* arg = ParseVar::Get();
-			arg->name = t.MustGetItem();
+			if(t.IsSymbol())
+				arg->name.clear();
+			else
+			{
+				arg->name = t.GetItem();
+				t.Next();
+			}
 			arg->vartype = vartype;
 			arg->subtype = ParseVar::ARG;
 			arg->index = func->arg_vars.size();
 			arg->mod = false;
 			arg->is_code_class = GetType(vartype.type)->IsCode();
 			func->arg_vars.push_back(arg);
-			t.Next();
 			
+			// default value
 			if(t.IsSymbol('='))
 			{
 				prev_def = true;
@@ -5347,6 +5384,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 				if(prev_def)
 					t.Throw("Missing default value for argument %u '%s %s'.", func->args.size(), module.GetName(vartype), arg->name.c_str());
 			}
+
 			if(t.IsSymbol(')'))
 				break;
 			t.AssertSymbol(',');
@@ -5384,7 +5422,7 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 	}
 
 	if(func->name != "$tmp")
-		func->decl = func->GetFormattedName();
+		func->BuildDecl();
 	parse_funcs.push_back(func);
 	return func.Pin();
 }
@@ -5467,7 +5505,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 		func->type = type->index;
 		func->required_args = 1;
 		func->special = SF_CTOR;
-		func->decl = func->GetFormattedName();
+		func->BuildDecl();
 		parse_funcs.push_back(func);
 		type->funcs.push_back(func);
 		if(define_ctor == -1)
@@ -5522,7 +5560,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 			func->required_args = 2;
 			func->special = SF_CTOR;
 			func->node = nullptr;
-			func->decl = func->GetFormattedName();
+			func->BuildDecl();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}
@@ -5577,7 +5615,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-			func->decl = func->GetFormattedName();
+			func->BuildDecl();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}
@@ -5629,7 +5667,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-			func->decl = func->GetFormattedName();
+			func->BuildDecl();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}
@@ -5681,7 +5719,7 @@ int Parser::CreateDefaultFunctions(Type* type, int define_ctor)
 				func->node = nullptr;
 			}
 			func->block = nullptr;
-			func->decl = func->GetFormattedName();
+			func->BuildDecl();
 			parse_funcs.push_back(func);
 			type->funcs.push_back(func);
 		}

@@ -27,7 +27,7 @@ cas::Value Function::GetArgDefaultValue(uint index)
 	Arg& arg = args[index];
 	int arg_type;
 	cas::Value value;
-	if(arg.have_def_value)
+	if(!arg.have_def_value)
 		arg_type = V_VOID;
 	else
 	{
@@ -56,6 +56,11 @@ int Function::GetFlags()
 	return flags;
 }
 
+cas::IModule* Function::GetModule()
+{
+	return module_proxy;
+}
+
 cstring Function::GetName()
 {
 	return name.c_str();
@@ -64,6 +69,11 @@ cstring Function::GetName()
 cas::ComplexType Function::GetReturnType()
 {
 	return module_proxy->GetComplexType(result);
+}
+
+void Function::BuildDecl()
+{
+	decl = GetFormattedName(true, false);
 }
 
 bool Function::Equal(Function& f) const

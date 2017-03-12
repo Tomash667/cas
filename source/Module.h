@@ -5,6 +5,7 @@
 
 class CallContext;
 class Parser;
+struct Global;
 struct Str;
 
 // Script module
@@ -25,9 +26,13 @@ public:
 	void Decompile() override;
 	cas::IFunction* GetFunction(cstring name_or_decl, int flags) override;
 	void GetFunctionsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
+	cas::IGlobal* GetGlobal(cstring name, int flags) override;
 	cstring GetName() override;
 	cas::IType* GetType(cstring name, int flags) override;
 	ParseResult Parse(cstring input) override;
+	void QueryFunctions(delegate<bool(cas::IFunction*)> pred) override;
+	void QueryGlobals(delegate<bool(cas::IGlobal*)> pred) override;
+	void QueryTypes(delegate<bool(cas::IType*)> pred) override;
 	void Release() override;
 	void Reset() override;
 	void SetName(cstring name) override;
@@ -49,9 +54,10 @@ public:
 	CodeFunction* GetCodeFunction(int index);
 	vector<CodeFunction*>& GetCodeFunctions() { return code_funcs; }
 	uint GetEntryPoint() { return entry_point; }
-	uint GetGlobalsCount() { return globals; }
+	vector<Global*>& GetGlobals() { return globals; }
 	int GetIndex() { return index; }
 	std::map<int, Module*>& GetModules() { return modules; }
+	uint GetMainStackSize() { return main_stack_size; }
 	ScriptFunction* GetScriptFunction(int index, bool local = false);
 	vector<ScriptFunction*>& GetScriptFunctions() { return script_funcs; }
 	Str* GetStr(int index);
@@ -59,7 +65,7 @@ public:
 	vector<Type*>& GetTypes() { return types; }
 	void RemoveCallContext(CallContext* call_context);
 	void SetEntryPoint(uint new_entry_point) { entry_point = new_entry_point; }
-	void SetGlobalsCount(uint new_globals) { globals = new_globals; }
+	void SetMainStackSize(uint new_main_stack_size) { main_stack_size = new_main_stack_size; }
 
 private:
 	void AddParserType(Type* type);
@@ -77,10 +83,11 @@ private:
 	vector<CallContext*> call_contexts;
 	vector<CodeFunction*> code_funcs;
 	vector<ScriptFunction*> script_funcs;
+	vector<Global*> globals;
 	vector<Type*> types;
 	vector<Str*> strs;
 	vector<int> code;
 	int index, refs, call_context_counter;
-	uint globals, entry_point;
+	uint entry_point, main_stack_size;
 	bool released, built, optimize;
 };

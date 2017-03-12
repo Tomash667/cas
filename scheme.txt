@@ -49,7 +49,7 @@ class_item:
 	func_def
 
 arg_decl:
-	([var_type <arg_name> [= const_item] [, ...] )
+	([var_type [<arg_name>] [= const_item] [, ...] )
 
 var_type_decl:
 	var_type var_decl [, var_decl ...]

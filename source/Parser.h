@@ -74,7 +74,7 @@ public:
 	void RemoveKeywords(Module* module);
 
 private:
-	void FinishRunModule();
+	void ConvertParseToScriptItems();
 	void AddKeywords();
 	void AddChildModulesKeywords();
 	void Cleanup();
@@ -179,10 +179,10 @@ private:
 	ParseFunction* current_function;
 	Type* current_type;
 	ParseNode* global_node;
-	int breakable_block, parse_func_offset;
+	Enum* active_enum;
 	vector<ReturnStructVar*> rsvs;
 	vector<string*> tmp_strs;
-	uint prev_line, new_types_offset;
-	Enum* active_enum;
+	uint prev_line, new_types_offset, new_globals_offset, parse_func_offset;
+	int breakable_block;
 	bool optimize;
 };

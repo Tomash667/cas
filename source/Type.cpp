@@ -12,9 +12,51 @@ Type::~Type()
 	DeleteElements(members);
 }
 
+const vector<std::pair<string, int>>& Type::GetEnumValues()
+{
+	assert(enu);
+	return enu->values;
+}
+
+cas::IMember* Type::GetMember(cstring name)
+{
+	assert(name);
+
+	for(Member* m : members)
+	{
+		if(m->name == name)
+			return m;
+	}
+
+	return nullptr;
+}
+
+cas::IModule* Type::GetModule()
+{
+	return module_proxy;
+}
+
 cstring Type::GetName() const
 {
 	return name.c_str();
+}
+
+void Type::QueryMembers(delegate<bool(cas::IMember*)> pred)
+{
+	for(Member* m : members)
+	{
+		if(!pred(m))
+			return;
+	}
+}
+
+void Type::QueryMethods(delegate<bool(cas::IFunction*)> pred)
+{
+	for(AnyFunction& f : funcs)
+	{
+		if(!pred(f.f))
+			return;
+	}
 }
 
 cas::IFunction* Type::GetMethod(cstring name_or_decl, int flags)
@@ -237,32 +279,32 @@ void Type::SetGenericType()
 	switch(index)
 	{
 	case V_VOID:
-		generic_type = GenericType::Void;
+		generic_type = cas::GenericType::Void;
 		break;
 	case V_BOOL:
-		generic_type = GenericType::Bool;
+		generic_type = cas::GenericType::Bool;
 		break;
 	case V_CHAR:
-		generic_type = GenericType::Char;
+		generic_type = cas::GenericType::Char;
 		break;
 	case V_INT:
-		generic_type = GenericType::Int;
+		generic_type = cas::GenericType::Int;
 		break;
 	case V_FLOAT:
-		generic_type = GenericType::Float;
+		generic_type = cas::GenericType::Float;
 		break;
 	case V_STRING:
-		generic_type = GenericType::String;
+		generic_type = cas::GenericType::String;
 		break;
 	default:
 		if(IsEnum())
-			generic_type = GenericType::Enum;
+			generic_type = cas::GenericType::Enum;
 		else if(IsStruct())
-			generic_type = GenericType::Struct;
+			generic_type = cas::GenericType::Struct;
 		else if(IsRefClass())
-			generic_type = GenericType::Class;
+			generic_type = cas::GenericType::Class;
 		else
-			generic_type = GenericType::Invalid;
+			generic_type = cas::GenericType::Invalid;
 		break;
 	}
 }

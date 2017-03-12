@@ -127,8 +127,8 @@ struct SymbolNode
 	SYMBOL symbol;
 	bool is_symbol;
 
-	inline SymbolNode(ParseNode* node) : node(node), is_symbol(false) {}
-	inline SymbolNode(SYMBOL symbol, ParseNode* node = nullptr) : symbol(symbol), node(node), is_symbol(true) {}
+	SymbolNode(ParseNode* node) : node(node), is_symbol(false) {}
+	SymbolNode(SYMBOL symbol, ParseNode* node = nullptr) : symbol(symbol), node(node), is_symbol(true) {}
 };
 
 struct BasicSymbolInfo
@@ -140,7 +140,7 @@ struct BasicSymbolInfo
 	SYMBOL op_symbol;
 	cstring full_over_text;
 
-	inline SYMBOL operator [](int index)
+	SYMBOL operator [](int index)
 	{
 		switch(index)
 		{
@@ -154,7 +154,7 @@ struct BasicSymbolInfo
 		}
 	}
 
-	inline cstring GetOverloadText()
+	cstring GetOverloadText()
 	{
 		return full_over_text ? full_over_text : text;
 	}
