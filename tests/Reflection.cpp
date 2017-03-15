@@ -2,6 +2,8 @@
 #include "CppUnitTest.h"
 #include "TestBase.h"
 
+extern ostringstream s_output;
+
 class A
 {
 public:
@@ -325,6 +327,41 @@ TEST_METHOD(ITypeOps)
 	type->QueryMembers([&](IMember* m) { members.push_back(m); return true; });
 	Assert::AreEqual(1u, members.size());
 	Assert::AreEqual("var", members[0]->GetName());
+}
+
+static void fA() { s_output << "A"; }
+static void fB() { s_output << "B"; }
+static void fC() { s_output << "C"; }
+static void fD() { s_output << "D"; }
+TEST_METHOD(MixedFunctions)
+{
+	bool ok = module->AddFunction("void A()", fA);
+	Assert::IsTrue(ok);
+	auto result = module->Parse("void a(){print(\"a\");}");
+	Assert::AreEqual(IModule::Ok, result);
+	ok = module->AddFunction("void B()", fB);
+	Assert::IsTrue(ok);
+	result = module->Parse("void b(){print(\"b\");}");
+	Assert::AreEqual(IModule::Ok, result);
+	auto module2 = engine->CreateModule(module);
+	ok = module2->AddFunction("void C()", fC);
+	Assert::IsTrue(ok);
+	result = module2->Parse("void c(){print(\"c\");}");
+	Assert::AreEqual(IModule::Ok, result);
+	ok = module2->AddFunction("void D()", fD);
+	Assert::IsTrue(ok);
+	result = module2->Parse("void d(){print(\"d\");}");
+	Assert::AreEqual(IModule::Ok, result);
+
+	result = module2->Parse("A();a();B();b();C();c();D();d();");
+	Assert::AreEqual(IModule::Ok, result);
+	WriteDecompileOutput(module2);
+	auto cc = module2->CreateCallContext();
+	ok = cc->Run();
+	module2->Release();
+	Assert::IsTrue(ok);
+
+	AssertOutput("AaBbCcDd");
 }
 
 CA_TEST_CLASS_END();

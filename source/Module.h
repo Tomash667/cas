@@ -28,13 +28,16 @@ public:
 	void GetFunctionsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
 	cas::IGlobal* GetGlobal(cstring name, int flags) override;
 	cstring GetName() override;
+	const Options& GetOptions() override;
 	cas::IType* GetType(cstring name, int flags) override;
 	ParseResult Parse(cstring input) override;
+	ParseResult ParseAndRun(cstring input) override;
 	void QueryFunctions(delegate<bool(cas::IFunction*)> pred) override;
 	void QueryGlobals(delegate<bool(cas::IGlobal*)> pred) override;
 	void QueryTypes(delegate<bool(cas::IType*)> pred) override;
 	void Release() override;
 	void Reset() override;
+	bool Run() override;
 	void SetName(cstring name) override;
 	void SetOptions(const Options& options) override;
 
@@ -53,7 +56,7 @@ public:
 	vector<int>& GetBytecode() { return code; }
 	CodeFunction* GetCodeFunction(int index);
 	vector<CodeFunction*>& GetCodeFunctions() { return code_funcs; }
-	uint GetEntryPoint() { return entry_point; }
+	vector<int>& GetFunctionsBytecode() { return funcs_code; }
 	vector<Global*>& GetGlobals() { return globals; }
 	int GetIndex() { return index; }
 	std::map<int, Module*>& GetModules() { return modules; }
@@ -64,7 +67,6 @@ public:
 	vector<Str*>& GetStrs() { return strs; }
 	vector<Type*>& GetTypes() { return types; }
 	void RemoveCallContext(CallContext* call_context);
-	void SetEntryPoint(uint new_entry_point) { entry_point = new_entry_point; }
 	void SetMainStackSize(uint new_main_stack_size) { main_stack_size = new_main_stack_size; }
 
 private:
@@ -86,8 +88,9 @@ private:
 	vector<Global*> globals;
 	vector<Type*> types;
 	vector<Str*> strs;
-	vector<int> code;
+	vector<int> code, funcs_code;
+	Options options;
 	int index, refs, call_context_counter;
-	uint entry_point, main_stack_size;
-	bool released, built, optimize;
+	uint main_stack_size;
+	bool released, built;
 };

@@ -132,9 +132,11 @@ inline void RunParsedTest(cstring input = "", cstring output = nullptr)
 void CleanupErrors();
 void CleanupAsserts();
 void AssertError(cstring error);
+void AssertOutput(cstring output);
 void SetDecompile(bool decompile);
 void SetResetParser(bool reset_parser);
 void WriteOutput(cstring msg);
+void WriteDecompileOutput(IModule* module);
 
 struct Retval
 {

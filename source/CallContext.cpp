@@ -6,7 +6,6 @@
 #include "Module.h"
 #include "Op.h"
 #include "RefVar.h"
-#include "StackFrame.h"
 #include "Str.h"
 
 ICallContextProxy* ICallContextProxy::Current;
@@ -85,9 +84,8 @@ bool CallContext::Run()
 	Class::all_classes.clear();
 	RefVar::all_refs.clear();
 #endif
-	code_start = module.GetBytecode().data();
-	code_end = code_start + module.GetBytecode().size();
-	code_pos = code_start + module.GetEntryPoint();
+	code = &module.GetBytecode();
+	code_pos = code->data();
 	cleanup_offset = 0;
 	ICallContextProxy::Current = this;
 
@@ -628,10 +626,17 @@ void CallContext::MakeSingleInstance(Var& v)
 	assert(v.vartype == VarType(v.clas->type->index, 0));
 }
 
-void CallContext::PushStackFrame(StackFrame& frame)
+void CallContext::PushStackFrame(StackFrame::Type type, uint pos, uint expected_stack)
 {
 	if(stack_frames.size() >= MAX_STACK_DEPTH)
 		throw CasException("Stack overflow.");
+	StackFrame frame;
+	frame.code = code;
+	frame.current_function = current_function;
+	frame.current_line = current_line;
+	frame.type = type;
+	frame.pos = pos;
+	frame.expected_stack = expected_stack;
 	stack_frames.push_back(frame);
 }
 
@@ -649,13 +654,7 @@ void CallContext::ReleaseClass(Class* c)
 			// incrase reference to prevent infinite release loop
 			c->refs = 2;
 
-			StackFrame frame;
-			frame.current_function = current_function;
-			frame.current_line = current_line;
-			frame.expected_stack = stack.size();
-			frame.type = StackFrame::DTOR;
-			frame.pos = code_pos - code_start;
-			PushStackFrame(frame);
+			PushStackFrame(StackFrame::DTOR, code_pos - code->data(), stack.size());
 
 			ScriptFunction& f = *c->type->dtor.sf;
 			local.push_back(Var(V_SPECIAL));
@@ -669,7 +668,8 @@ void CallContext::ReleaseClass(Class* c)
 			// jmp to new location
 			current_function = c->type->dtor.sf->index;
 			current_line = -1;
-			code_pos = code_start + f.pos;
+			code = &((Module*)f.module_proxy)->GetFunctionsBytecode();
+			code_pos = code->data() + f.pos;
 			++depth;
 
 			RunInternal();
@@ -1444,6 +1444,7 @@ void CallContext::RunInternal()
 			}
 			break;
 		case RET:
+		case IRET:
 			// return from function/main
 			if(current_function == -1)
 			{
@@ -1516,7 +1517,8 @@ void CallContext::RunInternal()
 					thi = local.back().clas;
 					local.pop_back();
 				}
-				c = code_start + frame.pos;
+				code = frame.code;
+				c = code->data() + frame.pos;
 				current_function = frame.current_function;
 				local.pop_back();
 				if(current_function != -1)
@@ -1547,16 +1549,16 @@ void CallContext::RunInternal()
 		case JMP:
 			{
 				uint offset = *c;
-				c = code_start + offset;
-				assert(c < code_end);
+				assert(offset < code->size());
+				c = code->data() + offset;
 			}
 			break;
 		case TJMP:
 		case FJMP:
 			{
 				uint offset = *c++;
-				int* new_c = code_start + offset;
-				assert(new_c < code_end);
+				assert(offset < code->size());
+				int* new_c = code->data() + offset;
 				assert(!stack.empty());
 				Var v = stack.back();
 				stack.pop_back();
@@ -1580,7 +1582,7 @@ void CallContext::RunInternal()
 				uint f_idx = *c++;
 				ScriptFunction& f = *module.GetScriptFunction(f_idx);;
 				// mark function call
-				uint pos = c - code_start;
+				uint pos = c - code->data();
 				local.push_back(Var(V_SPECIAL));
 				// handle args
 				assert(stack.size() >= f.args.size());
@@ -1599,18 +1601,13 @@ void CallContext::RunInternal()
 				uint expected = stack.size();
 				if(f.result.type != V_VOID)
 					++expected;
-				StackFrame frame;
-				frame.pos = pos;
-				frame.current_function = current_function;
-				frame.current_line = current_line;
-				frame.expected_stack = expected;
-				frame.type = StackFrame::NORMAL;
-				PushStackFrame(frame);
+				PushStackFrame(StackFrame::NORMAL, pos, expected);
 
 				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
-				c = code_start + f.pos;
+				code = &((Module*)f.module_proxy)->GetFunctionsBytecode();
+				c = code->data() + f.pos;
 				++depth;
 			}
 			break;
@@ -1619,7 +1616,7 @@ void CallContext::RunInternal()
 				uint f_idx = *c++;
 				ScriptFunction& f = *module.GetScriptFunction(f_idx);
 				// mark function call
-				uint pos = c - code_start;
+				uint pos = c - code->data();
 				local.push_back(Var(V_SPECIAL));
 				// push this
 				args_offset = local.size();
@@ -1639,17 +1636,12 @@ void CallContext::RunInternal()
 				local.resize(local.size() + f.locals);
 				// push frame
 				uint expected = stack.size() + 1;
-				StackFrame frame;
-				frame.pos = pos;
-				frame.current_function = current_function;
-				frame.current_line = current_line;
-				frame.expected_stack = expected;
-				frame.type = StackFrame::CTOR;
-				PushStackFrame(frame);
+				PushStackFrame(StackFrame::CTOR, pos, expected);
 				// jmp to new location
 				current_function = f_idx;
 				current_line = -1;
-				c = code_start + f.pos;
+				code = &((Module*)f.module_proxy)->GetFunctionsBytecode();
+				c = code->data() + f.pos;
 				++depth;
 			}
 			break;
@@ -1710,7 +1702,7 @@ void CallContext::RunInternal()
 			assert(0);
 			break;
 		}
-		assert(c < code_end);
+		assert(c < code->data() + code->size());
 	}
 }
 

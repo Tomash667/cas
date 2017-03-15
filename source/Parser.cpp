@@ -100,6 +100,8 @@ void Parser::AddChildModulesKeywords()
 bool Parser::Parse(ParseSettings& settings)
 {
 	optimize = settings.optimize;
+	disallow_global_code = settings.disallow_global_code;
+	disallow_globals = settings.disallow_globals;
 	parse_func_offset = module.GetScriptFunctions().size();
 	new_types_offset = module.GetTypes().size();
 	new_globals_offset = module.GetGlobals().size();
@@ -285,6 +287,8 @@ ParseNode* Parser::ParseLineOrBlock()
 // can return null
 ParseNode* Parser::ParseBlock(ParseFunction* f)
 {
+	CheckGlobalCodeDisallowed();
+
 	t.AssertSymbol('{');
 
 	// block
@@ -365,131 +369,15 @@ ParseNode* Parser::ParseLine()
 		switch(keyword)
 		{
 		case K_IF:
-			{
-				t.Next();
-				ParseNode* if_expr = ParseCond();
-
-				NodeRef if_op;
-				if_op->pseudo_op = IF;
-				if_op->result = V_VOID;
-				if_op->source = nullptr;
-				if_op->push(if_expr);
-				if_op->push(ParseLineOrBlock());
-
-				// else
-				if(t.IsKeyword(K_ELSE, G_KEYWORD))
-				{
-					t.Next();
-					if_op->push(ParseLineOrBlock());
-				}
-				else
-					if_op->push(nullptr);
-
-				return if_op.Pin();
-			}
+			return ParseIf();
 		case K_DO:
-			{
-				t.Next();
-				++breakable_block;
-				NodeRef block = ParseLineOrBlock();
-				--breakable_block;
-				t.AssertKeyword(K_WHILE, G_KEYWORD);
-				t.Next();
-				NodeRef cond = ParseCond();
-				ParseNode* do_whil = ParseNode::Get();
-				do_whil->pseudo_op = DO_WHILE;
-				do_whil->result = V_VOID;
-				do_whil->value = DO_WHILE_NORMAL;
-				do_whil->source = nullptr;
-				do_whil->push(block.Pin());
-				do_whil->push(cond.Pin());
-				return do_whil;
-			}
+			return ParseDo();
 		case K_WHILE:
-			{
-				t.Next();
-				NodeRef cond = ParseCond();
-				++breakable_block;
-				NodeRef block = ParseLineOrBlock();
-				--breakable_block;
-				ParseNode* whil = ParseNode::Get();
-				whil->pseudo_op = WHILE;
-				whil->result = V_VOID;
-				whil->source = nullptr;
-				whil->push(cond.Pin());
-				whil->push(block.Pin());
-				return whil;
-			}
+			return ParseWhile();
 		case K_FOR:
-			{
-				t.Next();
-				t.AssertSymbol('(');
-				t.Next();
-
-				NodeRef for1(nullptr), for2(nullptr), for3(nullptr);
-				Block* new_block = Block::Get();
-				Block* old_block = current_block;
-				new_block->parent = old_block;
-				new_block->var_offset = old_block->var_offset;
-				old_block->childs.push_back(new_block);
-				current_block = new_block;
-
-				if(t.IsKeywordGroup(G_VAR))
-					for1 = ParseVarTypeDecl();
-				else if(t.IsSymbol(';'))
-					for1 = nullptr;
-				else
-				{
-					for1 = ParseExpr();
-					t.AssertSymbol(';');
-				}
-				t.Next();
-				if(t.IsSymbol(';'))
-					for2 = nullptr;
-				else
-				{
-					for2 = ParseExpr();
-					t.AssertSymbol(';');
-				}
-				t.Next();
-				if(t.IsSymbol(')'))
-					for3 = nullptr;
-				else
-				{
-					for3 = ParseExpr();
-					t.AssertSymbol(')');
-				}
-				t.Next();
-
-				if(for2 && !TryCast(for2.Get(), V_BOOL))
-					t.Throw("Condition expression with '%s' type.", GetTypeName(for2));
-
-				NodeRef fo = ParseNode::Get();
-				fo->pseudo_op = FOR;
-				fo->result = V_VOID;
-				fo->source = nullptr;
-				fo->push(for1.Pin());
-				fo->push(for2.Pin());
-				fo->push(for3.Pin());
-				++breakable_block;
-				fo->push(ParseLineOrBlock());
-				--breakable_block;
-				current_block = old_block;
-				return fo.Pin();
-			}
+			return ParseFor();
 		case K_BREAK:
-			{
-				if(breakable_block == 0)
-					t.Unexpected("Not in breakable block.");
-				t.Next();
-				t.AssertSymbol(';');
-				t.Next();
-				ParseNode* br = ParseNode::Get();
-				br->pseudo_op = BREAK;
-				br->result = V_VOID;
-				br->source = nullptr;
-				return br;
-			}
+			return ParseBreak();
 		case K_RETURN:
 			return ParseReturn();
 		case K_CLASS:
@@ -518,6 +406,8 @@ ParseNode* Parser::ParseLine()
 		case NT_VAR_DECL:
 			{
 				// var
+				if(disallow_globals && current_block == main_block)
+					t.Throw("Global variables disallowed.");
 				ParseNode* node = ParseVarTypeDecl();
 				t.Next();
 				return node;
@@ -534,6 +424,7 @@ ParseNode* Parser::ParseLine()
 		}
 	}
 
+	CheckGlobalCodeDisallowed();
 	NodeRef node = ParseExpr();
 
 	// ;
@@ -543,8 +434,150 @@ ParseNode* Parser::ParseLine()
 	return node.Pin();
 }
 
+ParseNode* Parser::ParseIf()
+{
+	CheckGlobalCodeDisallowed();
+
+	t.Next();
+	ParseNode* if_expr = ParseCond();
+
+	NodeRef if_op;
+	if_op->pseudo_op = IF;
+	if_op->result = V_VOID;
+	if_op->source = nullptr;
+	if_op->push(if_expr);
+	if_op->push(ParseLineOrBlock());
+
+	// else
+	if(t.IsKeyword(K_ELSE, G_KEYWORD))
+	{
+		t.Next();
+		if_op->push(ParseLineOrBlock());
+	}
+	else
+		if_op->push(nullptr);
+
+	return if_op.Pin();
+}
+
+ParseNode* Parser::ParseDo()
+{
+	CheckGlobalCodeDisallowed();
+
+	t.Next();
+	++breakable_block;
+	NodeRef block = ParseLineOrBlock();
+	--breakable_block;
+	t.AssertKeyword(K_WHILE, G_KEYWORD);
+	t.Next();
+	NodeRef cond = ParseCond();
+	ParseNode* do_whil = ParseNode::Get();
+	do_whil->pseudo_op = DO_WHILE;
+	do_whil->result = V_VOID;
+	do_whil->value = DO_WHILE_NORMAL;
+	do_whil->source = nullptr;
+	do_whil->push(block.Pin());
+	do_whil->push(cond.Pin());
+	return do_whil;
+}
+
+ParseNode* Parser::ParseWhile()
+{
+	CheckGlobalCodeDisallowed();
+
+	t.Next();
+	NodeRef cond = ParseCond();
+	++breakable_block;
+	NodeRef block = ParseLineOrBlock();
+	--breakable_block;
+	ParseNode* whil = ParseNode::Get();
+	whil->pseudo_op = WHILE;
+	whil->result = V_VOID;
+	whil->source = nullptr;
+	whil->push(cond.Pin());
+	whil->push(block.Pin());
+	return whil;
+}
+
+ParseNode* Parser::ParseFor()
+{
+	CheckGlobalCodeDisallowed();
+
+	t.Next();
+	t.AssertSymbol('(');
+	t.Next();
+
+	NodeRef for1(nullptr), for2(nullptr), for3(nullptr);
+	Block* new_block = Block::Get();
+	Block* old_block = current_block;
+	new_block->parent = old_block;
+	new_block->var_offset = old_block->var_offset;
+	old_block->childs.push_back(new_block);
+	current_block = new_block;
+
+	if(t.IsKeywordGroup(G_VAR))
+		for1 = ParseVarTypeDecl();
+	else if(t.IsSymbol(';'))
+		for1 = nullptr;
+	else
+	{
+		for1 = ParseExpr();
+		t.AssertSymbol(';');
+	}
+	t.Next();
+	if(t.IsSymbol(';'))
+		for2 = nullptr;
+	else
+	{
+		for2 = ParseExpr();
+		t.AssertSymbol(';');
+	}
+	t.Next();
+	if(t.IsSymbol(')'))
+		for3 = nullptr;
+	else
+	{
+		for3 = ParseExpr();
+		t.AssertSymbol(')');
+	}
+	t.Next();
+
+	if(for2 && !TryCast(for2.Get(), V_BOOL))
+		t.Throw("Condition expression with '%s' type.", GetTypeName(for2));
+
+	NodeRef fo = ParseNode::Get();
+	fo->pseudo_op = FOR;
+	fo->result = V_VOID;
+	fo->source = nullptr;
+	fo->push(for1.Pin());
+	fo->push(for2.Pin());
+	fo->push(for3.Pin());
+	++breakable_block;
+	fo->push(ParseLineOrBlock());
+	--breakable_block;
+	current_block = old_block;
+	return fo.Pin();
+}
+
+ParseNode* Parser::ParseBreak()
+{
+	if(breakable_block == 0)
+		t.Unexpected("Not in breakable block.");
+	t.Next();
+	t.AssertSymbol(';');
+	t.Next();
+
+	ParseNode* br = ParseNode::Get();
+	br->pseudo_op = BREAK;
+	br->result = V_VOID;
+	br->source = nullptr;
+	return br;
+}
+
 ParseNode* Parser::ParseReturn()
 {
+	CheckGlobalCodeDisallowed();
+
 	NodeRef ret = ParseNode::Get();
 	ret->pseudo_op = RETURN;
 	ret->result = V_VOID;
@@ -708,6 +741,8 @@ void Parser::ParseClass(bool is_struct)
 
 ParseNode* Parser::ParseSwitch()
 {
+	CheckGlobalCodeDisallowed();
+
 	NodeRef swi;
 
 	// ( expr )
@@ -4062,38 +4097,25 @@ void Parser::CopyFunctionChangedStructs()
 
 void Parser::ConvertToBytecode()
 {
-	vector<int>& code = module.GetBytecode();
-
-	uint jmp_to_next_section = 0;
-	bool first_script = code.empty();
-	if(!first_script)
-	{
-		code.pop_back();
-		code.push_back(JMP);
-		jmp_to_next_section = code.size();
-		code.push_back(0);
-	}
-
+	vector<int>& funcs_code = module.GetFunctionsBytecode();
 	for(ParseFunction* pf : parse_funcs)
 	{
 		if(pf->IsBuiltin())
 			continue;
-		pf->pos = code.size();
+		pf->pos = funcs_code.size();
 		pf->locals = (pf->block ? pf->block->GetMaxVars() : 0);
-		uint old_size = code.size();
+		uint old_size = funcs_code.size();
 		if(pf->node)
-			ToCode(code, pf->node, nullptr);
-		if(old_size == code.size() || code.back() != RET)
-			code.push_back(RET);
+			ToCode(funcs_code, pf->node, nullptr);
+		if(old_size == funcs_code.size() || funcs_code.back() != RET)
+			funcs_code.push_back(IRET);
 	}
 
-	if(first_script)
-		module.SetEntryPoint(code.size());
-	else
-		code[jmp_to_next_section] = code.size();
-	uint old_size = code.size();
+	vector<int>& code = module.GetBytecode();
+	if(!code.empty() && code.back() == IRET)
+		code.pop_back();
 	ToCode(code, global_node, nullptr);
-	code.push_back(RET);
+	code.push_back(IRET);
 }
 
 void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
@@ -5086,6 +5108,12 @@ bool Parser::IsCtor(ParseNode* node)
 	}
 	else
 		return false;
+}
+
+void Parser::CheckGlobalCodeDisallowed()
+{
+	if(disallow_global_code && current_block == main_block)
+		t.Throw("Global code disallowed.");
 }
 
 void Parser::AnalyzeCode()

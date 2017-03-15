@@ -18,11 +18,12 @@ public:
 
 private:
 	Decompiler();
+	void DecompileFunctions();
+	void DecompileMain();
+	void DecompileBlock(int* start, int* end);
 	void DecompileType(int type, int val);
-	void GetNextFunction(int* pos);
 
 	Module* module;
 	std::ostream* s_output;
-	int current_function; //-2 not checked, -1 main
 	bool decompile_marker;
 };

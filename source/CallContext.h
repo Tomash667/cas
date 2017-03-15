@@ -3,12 +3,12 @@
 #include "ICallContextProxy.h"
 #include "Var.h"
 #include "VectorOffset.h"
+#include "StackFrame.h"
 
 class Module;
 struct Arg;
 struct CodeFunction;
 struct Member;
-struct StackFrame;
 struct Str;
 
 // Call context runs script code
@@ -66,7 +66,7 @@ private:
 	void ExecuteSimpleFunction(CodeFunction& f, void* _this);
 	GetRefData GetRef(Var& v);
 	void MakeSingleInstance(Var& v);
-	void PushStackFrame(StackFrame& frame);
+	void PushStackFrame(StackFrame::Type type, uint pos, uint expected_stack);
 	void ReleaseRef(Var& v);
 	void RunInternal();
 	void SetFromStack(VectorOffset<Var>& vo);
@@ -86,8 +86,7 @@ private:
 	cas::Value return_value;
 	uint depth;
 	int index, current_function, args_offset, locals_offset, current_line;
-	int* code_start;
-	int* code_end;
+	vector<int>* code;
 	int* code_pos;
 	int cleanup_offset;
 };

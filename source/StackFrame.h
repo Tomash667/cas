@@ -10,6 +10,7 @@ struct StackFrame
 		DTOR
 	};
 
+	vector<int>* code;
 	uint expected_stack, pos;
 	int current_line, current_function;
 	Type type;

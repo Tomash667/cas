@@ -96,9 +96,6 @@ TEST_MODULE_CLEANUP(ModuleCleanup)
 
 void WriteDecompileOutput(IModule* module)
 {
-	if(!decompile)
-		return;
-
 	module->Decompile();
 
 	cstring mark = "***DCMP***";
@@ -143,7 +140,10 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 		{
 			IModule::ParseResult parse_result = module->Parse(input);
 			if(parse_result == IModule::Ok)
-				WriteDecompileOutput(module);
+			{
+				if(decompile)
+					WriteDecompileOutput(module);
+			}
 			else
 				ok = false;
 		}
@@ -185,7 +185,7 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 	catch(cstring)
 	{
 		current_call_context = nullptr;
-		if(can_decompile)
+		if(can_decompile && decompile)
 			WriteDecompileOutput(module);
 		result = ASSERT;
 	}
@@ -330,6 +330,13 @@ void AssertError(cstring error)
 	cstring r = strstr(event_output.c_str(), error);
 	if(!r)
 		Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
+}
+
+void AssertOutput(cstring expected)
+{
+	string output = s_output.str();
+	cstring ss = output.c_str();
+	Assert::AreEqual(expected, ss, "Invalid output.");
 }
 
 void SetDecompile(bool _decompile)

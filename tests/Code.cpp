@@ -1010,6 +1010,31 @@ TEST_METHOD(FunctionDefaultStringArg)
 }
 
 //=========================================================================================
+static string get_str(string& str)
+{
+	return str;
+}
+TEST_METHOD(ParentModuleFunctionDefaultStringValue)
+{
+	bool ok = module->AddFunction("string get_str(string& = \"A\")", get_str);
+	Assert::IsTrue(ok);
+	auto result = module->Parse("string sget_str(string s = \"a\") { return s; }");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto module2 = engine->CreateModule(module);
+	ok = module2->AddFunction("string get_str2(string& = \"B\")", get_str);
+	Assert::IsTrue(ok);
+	result = module2->Parse("string sget_str2(string s = \"b\") { return s; }");
+	Assert::AreEqual(IModule::Ok, result);
+
+	result = module2->ParseAndRun("print(get_str()); print(sget_str()); print(get_str2()); print(sget_str2());");
+	Assert::AreEqual(IModule::Ok, result);
+	module2->Release();
+
+	AssertOutput("AaBb");
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests

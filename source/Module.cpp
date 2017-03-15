@@ -273,6 +273,11 @@ cstring Module::GetName()
 	return name.c_str();
 }
 
+const cas::IModule::Options& Module::GetOptions()
+{
+	return options;
+}
+
 cas::IType* Module::GetType(cstring name, int flags)
 {
 	assert(name);
@@ -302,18 +307,32 @@ cas::IType* Module::GetType(cstring name, int flags)
 
 cas::IModule::ParseResult Module::Parse(cstring input)
 {
+	assert(input);
+
 	// build
 	if(!BuildModule())
-		return ParseResult::ValidationError;
+		return ValidationError;
 
 	// parse
 	ParseSettings settings;
 	settings.input = input;
-	settings.optimize = optimize;
+	settings.optimize = options.optimize;
+	settings.disallow_global_code = options.disallow_global_code;
+	settings.disallow_globals = options.disallow_globals;
 	if(!parser->Parse(settings))
-		return ParseResult::ParsingError;
+		return ParsingError;
 
-	return ParseResult::Ok;
+	return Ok;
+}
+
+cas::IModule::ParseResult Module::ParseAndRun(cstring input)
+{
+	auto result = Parse(input);
+	if(result != Ok)
+		return result;
+
+	bool ok = Run();
+	return ok ? Ok : RunError;
 }
 
 void Module::QueryFunctions(delegate<bool(cas::IFunction*)> pred)
@@ -361,6 +380,14 @@ void Module::Reset()
 	Cleanup(false);
 }
 
+bool Module::Run()
+{
+	cas::ICallContext* call_context = CreateCallContext(nullptr);
+	bool ok = call_context->Run();
+	call_context->Release();
+	return ok;
+}
+
 void Module::SetName(cstring new_name)
 {
 	if(new_name)
@@ -369,9 +396,9 @@ void Module::SetName(cstring new_name)
 		name = Format("Module%d", index);
 }
 
-void Module::SetOptions(const Options& options)
+void Module::SetOptions(const Options& new_options)
 {
-	optimize = options.optimize;
+	options = new_options;
 }
 
 bool Module::AddEnumValue(Type* type, cstring name, int value)

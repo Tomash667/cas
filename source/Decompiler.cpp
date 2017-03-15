@@ -87,6 +87,7 @@ OpInfo ops[] = {
 	CALLU, "callu", Args1(V_SCRIPT_FUNCTION),
 	CALLU_CTOR, "callu_ctor", Args1(V_SCRIPT_FUNCTION),
 	RET, "ret", Args0(),
+	IRET, "iret", Args0(),
 	COPY, "copy", Args0(),
 	COPY_ARG, "copy_arg", Args1(V_INT),
 	RELEASE_REF, "release_ref", Args1(V_INT),
@@ -112,18 +113,51 @@ void Decompiler::Decompile(Module& _module)
 
 	module = &_module;
 	std::ostream& out = *s_output;
-	int* c = module->GetBytecode().data();
-	int* end = c + module->GetBytecode().size();
-	current_function = -2;
 
 	if(decompile_marker)
 		out << "***DCMP***";
 
 	out << "DECOMPILE:\n";
+	
+	DecompileFunctions();
+	DecompileMain();
+
+	out << "\n";
+	if(decompile_marker)
+		out << "***DCMP_END***";
+}
+
+void Decompiler::DecompileFunctions()
+{
+	auto& code = module->GetFunctionsBytecode();
+	auto& funcs = module->GetScriptFunctions();
+	if(funcs.empty())
+		return;
+
+	for(uint i = 0, count = funcs.size(); i < count; ++i)
+	{
+		ScriptFunction* f = funcs[i];
+		*s_output << Format("%s ", f->GetFormattedName(false));
+		uint next = (i + 1 == funcs.size() ? code.size() : funcs[i + 1]->pos);
+		DecompileBlock(code.data() + f->pos, code.data() + next);
+	}
+}
+
+void Decompiler::DecompileMain()
+{
+	auto& code = module->GetBytecode();
+	if(code.empty())
+		return;
+	*s_output << "Main:\n";
+	DecompileBlock(code.data(), code.data() + code.size());
+}
+
+void Decompiler::DecompileBlock(int* start, int* end)
+{
+	std::ostream& out = *s_output;
+	int* c = start;
 	while(c != end)
 	{
-		GetNextFunction(c);
-
 		Op op = (Op)*c++;
 		if(op >= MAX_OP)
 			out << "\tMISSING (" << op << ")\n";
@@ -161,14 +195,8 @@ void Decompiler::Decompile(Module& _module)
 			}
 			else
 				out << Format("\t[%d] %s\n", (int)op, opi.name);
-
-			
 		}
 	}
-
-	out << "\n";
-	if(decompile_marker)
-		out << "***DCMP_END***";
 }
 
 void Decompiler::DecompileType(int type, int val)
@@ -204,62 +232,3 @@ void Decompiler::DecompileType(int type, int val)
 	}
 }
 
-void Decompiler::GetNextFunction(int* pos)
-{
-	if(current_function == -1)
-		return;
-
-	std::ostream& out = *s_output;
-
-	// find first function in bytecode
-	if(current_function == -2)
-	{
-		current_function = 0;
-		while(1)
-		{
-			if(current_function == (int)module->GetScriptFunctions().size())
-			{
-				current_function = -1;
-				break;
-			}
-			if(module->GetScriptFunction(current_function, true)->pos == -1)
-				++current_function;
-			else
-				break;
-		}
-		if(current_function == -1)
-			out << "Main:\n";
-		else
-			out << "Function " << module->GetScriptFunction(current_function, true)->GetFormattedName(false) << ":\n";
-		return;
-	}
-	
-	// find next function in bytecode
-	uint offset = pos - module->GetBytecode().data();
-	if(offset >= module->GetEntryPoint())
-	{
-		current_function = -1;
-		out << "Main:\n";
-	}
-	else
-	{
-		int next_function = current_function + 1;
-		while(true)
-		{
-			if(next_function == (int)module->GetScriptFunctions().size())
-			{
-				next_function = -1;
-				break;
-			}
-			if(module->GetScriptFunction(next_function, true)->pos == -1)
-				++next_function;
-			else
-				break;
-		}
-		if(next_function != -1 && offset >= module->GetScriptFunction(next_function, true)->pos)
-		{
-			current_function = next_function;
-			out << "Function " << module->GetScriptFunction(current_function, true)->GetFormattedName(false) << ":\n";
-		}
-	}
-}

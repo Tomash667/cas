@@ -22,14 +22,17 @@ namespace cas
 		{
 			ValidationError,
 			ParsingError,
+			RunError,
 			Ok
 		};
 
 		struct Options
 		{
 			bool optimize;
+			bool disallow_global_code;
+			bool disallow_globals;
 
-			Options() : optimize(true) {}
+			Options() : optimize(true), disallow_global_code(false), disallow_globals(false) {}
 		};
 
 		virtual IEnum* AddEnum(cstring type_name) = 0;
@@ -42,13 +45,16 @@ namespace cas
 		virtual void GetFunctionsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
 		virtual IGlobal* GetGlobal(cstring name, int flags = 0) = 0;
 		virtual cstring GetName() = 0;
+		virtual const Options& GetOptions() = 0;
 		virtual IType* GetType(cstring name, int flags = 0) = 0;
 		virtual ParseResult Parse(cstring input) = 0;
+		virtual ParseResult ParseAndRun(cstring input) = 0;
 		virtual void QueryFunctions(delegate<bool(IFunction*)> pred) = 0;
 		virtual void QueryGlobals(delegate<bool(IGlobal*)> pred) = 0;
 		virtual void QueryTypes(delegate<bool(IType*)> pred) = 0;
 		virtual void Release() = 0;
 		virtual void Reset() = 0;
+		virtual bool Run() = 0;
 		virtual void SetName(cstring name) = 0;
 		virtual void SetOptions(const Options& options) = 0;
 

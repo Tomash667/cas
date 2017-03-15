@@ -26,6 +26,8 @@ struct ParseSettings
 {
 	string input;
 	bool optimize;
+	bool disallow_global_code;
+	bool disallow_globals;
 };
 
 struct ReturnInfo
@@ -83,6 +85,11 @@ private:
 	ParseNode* ParseLineOrBlock();
 	ParseNode* ParseBlock(ParseFunction* f = nullptr);
 	ParseNode* ParseLine();
+	ParseNode* ParseIf();
+	ParseNode* ParseDo();
+	ParseNode* ParseWhile();
+	ParseNode* ParseFor();
+	ParseNode* ParseBreak();
 	ParseNode* ParseReturn();
 	void ParseClass(bool is_struct);
 	ParseNode* ParseSwitch();
@@ -142,7 +149,6 @@ private:
 	void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos);
 
 	Type* GetType(int index);
-	VarType GetReturnType(ParseNode* node);
 	cstring GetName(ParseVar* var);
 	cstring GetTypeName(ParseNode* node);
 	VarType CommonType(VarType a, VarType b);
@@ -158,6 +164,7 @@ private:
 	NextType GetNextType(bool analyze);
 	void FreeTmpStr(string* str);
 	bool IsCtor(ParseNode* node);
+	void CheckGlobalCodeDisallowed();
 
 	void AnalyzeCode();
 	void AnalyzeClass();
@@ -184,5 +191,5 @@ private:
 	vector<string*> tmp_strs;
 	uint prev_line, new_types_offset, new_globals_offset, parse_func_offset;
 	int breakable_block;
-	bool optimize;
+	bool optimize, disallow_global_code, disallow_globals;
 };
