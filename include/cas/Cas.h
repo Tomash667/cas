@@ -6,3 +6,4 @@
 #include "cas/IGlobal.h"
 #include "cas/IMember.h"
 #include "cas/IModule.h"
+#include "cas/IObject.h"

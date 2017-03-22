@@ -4,6 +4,9 @@
 
 extern ostringstream s_output;
 
+namespace reflection_tests
+{
+
 class A
 {
 public:
@@ -15,6 +18,15 @@ public:
 };
 
 void f(char, float) {}
+
+class B
+{
+public:
+	float x, y;
+	char c;
+
+	B(float x, char c, float y) : x(x), y(y), c(c) {}
+};
 
 CA_TEST_CLASS(Reflection);
 
@@ -364,4 +376,82 @@ TEST_METHOD(MixedFunctions)
 	AssertOutput("AaBbCcDd");
 }
 
+TEST_METHOD(SetEntryPoint)
+{
+	auto result = module->Parse("int suma(int x, int y) { return x+y; }");
+	Assert::AreEqual(IModule::Ok, result);
+	auto func = module->GetFunction("suma");
+	auto context = module->CreateCallContext();
+	bool ok = context->SetEntryPoint(func, 1, 2);
+	Assert::IsTrue(ok);
+	ok = context->Run();
+	Assert::IsTrue(ok);
+	auto ret = Retval(context);
+	ret.IsInt(3);
+	context->Release();
+}
+
+TEST_METHOD(SetEntryPointObj)
+{
+	auto result = module->Parse(R"code(
+	struct INT2
+	{
+		int x,y;
+		INT2(int _x, int _y)
+		{
+			x = _x;
+			y = _y;
+		}
+		int suma()
+		{
+			return x+y;
+		}
+	}
+	)code");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto type = module->GetType("INT2");
+	auto func = type->GetMethod("suma");
+	auto context = module->CreateCallContext();
+	auto obj = context->CreateInstance(type, 3, 4);
+	Assert::IsNotNull(obj);
+	bool ok = context->SetEntryPointObj(func, obj);
+	obj->Release();
+	Assert::IsTrue(ok);
+	ok = context->Run();
+	Assert::IsTrue(ok);
+	auto ret = Retval(context);
+	ret.IsInt(7);	
+	context->Release();
+}
+
+TEST_METHOD(CreateClassInstance)
+{
+	auto type = module->AddType<B>("B");
+	Assert::IsNotNull(type);
+	type->AddMember("float x", offsetof(B, x));
+	type->AddMember("float y", offsetof(B, y));
+	type->AddMember("char c", offsetof(B, c));
+	bool ok = type->AddCtor<float, int, float>("B(float, char, float = 3.25)");
+	Assert::IsTrue(ok);
+
+	auto result = module->Parse("void f(B b) { print(\"\"+b.x+','+b.c+','+b.y); }");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto context = module->CreateCallContext();
+	auto obj = context->CreateInstance(type, 4.5f, 'x');
+	Assert::IsNotNull(obj);
+	ok = context->SetEntryPoint(module->GetFunction("f"), obj);
+	obj->Release();
+	Assert::IsTrue(ok);
+
+	ok = context->Run();
+	Assert::IsTrue(ok);
+	context->Release();
+
+	AssertOutput("4.5,x,3.25");
+}
+
 CA_TEST_CLASS_END();
+
+}

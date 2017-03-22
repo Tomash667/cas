@@ -32,6 +32,7 @@ Class* Class::Create(Type* type)
 	}
 #ifdef CHECK_LEAKS
 	all_classes.push_back(c);
+	c->attached = true;
 #endif
 	return c;
 }
@@ -46,6 +47,7 @@ Class* Class::CreateCode(Type* type, int* real_class)
 	c->adr = real_class;
 #ifdef CHECK_LEAKS
 	all_classes.push_back(c);
+	c->attached = true;
 #endif
 	return c;
 }
@@ -84,6 +86,7 @@ Class* Class::Copy(Class* base)
 	}
 #ifdef CHECK_LEAKS
 	all_classes.push_back(c);
+	c->attached = true;
 #endif
 	return c;
 }
@@ -94,7 +97,8 @@ bool Class::Release()
 	if(--refs == 0)
 	{
 #ifdef CHECK_LEAKS
-		RemoveElement(all_classes, this);
+		if(attached)
+			RemoveElement(all_classes, this);
 #endif
 		Delete();
 		return true;
@@ -144,3 +148,10 @@ void Class::Delete()
 		delete[] data;
 	}
 }
+
+#ifdef CHECK_LEAKS
+void Class::Deattach()
+{
+	attached = false;
+}
+#endif

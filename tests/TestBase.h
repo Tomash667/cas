@@ -32,6 +32,8 @@ namespace Microsoft
 					return L"struct";
 				case GenericType::Enum:
 					return L"enum";
+				case GenericType::Object:
+					return L"object";
 				case GenericType::Invalid:
 				default:
 					return L"invalid";
@@ -131,6 +133,7 @@ inline void RunParsedTest(cstring input = "", cstring output = nullptr)
 
 void CleanupErrors();
 void CleanupAsserts();
+void CleanupOutput();
 void AssertError(cstring error);
 void AssertOutput(cstring output);
 void SetDecompile(bool decompile);
@@ -142,6 +145,9 @@ struct Retval
 {
 	ICallContext* call_context;
 	static Retval* current;
+
+	Retval() {}
+	Retval(ICallContext* call_context) : call_context(call_context) {}
 	
 	void IsVoid()
 	{
@@ -212,6 +218,7 @@ TEST_CLASS(Name) 											\
 	TEST_METHOD_CLEANUP(OnTestTeardown) 					\
 	{ 														\
 		CleanupAsserts(); 									\
+		CleanupOutput();									\
 		module->Release();                                  \
 		current_module = nullptr;                           \
 		SetDecompile(false);								\

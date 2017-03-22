@@ -325,6 +325,12 @@ void CleanupAsserts()
 		current_call_context->GetAsserts().clear();
 }
 
+void CleanupOutput()
+{
+	s_output.clear();
+	s_output.str("");
+}
+
 void AssertError(cstring error)
 {
 	cstring r = strstr(event_output.c_str(), error);

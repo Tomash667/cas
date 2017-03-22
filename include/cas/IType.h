@@ -17,20 +17,6 @@ namespace cas
 	class IMember;
 	class IModule;
 
-	enum class GenericType
-	{
-		Void,
-		Bool,
-		Char,
-		Int,
-		Float,
-		String,
-		Class,
-		Struct,
-		Enum,
-		Invalid
-	};
-
 	class IType
 	{
 	public:

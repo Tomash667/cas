@@ -14,7 +14,10 @@ struct Class
 	int refs;
 	Type* type;
 	bool is_code;
-	int* adr;
+#ifdef CHECK_LEAKS
+	bool attached;
+#endif
+	int* adr; // must be last member in Class
 
 	int* data()
 	{
@@ -38,4 +41,7 @@ struct Class
 
 	bool Release();
 	void Delete();
+#ifdef CHECK_LEAKS
+	void Deattach();
+#endif
 };

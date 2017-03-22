@@ -639,6 +639,17 @@ Str* Module::GetStr(int index)
 	return m->strs[str_index];
 }
 
+bool Module::IsAttached(IModuleProxy* module_proxy)
+{
+	assert(module_proxy);
+	for(auto& m : modules)
+	{
+		if(m.second == module_proxy)
+			return true;
+	}
+	return false;
+}
+
 void Module::RemoveCallContext(CallContext* call_context)
 {
 	assert(call_context);

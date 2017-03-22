@@ -7,7 +7,9 @@ struct StackFrame
 	{
 		NORMAL,
 		CTOR,
-		DTOR
+		DTOR,
+		CREATE_INSTANCE,
+		ENTRY_POINT
 	};
 
 	vector<int>* code;

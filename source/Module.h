@@ -66,6 +66,7 @@ public:
 	Str* GetStr(int index);
 	vector<Str*>& GetStrs() { return strs; }
 	vector<Type*>& GetTypes() { return types; }
+	bool IsAttached(IModuleProxy* module_proxy);
 	void RemoveCallContext(CallContext* call_context);
 	void SetMainStackSize(uint new_main_stack_size) { main_stack_size = new_main_stack_size; }
 

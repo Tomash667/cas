@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cas/IObject.h"
 #include "ICallContextProxy.h"
 #include "Var.h"
 #include "VectorOffset.h"
@@ -11,6 +12,21 @@ struct CodeFunction;
 struct Member;
 struct Str;
 
+struct Object : public cas::IObject
+{
+	void Release() override
+	{
+		clas->Release();
+	}
+
+	void AddRef()
+	{
+		clas->refs++;
+	}
+
+	Class* clas;
+};
+
 // Call context runs script code
 class CallContext : public ICallContextProxy
 {
@@ -19,15 +35,20 @@ public:
 	~CallContext();
 
 	// from ICallContext
+	cas::IObject* CreateInstance(cas::IType* type) override;
 	vector<string>& GetAsserts() override;
 	std::pair<cstring, int> GetCurrentLocation() override;
+	std::pair<cas::IFunction*, cas::IObject*> GetEntryPoint() override;
 	cstring GetException() override;
 	cas::IObject* GetGlobal(cas::IGlobal* global) override;
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
 	cas::Value GetReturnValue() override;
+	void PushValue(const cas::Value& val) override;
 	void Release() override;
 	bool Run() override;
+	bool SetEntryPoint(cas::IFunction* func) override;
+	bool SetEntryPointObj(cas::IFunction* func, cas::IObject* obj) override;
 	void SetName(cstring name) override;
 
 	// from ICallContextProxy
@@ -60,18 +81,24 @@ private:
 	};
 
 	void AddRef(Var& v);
+	void Callu(ScriptFunction& f, StackFrame::Type type);
 	void Cast(Var& v, VarType vartype);
 	void CleanupReturnValue();
+	void ConvertReturnValue(VarType* expected);
 	void ExecuteFunction(CodeFunction& f);
 	void ExecuteSimpleFunction(CodeFunction& f, void* _this);
 	GetRefData GetRef(Var& v);
 	void MakeSingleInstance(Var& v);
+	bool MatchFunctionCall(Function& f);
+	void PushFunctionDefaults(Function& f);
 	void PushStackFrame(StackFrame::Type type, uint pos, uint expected_stack);
 	void ReleaseRef(Var& v);
 	void RunInternal();
 	void SetFromStack(VectorOffset<Var>& vo);
 	void SetMemberValue(Class* c, Member* m, Var& v);
+	void ValuesToStack();
 	bool VerifyFunctionArg(Var& v, Arg& arg);
+	bool VerifyFunctionEntryPoint(Function* f, Object* obj);
 
 	const uint MAX_STACK_DEPTH = 100u;
 
@@ -80,6 +107,8 @@ private:
 	vector<RefVar*> refs;
 	vector<string> asserts;
 	Module& module;
+	Function* entry_point;
+	Object* entry_point_obj;
 	Str* retval_str;
 	string name, exc;
 	Var tmpv;
@@ -87,6 +116,7 @@ private:
 	uint depth;
 	int index, current_function, args_offset, locals_offset, current_line;
 	vector<int>* code;
+	vector<cas::Value> values;
 	int* code_pos;
 	int cleanup_offset;
 };

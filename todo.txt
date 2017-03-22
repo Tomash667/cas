@@ -1,7 +1,13 @@
+? generate default ctor and CreateInstance
+? CreateInstance can use globals, what if Run wasn't called ?
+? calling CreateInstance while in code callback from script (change stack etc)
+
 + return class/struct
 + IObject
 	+ GetValue
+	+ etc
 + get globals
++ PushValue -> string, class, ref
 
 + rename VarType.GetType
 + cleanup parse_funcs, tmp_types on error
@@ -35,6 +41,7 @@
 	? CreateDefaultFunctions - class with struct member with custom assign, compare operator
 
 IMPROVEMENT/VERIFY:
++ refactor pass_by_ref
 + ParseConstExpr in switch, default arg value
 + ParseFunctionArgs -> ParseConstExpr
 + set_tmp reference (string?), check string references
@@ -191,6 +198,7 @@ FEATURE:
 + ref to thing that needs subtype
 + add code sections, then parse (each section can have name of file)
 + local globals - not visible outside module
++ dynamic return type
 
 DEBUG:
 + debug file marker, like LINE but FILE index to str

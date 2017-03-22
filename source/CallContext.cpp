@@ -2,6 +2,7 @@
 #include "CallContext.h"
 #include "CasException.h"
 #include "Class.h"
+#include "Event.h"
 #include "Member.h"
 #include "Module.h"
 #include "Op.h"
@@ -10,7 +11,8 @@
 
 ICallContextProxy* ICallContextProxy::Current;
 
-CallContext::CallContext(int index, Module& module, cstring name) : index(index), module(module), retval_str(nullptr)
+CallContext::CallContext(int index, Module& module, cstring name) : index(index), module(module), retval_str(nullptr), entry_point(nullptr),
+	entry_point_obj(nullptr)
 {
 	SetName(name);
 	CleanupReturnValue();
@@ -18,6 +20,106 @@ CallContext::CallContext(int index, Module& module, cstring name) : index(index)
 
 CallContext::~CallContext()
 {
+	if(entry_point_obj)
+		entry_point_obj->Release();
+}
+
+cas::IObject* CallContext::CreateInstance(cas::IType* _type)
+{
+	Type* type = dynamic_cast<Type*>(_type);
+	assert(type);
+	assert(module.IsAttached(type->module_proxy));
+	assert(type->IsClass());
+
+	vector<AnyFunction> funcs;
+	type->FindAllCtors(funcs);
+	AnyFunction match(nullptr);
+	for(AnyFunction& f : funcs)
+	{
+		if(MatchFunctionCall(*f.f))
+		{
+			match = f;
+			break;
+		}
+	}
+
+	if(!match)
+	{
+		LocalString s = "No matching constructor for type '";
+		s += type->name;
+		s += '\'';
+		if(!values.empty())
+		{
+			s += " with arguments (";
+			bool first = true;
+			for(auto& val : values)
+			{
+				if(first)
+					first = false;
+				else
+					s += ',';
+				switch(val.generic_type)
+				{
+				case cas::GenericType::Bool:
+					s += "bool";
+					break;
+				case cas::GenericType::Char:
+					s += "char";
+					break;
+				case cas::GenericType::Int:
+					s += "int";
+					break;
+				case cas::GenericType::Float:
+					s += "float";
+					break;
+				default:
+					// TODO
+					assert(0);
+					break;
+				}
+			}
+			s += ')';
+		}
+		s += '.';
+		Error(s.c_str());
+		return nullptr;
+	}
+
+	ValuesToStack();
+	PushFunctionDefaults(*match.f);
+	values.clear();
+
+	// call
+	if(match.IsCode())
+		ExecuteFunction(*match.cf);
+	else
+	{
+		try
+		{
+			code = nullptr;
+			current_function = -1;
+			Callu(*match.sf, StackFrame::CREATE_INSTANCE);
+			RunInternal();
+		}
+		catch(const CasException& ex)
+		{
+			Error("Failed to create instance '%s': %s", type->name.c_str(), ex.exc);
+			return nullptr;
+		}
+	}
+
+	// box return value
+	assert(!stack.empty());
+	Object* obj = new Object;
+	Var& v = stack.back();
+	assert(module.GetType(v.vartype.type)->IsClass());
+	obj->clas = v.clas;
+#ifdef CHECK_LEAKS
+	v.clas->Deattach();
+#endif
+	stack.pop_back();
+
+	return obj;
 }
 
 vector<string>& CallContext::GetAsserts()
@@ -33,6 +135,11 @@ std::pair<cstring, int> CallContext::GetCurrentLocation()
 	else
 		func_name = module.GetScriptFunction(current_function)->GetName();
 	return std::pair<cstring, uint>(func_name, current_line);
+}
+
+std::pair<cas::IFunction*, cas::IObject*> CallContext::GetEntryPoint()
+{
+	return std::pair<cas::IFunction*, cas::IObject*>(entry_point, entry_point_obj);
 }
 
 cstring CallContext::GetException()
@@ -61,6 +168,17 @@ cas::Value CallContext::GetReturnValue()
 	return return_value;
 }
 
+void CallContext::PushValue(const cas::Value& val)
+{
+	assert(val.generic_type != cas::GenericType::Void);
+	if(val.generic_type == cas::GenericType::Object)
+	{
+		Object* obj = (Object*)val.obj;
+		obj->AddRef();
+	}
+	values.push_back(val);
+}
+
 void CallContext::Release()
 {
 	module.RemoveCallContext(this);
@@ -76,7 +194,6 @@ bool CallContext::Run()
 	global.clear();
 	global.resize(module.GetMainStackSize());
 	local.clear();
-	current_function = -1;
 	depth = 0;
 	current_line = -1;
 	stack_frames.clear();
@@ -84,8 +201,26 @@ bool CallContext::Run()
 	Class::all_classes.clear();
 	RefVar::all_refs.clear();
 #endif
-	code = &module.GetBytecode();
-	code_pos = code->data();
+	current_function = -1;
+	if(entry_point)
+	{
+		ScriptFunction* f = (ScriptFunction*)entry_point;
+		if(entry_point_obj)
+		{
+			entry_point_obj->AddRef();
+			stack.push_back(Var(entry_point_obj->clas));
+		}
+		ValuesToStack();
+		PushFunctionDefaults(*f);
+		values.clear();
+		code = nullptr;
+		Callu(*f, StackFrame::ENTRY_POINT);
+	}
+	else
+	{
+		code = &module.GetBytecode();
+		code_pos = code->data();
+	}
 	cleanup_offset = 0;
 	ICallContextProxy::Current = this;
 
@@ -116,6 +251,36 @@ bool CallContext::Run()
 	return result;
 }
 
+bool CallContext::SetEntryPoint(cas::IFunction* func)
+{
+	Function* f = (Function*)func;
+	if(!VerifyFunctionEntryPoint(f, nullptr))
+		return false;
+	entry_point = f;
+	if(entry_point_obj)
+	{
+		entry_point_obj->Release();
+		entry_point_obj = nullptr;
+	}
+	return true;
+}
+
+bool CallContext::SetEntryPointObj(cas::IFunction* func, cas::IObject* obj)
+{
+	if(func)
+		assert(obj);
+	Function* f = (Function*)func;
+	Object* o = (Object*)obj;
+	if(!VerifyFunctionEntryPoint(f, o))
+		return false;
+	entry_point = f;
+	if(entry_point_obj)
+		entry_point_obj->Release();
+	entry_point_obj = o;
+	o->AddRef();
+	return true;
+}
+
 void CallContext::SetName(cstring new_name)
 {
 	if(new_name)
@@ -137,6 +302,64 @@ void CallContext::AddRef(Var& v)
 		if(type->IsClass())
 			v.clas->refs++;
 	}
+}
+
+void CallContext::Callu(ScriptFunction& f, StackFrame::Type type)
+{
+	// mark function call
+	uint pos = (code ? code_pos - code->data() : 0);
+	local.push_back(Var(V_SPECIAL));
+
+	// push this, handle args
+	uint expected;
+	if(f.special == SF_CTOR)
+	{
+		assert(stack.size() >= f.args.size() - 1);
+		args_offset = local.size();
+		assert(module.GetType(f.type)->IsClass());
+		local.resize(local.size() + f.args.size());
+		local[args_offset] = Var(Class::Create(module.GetType(f.type)));
+		
+		for(uint i = 1, count = f.args.size(); i < count; ++i)
+		{
+			assert(stack.back().vartype == f.args[count - i].vartype);
+			local[args_offset + count - i] = stack.back();
+			stack.pop_back();
+		}
+
+		expected = stack.size() + 1;
+	}
+	else
+	{
+		assert(stack.size() >= f.args.size());
+		args_offset = local.size();
+		local.resize(local.size() + f.args.size());
+
+		for(uint i = 0, count = f.args.size(); i < count; ++i)
+		{
+			assert(stack.back().vartype == f.args[count - 1 - i].vartype);
+			local[args_offset + count - 1 - i] = stack.back();
+			stack.pop_back();
+		}
+
+		expected = stack.size();
+		if(f.result.type != V_VOID)
+			++expected;
+	}
+
+	// handle locals
+	locals_offset = local.size();
+	local.resize(local.size() + f.locals);
+
+	// push frame
+	PushStackFrame(type, pos, expected);
+
+	// jmp to new location
+	current_function = f.index;
+	current_line = -1;
+	code = &((Module*)f.module_proxy)->GetFunctionsBytecode();
+	code_pos = code->data() + f.pos;
+	++depth;
 }
 
 void CallContext::Cast(Var& v, VarType vartype)
@@ -253,6 +476,34 @@ void CallContext::CleanupReturnValue()
 	}
 
 	return_value.type = module.GetType(V_VOID);
+}
+
+void CallContext::ConvertReturnValue(VarType* expected)
+{
+	if(stack.empty() || (expected && expected->type == V_VOID))
+	{
+		// set void as return value
+		return_value.int_value = 0;
+		return_value.type = module.GetType(V_VOID);
+	}
+	else
+	{
+		// set return value
+		if(!expected)
+			assert(stack.size() == 1u);
+
+		Var& v = stack.back();
+		assert(!expected || v.vartype == *expected);
+		return_value.type = module.GetType(v.vartype.type);
+		if(v.vartype.type == V_STRING)
+		{
+			retval_str = v.str;
+			return_value.str_value = retval_str->s.c_str();
+		}
+		else
+			return_value.int_value = v.value;
+		stack.pop_back();
+	}
 }
 
 void CallContext::ExecuteFunction(CodeFunction& f)
@@ -624,6 +875,94 @@ void CallContext::MakeSingleInstance(Var& v)
 	ReleaseRef(v);
 	v.clas = copy;
 	assert(v.vartype == VarType(v.clas->type->index, 0));
+}
+
+int GenericTypeToIndex(cas::Value& val)
+{
+	switch(val.generic_type)
+	{
+	case cas::GenericType::Void:
+		return V_VOID;
+	case cas::GenericType::Bool:
+		return V_BOOL;
+	case cas::GenericType::Char:
+		return V_CHAR;
+	case cas::GenericType::Int:
+		return V_INT;
+	case cas::GenericType::Float:
+		return V_FLOAT;
+	case cas::GenericType::String:
+		return V_STRING;
+	case cas::GenericType::Class:
+	case cas::GenericType::Struct:
+	case cas::GenericType::Enum:
+		{
+			Type* type = dynamic_cast<Type*>(val.type);
+			return type->index;
+		}
+		break;
+	case cas::GenericType::Object:
+		{
+			Object* obj = (Object*)val.obj;
+			Type* type = obj->clas->type;
+			return type->index;
+		}
+	case cas::GenericType::Invalid:
+	default:
+		assert(0);
+		return V_VOID;
+	}
+}
+
+void CallContext::PushFunctionDefaults(Function& f)
+{
+	uint offset = values.size();
+	if(!f.IsStatic() && f.type != V_VOID && !(f.special == SF_CTOR && f.IsCode())) // not static, not code ctor
+		++offset;
+
+	for(uint i = offset, count = f.args.size(); i < count; ++i)
+	{
+		Arg& arg = f.args[i];
+		assert(arg.have_def_value);
+		switch(arg.vartype.type)
+		{
+		case V_BOOL:
+			stack.push_back(Var(arg.bvalue));
+			break;
+		case V_CHAR:
+			stack.push_back(Var(arg.cvalue));
+			break;
+		case V_INT:
+			stack.push_back(Var(arg.value));
+			break;
+		case V_FLOAT:
+			stack.push_back(Var(arg.fvalue));
+			break;
+		default: // todo
+			assert(0);
+			break;
+		}
+	}
+}
+
+bool CallContext::MatchFunctionCall(Function& f)
+{
+	uint offset = 0;
+	if(!f.IsStatic() && f.type != V_VOID && !(f.special == SF_CTOR && f.IsCode())) // not static, not code ctor
+		++offset;
+
+	if(values.size() + offset > f.args.size() || values.size() + offset < f.required_args)
+		return false;
+
+	for(uint i = 0; i < values.size(); ++i)
+	{
+		Arg& arg = f.args[i + offset];
+		cas::Value& val = values[i];
+		if(GenericTypeToIndex(val) != arg.vartype.type)
+			return false;
+	}
+
+	return true;
 }
 
 void CallContext::PushStackFrame(StackFrame::Type type, uint pos, uint expected_stack)
@@ -1451,27 +1790,7 @@ void CallContext::RunInternal()
 				// set & validate return value
 				assert(depth == 0);
 				assert(local.empty());
-				if(stack.empty())
-				{
-					// set void as return value
-					return_value.int_value = 0;
-					return_value.type = module.GetType(V_VOID);
-				}
-				else
-				{
-					// set return value
-					assert(stack.size() == 1u);
-					Var& v = stack.back();
-					return_value.type = module.GetType(v.vartype.type);
-					if(v.vartype.type == V_STRING)
-					{
-						retval_str = v.str;
-						return_value.str_value = retval_str->s.c_str();
-					}
-					else
-						return_value.int_value = v.value;
-					stack.pop_back();
-				}
+				ConvertReturnValue(nullptr);
 				return;
 			}
 			else
@@ -1479,8 +1798,12 @@ void CallContext::RunInternal()
 				ScriptFunction& f = *module.GetScriptFunction(current_function);
 				uint to_pop = f.locals + f.args.size();
 				assert(local.size() > to_pop);
+
+				// verify function mark
 				Var& func_mark = *(local.end() - to_pop - 1);
 				assert(func_mark.vartype.type == V_SPECIAL);
+
+				// release references
 				while(!refs.empty())
 				{
 					RefVar* ref = refs.back();
@@ -1496,8 +1819,11 @@ void CallContext::RunInternal()
 					ref->Release();
 					refs.pop_back();
 				}
+
+				// cleanup locals
 				--depth;
-				if(stack_frames.back().type == StackFrame::CTOR)
+				StackFrame::Type frame_type = stack_frames.back().type;
+				if(frame_type == StackFrame::CTOR || frame_type == StackFrame::CREATE_INSTANCE)
 					--to_pop;
 				int tmp_cleanup_offset = cleanup_offset;
 				cleanup_offset = 0;
@@ -1509,16 +1835,21 @@ void CallContext::RunInternal()
 					cleanup_offset++;
 				}
 				cleanup_offset = tmp_cleanup_offset;
+
+				// handle 
 				StackFrame& frame = stack_frames.back();
 				Class* thi = nullptr;
-				if(frame.type == StackFrame::CTOR)
+				if(frame.type == StackFrame::CTOR || frame.type == StackFrame::CREATE_INSTANCE)
 				{
 					assert(local.back().vartype.type == f.type);
 					thi = local.back().clas;
 					local.pop_back();
 				}
+
+				// restore previous stack frame
 				code = frame.code;
-				c = code->data() + frame.pos;
+				if(code)
+					c = code->data() + frame.pos;
 				current_function = frame.current_function;
 				local.pop_back();
 				if(current_function != -1)
@@ -1532,14 +1863,25 @@ void CallContext::RunInternal()
 					locals_offset = local.size() - f.locals - cleanup_offset;
 					args_offset = locals_offset - f.args.size() - cleanup_offset;
 				}
+
+				// push this result
 				if(thi)
 					stack.push_back(Var(thi));
+
+				// verify stack size
 				assert(frame.expected_stack == stack.size());
 				if(f.result.type != V_VOID)
 					assert(stack.back().vartype == f.result);
+
+				// stack frame type handling
 				current_line = frame.current_line;
-				if(frame.type == StackFrame::DTOR)
+				if(frame.type == StackFrame::DTOR || frame.type == StackFrame::CREATE_INSTANCE || frame.type == StackFrame::ENTRY_POINT)
 				{
+					if(frame.type == StackFrame::ENTRY_POINT)
+					{
+						assert(entry_point);
+						ConvertReturnValue(&entry_point->result);
+					}
 					stack_frames.pop_back();
 					return;
 				}
@@ -1580,69 +1922,17 @@ void CallContext::RunInternal()
 		case CALLU:
 			{
 				uint f_idx = *c++;
-				ScriptFunction& f = *module.GetScriptFunction(f_idx);;
-				// mark function call
-				uint pos = c - code->data();
-				local.push_back(Var(V_SPECIAL));
-				// handle args
-				assert(stack.size() >= f.args.size());
-				args_offset = local.size();
-				local.resize(local.size() + f.args.size());
-				for(uint i = 0, count = f.args.size(); i < count; ++i)
-				{
-					assert(stack.back().vartype == f.args[count - 1 - i].vartype);
-					local[args_offset + count - 1 - i] = stack.back();
-					stack.pop_back();
-				}
-				// handle locals
-				locals_offset = local.size();
-				local.resize(local.size() + f.locals);
-				// push frame
-				uint expected = stack.size();
-				if(f.result.type != V_VOID)
-					++expected;
-				PushStackFrame(StackFrame::NORMAL, pos, expected);
-
-				// jmp to new location
-				current_function = f_idx;
-				current_line = -1;
-				code = &((Module*)f.module_proxy)->GetFunctionsBytecode();
-				c = code->data() + f.pos;
-				++depth;
+				ScriptFunction& f = *module.GetScriptFunction(f_idx);
+				assert(f.special != SF_CTOR);
+				Callu(f, StackFrame::NORMAL);
 			}
 			break;
 		case CALLU_CTOR:
 			{
 				uint f_idx = *c++;
 				ScriptFunction& f = *module.GetScriptFunction(f_idx);
-				// mark function call
-				uint pos = c - code->data();
-				local.push_back(Var(V_SPECIAL));
-				// push this
-				args_offset = local.size();
-				assert(module.GetType(f.type)->IsClass());
-				local.resize(local.size() + f.args.size());
-				local[args_offset] = Var(Class::Create(module.GetType(f.type)));
-				// handle args
-				assert(stack.size() >= f.args.size() - 1);
-				for(uint i = 1, count = f.args.size(); i < count; ++i)
-				{
-					assert(stack.back().vartype == f.args[count - i].vartype);
-					local[args_offset + count - i] = stack.back();
-					stack.pop_back();
-				}
-				// handle locals
-				locals_offset = local.size();
-				local.resize(local.size() + f.locals);
-				// push frame
-				uint expected = stack.size() + 1;
-				PushStackFrame(StackFrame::CTOR, pos, expected);
-				// jmp to new location
-				current_function = f_idx;
-				current_line = -1;
-				code = &((Module*)f.module_proxy)->GetFunctionsBytecode();
-				c = code->data() + f.pos;
-				++depth;
+				assert(f.special == SF_CTOR);
+				Callu(f, StackFrame::CTOR);
 			}
 			break;
 		case COPY:
@@ -1777,6 +2067,38 @@ void CallContext::SetMemberValue(Class* c, Member* m, Var& v)
 	}
 }
 
+void CallContext::ValuesToStack()
+{
+	for(cas::Value& value : values)
+	{
+		switch(value.generic_type)
+		{
+		case cas::GenericType::Bool:
+			stack.push_back(Var(value.bool_value));
+			break;
+		case cas::GenericType::Char:
+			stack.push_back(Var(value.char_value));
+			break;
+		case cas::GenericType::Int:
+			stack.push_back(Var(value.int_value));
+			break;
+		case cas::GenericType::Float:
+			stack.push_back(Var(value.float_value));
+			break;
+		case cas::GenericType::Object:
+			{
+				Object* obj = (Object*)value.obj;
+				stack.push_back(Var(obj->clas));
+			}
+			break;
+		default: // TODO
+		case cas::GenericType::Void:
+			assert(0);
+			break;
+		}
+	}
+}
+
 bool CallContext::VerifyFunctionArg(Var& v, Arg& arg)
 {
 	if(v.vartype == arg.vartype)
@@ -1790,4 +2112,24 @@ bool CallContext::VerifyFunctionArg(Var& v, Arg& arg)
 	}
 
 	return false;
+}
+
+bool CallContext::VerifyFunctionEntryPoint(Function* f, Object* obj)
+{
+	if(!f)
+		return true;
+	
+	if(f->IsCode() || f->IsDeleted() || f->IsBuiltin())
+		return false; // can't use code/deleted/builtin function as entry point
+
+	if(!module.IsAttached(f->module_proxy))
+		return false; // function from unattached module
+
+	if((f->IsThisCall() || (f->type != V_VOID)) != (obj != nullptr))
+		return false; // require object, but not passed
+	
+	if(!MatchFunctionCall(*f))
+		return false; // invalid arguments
+
+	return true;
 }
