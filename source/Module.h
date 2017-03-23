@@ -11,7 +11,7 @@ struct Str;
 // Script module
 // Container for code, types and functions
 // Can have child and parent modules
-class Module : public IModuleProxy
+class Module final : public IModuleProxy
 {
 public:
 	Module(int index, cstring name);
@@ -45,10 +45,10 @@ public:
 	bool AddEnumValue(Type* type, cstring name, int value);
 	bool AddMember(Type* type, cstring decl, int offset);
 	bool AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_info);
-	cas::ComplexType GetComplexType(VarType vartype) override;
 	bool GetFunctionDecl(cstring decl, string& real_decl, Type* type) override;
 	cstring GetName(VarType vartype) override;
 	Type* GetType(int index) override;
+	cas::Type VarTypeToType(VarType vartype) override;
 
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
 	AnyFunction FindEqualFunction(Function* f);

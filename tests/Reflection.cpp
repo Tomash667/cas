@@ -163,9 +163,9 @@ TEST_METHOD(IFunctionOps)
 	// verify
 	Assert::AreEqual(1u, func->GetArgCount());
 	auto arg_type = func->GetArgType(0);
-	Assert::AreEqual(GenericType::Int, arg_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::Int, arg_type.generic_type);
 	auto value = func->GetArgDefaultValue(0);
-	Assert::AreEqual(GenericType::Void, value.type->GetGenericType());
+	Assert::AreEqual(GenericType::Void, value.type.generic_type);
 	auto clas = func->GetClass();
 	Assert::IsTrue(clas == itype);
 	Assert::AreEqual("void f(int)", func->GetDecl());
@@ -173,18 +173,18 @@ TEST_METHOD(IFunctionOps)
 	Assert::IsTrue(module == func->GetModule());
 	Assert::AreEqual("f", func->GetName());
 	arg_type = func->GetReturnType();
-	Assert::AreEqual(GenericType::Void, arg_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::Void, arg_type.generic_type);
 
 	// verify2
 	Assert::AreEqual(2u, func2->GetArgCount());
 	arg_type = func2->GetArgType(0);
-	Assert::AreEqual(GenericType::Int, arg_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::Int, arg_type.generic_type);
 	arg_type = func2->GetArgType(1);
-	Assert::AreEqual(GenericType::Float, arg_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::Float, arg_type.generic_type);
 	value = func2->GetArgDefaultValue(0);
-	Assert::AreEqual(GenericType::Void, value.type->GetGenericType());
+	Assert::AreEqual(GenericType::Void, value.type.generic_type);
 	value = func2->GetArgDefaultValue(1);
-	Assert::AreEqual(GenericType::Float, value.type->GetGenericType());
+	Assert::AreEqual(GenericType::Float, value.type.generic_type);
 	Assert::AreEqual(3.f, value.float_value);
 	clas = func2->GetClass();
 	Assert::IsNull(clas);
@@ -193,7 +193,7 @@ TEST_METHOD(IFunctionOps)
 	Assert::IsTrue(module == func2->GetModule());
 	Assert::AreEqual("g", func2->GetName());
 	arg_type = func2->GetReturnType();
-	Assert::AreEqual(GenericType::String, arg_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::String, arg_type.generic_type);
 }
 
 TEST_METHOD(GetEnumValues)
@@ -265,7 +265,7 @@ TEST_METHOD(IMemberOps)
 	Assert::AreEqual("var", member->GetName());
 	Assert::AreEqual(0u, member->GetOffset());
 	auto var_type = member->GetType();
-	Assert::AreEqual(GenericType::Int, var_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::Int, var_type.generic_type);
 
 	// verify2
 	Assert::IsTrue(itype2 == member2->GetClass());
@@ -273,7 +273,7 @@ TEST_METHOD(IMemberOps)
 	Assert::AreEqual("y", member2->GetName());
 	Assert::AreEqual(4u, member2->GetOffset());
 	var_type = member2->GetType();
-	Assert::AreEqual(GenericType::Float, var_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::Float, var_type.generic_type);
 }
 
 TEST_METHOD(IGlobalOps)
@@ -290,7 +290,7 @@ TEST_METHOD(IGlobalOps)
 	Assert::IsTrue(module == global->GetModule());
 	Assert::AreEqual("globalx", global->GetName());
 	auto var_type = global->GetType();
-	Assert::AreEqual(GenericType::Int, var_type.type->GetGenericType());
+	Assert::AreEqual(GenericType::Int, var_type.generic_type);
 }
 
 TEST_METHOD(ITypeOps)
@@ -451,6 +451,104 @@ TEST_METHOD(CreateClassInstance)
 
 	AssertOutput("4.5,x,3.25");
 }
+
+TEST_METHOD(ReturnScriptClassToCaller)
+{
+	auto result = module->Parse(R"code(
+		class C
+		{
+			int i;
+			float f;
+			char c;
+		}
+
+		C c;
+		c.i = 3;
+		c.f = 0.14;
+		c.c = 'p';
+		return c;
+	)code");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto context = module->CreateCallContext();
+	bool ok = context->Run();
+	Assert::IsTrue(ok);
+	auto ret = context->GetReturnValue();
+	Assert::AreEqual(cas::GenericType::Object, ret.type.generic_type);
+	auto obj = ret.obj;
+	obj->AddRef();
+	context->Release();
+	Assert::AreEqual(cas::GenericType::Object, obj->GetType().generic_type);
+	auto type = obj->GetType().specific_type;
+	Assert::AreEqual("C", type->GetName());
+	
+	Assert::AreEqual(3, obj->GetMemberValue<int>(type->GetMember("i")));
+	Assert::AreEqual(0.14f, obj->GetMemberValue<float>(type->GetMember("f")));
+	Assert::AreEqual('p', obj->GetMemberValue<char>(type->GetMember("c")));
+	obj->Release();
+}
+
+TEST_METHOD(ReturnCodeClassToCaller)
+{
+	auto type = module->AddType<B>("B");
+	type->AddMember("float x", offsetof(B, x));
+	type->AddMember("float y", offsetof(B, y));
+	type->AddMember("char c", offsetof(B, c));
+
+	auto result = module->Parse(R"code(
+		B b;
+		b.x = 1.24;
+		b.y = 3.66;
+		b.c = 'x';
+		return b;
+	)code");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto context = module->CreateCallContext();
+	bool ok = context->Run();
+	Assert::IsTrue(ok);
+
+	auto ret = context->GetReturnValue();
+	Assert::AreEqual(GenericType::Object, ret.type.generic_type);
+	Assert::AreEqual("B", ret.type.specific_type->GetName());
+
+	auto obj = ret.obj;
+	obj->AddRef();
+	context->Release();
+
+	B& b = obj->Cast<B>();
+	Assert::AreEqual(1.24f, b.x);
+	Assert::AreEqual(3.66f, b.y);
+	Assert::AreEqual('x', b.c);
+	obj->Release();
+}
+
+/*TEST_METHOD(PushStringValue)
+{
+	auto result = module->Parse(R"code(
+		void f(string s)
+		{
+			println("f:"+s);
+		}
+		void f2(string& s)
+		{
+			s = "f2:"+s;
+		}
+	)code");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto fun = module->GetFunction("f");
+	auto context = module->CreateCallContext();
+	context->SetEntryPoint(fun, "test");
+	bool ok = context->Run();
+	Assert::IsTrue(ok);
+	AssertOutput("f:test\n");
+	CleanupOutput();
+
+	fun = module->GetFunction("f2");
+	Value 
+	context->SetEntryPoint("test2")
+}*/
 
 CA_TEST_CLASS_END();
 

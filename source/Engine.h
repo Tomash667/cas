@@ -7,7 +7,7 @@ class CallContext;
 class Module;
 
 // Script engine
-class Engine : public cas::IEngine
+class Engine final : public cas::IEngine
 {
 public:
 	Engine();

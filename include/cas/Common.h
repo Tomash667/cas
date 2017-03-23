@@ -40,10 +40,19 @@ namespace cas
 		Invalid
 	};
 
-	struct Value
+	struct Type
 	{
 		GenericType generic_type;
-		IType* type;
+		IType* specific_type; // only for enum or object
+		bool is_ref;
+
+		Type() {}
+		Type(GenericType generic_type, IType* specific_type = nullptr) : generic_type(generic_type), specific_type(specific_type), is_ref(false) {}
+	};
+
+	struct Value
+	{
+		Type type;
 		union
 		{
 			bool bool_value;
@@ -53,24 +62,17 @@ namespace cas
 			cstring str_value;
 			IObject* obj;
 		};
-		bool is_ref;
 
 		Value() {}
-		Value(bool bool_value) : generic_type(GenericType::Bool), type(nullptr), bool_value(bool_value), is_ref(false) {}
-		Value(char char_value) : generic_type(GenericType::Char), type(nullptr), char_value(char_value), is_ref(false) {}
-		Value(int int_value) : generic_type(GenericType::Int), type(nullptr), int_value(int_value), is_ref(false) {}
-		Value(float float_value) : generic_type(GenericType::Float), type(nullptr), float_value(float_value), is_ref(false) {}
-		Value(cstring str_value) : generic_type(GenericType::String), type(nullptr), str_value(str_value), is_ref(false) {}
-		Value(IObject* obj) : generic_type(GenericType::Object), type(nullptr), obj(obj), is_ref(false) {}
+		Value(bool bool_value) : type(GenericType::Bool), bool_value(bool_value) {}
+		Value(char char_value) : type(GenericType::Char), char_value(char_value) {}
+		Value(int int_value) : type(GenericType::Int), int_value(int_value) {}
+		Value(float float_value) : type(GenericType::Float), float_value(float_value) {}
+		Value(cstring str_value) : type(GenericType::String), str_value(str_value) {}
+		Value(IObject* obj) : type(GenericType::Object), obj(obj) {}
 
 		template<typename T>
 		Value(const T&) = delete;
-	};
-
-	struct ComplexType
-	{
-		IType* type;
-		bool ref;
 	};
 
 	template<typename T>

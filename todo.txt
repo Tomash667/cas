@@ -1,12 +1,12 @@
+ORDER:
++ globals
++ IObject
+
 ? generate default ctor and CreateInstance
 ? CreateInstance can use globals, what if Run wasn't called ?
 ? calling CreateInstance while in code callback from script (change stack etc)
+? GetMemberValue(Ref) - string/class/enum/struct, ref
 
-+ return class/struct
-+ IObject
-	+ GetValue
-	+ etc
-+ get globals
 + PushValue -> string, class, ref
 
 + rename VarType.GetType

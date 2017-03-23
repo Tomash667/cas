@@ -22,13 +22,13 @@ namespace cas
 		};
 
 		virtual uint GetArgCount() = 0;
-		virtual ComplexType GetArgType(uint index) = 0;
+		virtual Type GetArgType(uint index) = 0;
 		virtual Value GetArgDefaultValue(uint index) = 0;
 		virtual IType* GetClass() = 0;
 		virtual cstring GetDecl() = 0;
 		virtual int GetFlags() = 0;
 		virtual IModule* GetModule() = 0;
 		virtual cstring GetName() = 0;
-		virtual ComplexType GetReturnType() = 0;
+		virtual Type GetReturnType() = 0;
 	};
 }

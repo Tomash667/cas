@@ -627,11 +627,8 @@ ParseNode* Parser::ParseReturn()
 		if(!ret->childs.empty())
 		{
 			ParseNode* r = ret->childs[0];
-			if(r->result.type != V_BOOL && r->result.type != V_CHAR && r->result.type != V_INT && r->result.type != V_FLOAT && r->result.type != V_STRING
-				&& !GetType(r->result.type)->IsEnum())
-			{
+			if(r->result.type == V_REF || r->result.type == V_TYPE)
 				t.Throw("Invalid type '%s' for global return.", module.GetName(r->result));
-			}
 		}
 	}
 	t.Next();

@@ -128,6 +128,7 @@
     <ClInclude Include="source\ICallContextProxy.h" />
     <ClInclude Include="source\IModuleProxy.h" />
     <ClInclude Include="source\Member.h" />
+    <ClInclude Include="source\Object.h" />
     <ClInclude Include="source\RefVar.h" />
     <ClInclude Include="source\StackFrame.h" />
     <ClInclude Include="source\Str.h" />
@@ -152,6 +153,7 @@
     <ClCompile Include="source\Function.cpp" />
     <ClCompile Include="source\Global.cpp" />
     <ClCompile Include="source\Member.cpp" />
+    <ClCompile Include="source\Object.cpp" />
     <ClCompile Include="source\RefVar.cpp" />
     <ClCompile Include="source\Symbol.cpp" />
     <ClInclude Include="source\Symbol.h">

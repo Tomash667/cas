@@ -11,7 +11,7 @@ enum SpecialFunction;
 
 // Script type
 // Can be simple type, class, struct or enum
-struct Type : public cas::IClass, public cas::IEnum
+struct Type final : public cas::IClass, public cas::IEnum
 {
 	enum Flags
 	{

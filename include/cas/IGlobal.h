@@ -11,6 +11,6 @@ namespace cas
 	public:
 		virtual IModule* GetModule() = 0;
 		virtual cstring GetName() = 0;
-		virtual ComplexType GetType() = 0;
+		virtual Type GetType() = 0;
 	};
 }

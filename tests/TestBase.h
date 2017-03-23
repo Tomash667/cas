@@ -152,50 +152,57 @@ struct Retval
 	void IsVoid()
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::Void, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Void, ret.type.generic_type);
 	}
 
 	void IsBool(bool expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::Bool, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Bool, ret.type.generic_type);
 		Assert::AreEqual(expected, ret.bool_value);
 	}
 
 	void IsChar(char expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::Char, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Char, ret.type.generic_type);
 		Assert::AreEqual(expected, ret.char_value);
 	}
 
 	void IsInt(int expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::Int, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Int, ret.type.generic_type);
 		Assert::AreEqual(expected, ret.int_value);
 	}
 
 	void IsFloat(float expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::Float, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::Float, ret.type.generic_type);
 		Assert::AreEqual(expected, ret.float_value, 0.01f);
 	}
 
 	void IsEnum(cstring name, int expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::Enum, ret.type->GetGenericType());
-		Assert::AreEqual(name, ret.type->GetName());
+		Assert::AreEqual(GenericType::Enum, ret.type.generic_type);
+		Assert::AreEqual(name, ret.type.specific_type->GetName());
 		Assert::AreEqual(expected, ret.int_value);
 	}
 
 	void IsString(cstring expected)
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::String, ret.type->GetGenericType());
+		Assert::AreEqual(GenericType::String, ret.type.generic_type);
 		Assert::AreEqual(expected, ret.str_value);
+	}
+
+	IObject* GetObject()
+	{
+		Value ret = call_context->GetReturnValue();
+		Assert::AreEqual(GenericType::Object, ret.type.generic_type);
+		return ret.obj;
 	}
 };
 

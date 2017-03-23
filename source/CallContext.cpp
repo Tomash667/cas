@@ -5,6 +5,7 @@
 #include "Event.h"
 #include "Member.h"
 #include "Module.h"
+#include "Object.h"
 #include "Op.h"
 #include "RefVar.h"
 #include "Str.h"
@@ -58,8 +59,11 @@ cas::IObject* CallContext::CreateInstance(cas::IType* _type)
 					first = false;
 				else
 					s += ',';
-				switch(val.generic_type)
+				switch(val.type.generic_type)
 				{
+				case cas::GenericType::Void:
+					s += "void";
+					break;
 				case cas::GenericType::Bool:
 					s += "bool";
 					break;
@@ -72,11 +76,26 @@ cas::IObject* CallContext::CreateInstance(cas::IType* _type)
 				case cas::GenericType::Float:
 					s += "float";
 					break;
+				case cas::GenericType::String:
+					s += "string";
+					break;
+				case cas::GenericType::Enum:
+				case cas::GenericType::Class:
+				case cas::GenericType::Struct:
+				case cas::GenericType::Object:
+					{
+						Type* type = dynamic_cast<Type*>(val.type.specific_type);
+						s += type->name;
+					}
+					break;
 				default:
 					// TODO
 					assert(0);
+					s += "invalid";
 					break;
 				}
+				if(val.type.is_ref)
+					s += "&";
 			}
 			s += ')';
 		}
@@ -168,15 +187,31 @@ cas::Value CallContext::GetReturnValue()
 	return return_value;
 }
 
+template<typename T, typename Arg>
+inline bool Any(const T& item, const Arg& arg)
+{
+	return item == arg;
+}
+
+template<typename T, typename Arg, typename... Args>
+inline bool Any(const T& item, const Arg& arg, const Args&... args)
+{
+	return item == arg || Any(item, args...);
+}
+
 void CallContext::PushValue(const cas::Value& val)
 {
-	assert(val.generic_type != cas::GenericType::Void);
-	if(val.generic_type == cas::GenericType::Object)
+	// disallow void, class, struct (class & struct must use object)
+	assert(!Any(val.type.generic_type, cas::GenericType::Void, cas::GenericType::Class, cas::GenericType::Struct));
+	cas::Value v = val;
+	if(v.type.generic_type == cas::GenericType::Object)
 	{
-		Object* obj = (Object*)val.obj;
+		assert(v.obj);
+		Object* obj = (Object*)v.obj;
 		obj->AddRef();
+		v.type.specific_type = obj->clas->type;
 	}
-	values.push_back(val);
+	values.push_back(v);
 }
 
 void CallContext::Release()
@@ -475,7 +510,8 @@ void CallContext::CleanupReturnValue()
 		retval_str = nullptr;
 	}
 
-	return_value.type = module.GetType(V_VOID);
+	return_value.type = cas::Type(cas::GenericType::Void);
+	return_value.int_value = 0;
 }
 
 void CallContext::ConvertReturnValue(VarType* expected)
@@ -483,8 +519,8 @@ void CallContext::ConvertReturnValue(VarType* expected)
 	if(stack.empty() || (expected && expected->type == V_VOID))
 	{
 		// set void as return value
+		return_value.type = cas::Type(cas::GenericType::Void);
 		return_value.int_value = 0;
-		return_value.type = module.GetType(V_VOID);
 	}
 	else
 	{
@@ -494,11 +530,22 @@ void CallContext::ConvertReturnValue(VarType* expected)
 
 		Var& v = stack.back();
 		assert(!expected || v.vartype == *expected);
-		return_value.type = module.GetType(v.vartype.type);
-		if(v.vartype.type == V_STRING)
+		return_value.type = module.VarTypeToType(v.vartype);
+		assert(!return_value.type.is_ref); // todo
+		if(return_value.type.generic_type == cas::GenericType::String)
 		{
 			retval_str = v.str;
 			return_value.str_value = retval_str->s.c_str();
+		}
+		else if(Any(return_value.type.generic_type, cas::GenericType::Object, cas::GenericType::Class, cas::GenericType::Struct))
+		{
+			Object* obj = new Object;
+			obj->clas = v.clas;
+#ifdef CHECK_LEAKS
+			obj->clas->Deattach();
+#endif
+			return_value.obj = obj;
+			return_value.type.generic_type = cas::GenericType::Object;
 		}
 		else
 			return_value.int_value = v.value;
@@ -877,43 +924,6 @@ void CallContext::MakeSingleInstance(Var& v)
 	assert(v.vartype == VarType(v.clas->type->index, 0));
 }
 
-int GenericTypeToIndex(cas::Value& val)
-{
-	switch(val.generic_type)
-	{
-	case cas::GenericType::Void:
-		return V_VOID;
-	case cas::GenericType::Bool:
-		return V_BOOL;
-	case cas::GenericType::Char:
-		return V_CHAR;
-	case cas::GenericType::Int:
-		return V_INT;
-	case cas::GenericType::Float:
-		return V_FLOAT;
-	case cas::GenericType::String:
-		return V_STRING;
-	case cas::GenericType::Class:
-	case cas::GenericType::Struct:
-	case cas::GenericType::Enum:
-		{
-			Type* type = dynamic_cast<Type*>(val.type);
-			return type->index;
-		}
-		break;
-	case cas::GenericType::Object:
-		{
-			Object* obj = (Object*)val.obj;
-			Type* type = obj->clas->type;
-			return type->index;
-		}
-	case cas::GenericType::Invalid:
-	default:
-		assert(0);
-		return V_VOID;
-	}
-}
-
 void CallContext::PushFunctionDefaults(Function& f)
 {
 	uint offset = values.size();
@@ -958,7 +968,7 @@ bool CallContext::MatchFunctionCall(Function& f)
 	{
 		Arg& arg = f.args[i + offset];
 		cas::Value& val = values[i];
-		if(GenericTypeToIndex(val) != arg.vartype.type)
+		if(TypeToVarType(val.type) != arg.vartype)
 			return false;
 	}
 
@@ -2067,11 +2077,62 @@ void CallContext::SetMemberValue(Class* c, Member* m, Var& v)
 	}
 }
 
+VarType CallContext::TypeToVarType(cas::Type& type)
+{
+	VarType vartype;
+
+	switch(type.generic_type)
+	{
+	case cas::GenericType::Void:
+		vartype.type = V_VOID;
+		break;
+	case cas::GenericType::Bool:
+		vartype.type = V_BOOL;
+		break;
+	case cas::GenericType::Char:
+		vartype.type = V_CHAR;
+		break;
+	case cas::GenericType::Int:
+		vartype.type = V_INT;
+		break;
+	case cas::GenericType::Float:
+		vartype.type = V_FLOAT;
+		break;
+	case cas::GenericType::String:
+		vartype.type = V_STRING;
+		break;
+	case cas::GenericType::Class:
+	case cas::GenericType::Struct:
+	case cas::GenericType::Enum:
+	case cas::GenericType::Object:
+		{
+			Type* t = dynamic_cast<Type*>(type.specific_type);
+			vartype.type = t->index;
+		}
+		break;
+	case cas::GenericType::Invalid:
+	default:
+		assert(0);
+		vartype.type = V_VOID;
+		break;
+	}
+
+	if(type.is_ref)
+	{
+		vartype.subtype = vartype.type;
+		vartype.type = V_REF;
+	}
+	else
+		vartype.subtype = 0;
+
+	return vartype;
+}
+
 void CallContext::ValuesToStack()
 {
 	for(cas::Value& value : values)
 	{
-		switch(value.generic_type)
+		switch(value.type.generic_type)
 		{
 		case cas::GenericType::Bool:
 			stack.push_back(Var(value.bool_value));
@@ -2093,6 +2154,8 @@ void CallContext::ValuesToStack()
 			break;
 		default: // TODO
 		case cas::GenericType::Void:
+		case cas::GenericType::Class:
+		case cas::GenericType::Struct:
 			assert(0);
 			break;
 		}

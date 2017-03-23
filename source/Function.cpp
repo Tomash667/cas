@@ -11,12 +11,12 @@ uint Function::GetArgCount()
 	return args_count;
 }
 
-cas::ComplexType Function::GetArgType(uint index)
+cas::Type Function::GetArgType(uint index)
 {
 	assert(index < GetArgCount());
 	if(PassThis())
 		++index;
-	return module_proxy->GetComplexType(args[index].GetDeclaredVarType());
+	return module_proxy->VarTypeToType(args[index].GetDeclaredVarType());
 }
 
 cas::Value Function::GetArgDefaultValue(uint index)
@@ -24,17 +24,23 @@ cas::Value Function::GetArgDefaultValue(uint index)
 	assert(index < GetArgCount());
 	if(PassThis())
 		++index;
+
 	Arg& arg = args[index];
 	int arg_type;
 	cas::Value value;
 	if(!arg.have_def_value)
-		arg_type = V_VOID;
+	{
+		value.type = cas::Type(cas::GenericType::Void);
+		value.int_value = 0;
+	}
 	else
 	{
-		arg_type = arg.vartype.type;
+		value.type = module_proxy->VarTypeToType(arg.vartype);
 		value.int_value = arg.value;
+		if(value.type.generic_type == cas::GenericType::Class || value.type.generic_type == cas::GenericType::Struct)
+			value.type.generic_type = cas::GenericType::Object;
 	}
-	value.type = module_proxy->GetType(arg_type);
+
 	return value;
 }
 
@@ -66,9 +72,9 @@ cstring Function::GetName()
 	return name.c_str();
 }
 
-cas::ComplexType Function::GetReturnType()
+cas::Type Function::GetReturnType()
 {
-	return module_proxy->GetComplexType(result);
+	return module_proxy->VarTypeToType(result);
 }
 
 void Function::BuildDecl()

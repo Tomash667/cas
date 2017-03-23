@@ -1,5 +1,7 @@
 #pragma once
 
+class IModuleProxy;
+
 // Builtin core types
 enum CoreVarType
 {
@@ -46,3 +48,4 @@ struct VarType
 			return type;
 	}
 };
+

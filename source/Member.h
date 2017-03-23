@@ -7,7 +7,7 @@
 struct Type;
 
 // Class member
-struct Member : public cas::IMember, public VarSource
+struct Member final : public cas::IMember, public VarSource
 {
 	enum UsedMode
 	{
@@ -36,5 +36,5 @@ struct Member : public cas::IMember, public VarSource
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
 	uint GetOffset() override;
-	cas::ComplexType GetType() override;
+	cas::Type GetType() override;
 };

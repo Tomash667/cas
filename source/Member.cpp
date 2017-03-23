@@ -23,7 +23,7 @@ uint Member::GetOffset()
 	return offset;
 }
 
-cas::ComplexType Member::GetType()
+cas::Type Member::GetType()
 {
-	return type->module_proxy->GetComplexType(vartype);
+	return type->module_proxy->VarTypeToType(vartype);
 }

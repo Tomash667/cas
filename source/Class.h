@@ -35,6 +35,11 @@ struct Class
 		return *(T*)data(offset);
 	}
 
+	void copy_data(uint offset, uint size, int& out)
+	{
+		memcpy(&out, data(offset), size);
+	}
+
 	static Class* Create(Type* type);
 	static Class* CreateCode(Type* type, int* real_class);
 	static Class* Copy(Class* base);

@@ -153,5 +153,6 @@ void Class::Delete()
 void Class::Deattach()
 {
 	attached = false;
+	RemoveElement(all_classes, this);
 }
 #endif

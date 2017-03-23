@@ -5,7 +5,7 @@
 
 class IModuleProxy;
 
-struct Global : public cas::IGlobal
+struct Global final : public cas::IGlobal
 {
 	IModuleProxy* module_proxy;
 	string name;
@@ -13,5 +13,5 @@ struct Global : public cas::IGlobal
 
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
-	cas::ComplexType GetType() override;
+	cas::Type GetType() override;
 };

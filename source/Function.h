@@ -70,14 +70,14 @@ struct Function : public cas::IFunction
 	SpecialFunction special;
 	
 	uint GetArgCount() override;
-	cas::ComplexType GetArgType(uint index) override;
+	cas::Type GetArgType(uint index) override;
 	cas::Value GetArgDefaultValue(uint index) override;
 	cas::IType* GetClass() override;
 	cstring GetDecl() override;
 	int GetFlags() override;
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
-	cas::ComplexType GetReturnType() override;
+	cas::Type GetReturnType() override;
 
 	void BuildDecl();
 	bool Equal(Function& f) const;
@@ -100,13 +100,13 @@ struct Function : public cas::IFunction
 };
 
 // Function added from c++
-struct CodeFunction : public Function
+struct CodeFunction final : public Function
 {
 	void* clbk;
 };
 
 // Function added from cas
-struct ScriptFunction : public Function
+struct ScriptFunction final : public Function
 {
 	uint pos;
 	uint locals;

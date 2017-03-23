@@ -265,7 +265,7 @@ struct Block : ObjectPoolProxy<Block>
 	}
 };
 
-struct ParseFunction : Function
+struct ParseFunction final : Function
 {
 	uint pos;
 	uint locals;

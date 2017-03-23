@@ -12,7 +12,7 @@ cstring Global::GetName()
 	return name.c_str();
 }
 
-cas::ComplexType Global::GetType()
+cas::Type Global::GetType()
 {
-	return module_proxy->GetComplexType(vartype);
+	return module_proxy->VarTypeToType(vartype);
 }

@@ -497,23 +497,6 @@ bool Module::AddMethod(Type* type, cstring decl, const cas::FunctionInfo& func_i
 	return true;
 }
 
-cas::ComplexType Module::GetComplexType(VarType vartype)
-{
-	cas::ComplexType complex_type;
-	if(vartype.subtype != 0)
-	{
-		assert(vartype.type == V_REF);
-		complex_type.type = GetType(vartype.subtype);
-		complex_type.ref = true;
-	}
-	else
-	{
-		complex_type.type = GetType(vartype.type);
-		complex_type.ref = false;
-	}
-	return complex_type;
-}
-
 bool Module::GetFunctionDecl(cstring decl, string& real_decl, Type* type)
 {
 	return parser->GetFunctionNameDecl(decl, nullptr, &real_decl, type);
@@ -536,6 +519,44 @@ Type* Module::GetType(int index)
 	Module* m = modules[module_index];
 	assert(type_index < (int)m->types.size());
 	return m->types[type_index];
+}
+
+cas::Type Module::VarTypeToType(VarType vartype)
+{
+	switch(vartype.type)
+	{
+	case V_VOID:
+		return cas::Type(cas::GenericType::Void);
+	case V_BOOL:
+		return cas::Type(cas::GenericType::Bool);
+	case V_CHAR:
+		return cas::Type(cas::GenericType::Char);
+	case V_INT:
+		return cas::Type(cas::GenericType::Int);
+	case V_FLOAT:
+		return cas::Type(cas::GenericType::Float);
+	case V_STRING:
+		return cas::Type(cas::GenericType::String);
+	case V_REF:
+		{
+			cas::Type type = VarTypeToType(VarType(vartype.subtype, 0));
+			type.is_ref = true;
+			return type;
+		}
+	default:
+		{
+			Type* t = GetType(vartype.type);
+			if(t->IsEnum())
+				return cas::Type(cas::GenericType::Enum, t);
+			else if(t->IsClass())
+				return cas::Type(t->IsStruct() ? cas::GenericType::Struct : cas::GenericType::Class, t);
+			else
+			{
+				assert(0);
+				return cas::Type(cas::GenericType::Invalid);
+			}
+		}
+	}
 }
 
 Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags)

@@ -10,25 +10,11 @@ class Module;
 struct Arg;
 struct CodeFunction;
 struct Member;
+struct Object;
 struct Str;
 
-struct Object : public cas::IObject
-{
-	void Release() override
-	{
-		clas->Release();
-	}
-
-	void AddRef()
-	{
-		clas->refs++;
-	}
-
-	Class* clas;
-};
-
 // Call context runs script code
-class CallContext : public ICallContextProxy
+class CallContext final : public ICallContextProxy
 {
 public:
 	CallContext(int index, Module& module, cstring name);
@@ -96,6 +82,7 @@ private:
 	void RunInternal();
 	void SetFromStack(VectorOffset<Var>& vo);
 	void SetMemberValue(Class* c, Member* m, Var& v);
+	VarType TypeToVarType(cas::Type& type);
 	void ValuesToStack();
 	bool VerifyFunctionArg(Var& v, Arg& arg);
 	bool VerifyFunctionEntryPoint(Function* f, Object* obj);

@@ -46,6 +46,9 @@
     <ClCompile Include="source\Global.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>
+    <ClCompile Include="source\Object.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/cas/Cas.h">
@@ -170,6 +173,9 @@
     </ClInclude>
     <ClInclude Include="include\cas\IObject.h">
       <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Object.h">
+      <Filter>Source\H</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
