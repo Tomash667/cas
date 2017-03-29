@@ -47,7 +47,8 @@ enum FOUND
 	F_NONE,
 	F_VAR,
 	F_FUNC,
-	F_MEMBER
+	F_MEMBER,
+	F_GLOBAL
 };
 
 enum PseudoOp
@@ -107,8 +108,8 @@ struct ParseVar : VarSource, ObjectPoolProxy<ParseVar>
 	string name;
 	VarType vartype;
 	Type subtype;
-	int local_index;
-	bool referenced;
+	int def_value, local_index;
+	bool referenced, have_def_value;
 };
 
 struct ParseNode;
@@ -213,13 +214,13 @@ struct Block : ObjectPoolProxy<Block>
 		ParseVar::Free(vars);
 	}
 
-	uint GetMaxVars() const
+	uint GetMaxVars(bool exclude_top) const
 	{
-		uint count = vars.size();
+		uint count = (exclude_top ? 0u : vars.size());
 		uint top = 0u;
 		for(const Block* b : childs)
 		{
-			uint count2 = b->GetMaxVars();
+			uint count2 = b->GetMaxVars(false);
 			if(count2 > top)
 				top = count2;
 		}
@@ -308,6 +309,7 @@ union Found
 		Member* member;
 		int member_index;
 	};
+	Global* global;
 
 	Found() : func() {}
 
@@ -332,6 +334,8 @@ union Found
 			return "function";
 		case F_MEMBER:
 			return "member";
+		case F_GLOBAL:
+			return "global variable";
 		default:
 			assert(0);
 			return "undefined";

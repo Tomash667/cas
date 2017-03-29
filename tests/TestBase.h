@@ -64,7 +64,10 @@ const bool CI_MODE = ((_CI_MODE - 1) == 0);
 
 extern IEngine* engine;
 extern IModule* current_module;
-extern ICallContext* current_call_context;
+
+struct Retval;
+
+typedef delegate<void(Retval&)> ReturnDelegate;
 
 struct TestSettings
 {
@@ -74,77 +77,109 @@ struct TestSettings
 	cstring input;
 	cstring output;
 	cstring error;
+	ReturnDelegate ret_delegate;
 	bool optimize;
+	bool decompile;
+	bool dont_reset;
 };
 
-void RunTest(const TestSettings& settings);
+void RunTest(TestSettings& settings);
 
-inline void RunFileTest(cstring filename, cstring input = "", cstring output = "", bool optimize = true)
+struct RunTestProxy
 {
-	TestSettings s;
-	s.module = current_module;
-	s.filename = filename;
-	s.code = nullptr;
-	s.input = input;
-	s.output = output;
-	s.error = nullptr;
-	s.optimize = optimize;
-	RunTest(s);
+public:
+	RunTestProxy(cstring filename, cstring code)
+	{
+		settings.module = current_module;
+		settings.filename = filename;
+		settings.code = code;
+		settings.input = nullptr;
+		settings.output = nullptr;
+		settings.error = nullptr;
+		settings.optimize = true;
+		settings.decompile = false;
+		settings.dont_reset = false;
+	}
+
+	~RunTestProxy()
+	{
+		RunTest(settings);
+	}
+
+	RunTestProxy& ShouldFail(cstring error)
+	{
+		assert(error);
+		settings.error = error;
+		return *this;
+	}
+
+	RunTestProxy& WithInput(cstring input)
+	{
+		assert(input);
+		settings.input = input;
+		return *this;
+	}
+
+	RunTestProxy& ShouldOutput(cstring output)
+	{
+		assert(output);
+		settings.output = output;
+		return *this;
+	}
+
+	RunTestProxy& DontOptimize()
+	{
+		settings.optimize = false;
+		return *this;
+	}
+
+	RunTestProxy& ShouldReturn(ReturnDelegate d)
+	{
+		settings.ret_delegate = d;
+		return *this;
+	}
+
+	RunTestProxy& Decompile()
+	{
+		settings.decompile = true;
+		return *this;
+	}
+
+	RunTestProxy& DontReset()
+	{
+		settings.dont_reset = true;
+		return *this;
+	}
+
+private:
+	TestSettings settings;
+};
+
+inline RunTestProxy RunFileTest(cstring filename)
+{
+	return RunTestProxy(filename, nullptr);
 }
 
-inline void RunTest(cstring code, cstring input = "", cstring output = nullptr)
+inline RunTestProxy RunTest(cstring code)
 {
-	TestSettings s;
-	s.module = current_module;
-	s.filename = nullptr;
-	s.code = code;
-	s.input = input;
-	s.output = output;
-	s.error = nullptr;
-	s.optimize = true;
-	RunTest(s);
+	return RunTestProxy(nullptr, code);
 }
 
-inline void RunFailureTest(cstring code, cstring error, cstring input = "")
+inline RunTestProxy RunTest()
 {
-	TestSettings s;
-	s.module = current_module;
-	s.filename = nullptr;
-	s.code = code;
-	s.input = input;
-	s.output = nullptr;
-	s.error = error;
-	s.optimize = true;
-	RunTest(s);
-}
-
-inline void RunParsedTest(cstring input = "", cstring output = nullptr)
-{
-	TestSettings s;
-	s.module = current_module;
-	s.filename = nullptr;
-	s.code = nullptr;
-	s.input = input;
-	s.output = output;
-	s.error = nullptr;
-	s.optimize = true;
-	RunTest(s);
+	return RunTestProxy(nullptr, nullptr);
 }
 
 void CleanupErrors();
-void CleanupAsserts();
 void CleanupOutput();
 void AssertError(cstring error);
 void AssertOutput(cstring output);
-void SetDecompile(bool decompile);
-void SetResetParser(bool reset_parser);
 void WriteOutput(cstring msg);
 void WriteDecompileOutput(IModule* module);
 
 struct Retval
 {
 	ICallContext* call_context;
-	static Retval* current;
 
 	Retval() {}
 	Retval(ICallContext* call_context) : call_context(call_context) {}
@@ -220,21 +255,15 @@ TEST_CLASS(Name) 											\
 		CleanupErrors();									\
 		module = engine->CreateModule();                    \
 		current_module = module;                            \
-		Retval::current = &retval;                          \
 	}														\
 	TEST_METHOD_CLEANUP(OnTestTeardown) 					\
 	{ 														\
-		CleanupAsserts(); 									\
 		CleanupOutput();									\
 		module->Release();                                  \
 		current_module = nullptr;                           \
-		SetDecompile(false);								\
-		SetResetParser(true);								\
-		current_call_context = nullptr;                     \
 	}														\
 															\
 	IModule* module;										\
-	Retval retval;                                          \
 
 #define CA_TEST_CLASS_END() }; }
 

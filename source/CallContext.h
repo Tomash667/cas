@@ -39,9 +39,12 @@ public:
 
 	// from ICallContextProxy
 	void AddAssert(cstring msg) override;
+	void GetGlobalPointer(int index, cas::Value& val) override;
+	void GetGlobalValue(int index, cas::Value& val) override;
 	void ReleaseClass(Class* c) override;
 
 	int GetIndex() const { return index; }
+	void Reset();
 
 private:
 	struct GetRefData
@@ -74,6 +77,7 @@ private:
 	void ExecuteFunction(CodeFunction& f);
 	void ExecuteSimpleFunction(CodeFunction& f, void* _this);
 	GetRefData GetRef(Var& v);
+	void InitializeGlobals();
 	void MakeSingleInstance(Var& v);
 	bool MatchFunctionCall(Function& f);
 	void PushFunctionDefaults(Function& f);
@@ -89,7 +93,8 @@ private:
 
 	const uint MAX_STACK_DEPTH = 100u;
 
-	vector<Var> stack, global, local;
+	vector<Var> stack, local;
+	std::map<int, Var> globals;
 	vector<StackFrame> stack_frames;
 	vector<RefVar*> refs;
 	vector<string> asserts;
@@ -101,9 +106,9 @@ private:
 	Var tmpv;
 	cas::Value return_value;
 	uint depth;
-	int index, current_function, args_offset, locals_offset, current_line;
+	int index, current_function, args_offset, locals_offset, current_line, cleanup_offset;
 	vector<int>* code;
 	vector<cas::Value> values;
 	int* code_pos;
-	int cleanup_offset;
+	bool globals_initialized;
 };

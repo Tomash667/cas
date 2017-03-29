@@ -134,15 +134,14 @@ TEST_METHOD(StaticMethods)
 
 TEST_METHOD(EnumGlobalReturnValue)
 {
-	SetResetParser(false);
-	RunTest("enum E{A=2,B=4,C=6} return E.B;");
-	retval.IsEnum("E", 4);
+	RunTest("enum E{A=2,B=4,C=6} return E.B;")
+		.ShouldReturn([](Retval& r) { r.IsEnum("E", 4); });
 
 	module->Reset();
 	IEnum* enu = module->AddEnum("F");
 	enu->AddValues({ {"A", 3}, {"B", 6}, {"C", 9} });
-	RunTest("return F.B;");
-	retval.IsEnum("F", 6);
+	RunTest("return F.B;")
+		.ShouldReturn([](Retval& r) { r.IsEnum("F", 6); });
 }
 
 TEST_METHOD(IndexOperatorOnClass)
@@ -223,7 +222,9 @@ TEST_METHOD(ComplexSubscriptOperator)
 		x = getint();
 		y = getint();
 		println(aa[x,y]);
-	)code", "0 2 2 4", "s\nr\n");
+	)code")
+		.WithInput("0 2 2 4")
+		.ShouldOutput("s\nr\n");
 }
 
 TEST_METHOD(NewVarCtorSyntax)
@@ -267,7 +268,48 @@ TEST_METHOD(CopyCtor)
 		ND n;
 		ND n1 = ND(n);
 		ND n2 = n;
-	)code", "", "ctor\ncopy\ncopy\n");
+	)code")
+		.ShouldOutput("ctor\ncopy\ncopy\n");
+}
+
+static int c_1, c_2;
+TEST_METHOD(GlobalsMix)
+{
+	bool ok = module->AddGlobal("int c_1", &c_1);
+	Assert::IsTrue(ok);
+
+	auto result = module->Parse("int s_1 = 5;");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto module2 = engine->CreateModule(module);
+	ok = module2->AddGlobal("int c_2", &c_2);
+	Assert::IsTrue(ok);
+
+	c_1 = 1;
+	c_2 = 3;
+
+	result = module2->Parse(R"code(
+		int s_2 = 2;
+		c_1 = s_1 + s_2;
+		c_2 += s_1 * s_2;
+		++s_1;
+		s_2 -= s_1 - c_1;
+	)code");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto context = module2->CreateCallContext();
+	ok = context->Run();
+	Assert::IsTrue(ok);
+
+	Assert::AreEqual(7, c_1);
+	Assert::AreEqual(13, c_2);
+	Assert::AreEqual(6, context->GetGlobal(module2->GetGlobal("s_1"))->GetValue<int>());
+	Assert::AreEqual(3, context->GetGlobal(module2->GetGlobal("s_2"))->GetValue<int>());
+
+	context->Release();
+	module2->Release();
 }
 
 CA_TEST_CLASS_END();
+
+int tests::Tests::c_1, tests::Tests::c_2;

@@ -37,6 +37,7 @@ namespace cas
 
 		virtual IEnum* AddEnum(cstring type_name) = 0;
 		virtual bool AddFunction(cstring decl, const FunctionInfo& func_info) = 0;
+		virtual bool AddGlobal(cstring decl, void* ptr) = 0;
 		virtual bool AddParentModule(IModule* module) = 0;
 		virtual IClass* AddType(cstring type_name, int size, int flags = 0) = 0;
 		virtual ICallContext* CreateCallContext(cstring name = nullptr) = 0;

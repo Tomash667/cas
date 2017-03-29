@@ -7,10 +7,6 @@ struct Type;
 // for code class, adr points to class created in code
 struct Class
 {
-#ifdef CHECK_LEAKS
-	static vector<Class*> all_classes;
-#endif
-
 	int refs;
 	Type* type;
 	bool is_code;

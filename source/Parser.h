@@ -67,6 +67,7 @@ public:
 	bool VerifyTypeName(cstring type_name, int& type_index);
 	CodeFunction* ParseFuncDecl(cstring decl, Type* type, bool builtin);
 	Member* ParseMemberDecl(cstring decl);
+	Global* ParseGlobalDecl(cstring decl);
 	void AddType(Type* type);
 	bool GetFunctionNameDecl(cstring decl, string* name, string* real_decl, Type* type);
 	bool Parse(ParseSettings& settigns);
@@ -115,6 +116,7 @@ private:
 	void ParseArgs(vector<ParseNode*>& nodes, char open = '(', char close = ')');
 	ParseNode* ParseItem(ParseFunction* func = nullptr);
 	ParseNode* ParseConstItem();
+	bool IsConstExpr(ParseNode* node);
 
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);

@@ -33,106 +33,130 @@ CA_TEST_CLASS(Failures);
 
 TEST_METHOD(FunctionNoReturnValue)
 {
-	RunFailureTest("int f(){}", "Function 'int f()' not always return value.");
+	RunTest("int f(){}")
+		.ShouldFail("Function 'int f()' not always return value.");
 }
 
 TEST_METHOD(ItemNameAlreadyUsed)
 {
-	RunFailureTest("int f, f;", "Name 'f' already used as global variable.");
-	RunFailureTest("void f(int a) { int a; }", "Name 'a' already used as argument.");
-	RunFailureTest("void f() { int a, a; }", "Name 'a' already used as local variable.");
+	RunTest("int f, f;")
+		.ShouldFail("Name 'f' already used as global variable.");
+	RunTest("void f(int a) { int a; }")
+		.ShouldFail("Name 'a' already used as argument.");
+	RunTest("void f() { int a, a; }")
+		.ShouldFail("Name 'a' already used as local variable.");
 }
 
 TEST_METHOD(MemberNameAlreadyUsed)
 {
-	RunFailureTest("class A { int a, a; }", "Member with name 'A.a' already exists.");
+	RunTest("class A { int a, a; }")
+		.ShouldFail("Member with name 'A.a' already exists.");
 }
 
 TEST_METHOD(NoMatchingCallToFunction)
 {
-	RunFailureTest("void f(){} f(1);", "No matching call to function 'f' with arguments (int), could be 'void f()'.");
+	RunTest("void f(){} f(1);")
+		.ShouldFail("No matching call to function 'f' with arguments (int), could be 'void f()'.");
 }
 
 TEST_METHOD(NoMatchingCallToMethod)
 {
-	RunFailureTest("class A { void f(){} } A a; a.f(1);", "No matching call to method 'A.f' with arguments (int), could be 'void A.f()'.");
+	RunTest("class A { void f(){} } A a; a.f(1);")
+		.ShouldFail("No matching call to method 'A.f' with arguments (int), could be 'void A.f()'.");
 }
 
 TEST_METHOD(AmbiguousCallToFunction)
 {
-	RunFailureTest("void f(bool b){} void f(float g){} f(1);",
-		"Ambiguous call to overloaded function 'f' with arguments (int), could be:\n\tvoid f(bool)\n\tvoid f(float)");
+	RunTest("void f(bool b){} void f(float g){} f(1);")
+		.ShouldFail("Ambiguous call to overloaded function 'f' with arguments (int), could be:\n\tvoid f(bool)\n\tvoid f(float)");
 }
 
 TEST_METHOD(AmbiguousCallToMethod)
 {
-	RunFailureTest("class A { void f(bool b){} void f(float g){} } A a; a.f(1);",
-		"Ambiguous call to overloaded method 'A.f' with arguments (int), could be:\n\tvoid A.f(bool)\n\tvoid A.f(float)");
+	RunTest("class A { void f(bool b){} void f(float g){} } A a; a.f(1);")
+		.ShouldFail("Ambiguous call to overloaded method 'A.f' with arguments (int), could be:\n\tvoid A.f(bool)\n\tvoid A.f(float)");
 }
 
 TEST_METHOD(MissingConstructor)
 {
-	RunFailureTest("class A {}  A a = A(1,2,3);", "No matching call to method 'A.A' with arguments (int,int,int), could be 'A.A()'.");
+	RunTest("class A {}  A a = A(1,2,3);")
+		.ShouldFail("No matching call to method 'A.A' with arguments (int,int,int), could be 'A.A()'.");
 }
 
 TEST_METHOD(MissingDefaultValue)
 {
-	RunFailureTest("void f(int a=0,float b){}", "Missing default value for argument 2 'float b'.");
+	RunTest("void f(int a=0,float b){}")
+		.ShouldFail("Missing default value for argument 2 'float b'.");
 }
 
 TEST_METHOD(InvalidAssignType)
 {
-	RunFailureTest("class A{} A a; int b = a;", "Can't assign type 'A' to variable 'int b'.");
+	RunTest("class A{} A a; int b = a;")
+		.ShouldFail("Can't assign type 'A' to variable 'int b'.");
 }
 
 TEST_METHOD(InvalidConditionType)
 {
-	RunFailureTest("class A{} A a; if(a) {}", "Condition expression with 'A' type.");
-	RunFailureTest("class A{} A a; for(;a;) {}", "Condition expression with 'A' type.");
+	RunTest("class A{} A a; if(a) {}")
+		.ShouldFail("Condition expression with 'A' type.");
+	RunTest("class A{} A a; for(;a;) {}")
+		.ShouldFail("Condition expression with 'A' type.");
 }
 
 TEST_METHOD(VoidVariable)
 {
-	RunFailureTest("void a;", "Can't declare void variable.");
-	RunFailureTest("class A{void a;}", "Member of 'void' type not allowed.");
+	RunTest("void a;")
+		.ShouldFail("Can't declare void variable.");
+	RunTest("class A{void a;}")
+		.ShouldFail("Member of 'void' type not allowed.");
 }
 
 TEST_METHOD(InvalidDefaultValue)
 {
-	RunFailureTest("void f(int a=\"dodo\"){}", "Invalid default value of type 'string', required 'int'.");
+	RunTest("void f(int a=\"dodo\"){}")
+		.ShouldFail("Invalid default value of type 'string', required 'int'.");
 }
 
 TEST_METHOD(UnsupportedClassMembers)
 {
-	RunFailureTest("class A{} class B{A a;}", "Member of 'class' type not allowed yet.");
-	RunFailureTest("struct A{} class B{A a;}", "Member of 'struct' type not allowed yet.");
+	RunTest("class A{} class B{A a;}")
+		.ShouldFail("Member of 'class' type not allowed yet.");
+	RunTest("struct A{} class B{A a;}")
+		.ShouldFail("Member of 'struct' type not allowed yet.");
 }
 
 TEST_METHOD(InvalidBreak)
 {
-	RunFailureTest("break;", "Not in breakable block.");
+	RunTest("break;")
+		.ShouldFail("Not in breakable block.");
 }
 
 TEST_METHOD(InvalidReturnType)
 {
-	RunFailureTest("int f() { return \"dodo\"; }", "Invalid return type 'string', function 'int f()' require 'int' type.");
+	RunTest("int f() { return \"dodo\"; }")
+		.ShouldFail("Invalid return type 'string', function 'int f()' require 'int' type.");
 }
 
 TEST_METHOD(InvalidClassDeclaration)
 {
-	RunFailureTest("void f() { class A{} }", "Class can't be declared inside block.");
+	RunTest("void f() { class A{} }")
+		.ShouldFail("Class can't be declared inside block.");
 }
 
 TEST_METHOD(InvalidFunctionDeclaration)
 {
-	RunFailureTest("void f() { void g() {} }", "Function can't be declared inside block.");
-	RunFailureTest("{ void g() {} }", "Function can't be declared inside block.");
+	RunTest("void f() { void g() {} }")
+		.ShouldFail("Function can't be declared inside block.");
+	RunTest("{ void g() {} }")
+		.ShouldFail("Function can't be declared inside block.");
 }
 
 TEST_METHOD(FunctionRedeclaration)
 {
-	RunFailureTest("void f(){} void f(){}", "Function 'void f()' already exists.");
-	RunFailureTest("class A{ void f(){} void f(){} }", "Method 'void A.f()' already exists.");
+	RunTest("void f(){} void f(){}")
+		.ShouldFail("Function 'void f()' already exists.");
+	RunTest("class A{ void f(){} void f(){} }")
+		.ShouldFail("Method 'void A.f()' already exists.");
 }
 
 TEST_METHOD(FunctionRedeclarationComplex)
@@ -161,42 +185,56 @@ TEST_METHOD(FunctionRedeclarationComplex)
 
 TEST_METHOD(ReferenceVariableUninitialized)
 {
-	RunFailureTest("int& a;", "Uninitialized reference variable.");
+	RunTest("int& a;")
+		.ShouldFail("Uninitialized reference variable.");
 }
 
 TEST_METHOD(InvalidOperationTypes)
 {
-	RunFailureTest("void f(){} 3+f();", "Invalid types 'int' and 'void' for operation 'add'.");
-	RunFailureTest("void f(){} -f();", "Invalid type 'void' for operation 'unary minus'.");
-	RunFailureTest("bool b; ++b;", "Invalid type 'bool' for operation 'pre increment'.");
-	RunFailureTest("int a; a+=\"dodo\";", "Can't cast return value from 'string' to 'int' for operation 'assign add'.");
-	RunFailureTest("void f(int& a){a+=\"dodo\";}", "Can't cast return value from 'string' to 'int' for operation 'assign add'.");
+	RunTest("void f(){} 3+f();")
+		.ShouldFail("Invalid types 'int' and 'void' for operation 'add'.");
+	RunTest("void f(){} -f();")
+		.ShouldFail("Invalid type 'void' for operation 'unary minus'.");
+	RunTest("bool b; ++b;")
+		.ShouldFail("Invalid type 'bool' for operation 'pre increment'.");
+	RunTest("int a; a+=\"dodo\";")
+		.ShouldFail("Can't cast return value from 'string' to 'int' for operation 'assign add'.");
+	RunTest("void f(int& a){a+=\"dodo\";}")
+		.ShouldFail("Can't cast return value from 'string' to 'int' for operation 'assign add'.");
 }
 
 TEST_METHOD(RequiredVariable)
 {
-	RunFailureTest("++3;", "Operation 'pre increment' require variable.");
-	RunFailureTest("3 = 1;", "Can't assign, left must be assignable.");
+	RunTest("++3;")
+		.ShouldFail("Operation 'pre increment' require variable.");
+	RunTest("3 = 1;")
+		.ShouldFail("Can't assign, left must be assignable.");
 }
 
 TEST_METHOD(InvalidMemberAccess)
 {
-	RunFailureTest("void f(){} f().dodo();", "Missing method 'dodo' for type 'void'.");
-	RunFailureTest("3.ok();", "Missing method 'ok' for type 'int'.");
-	RunFailureTest("class A{} A a; a.ok();", "Missing method 'ok' for type 'A'.");
-	RunFailureTest("class A{} A a; a.b=1;", "Missing member 'b' for type 'A'.");
+	RunTest("void f(){} f().dodo();")
+		.ShouldFail("Missing method 'dodo' for type 'void'.");
+	RunTest("3.ok();")
+		.ShouldFail("Missing method 'ok' for type 'int'.");
+	RunTest("class A{} A a; a.ok();")
+		.ShouldFail("Missing method 'ok' for type 'A'.");
+	RunTest("class A{} A a; a.b=1;")
+		.ShouldFail("Missing member 'b' for type 'A'.");
 }
 
 TEST_METHOD(InvalidAssignTypes)
 {
-	RunFailureTest("int a; a=\"dodo\";", "No matching call to method 'int.operator =' with arguments (string), could be 'int int.operator = (int)'.");
-	RunFailureTest("void f(int& a) {a=\"dodo\";}",
-		"No matching call to method 'int.operator =' with arguments (string), could be 'int int.operator = (int)'.");
+	RunTest("int a; a=\"dodo\";")
+		.ShouldFail("No matching call to method 'int.operator =' with arguments (string), could be 'int int.operator = (int)'.");
+	RunTest("void f(int& a) {a=\"dodo\";}")
+		.ShouldFail("No matching call to method 'int.operator =' with arguments (string), could be 'int int.operator = (int)'.");
 }
 
 TEST_METHOD(InvalidGlobalReturnType)
 {
-	RunFailureTest("int& f(int& a){return a;} int a; return f(a);", "Invalid type 'int&' for global return.");
+	RunTest("int& f(int& a){return a;} int a; return f(a);")
+		.ShouldFail("Invalid type 'int&' for global return.");
 }
 
 TEST_METHOD(RegisterFunctionWithThiscall)
@@ -278,103 +316,118 @@ TEST_METHOD(RegisterMemberParseError)
 
 TEST_METHOD(InvalidSubscriptIndexType)
 {
-	RunFailureTest("string a; a[a] = 'b';",
-		"No matching call to method 'string.operator []' with arguments (string), could be 'char& string.operator [] (int)'.");
+	RunTest("string a; a[a] = 'b';")
+		.ShouldFail("No matching call to method 'string.operator []' with arguments (string), could be 'char& string.operator [] (int)'.");
 }
 
 TEST_METHOD(InvalidSubscriptType)
 {
-	RunFailureTest("int a; a[0] = 1;", "Type 'int' don't have subscript operator.");
+	RunTest("int a; a[0] = 1;")
+		.ShouldFail("Type 'int' don't have subscript operator.");
 }
 
 TEST_METHOD(OperatorFunctionOutsideClass)
 {
-	RunFailureTest("void operator += (int a) {}", "Operator function can be used only inside class.");
+	RunTest("void operator += (int a) {}")
+		.ShouldFail("Operator function can be used only inside class.");
 }
 
 TEST_METHOD(CantOverloadOperator)
 {
-	RunFailureTest("class A{void operator . (){}}", "Can't overload operator '.'.");
+	RunTest("class A{void operator . (){}}")
+		.ShouldFail("Can't overload operator '.'.");
 }
 
 TEST_METHOD(InvalidOperatorOverloadDefinition)
 {
-	RunFailureTest("class A{void operator + (int a, int b){}}", "Invalid overload operator definition 'void A.operator + (int,int)'.");
+	RunTest("class A{void operator + (int a, int b){}}")
+		.ShouldFail("Invalid overload operator definition 'void A.operator + (int,int)'.");
 }
 
 TEST_METHOD(AmbiguousCallToOverloadedOperator)
 {
-	RunFailureTest(R"code(
+	RunTest(R"code(
 		class A{
 			void operator += (int a) {}
 			void operator += (string s) {}
 		}
 		A a;
 		a += 1.13;
-	)code",
-		"Ambiguous call to overloaded method 'A.operator +=' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
+	)code")
+		.ShouldFail("Ambiguous call to overloaded method 'A.operator +=' with arguments (float), could be:\n\tvoid A.operator += (int)\n\tvoid A.operator += (string)");
 
 	auto type = module->AddType<A>("A");
 	type->AddMethod("void f(int i)", AsMethod(A, f2, void, (int)));
 	type->AddMethod("void f(string& s)", AsMethod(A, f2, void, (string&)));
-	RunFailureTest("A a; a.f(3.14);", "Ambiguous call to overloaded method 'A.f' with arguments (float), could be:\n\tvoid A.f(int)\n\tvoid A.f(string&)");
+	RunTest("A a; a.f(3.14);")
+		.ShouldFail("Ambiguous call to overloaded method 'A.f' with arguments (float), could be:\n\tvoid A.f(int)\n\tvoid A.f(string&)");
 }
 
 TEST_METHOD(InvalidFunctorArgs)
 {
-	RunFailureTest("class A{ void operator () (int a) {}} A a; a(3, 14);",
-		"No matching call to method 'A.operator ()' with arguments (int,int), could be 'void A.operator () (int)'.");
+	RunTest("class A{ void operator () (int a) {}} A a; a(3, 14);")
+		.ShouldFail("No matching call to method 'A.operator ()' with arguments (int,int), could be 'void A.operator () (int)'.");
 }
 
 TEST_METHOD(InvalidFunctorType)
 {
-	RunFailureTest("int a = 4; a();", "Type 'int' don't have call operator.");
+	RunTest("int a = 4; a();")
+		.ShouldFail("Type 'int' don't have call operator.");
 }
 
 TEST_METHOD(InvalidTernaryCommonType)
 {
-	RunFailureTest("void f(){} 1?f():1;", "Invalid common type for ternary operator with types 'void' and 'int'.");
+	RunTest("void f(){} 1?f():1;")
+		.ShouldFail("Invalid common type for ternary operator with types 'void' and 'int'.");
 }
 
 TEST_METHOD(InvalidTernaryCondition)
 {
-	RunFailureTest("void f(){} f()?0:1;", "Ternary condition expression with 'void' type.");
+	RunTest("void f(){} f()?0:1;")
+		.ShouldFail("Ternary condition expression with 'void' type.");
 }
 
 TEST_METHOD(InvalidSwitchType)
 {
-	RunFailureTest("class X{} X x; switch(x){}", "Invalid switch type 'X'.");
+	RunTest("class X{} X x; switch(x){}")
+		.ShouldFail("Invalid switch type 'X'.");
 }
 
 TEST_METHOD(CantCastCaseType)
 {
-	RunFailureTest("int a; switch(a){case \"a\":}", "Can't cast case value from 'string' to 'int'.");
+	RunTest("int a; switch(a){case \"a\":}")
+		.ShouldFail("Can't cast case value from 'string' to 'int'.");
 }
 
 TEST_METHOD(CaseAlreadyDefined)
 {
-	RunFailureTest("int a; switch(a){case 0:case 0:}", "Case with value '0' is already defined.");
+	RunTest("int a; switch(a){case 0:case 0:}")
+		.ShouldFail("Case with value '0' is already defined.");
 }
 
 TEST_METHOD(DefaultCaseAlreadyDefined)
 {
-	RunFailureTest("int a; switch(a){default:default:}", "Default case already defined.");
+	RunTest("int a; switch(a){default:default:}")
+		.ShouldFail("Default case already defined.");
 }
 
 TEST_METHOD(BrokenSwitch)
 {
-	RunFailureTest("int a; switch(a){do}", "Expecting keyword 'case' from group 'keywords', keyword 'default' from group 'keywords', "
-		"found keyword 'do' from group 'keywords'.");
+	RunTest("int a; switch(a){do}")
+		.ShouldFail("Expecting keyword 'case' from group 'keywords', keyword 'default' from group 'keywords', "
+			"found keyword 'do' from group 'keywords'.");
 }
 
 TEST_METHOD(ImplicitFunction)
 {
-	RunFailureTest("implicit void f(){}", "Implicit can only be used for methods.");
+	RunTest("implicit void f(){}")
+		.ShouldFail("Implicit can only be used for methods.");
 }
 
 TEST_METHOD(ImplicitInvalidArgumentCount)
 {
-	RunFailureTest("class X{implicit X(){}}", "Implicit constructor require single argument.");
+	RunTest("class X{implicit X(){}}")
+		.ShouldFail("Implicit constructor require single argument.");
 
 	auto type = module->AddType<A>("A");
 	bool r = type->AddCtor("implicit A()");
@@ -384,75 +437,95 @@ TEST_METHOD(ImplicitInvalidArgumentCount)
 
 TEST_METHOD(InvalidImplicitMethod)
 {
-	RunFailureTest("class X{implicit void f(){}}", "Implicit can only be used for constructor and cast operators.");
-	RunFailureTest("class X{implicit void operator += (int a){}}", "Implicit can only be used for constructor and cast operators.");
+	RunTest("class X{implicit void f(){}}")
+		.ShouldFail("Implicit can only be used for constructor and cast operators.");
+	RunTest("class X{implicit void operator += (int a){}}")
+		.ShouldFail("Implicit can only be used for constructor and cast operators.");
 }
 
 TEST_METHOD(CantCast)
 {
-	RunFailureTest("class A{} void f(int x){} A a; f(a as int);", "Can't cast from 'A' to 'int'.");
+	RunTest("class A{} void f(int x){} A a; f(a as int);")
+		.ShouldFail("Can't cast from 'A' to 'int'.");
 }
 
 TEST_METHOD(ClassRedeclaration)
 {
-	RunFailureTest("class A{} class A{}", "Can't declare class 'A', type is already declared.");
+	RunTest("class A{} class A{}")
+		.ShouldFail("Can't declare class 'A', type is already declared.");
 }
 
 TEST_METHOD(UndeclaredTypeUsed)
 {
-	RunFailureTest("A f(){A a; return a;}", "Undeclared type 'A' used.");
+	RunTest("A f(){A a; return a;}")
+		.ShouldFail("Undeclared type 'A' used.");
 }
 
 TEST_METHOD(MissingFunctionClosingBrace)
 {
-	RunFailureTest("void f(){", "Missing closing '}' for function 'f' declaration.");
+	RunTest("void f(){")
+		.ShouldFail("Missing closing '}' for function 'f' declaration.");
 }
 
 TEST_METHOD(ReferenceAssignToInvalidType)
 {
-	RunFailureTest("int a; 3 -> a;", "Can't assign reference, left value must be reference variable.");
-	RunFailureTest("int a; int& b -> a; b -> 3;", "Can't assign reference, right value must be variable.");
-	RunFailureTest("int a; float b; float& c -> b; c -> a;", "Can't reference assign 'int' to type 'float&'.");
-	RunFailureTest("int& a -> 3;", "Can't assign type 'int' to variable 'int& a'.");
+	RunTest("int a; 3 -> a;")
+		.ShouldFail("Can't assign reference, left value must be reference variable.");
+	RunTest("int a; int& b -> a; b -> 3;")
+		.ShouldFail("Can't assign reference, right value must be variable.");
+	RunTest("int a; float b; float& c -> b; c -> a;")
+		.ShouldFail("Can't reference assign 'int' to type 'float&'.");
+	RunTest("int& a -> 3;")
+		.ShouldFail("Can't assign type 'int' to variable 'int& a'.");
 }
 
 TEST_METHOD(CallDeletedFunction)
 {
-	RunFailureTest("delete void f()();", "Can't call 'void f()', function marked as deleted.");
-	RunFailureTest("class X{delete void f()} X x; x.f();", "Can't call 'void X.f()', method marked as deleted.");
-	RunFailureTest("class X{delete bool operator == (X x)} X x; x == x;", "Can't call 'bool X.operator == (X)', method marked as deleted.");
+	RunTest("delete void f()();")
+		.ShouldFail("Can't call 'void f()', function marked as deleted.");
+	RunTest("class X{delete void f()} X x; x.f();")
+		.ShouldFail("Can't call 'void X.f()', method marked as deleted.");
+	RunTest("class X{delete bool operator == (X x)} X x; x == x;")
+		.ShouldFail("Can't call 'bool X.operator == (X)', method marked as deleted.");
 }
 
 TEST_METHOD(InvalidLongRefAssign)
 {
-	RunFailureTest("int a, b; a --> b;", "Can't long assign reference, left value must be reference to class.");
-	RunFailureTest("class X{} void f(X& x) { x --> 3; }", "Can't long assign reference, right value must be variable.");
-	RunFailureTest("class X{} class X2{} void f(X& x) { X2 x2; x --> x2; }", "Can't long reference assign 'X2' to type 'X&'.");
+	RunTest("int a, b; a --> b;")
+		.ShouldFail("Can't long assign reference, left value must be reference to class.");
+	RunTest("class X{} void f(X& x) { x --> 3; }")
+		.ShouldFail("Can't long assign reference, right value must be variable.");
+	RunTest("class X{} class X2{} void f(X& x) { X2 x2; x --> x2; }")
+		.ShouldFail("Can't long reference assign 'X2' to type 'X&'.");
 }
 
 TEST_METHOD(IndexOutOfRange)
 {
-	RunFailureTest("string s; s[2] = 'c';", "Exception: Index 2 out of range.");
+	RunTest("string s; s[2] = 'c';")
+		.ShouldFail("Exception: Index 2 out of range.");
 }
 
 TEST_METHOD(IndexOutOfRangeOnReference)
 {
-	RunFailureTest(R"code(
+	RunTest(R"code(
 		string s = "test";
 		char& c = s[1];
 		s.clear();
 		c = 'd';
-	)code", "Exception: Index 1 out of range.");
+	)code")
+		.ShouldFail("Exception: Index 1 out of range.");
 }
 
 TEST_METHOD(DisallowCreateType)
 {
 	module->AddType<A>("A", cas::DisallowCreate);
-	RunFailureTest("A aa;", "Type 'A' cannot be created in script.");
+	RunTest("A aa;")
+		.ShouldFail("Type 'A' cannot be created in script.");
 
 	auto type = module->AddType<B>("B", cas::DisallowCreate);
 	type->AddCtor<int, int>("B(int a, int b)");
-	RunFailureTest("void f(B b){} f(B(1,2));", "Type 'B' cannot be created in script.");
+	RunTest("void f(B b){} f(B(1,2));")
+		.ShouldFail("Type 'B' cannot be created in script.");
 }
 
 struct X
@@ -464,12 +537,14 @@ TEST_METHOD(CodeCtorNotMatching)
 {
 	auto type = module->AddType<X>("A");
 	type->AddCtor<int, int>("A(int x, int y)");
-	RunFailureTest("A a = A(3);", "No matching call to method 'A.A' with arguments (int), could be 'A.A(int,int)'.");
+	RunTest("A a = A(3);")
+		.ShouldFail("No matching call to method 'A.A' with arguments (int), could be 'A.A(int,int)'.");
 
 	type = module->AddType<X>("B");
 	type->AddCtor("B()");
 	type->AddCtor<int, int>("B(int x, int y)");
-	RunFailureTest("B b = B(3);", "Ambiguous call to overloaded method 'B.B' with arguments (int), could be:\n\tB.B()\n\tB.B(int,int)");
+	RunTest("B b = B(3);")
+		.ShouldFail("Ambiguous call to overloaded method 'B.B' with arguments (int), could be:\n\tB.B()\n\tB.B(int,int)");
 }
 
 static void pass_code_class_by_value(X x) {}
@@ -514,15 +589,20 @@ TEST_METHOD(ReturnCodeClassByValue)
 
 TEST_METHOD(StaticOnFunction)
 {
-	RunFailureTest("static void f(){}", "Static can only be used for methods.");
+	RunTest("static void f(){}")
+		.ShouldFail("Static can only be used for methods.");
 }
 
 TEST_METHOD(MultipleSameFunctionModifiers)
 {
-	RunFailureTest("delete delete void f(){}", "Delete already declared for this function.");
-	RunFailureTest("class X{delete delete void f(){}}", "Delete already declared for this method.");
-	RunFailureTest("class X{implicit implicit X(){}}", "Implicit already declared for this method.");
-	RunFailureTest("class X{static static void f(){}}", "Static already declared for this method.");
+	RunTest("delete delete void f(){}")
+		.ShouldFail("Delete already declared for this function.");
+	RunTest("class X{delete delete void f(){}}")
+		.ShouldFail("Delete already declared for this method.");
+	RunTest("class X{implicit implicit X(){}}")
+		.ShouldFail("Implicit already declared for this method.");
+	RunTest("class X{static static void f(){}}")
+		.ShouldFail("Static already declared for this method.");
 
 	auto type = module->AddType<A>("A");
 	bool r = type->AddMethod("static static void f()", f);
@@ -545,7 +625,8 @@ TEST_METHOD(MultipleSameFunctionModifiers)
 
 TEST_METHOD(StaticCtor)
 {
-	RunFailureTest("class A{static A(){}}", "Static constructor not allowed.");
+	RunTest("class A{static A(){}}")
+		.ShouldFail("Static constructor not allowed.");
 
 	auto type = module->AddType<A>("A2");
 	bool r = type->AddCtor("static A2()");
@@ -555,7 +636,8 @@ TEST_METHOD(StaticCtor)
 
 TEST_METHOD(StaticOperator)
 {
-	RunFailureTest("class A{static bool operator == (int x){return false;}}", "Static operator not allowed.");
+	RunTest("class A{static bool operator == (int x){return false;}}")
+		.ShouldFail("Static operator not allowed.");
 
 	auto type = module->AddType<A>("A");
 	bool r = type->AddMethod("static bool operator == (int x)", f);
@@ -565,15 +647,17 @@ TEST_METHOD(StaticOperator)
 
 TEST_METHOD(MismatchedStaticMethod)
 {
-	RunFailureTest("class A{static int sum(int x, int y){return x+y;}}A.sum(1,2,3);",
-		"No matching call to method 'A.sum' with arguments (int,int,int), could be 'int A.sum(int,int)'.");
+	RunTest("class A{static int sum(int x, int y){return x+y;}}A.sum(1,2,3);")
+		.ShouldFail("No matching call to method 'A.sum' with arguments (int,int,int), could be 'int A.sum(int,int)'.");
 
-	RunFailureTest("class A{} A.sum(1,2,3);", "Missing static method 'sum' for type 'A'.");
+	RunTest("class A{} A.sum(1,2,3);")
+		.ShouldFail("Missing static method 'sum' for type 'A'.");
 }
 
 TEST_METHOD(RegisterEnumWithSameEnumerator)
 {
-	RunFailureTest("enum E{A,A}", "Enumerator 'E.A' already defined.");
+	RunTest("enum E{A,A}")
+		.ShouldFail("Enumerator 'E.A' already defined.");
 
 	IEnum* enu = module->AddEnum("F");
 	bool r = enu->AddValue("A");
@@ -595,7 +679,8 @@ TEST_METHOD(RegisterEnumWithSameEnumerator)
 
 TEST_METHOD(KeywordAsEnumerator)
 {
-	RunFailureTest("enum E{A,int}", "Expecting item, found keyword 'int' from group 'var'.");
+	RunTest("enum E{A,int}")
+		.ShouldFail("Expecting item, found keyword 'int' from group 'var'.");
 
 	IEnum* enu = module->AddEnum("F");
 	bool r = enu->AddValue("int");
@@ -605,33 +690,40 @@ TEST_METHOD(KeywordAsEnumerator)
 
 TEST_METHOD(EnumInsideBlock)
 {
-	RunFailureTest("{enum E{}}", "Enum can't be declared inside block.");
-	RunFailureTest("void f(){enum E{}}", "Enum can't be declared inside block.");
+	RunTest("{enum E{}}")
+		.ShouldFail("Enum can't be declared inside block.");
+	RunTest("void f(){enum E{}}")
+		.ShouldFail("Enum can't be declared inside block.");
 }
 
 TEST_METHOD(EnumInsideClass)
 {
-	RunFailureTest("class C{enum E{}}", "Enum can't be declared inside class.");
+	RunTest("class C{enum E{}}")
+		.ShouldFail("Enum can't be declared inside class.");
 }
 
 TEST_METHOD(ExpectingEnumName)
 {
-	RunFailureTest("enum 4{}", "Expecting enum name, found integer 4.");
+	RunTest("enum 4{}")
+		.ShouldFail("Expecting enum name, found integer 4.");
 }
 
 TEST_METHOD(InvalidEnumValue)
 {
-	RunFailureTest("enum E{A=\"1\"}", "Enumerator require 'int' value, have 'string'.");
+	RunTest("enum E{A=\"1\"}")
+		.ShouldFail("Enumerator require 'int' value, have 'string'.");
 }
 
 TEST_METHOD(UnclosedMultilineComment)
 {
-	RunFailureTest("*/", "Unclosed multiline comment.");
+	RunTest("*/")
+		.ShouldFail("Unclosed multiline comment.");
 }
 
 TEST_METHOD(DestructorWithArguments)
 {
-	RunFailureTest("class A{~A(int x){}}", "Destructor can't have arguments.");
+	RunTest("class A{~A(int x){}}")
+		.ShouldFail("Destructor can't have arguments.");
 
 	auto type = module->AddType<A>("A");
 	bool result = type->AddMethod("~A(int x)", f);
@@ -649,7 +741,8 @@ TEST_METHOD(RefCountedTypeDestructor)
 
 TEST_METHOD(AlreadyDeclaredDestructor)
 {
-	RunFailureTest("class A{~A(){} ~A(){}}", "Type 'A' have already declared destructor.");
+	RunTest("class A{~A(){} ~A(){}}")
+		.ShouldFail("Type 'A' have already declared destructor.");
 
 	auto type = module->AddType<A>("A");
 	bool result = type->AddMethod("~A()", f);
@@ -661,14 +754,18 @@ TEST_METHOD(AlreadyDeclaredDestructor)
 
 TEST_METHOD(SimpleTypeCtorInvalidArgCount)
 {
-	RunFailureTest("int a(4,5);", "Constructor for type 'int' require single argument.");
-	RunFailureTest("class A{int a(4,5);}", "Constructor for type 'int' require single argument.");
+	RunTest("int a(4,5);")
+		.ShouldFail("Constructor for type 'int' require single argument.");
+	RunTest("class A{int a(4,5);}")
+		.ShouldFail("Constructor for type 'int' require single argument.");
 }
 
 TEST_METHOD(ConstructorDestructorOutsideClass)
 {
-	RunFailureTest("class A{} A(){}", "Constructor can only be declared inside class.");
-	RunFailureTest("class A{} ~A(){}", "Destructor can only be declared inside class.");
+	RunTest("class A{} A(){}")
+		.ShouldFail("Constructor can only be declared inside class.");
+	RunTest("class A{} ~A(){}")
+		.ShouldFail("Destructor can only be declared inside class.");
 
 	auto type = module->AddType<A>("A");
 	bool result = module->AddFunction("A()", A_ctor);
@@ -683,13 +780,41 @@ TEST_METHOD(ConstructorDestructorOutsideClass)
 
 TEST_METHOD(StackOverflow)
 {
-	RunFailureTest("void f(){f();}();", "Exception: Stack overflow.");
+	RunTest("void f(){f();}();")
+		.ShouldFail("Exception: Stack overflow.");
 }
 
 TEST_METHOD(RedeclareFunctionWithPassByRef)
 {
 	module->AddFunction("void f(string& s)", f);
-	RunFailureTest("void f(string& s){}", "Function 'void f(string&)' already exists.");
+	RunTest("void f(string& s){}")
+		.ShouldFail("Function 'void f(string&)' already exists.");
+}
+
+TEST_METHOD(DisallowGlobalCode)
+{
+	auto options = module->GetOptions();
+	options.disallow_global_code = true;
+	module->SetOptions(options);
+
+	RunTest("for(int i=0; i<3; ++i){}")
+		.ShouldFail("Global code disallowed.");
+
+	options.disallow_global_code = false;
+	module->SetOptions(options);
+}
+
+TEST_METHOD(DisallowGlobals)
+{
+	auto options = module->GetOptions();
+	options.disallow_globals = true;
+	module->SetOptions(options);
+
+	RunTest("int a = 3;")
+		.ShouldFail("Global variables disallowed.");
+
+	options.disallow_globals = false;
+	module->SetOptions(options);
 }
 
 CA_TEST_CLASS_END();

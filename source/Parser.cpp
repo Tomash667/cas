@@ -170,17 +170,21 @@ void Parser::ConvertParseToScriptItems()
 
 	// convert globals
 	vector<Global*>& globals = module.GetGlobals();
-	globals.resize(main_block->vars.size());
-	for(uint i = new_globals_offset, count = main_block->vars.size(); i < count; ++i)
+	globals.resize(new_globals_offset + main_block->vars.size());
+	for(uint i = 0, count = main_block->vars.size(); i < count; ++i)
 	{
 		ParseVar* var = main_block->vars[i];
 		Global* g = new Global;
 		g->module_proxy = &module;
 		g->name = var->name;
 		g->vartype = var->vartype;
-		globals[i] = g;
+		g->ptr = nullptr;
+		g->index = var->index;
+		g->def_value = var->def_value;
+		g->have_def_value = var->have_def_value;
+		globals[i + new_globals_offset] = g;
 	}
-	module.SetMainStackSize(main_block->GetMaxVars());
+	module.SetMainStackSize(main_block->GetMaxVars(true));
 }
 
 void Parser::Cleanup()
@@ -303,7 +307,10 @@ ParseNode* Parser::ParseBlock(ParseFunction* f)
 	else
 	{
 		new_block->parent = old_block;
-		new_block->var_offset = old_block->var_offset;
+		if(old_block == main_block)
+			new_block->var_offset = 0;
+		else
+			new_block->var_offset = old_block->var_offset;
 		old_block->childs.push_back(new_block);
 	}
 	current_block = new_block;
@@ -511,7 +518,10 @@ ParseNode* Parser::ParseFor()
 	Block* new_block = Block::Get();
 	Block* old_block = current_block;
 	new_block->parent = old_block;
-	new_block->var_offset = old_block->var_offset;
+	if(old_block == main_block)
+		new_block->var_offset = 0;
+	else
+		new_block->var_offset = old_block->var_offset;
 	old_block->childs.push_back(new_block);
 	current_block = new_block;
 
@@ -1061,6 +1071,34 @@ Member* Parser::ParseMemberDecl(cstring decl)
 	return m;
 }
 
+Global* Parser::ParseGlobalDecl(cstring decl)
+{
+	Global* g = new Global;
+
+	try
+	{
+		t.FromString(decl);
+		t.Next();
+
+		g->vartype = GetVarType(false, true);
+		if(g->vartype.type == V_VOID)
+			t.Throw("Can't declare void global.");
+
+		g->name = t.MustGetItem();
+		t.Next();
+
+		t.AssertEof();
+	}
+	catch(Tokenizer::Exception& e)
+	{
+		Error(e.ToString());
+		delete g;
+		g = nullptr;
+	}
+
+	return g;
+}
+
 void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 {
 	VarType vartype = GetVarTypeForMember();
@@ -1608,11 +1646,15 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	const string& name = t.MustGetItem();
 	CheckFindItem(name, false);
 
+	bool is_global = (current_block == main_block);
+
 	ParseVar* var = ParseVar::Get();
 	var->name = name;
 	var->vartype = vartype;
 	var->index = current_block->var_offset;
-	var->subtype = (current_function == nullptr ? ParseVar::GLOBAL : ParseVar::LOCAL);
+	if(is_global)
+		var->index |= (module.GetIndex() << 16);
+	var->subtype = (is_global ? ParseVar::GLOBAL : ParseVar::LOCAL);
 	var->mod = false;
 	var->is_code_class = GetType(vartype.type)->IsCode();
 	var->referenced = false;
@@ -1672,17 +1714,27 @@ ParseNode* Parser::ParseVarDecl(VarType vartype)
 	else
 		expr = ParseVarCtor(vartype);
 
-	ParseNode* node = ParseNode::Get();
-	node->op = (var->subtype == ParseVar::GLOBAL ? SET_GLOBAL : SET_LOCAL);
-	node->result = var->vartype;
-	node->value = var->index;
-	node->source = nullptr;
-	node->push(expr.Pin());
-	if(require_deref)
-		node->push(DEREF);
-	if(require_copy)
-		node->push(COPY);
-	return node;
+	if(is_global && !require_deref && !require_copy && IsConstExpr(expr))
+	{
+		var->have_def_value = true;
+		var->def_value = expr->value;
+		return nullptr;
+	}
+	else
+	{
+		var->have_def_value = false;
+		ParseNode* node = ParseNode::Get();
+		node->op = (is_global ? SET_GLOBAL : SET_LOCAL);
+		node->result = var->vartype;
+		node->value = var->index;
+		node->source = nullptr;
+		node->push(expr.Pin());
+		if(require_deref)
+			node->push(DEREF);
+		if(require_copy)
+			node->push(COPY);
+		return node;
+	}
 }
 
 ParseNode* Parser::ParseExpr(ParseFunction* func)
@@ -2475,19 +2527,7 @@ ParseNode* Parser::ParseAssign(SymbolInfo& si, NodeRef& left, NodeRef& right)
 ParseNode* Parser::ParseConstExpr()
 {
 	NodeRef expr = ParseExpr();
-	bool is_const = false;
-	switch(expr->op)
-	{
-	case PUSH_BOOL:
-	case PUSH_CHAR:
-	case PUSH_INT:
-	case PUSH_FLOAT:
-	case PUSH_STRING:
-	case PUSH_ENUM:
-		is_const = true;
-		break;
-	}
-	if(!is_const)
+	if(!IsConstExpr(expr))
 		t.Throw("Const expression required.");
 	return expr.Pin();
 }
@@ -2570,6 +2610,20 @@ ParseNode* Parser::ParseItem(ParseFunction* func)
 						node->value++;
 					break;
 				}
+				t.Next();
+				return node;
+			}
+		case F_GLOBAL:
+			{
+				Global* global = found.global;
+				ParseNode* node = ParseNode::Get();
+				if(global->ptr)
+					node->op = PUSH_CGLOBAL;
+				else
+					node->op = PUSH_GLOBAL;
+				node->result = global->vartype;
+				node->source = nullptr;
+				node->value = global->index;
 				t.Next();
 				return node;
 			}
@@ -2722,6 +2776,22 @@ ParseNode* Parser::ParseConstItem()
 		t.ThrowExpecting("const item");
 }
 
+bool Parser::IsConstExpr(ParseNode* node)
+{
+	switch(node->op)
+	{
+	case PUSH_BOOL:
+	case PUSH_CHAR:
+	case PUSH_INT:
+	case PUSH_FLOAT:
+	case PUSH_STRING:
+	case PUSH_ENUM:
+		return true;
+	default:
+		return false;
+	}
+}
+
 void Parser::CheckFindItem(const string& id, bool is_func)
 {
 	Found found;
@@ -2730,13 +2800,11 @@ void Parser::CheckFindItem(const string& id, bool is_func)
 		t.Throw("Name '%s' already used as %s.", id.c_str(), found.ToString(found_type));
 }
 
+// only local and arg
 ParseVar* Parser::GetVar(ParseNode* node)
 {
 	switch(node->op)
 	{
-	case PUSH_GLOBAL:
-	case PUSH_GLOBAL_REF:
-		return main_block->vars[node->value];
 	case PUSH_LOCAL:
 	case PUSH_LOCAL_REF:
 		assert(current_block);
@@ -3750,6 +3818,8 @@ Op Parser::PushToSet(ParseNode* node)
 		return SET_LOCAL;
 	case PUSH_GLOBAL:
 		return SET_GLOBAL;
+	case PUSH_CGLOBAL:
+		return SET_CGLOBAL;
 	case PUSH_ARG:
 		return SET_ARG;
 	case PUSH_MEMBER:
@@ -3784,6 +3854,7 @@ Op Parser::GetFunctionOp(AnyFunction& f, bool is_ctor)
 bool Parser::CanTakeRef(ParseNode* node, bool allow_ref)
 {
 	return node->op == PUSH_GLOBAL
+		|| node->op == PUSH_CGLOBAL
 		|| node->op == PUSH_LOCAL
 		|| node->op == PUSH_ARG
 		|| node->op == PUSH_MEMBER
@@ -4100,7 +4171,7 @@ void Parser::ConvertToBytecode()
 		if(pf->IsBuiltin())
 			continue;
 		pf->pos = funcs_code.size();
-		pf->locals = (pf->block ? pf->block->GetMaxVars() : 0);
+		pf->locals = (pf->block ? pf->block->GetMaxVars(false) : 0);
 		uint old_size = funcs_code.size();
 		if(pf->node)
 			ToCode(funcs_code, pf->node, nullptr);
@@ -4464,6 +4535,8 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case PUSH_LOCAL_REF:
 	case PUSH_GLOBAL:
 	case PUSH_GLOBAL_REF:
+	case PUSH_CGLOBAL:
+	case PUSH_CGLOBAL_REF:
 	case PUSH_ARG:
 	case PUSH_ARG_REF:
 	case PUSH_MEMBER:
@@ -4472,6 +4545,7 @@ void Parser::ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos)
 	case PUSH_THIS_MEMBER_REF:
 	case SET_LOCAL:
 	case SET_GLOBAL:
+	case SET_CGLOBAL:
 	case SET_ARG:
 	case SET_MEMBER:
 	case SET_THIS_MEMBER:
@@ -4642,6 +4716,13 @@ FOUND Parser::FindItem(const string& id, Found& found)
 	{
 		found.var = var;
 		return F_VAR;
+	}
+
+	Global* global = module.FindGlobal(id);
+	if(global)
+	{
+		found.global = global;
+		return F_GLOBAL;
 	}
 
 	if(current_function)
@@ -5840,6 +5921,8 @@ bool Parser::HasSideEffects(ParseNode* node)
 	case PUSH_LOCAL_REF:
 	case PUSH_GLOBAL:
 	case PUSH_GLOBAL_REF:
+	case PUSH_CGLOBAL:
+	case PUSH_CGLOBAL_REF:
 	case PUSH_ARG:
 	case PUSH_ARG_REF:
 	case PUSH_MEMBER:

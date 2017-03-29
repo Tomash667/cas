@@ -15,6 +15,8 @@ enum Op
 	PUSH_LOCAL_REF, // [local_index] ... -> ..., local address
 	PUSH_GLOBAL, // [global_index] ... -> ..., global value
 	PUSH_GLOBAL_REF, // [global_index] ... -> ..., global address
+	PUSH_CGLOBAL, // [global_index] ... -> ..., cglobal value
+	PUSH_CGLOBAL_REF, // [global_index] ... -> ..., cglobal address
 	PUSH_ARG, // [arg_index] ... -> ..., arg value
 	PUSH_ARG_REF, // [arg_index] ... -> ..., arg address
 	PUSH_MEMBER, // [member_index] ..., class -> ..., class.member
@@ -28,6 +30,7 @@ enum Op
 	POP, // [] ..., x -> ...
 	SET_LOCAL, // [local_index] ..., x -> ..., x (local = value)
 	SET_GLOBAL, // [global_index] ..., x -> ..., x (global = value)
+	SET_CGLOBAL, // [global_index] ..., x -> ..., x (cglobal = value)
 	SET_ARG, // [arg_index] ..., x -> ..., x (arg = value)
 	SET_MEMBER, // [member_index] ..., class, value -> ..., value (class.member = value)
 	SET_THIS_MEMBER, // [member_index] ..., value -> ..., value (this.member = value)

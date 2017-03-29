@@ -196,24 +196,24 @@ TEST_METHOD(RefCountedType)
 TEST_METHOD(ReturnValueToCode)
 {
 	// void
-	RunTest("return;");
-	retval.IsVoid();
+	RunTest("return;")
+		.ShouldReturn([](Retval& r) { r.IsVoid(); });
 
 	// bool
-	RunTest("return true;");
-	retval.IsBool(true);
+	RunTest("return true;")
+		.ShouldReturn([](Retval& r) { r.IsBool(true); });
 
 	// char
-	RunTest("return 'z';");
-	retval.IsChar('z');
+	RunTest("return 'z';")
+		.ShouldReturn([](Retval& r) { r.IsChar('z'); });
 
 	// int
-	RunTest("return 3;");
-	retval.IsInt(3);
+	RunTest("return 3;")
+		.ShouldReturn([](Retval& r) { r.IsInt(3); });
 
 	// float
-	RunTest("return 3.14;");
-	retval.IsFloat(3.14f);
+	RunTest("return 3.14;")
+		.ShouldReturn([](Retval& r) { r.IsFloat(3.14f); });
 }
 
 //=========================================================================================
@@ -227,14 +227,19 @@ TEST_METHOD(MultipleReturnValueToCode)
 			return 3.14;
 	)code");
 
-	RunParsedTest("0");
-	retval.IsVoid();
+	RunTest()
+		.WithInput("0")
+		.ShouldReturn([](Retval& r) { r.IsVoid(); })
+		.DontReset();
 
-	RunParsedTest("1");
-	retval.IsInt(3);
+	RunTest()
+		.WithInput("1")
+		.ShouldReturn([](Retval& r) { r.IsInt(3); })
+		.DontReset();
 
-	RunParsedTest("2");
-	retval.IsFloat(3.14f);
+	RunTest()
+		.WithInput("2")
+		.ShouldReturn([](Retval& r) { r.IsFloat(3.14f); });
 }
 
 //=========================================================================================
@@ -246,8 +251,8 @@ static void pow(int& a)
 TEST_METHOD(CodeFunctionTakesRef)
 {
 	module->AddFunction("void pow(int& a)", pow);
-	RunTest("int a = 3; pow(a); return a;");
-	retval.IsInt(9);
+	RunTest("int a = 3; pow(a); return a;")
+		.ShouldReturn([](Retval& r) { r.IsInt(9); });
 }
 
 //=========================================================================================
@@ -280,8 +285,8 @@ TEST_METHOD(CodeRegisterOverloadedFunctions)
 {
 	module->AddFunction("int f1()", AsFunction(f1, int, ()));
 	module->AddFunction("int f1(int i)", AsFunction(f1, int, (int)));
-	RunTest("return f1() + f1(3) == 4;");
-	retval.IsBool(true);
+	RunTest("return f1() + f1(3) == 4;")
+		.ShouldReturn([](Retval& r) { r.IsBool(true); });
 }
 
 //=========================================================================================
@@ -299,8 +304,8 @@ TEST_METHOD(CodeMemberFunction)
 	IClass* type = module->AddType<AObj>("AObj");
 	type->AddMethod("int GetX()", &AObj::GetX);
 	type->AddMethod("void SetX(int a)", &AObj::SetX);
-	RunTest("AObj a; a.SetX(7); return a.GetX();");
-	retval.IsInt(7);
+	RunTest("AObj a; a.SetX(7); return a.GetX();")
+		.ShouldReturn([](Retval& r) { r.IsInt(7); });
 }
 
 //=========================================================================================
@@ -318,8 +323,8 @@ TEST_METHOD(CodeMemberFunctionOverload)
 	IClass* type = module->AddType<BObj>("BObj");
 	type->AddMethod("int f()", AsMethod(BObj, f, int, ()));
 	type->AddMethod("int f(int a)", AsMethod(BObj, f, int, (int)));
-	RunTest("BObj b; return b.f() + b.f(4);");
-	retval.IsInt(9);
+	RunTest("BObj b; return b.f() + b.f(4);")
+		.ShouldReturn([](Retval& r) { r.IsInt(9); });
 }
 
 //=========================================================================================
@@ -732,10 +737,10 @@ TEST_METHOD(StaticMethodInCode)
 		Assert_AreEqual(123, a);
 	)code");
 
-	RunFailureTest(R"code(
+	RunTest(R"code(
 		string s = "dupa";
 		int a = int.Parse(s);
-	)code", "Exception: Invalid int format 'dupa'.");
+	)code").ShouldFail("Exception: Invalid int format 'dupa'.");
 }
 
 //=========================================================================================
@@ -797,21 +802,21 @@ TEST_METHOD(TwoScriptsCombined)
 {
 	module->Parse("int f() { return 4; }");
 	module->Parse("return f();");
-	RunParsedTest();
-	retval.IsInt(4);
+	RunTest()
+		.ShouldReturn([](Retval& r) { r.IsInt(4); });
 }
 
 //=========================================================================================
 TEST_METHOD(ModuleResetParser)
 {
 	module->Parse("int f(){return 1;} return f();");
-	RunParsedTest();
-	retval.IsInt(1);
+	RunTest()
+		.ShouldReturn([](Retval& r) { r.IsInt(1); });
 
 	module->Reset();
 	module->Parse("int f(){return 2;} return f();");
-	RunParsedTest();
-	retval.IsInt(2);
+	RunTest()
+		.ShouldReturn([](Retval& r) { r.IsInt(2); });
 }
 
 //=========================================================================================
@@ -824,11 +829,14 @@ TEST_METHOD(ComplexTwoScriptsCombined)
 	)code");
 	module->Parse("float f = 3.14, g = 7.11; return a + f;");
 
-	RunParsedTest("7");
-	retval.IsFloat(3.33f);
+	RunTest()
+		.WithInput("7")
+		.ShouldReturn([](Retval& r) { r.IsFloat(3.33f); })
+		.DontReset();
 
-	RunParsedTest("4");
-	retval.IsFloat(7.14f);
+	RunTest()
+		.WithInput("4")
+		.ShouldReturn([](Retval& r) { r.IsFloat(7.14f); });
 }
 
 //=========================================================================================
@@ -895,7 +903,8 @@ TEST_METHOD(RefCountedTypeOutOfScope)
 			}
 			AR a5(5);
 		}();
-	)code", "", "C0\nC1\nC2\nD2\nC3\nD3\nC4\nD1\nD4\nC5\nD5\nD0\n");
+	)code")
+		.ShouldOutput("C0\nC1\nC2\nD2\nC3\nD3\nC4\nD1\nD4\nC5\nD5\nD0\n");
 }
 
 //=========================================================================================
@@ -909,11 +918,14 @@ TEST_METHOD(GlobalReturnString)
 			return "result="+a;
 	)code");
 
-	RunParsedTest("0");
-	retval.IsString("zero");
+	RunTest()
+		.WithInput("0")
+		.ShouldReturn([](Retval& r) { r.IsString("zero"); })
+		.DontReset();
 
-	RunParsedTest("2");
-	retval.IsString("result=2");
+	RunTest()
+		.WithInput("2")
+		.ShouldReturn([](Retval& r) { r.IsString("result=2"); });
 }
 
 //=========================================================================================
@@ -1035,11 +1047,23 @@ TEST_METHOD(ParentModuleFunctionDefaultStringValue)
 }
 
 //=========================================================================================
+static int global_x;
+TEST_METHOD(RegisterGlobal)
+{
+	bool ok = module->AddGlobal("int global_x", &global_x);
+	Assert::IsTrue(ok);
+	global_x = 3;
+	auto result = module->ParseAndRun("global_x = global_x * 2 + 1;");
+	Assert::AreEqual(IModule::Ok, result);
+	Assert::AreEqual(7, global_x);
+}
+
+//=========================================================================================
 CA_TEST_CLASS_END();
 
 namespace tests
 {
-	int Code::global_a, Code::global_b;
+	int Code::global_a, Code::global_b, Code::global_x;
 	Code::A* Code::A::global;
 	Code::I Code::global_i(0,0);
 	string Code::global_str, Code::global_str2;

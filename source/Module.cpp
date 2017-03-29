@@ -10,7 +10,7 @@
 #include "Parser.h"
 #include "Str.h"
 
-Module::Module(int index, cstring name) : index(index), refs(1), built(false), call_context_counter(0), released(false)
+Module::Module(int index, cstring name) : index(index), refs(1), built(false), call_context_counter(0), released(false), globals_offset(0)
 {
 	modules[index] = this;
 	SetName(name);
@@ -85,6 +85,31 @@ bool Module::AddFunction(cstring decl, const cas::FunctionInfo& func_info)
 	f->index = (index << 16) | code_funcs.size();
 	f->BuildDecl();
 	code_funcs.push_back(f);
+	return true;
+}
+
+bool Module::AddGlobal(cstring decl, void* ptr)
+{
+	assert(decl && ptr);
+
+	Global* global = parser->ParseGlobalDecl(decl);
+	if(!global)
+	{
+		Error("Failed to parse global declaration '%s'.", decl);
+		return false;
+	}
+
+	if(GetGlobal(global->name.c_str(), 0))
+	{
+		Error("Global '%s' already exists.", global->name.c_str());
+		delete global;
+		return false;
+	}
+
+	global->module_proxy = this;
+	global->ptr = ptr;
+	global->index = (index << 16) | globals.size();
+	globals.push_back(global);
 	return true;
 }
 
@@ -622,6 +647,20 @@ AnyFunction Module::FindFunction(const string& name)
 	return nullptr;
 }
 
+Global* Module::FindGlobal(const string& name)
+{
+	for(auto& m : modules)
+	{
+		for(Global* g : m.second->globals)
+		{
+			if(g->name == name)
+				return g;
+		}
+	}
+
+	return nullptr;
+}
+
 CodeFunction* Module::GetCodeFunction(int index)
 {
 	int module_index = (index & 0xFFFF0000) >> 16;
@@ -630,6 +669,16 @@ CodeFunction* Module::GetCodeFunction(int index)
 	Module* m = modules[module_index];
 	assert(func_index < (int)m->code_funcs.size());
 	return m->code_funcs[func_index];
+}
+
+Global* Module::GetGlobal(int index)
+{
+	int module_index = (index & 0xFFFF0000) >> 16;
+	int global_index = (index & 0xFFFF);
+	assert(modules.find(module_index) != modules.end());
+	Module* m = modules[module_index];
+	assert(global_index < (int)m->globals.size());
+	return m->globals[global_index];
 }
 
 ScriptFunction* Module::GetScriptFunction(int index, bool local)
@@ -746,6 +795,9 @@ bool Module::BuildModule()
 
 void Module::Cleanup(bool dtor)
 {
+	for(auto context : call_contexts)
+		context->Reset();
+
 	if(!dtor)
 	{
 		for(Module* m : child_modules)

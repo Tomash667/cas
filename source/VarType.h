@@ -48,4 +48,3 @@ struct VarType
 			return type;
 	}
 };
-

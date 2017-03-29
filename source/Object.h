@@ -3,6 +3,8 @@
 #include "cas/IObject.h"
 
 struct Class;
+struct Global;
+class ICallContextProxy;
 
 struct Object final : public cas::IObject
 {
@@ -11,7 +13,16 @@ struct Object final : public cas::IObject
 	cas::Value GetMemberValue(cas::IMember* member) override;
 	cas::Value GetMemberValueRef(cas::IMember* member) override;
 	void* GetPtr() override;
+	cas::Value GetValue() override;
+	cas::Value GetValueRef() override;
+	bool IsGlobal() override;
 	void Release() override;
 
-	Class* clas;
+	ICallContextProxy* context;
+	union
+	{
+		Class* clas;
+		Global* global;
+	};
+	bool is_clas;
 };

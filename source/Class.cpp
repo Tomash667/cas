@@ -5,10 +5,6 @@
 #include "Str.h"
 #include "Type.h"
 
-#ifdef CHECK_LEAKS
-vector<Class*> Class::all_classes;
-#endif
-
 Class* Class::Create(Type* type)
 {
 	assert(type);
@@ -31,7 +27,7 @@ Class* Class::Create(Type* type)
 		}
 	}
 #ifdef CHECK_LEAKS
-	all_classes.push_back(c);
+	ICallContextProxy::Current->all_classes.push_back(c);
 	c->attached = true;
 #endif
 	return c;
@@ -46,7 +42,7 @@ Class* Class::CreateCode(Type* type, int* real_class)
 	c->is_code = true;
 	c->adr = real_class;
 #ifdef CHECK_LEAKS
-	all_classes.push_back(c);
+	ICallContextProxy::Current->all_classes.push_back(c);
 	c->attached = true;
 #endif
 	return c;
@@ -85,7 +81,7 @@ Class* Class::Copy(Class* base)
 		}
 	}
 #ifdef CHECK_LEAKS
-	all_classes.push_back(c);
+	ICallContextProxy::Current->all_classes.push_back(c);
 	c->attached = true;
 #endif
 	return c;
@@ -98,7 +94,7 @@ bool Class::Release()
 	{
 #ifdef CHECK_LEAKS
 		if(attached)
-			RemoveElement(all_classes, this);
+			RemoveElement(ICallContextProxy::Current->all_classes, this);
 #endif
 		Delete();
 		return true;
@@ -153,6 +149,6 @@ void Class::Delete()
 void Class::Deattach()
 {
 	attached = false;
-	RemoveElement(all_classes, this);
+	RemoveElement(ICallContextProxy::Current->all_classes, this);
 }
 #endif

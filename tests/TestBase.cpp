@@ -8,13 +8,10 @@ const int DEFAULT_TIMEOUT = (CI_MODE ? 60 : 1);
 
 IEngine* engine;
 IModule* current_module;
-ICallContext* current_call_context;
-Retval* Retval::current;
 istringstream s_input;
 ostringstream s_output;
 string event_output, content;
 int reg_errors;
-bool decompile, reset_parser = true;
 
 enum Result
 {
@@ -123,26 +120,27 @@ void WriteDecompileOutput(IModule* module)
 	}
 }
 
-Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
+Result RunTestImpl(const TestSettings& settings)
 {
-	IModule::Options options;
-	options.optimize = optimize;
-	module->SetOptions(options);
+	auto options = settings.module->GetOptions();
+	options.optimize = settings.optimize;
+	settings.module->SetOptions(options);
 
 	Result result;
 	bool can_decompile = false;
+	ICallContext* call_context = nullptr;
 
 	try
 	{
 		// parse
 		bool ok = true;
-		if(input)
+		if(settings.input)
 		{
-			IModule::ParseResult parse_result = module->Parse(input);
+			IModule::ParseResult parse_result = settings.module->Parse(settings.input);
 			if(parse_result == IModule::Ok)
 			{
-				if(decompile)
-					WriteDecompileOutput(module);
+				if(settings.decompile)
+					WriteDecompileOutput(settings.module);
 			}
 			else
 				ok = false;
@@ -153,10 +151,12 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 		// run
 		if(ok)
 		{
-			ICallContext* call_context = module->CreateCallContext();
+			call_context = settings.module->CreateCallContext();
 			if(!call_context->Run())
 			{
 				event_output = Format("Exception: %s", call_context->GetException());
+				call_context->Release();
+				call_context = nullptr;
 				result = FAILED;
 			}
 			else
@@ -171,45 +171,50 @@ Result ParseAndRunChecked(IModule* module, cstring input, bool optimize)
 						event_output += s;
 						event_output += "\n";
 					}
+					call_context->Release();
+					call_context = nullptr;
 					result = ASSERT;
 				}
 				else
+				{
+					if(settings.ret_delegate)
+					{
+						Retval retval(call_context);
+						settings.ret_delegate(retval);
+					}
+					call_context->Release();
+					call_context = nullptr;
 					result = OK;
+				}
 			}
-			current_call_context = call_context;
-			Retval::current->call_context = call_context;
 		}
 		else
 			result = FAILED;
 	}
 	catch(cstring)
 	{
-		current_call_context = nullptr;
-		if(can_decompile && decompile)
-			WriteDecompileOutput(module);
+		if(call_context)
+			call_context->Release();
+		if(can_decompile && settings.decompile)
+			WriteDecompileOutput(settings.module);
 		result = ASSERT;
 	}
 
 	return result;
 }
 
-unsigned __stdcall ThreadStart(void* data)
+unsigned __stdcall RunTestThread(void* data)
 {
-	PackedData* pdata = (PackedData*)data;
-	return ParseAndRunChecked(pdata->module, pdata->input, pdata->optimize);
+	const TestSettings& settings = *(const TestSettings*)data;
+	return RunTestImpl(settings);
 }
 
-Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, int timeout = DEFAULT_TIMEOUT)
+Result RunTestSite(const TestSettings& settings, int timeout = DEFAULT_TIMEOUT)
 {
 	if(IsDebuggerPresent())
-		return ParseAndRunChecked(module, content, optimize);
+		return RunTestImpl(settings);
 
-	PackedData pdata;
-	pdata.module = module;
-	pdata.input = content;
-	pdata.optimize = optimize;
-
-	HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, ThreadStart, &pdata, 0u, nullptr);
+	HANDLE thread = (HANDLE)_beginthreadex(nullptr, 0u, RunTestThread, (void*)&settings, 0u, nullptr);
 	DWORD result = WaitForSingleObject(thread, timeout * 1000);
 	Assert::IsTrue(result == WAIT_OBJECT_0 || result == WAIT_TIMEOUT, L"Failed to create parsing thread.");
 	if(result == WAIT_TIMEOUT)
@@ -223,7 +228,7 @@ Result ParseAndRunWithTimeout(IModule* module, cstring content, bool optimize, i
 	return (Result)exit_code;
 }
 
-void RunTest(const TestSettings& s)
+void RunTest(TestSettings& settings)
 {
 	// verify module registeration before RunTest
 	Assert::AreEqual(0, reg_errors, L"Test registeration failed.");
@@ -232,35 +237,34 @@ void RunTest(const TestSettings& s)
 	event_output.clear();
 
 	// write input
-	if(!CI_MODE && s.input && s.input[0] != 0)
+	if(!CI_MODE && settings.input && settings.input[0] != 0)
 	{
 		Logger::WriteMessage("\nScript input:\n");
-		Logger::WriteMessage(s.input);
+		Logger::WriteMessage(settings.input);
 		Logger::WriteMessage("\n");
 	}
 
 	// reset io
 	s_input.clear();
-	s_input.str(s.input ? s.input : "");
+	s_input.str(settings.input ? settings.input : "");
 	s_output.clear();
 	s_output.str("");
 
 	// get script code
-	cstring code;
-	if(s.filename)
+	if(settings.filename)
 	{
-		string path(Format("../cases/%s", s.filename));
+		string path(Format("../cases/%s", settings.filename));
 		ifstream ifs(path);
 		Assert::IsTrue(ifs.is_open(), GetWC(Format("Failed to open file '%s'.", path.c_str())).c_str());
 		content = string((istreambuf_iterator<char>(ifs)), (istreambuf_iterator<char>()));
 		ifs.close();
-		code = content.c_str();
+		settings.input = content.c_str();
 	}
 	else
-		code = s.code;
+		settings.input = settings.code;
 
 	// run
-	Result result = ParseAndRunWithTimeout(s.module, code, s.optimize);
+	Result result = RunTestSite(settings);
 	
 	// get output
 	string output = s_output.str();
@@ -270,7 +274,7 @@ void RunTest(const TestSettings& s)
 	switch(result)
 	{
 	case OK:
-		if(s.error)
+		if(settings.error)
 			Assert::Fail(L"Failure without error.");
 		break;
 	case TIMEOUT:
@@ -283,18 +287,18 @@ void RunTest(const TestSettings& s)
 		Assert::Fail(GetWC(event_output.c_str()).c_str());
 		break;
 	case FAILED:
-		if(!s.error)
+		if(!settings.error)
 		{
 			cstring output = Format("Script parsing failed. Parse output:\n%s\nOutput: %s", event_output.c_str(), ss);
 			Assert::Fail(GetWC(output).c_str());
 		}
 		else
-			AssertError(s.error);
+			AssertError(settings.error);
 		break;
 	}
 
 	// verify output
-	if(s.output)
+	if(settings.output)
 	{
 		if(!CI_MODE)
 		{
@@ -303,12 +307,12 @@ void RunTest(const TestSettings& s)
 			Logger::WriteMessage("\n");
 		}
 
-		Assert::AreEqual(s.output, ss, "Invalid output.");
+		Assert::AreEqual(settings.output, ss, "Invalid output.");
 	}
 
 	// cleanup
-	if(reset_parser && code)
-		s.module->Reset();
+	if(!settings.dont_reset)
+		settings.module->Reset();
 	reg_errors = 0;
 	event_output.clear();
 }
@@ -317,12 +321,6 @@ void CleanupErrors()
 {
 	event_output.clear();
 	reg_errors = 0;
-}
-
-void CleanupAsserts()
-{
-	if(current_call_context)
-		current_call_context->GetAsserts().clear();
 }
 
 void CleanupOutput()
@@ -343,16 +341,6 @@ void AssertOutput(cstring expected)
 	string output = s_output.str();
 	cstring ss = output.c_str();
 	Assert::AreEqual(expected, ss, "Invalid output.");
-}
-
-void SetDecompile(bool _decompile)
-{
-	decompile = _decompile;
-}
-
-void SetResetParser(bool _reset_parser)
-{
-	reset_parser = _reset_parser;
 }
 
 void WriteOutput(cstring msg)

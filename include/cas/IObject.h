@@ -14,6 +14,9 @@ namespace cas
 		virtual Value GetMemberValue(IMember* member) = 0;
 		virtual Value GetMemberValueRef(IMember* member) = 0;
 		virtual void* GetPtr() = 0;
+		virtual Value GetValue() = 0;
+		virtual Value GetValueRef() = 0;
+		virtual bool IsGlobal() = 0;
 		virtual void Release() = 0;
 
 		template<typename T>
@@ -23,7 +26,7 @@ namespace cas
 		bool GetMemberValue(IMember* member)
 		{
 			auto val = GetMemberValue(member);
-			assert(val.type.generic_type == GenericType::Bool);
+			assert(val.type.generic_type == GenericType::Bool && !val.type.is_ref);
 			return val.bool_value;
 		}
 
@@ -31,7 +34,7 @@ namespace cas
 		char GetMemberValue(IMember* member)
 		{
 			auto val = GetMemberValue(member);
-			assert(val.type.generic_type == GenericType::Char);
+			assert(val.type.generic_type == GenericType::Char && !val.type.is_ref);
 			return val.char_value;
 		}
 
@@ -39,7 +42,7 @@ namespace cas
 		int GetMemberValue(IMember* member)
 		{
 			auto val = GetMemberValue(member);
-			assert(val.type.generic_type == GenericType::Int);
+			assert(val.type.generic_type == GenericType::Int && !val.type.is_ref);
 			return val.int_value;
 		}
 
@@ -47,7 +50,7 @@ namespace cas
 		float GetMemberValue(IMember* member)
 		{
 			auto val = GetMemberValue(member);
-			assert(val.type.generic_type == GenericType::Float);
+			assert(val.type.generic_type == GenericType::Float && !val.type.is_ref);
 			return val.float_value;
 		}
 
@@ -91,6 +94,76 @@ namespace cas
 		{
 			void* ptr = GetPtr();
 			return *(T*)ptr;
+		}
+
+		template<typename T>
+		T GetValue() = delete;
+
+		template<>
+		bool GetValue()
+		{
+			auto val = GetValue();
+			assert(val.type.generic_type == GenericType::Bool && !val.type.is_ref);
+			return val.bool_value;
+		}
+
+		template<>
+		char GetValue()
+		{
+			auto val = GetValue();
+			assert(val.type.generic_type == GenericType::Char && !val.type.is_ref);
+			return val.char_value;
+		}
+
+		template<>
+		int GetValue()
+		{
+			auto val = GetValue();
+			assert(val.type.generic_type == GenericType::Int && !val.type.is_ref);
+			return val.int_value;
+		}
+
+		template<>
+		float GetValue()
+		{
+			auto val = GetValue();
+			assert(val.type.generic_type == GenericType::Float && !val.type.is_ref);
+			return val.float_value;
+		}
+
+		template<typename T>
+		T& GetValueRef() = delete;
+
+		template<>
+		bool& GetValueRef()
+		{
+			auto val = GetValueRef();
+			assert(val.type.generic_type == GenericType::Bool && val.type.is_ref);
+			return *(bool*)val.int_value;
+		}
+
+		template<>
+		char& GetValueRef()
+		{
+			auto val = GetValueRef();
+			assert(val.type.generic_type == GenericType::Char && val.type.is_ref);
+			return *(char*)val.int_value;
+		}
+
+		template<>
+		int& GetValueRef()
+		{
+			auto val = GetValueRef();
+			assert(val.type.generic_type == GenericType::Int && val.type.is_ref);
+			return *(int*)val.int_value;
+		}
+
+		template<>
+		float& GetValueRef()
+		{
+			auto val = GetValueRef();
+			assert(val.type.generic_type == GenericType::Float && val.type.is_ref);
+			return *(float*)val.int_value;
 		}
 	};
 }

@@ -1,18 +1,15 @@
 #include "Pch.h"
 #include "Class.h"
+#include "ICallContextProxy.h"
 #include "RefVar.h"
 #include "Str.h"
-
-#ifdef CHECK_LEAKS
-vector<RefVar*> RefVar::all_refs;
-#endif
 
 // hopefully no one will use function with 999 args
 RefVar::RefVar(Type type, uint index, int var_index, uint depth) : type(type), refs(1), index(index), var_index(var_index), depth(depth), is_valid(true),
 	to_release(false), ref_to_class(false)
 {
 #ifdef CHECK_LEAKS
-	all_refs.push_back(this);
+	ICallContextProxy::Current->all_refs.push_back(this);
 #endif
 }
 
@@ -32,7 +29,7 @@ bool RefVar::Release()
 	if(--refs == 0)
 	{
 #ifdef CHECK_LEAKS
-		RemoveElement(all_refs, this);
+		RemoveElement(ICallContextProxy::Current->all_refs, this);
 #endif
 		delete this;
 		return true;

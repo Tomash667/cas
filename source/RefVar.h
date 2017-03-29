@@ -1,19 +1,17 @@
 #pragma once
 
 struct Class;
+struct Global;
 struct Str;
 
 // Call context reference to other variable or object
 struct RefVar
 {
-#ifdef CHECK_LEAKS
-	static vector<RefVar*> all_refs;
-#endif
-
 	enum Type
 	{
 		LOCAL,
 		GLOBAL,
+		CGLOBAL,
 		MEMBER,
 		INDEX,
 		CODE
@@ -27,6 +25,7 @@ struct RefVar
 		Class* clas;
 		Str* str;
 		int* adr;
+		Global* global;
 	};
 	bool is_valid, to_release, ref_to_class;
 

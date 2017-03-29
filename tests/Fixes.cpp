@@ -68,8 +68,8 @@ TEST_METHOD(StringEqualOperator)
 		if(a == b)
 			return 1;
 		return 0;
-	)code");
-	retval.IsInt(1);
+	)code")
+		.ShouldReturn([](Retval& r) { r.IsInt(1); });
 }
 
 struct INT2
@@ -192,7 +192,8 @@ TEST_METHOD(ReturnInsideIf)
 		int a = getint();
 		if(a == 7)
 			return 3.33;
-	)code", "1");
+	)code")
+		.WithInput("1");
 }
 
 TEST_METHOD(SubscriptOperatorOnReference)
@@ -269,7 +270,7 @@ TEST_METHOD(MultipleFilesAndFunctions)
 		f6();
 	)code");
 
-	RunParsedTest("", "121342536");
+	RunTest().ShouldOutput("121342536");
 }
 
 TEST_METHOD(EmptyConstructorWithMembers)
@@ -287,7 +288,8 @@ TEST_METHOD(CompoundAssignmentOnReturnClass)
 			void operator += (int x) { print(i+"+="+x); }
 		}
 		A(1) += 4;
-	)code", "", "1+=4");
+	)code")
+		.ShouldOutput("1+=4");
 }
 
 CA_TEST_CLASS_END();

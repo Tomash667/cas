@@ -3,6 +3,7 @@
 #include "CasException.h"
 #include "Class.h"
 #include "Event.h"
+#include "Global.h"
 #include "Member.h"
 #include "Module.h"
 #include "Object.h"
@@ -13,7 +14,7 @@
 ICallContextProxy* ICallContextProxy::Current;
 
 CallContext::CallContext(int index, Module& module, cstring name) : index(index), module(module), retval_str(nullptr), entry_point(nullptr),
-	entry_point_obj(nullptr)
+	entry_point_obj(nullptr), globals_initialized(false)
 {
 	SetName(name);
 	CleanupReturnValue();
@@ -21,8 +22,13 @@ CallContext::CallContext(int index, Module& module, cstring name) : index(index)
 
 CallContext::~CallContext()
 {
-	if(entry_point_obj)
-		entry_point_obj->Release();
+#ifdef CHECK_LEAKS
+	if(exc.empty())
+	{
+		assert(all_classes.empty());
+		assert(all_refs.empty());
+	}
+#endif
 }
 
 cas::IObject* CallContext::CreateInstance(cas::IType* _type)
@@ -108,7 +114,11 @@ cas::IObject* CallContext::CreateInstance(cas::IType* _type)
 	PushFunctionDefaults(*match.f);
 	values.clear();
 
+	if(!globals_initialized)
+		InitializeGlobals();
+
 	// call
+	ICallContextProxy::Current = this;
 	if(match.IsCode())
 		ExecuteFunction(*match.cf);
 	else
@@ -123,6 +133,7 @@ cas::IObject* CallContext::CreateInstance(cas::IType* _type)
 		catch(const CasException& ex)
 		{
 			Error("Failed to create instance '%s': %s", type->name.c_str(), ex.exc);
+			ICallContextProxy::Current = nullptr;
 			return nullptr;
 		}
 	}
@@ -133,11 +144,14 @@ cas::IObject* CallContext::CreateInstance(cas::IType* _type)
 	Var& v = stack.back();
 	assert(module.GetType(v.vartype.type)->IsClass());
 	obj->clas = v.clas;
+	obj->is_clas = true;
+	obj->context = this;
 #ifdef CHECK_LEAKS
 	v.clas->Deattach();
 #endif
 	stack.pop_back();
 
+	ICallContextProxy::Current = nullptr;
 	return obj;
 }
 
@@ -169,7 +183,12 @@ cstring CallContext::GetException()
 cas::IObject* CallContext::GetGlobal(cas::IGlobal* global)
 {
 	assert(global);
-	return nullptr;
+	Global* g = (Global*)global;
+	Object* obj = new Object;
+	obj->context = this;
+	obj->global = g;
+	obj->is_clas = false;
+	return obj;
 }
 
 cas::IModule* CallContext::GetModule()
@@ -216,6 +235,7 @@ void CallContext::PushValue(const cas::Value& val)
 
 void CallContext::Release()
 {
+	Reset();
 	module.RemoveCallContext(this);
 	delete this;
 }
@@ -226,15 +246,16 @@ bool CallContext::Run()
 	CleanupReturnValue();
 	tmpv = Var();
 	stack.clear();
-	global.clear();
-	global.resize(module.GetMainStackSize());
+	if(!globals_initialized)
+		InitializeGlobals();
 	local.clear();
+	local.resize(module.GetMainStackSize());
 	depth = 0;
 	current_line = -1;
 	stack_frames.clear();
 #ifdef CHECK_LEAKS
-	Class::all_classes.clear();
-	RefVar::all_refs.clear();
+	all_classes.clear();
+	all_refs.clear();
 #endif
 	current_function = -1;
 	if(entry_point)
@@ -266,14 +287,6 @@ bool CallContext::Run()
 		RunInternal();
 		exc.clear();
 		result = true;
-
-		// cleanup
-		for(Var& v : global)
-			ReleaseRef(v);
-#ifdef CHECK_LEAKS
-		assert(Class::all_classes.empty());
-		assert(RefVar::all_refs.empty());
-#endif
 	}
 	catch(const CasException& ex)
 	{
@@ -541,6 +554,7 @@ void CallContext::ConvertReturnValue(VarType* expected)
 		{
 			Object* obj = new Object;
 			obj->clas = v.clas;
+			obj->is_clas = true;
 #ifdef CHECK_LEAKS
 			obj->clas->Deattach();
 #endif
@@ -886,10 +900,16 @@ CallContext::GetRefData CallContext::GetRef(Var& v)
 			return GetRefData(&v.ref->value, VarType(v.vartype.subtype, 0));
 	case RefVar::GLOBAL:
 		{
-			assert(v.ref->index < global.size());
-			Var& vr = global[v.ref->index];
+			assert(globals.find(v.ref->index) != globals.end());
+			Var& vr = globals[v.ref->index];
 			return GetRefData(&vr.value, vr.vartype);
 		}
+	case RefVar::CGLOBAL:
+		{
+			Global* global = v.ref->global;
+			return GetRefData((int*)global->ptr, global->vartype, true);
+		}
+		break;
 	case RefVar::MEMBER:
 		{
 			Class* c = v.ref->clas;
@@ -909,6 +929,93 @@ CallContext::GetRefData CallContext::GetRef(Var& v)
 		assert(0);
 		return GetRefData(nullptr, 0);
 	}
+}
+
+void CallContext::InitializeGlobals()
+{
+	for(auto& g : globals)
+		ReleaseRef(g.second);
+	globals.clear();
+
+	for(auto& m : module.GetModules())
+	{
+		for(auto global : m.second->GetGlobals())
+		{
+			if(global->ptr)
+				continue;
+
+			Var v;
+			if(!global->have_def_value)
+			{
+				switch(global->vartype.type)
+				{
+				case V_BOOL:
+					v = Var(false);
+					break;
+				case V_CHAR:
+					v = Var((char)0);
+					break;
+				case V_INT:
+					v = Var(0);
+					break;
+				case V_FLOAT:
+					v = Var(0.f);
+					break;
+				case V_STRING:
+					{
+						Str* str = module.GetStr(0);
+						str->refs++;
+						v = Var(str);
+					}
+					break;
+				default:
+					{
+						Type* type = module.GetType(global->vartype.type);
+						if(type->IsEnum())
+							v = Var(global->vartype, 0);
+					}
+					break;
+				}
+			}
+			else
+			{
+				switch(global->vartype.type)
+				{
+				case V_BOOL:
+					v = Var(union_cast<bool>(global->def_value));
+					break;
+				case V_CHAR:
+					v = Var(union_cast<char>(global->def_value));
+					break;
+				case V_INT:
+					v = Var(union_cast<int>(global->def_value));
+					break;
+				case V_FLOAT:
+					v = Var(union_cast<float>(global->def_value));
+					break;
+				case V_STRING:
+					{
+						Str* str = module.GetStr(global->def_value);
+						str->refs++;
+						v = Var(str);
+					}
+					break;
+				default:
+					{
+						Type* type = module.GetType(global->vartype.type);
+						if(type->IsEnum())
+							v = Var(global->vartype, global->def_value);
+						else if(!type->IsClass())
+							assert(0);
+					}
+					break;
+				}
+			}
+			globals[global->index] = v;
+		}
+	}
+
+	globals_initialized = true;
 }
 
 void CallContext::MakeSingleInstance(Var& v)
@@ -994,6 +1101,37 @@ void CallContext::AddAssert(cstring msg)
 	asserts.push_back(msg);
 }
 
+void CallContext::GetGlobalPointer(int index, cas::Value& val)
+{
+	assert(globals.find(index) != globals.end());
+	Var& v = globals[index];
+	val.int_value = (int)&v.value;
+}
+
+void CallContext::GetGlobalValue(int index, cas::Value& val)
+{
+	assert(globals.find(index) != globals.end());
+	Var& v = globals[index];
+	switch(v.vartype.type)
+	{
+	case V_BOOL:
+		val.bool_value = v.bvalue;
+		break;
+	case V_CHAR:
+		val.char_value = v.cvalue;
+		break;
+	case V_INT:
+		val.int_value = v.value;
+		break;
+	case V_FLOAT:
+		val.float_value = v.fvalue;
+		break;
+	default:
+		assert(0);
+		break;
+	}
+}
+
 void CallContext::ReleaseClass(Class* c)
 {
 	if(c->type->dtor)
@@ -1032,6 +1170,18 @@ void CallContext::ReleaseClass(Class* c)
 		assert(f);
 		ExecuteSimpleFunction(*f, c->adr);
 	}
+}
+
+void CallContext::Reset()
+{
+	ICallContextProxy::Current = this;
+	for(auto& g : globals)
+		ReleaseRef(g.second);
+	ICallContextProxy::Current = nullptr;
+	if(entry_point_obj)
+		entry_point_obj->Release();
+	entry_point_obj = nullptr;
+	entry_point = nullptr;
 }
 
 void CallContext::ReleaseRef(Var& v)
@@ -1107,7 +1257,10 @@ void CallContext::RunInternal()
 		case PUSH_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(module.GetScriptFunction(current_function)->locals > local_index);
+				if(current_function == -1)
+					assert(local.size() > local_index);
+				else
+					assert(module.GetScriptFunction(current_function)->locals > local_index);
 				Var& v = local[locals_offset + local_index];
 				AddRef(v);
 				stack.push_back(v);
@@ -1116,7 +1269,10 @@ void CallContext::RunInternal()
 		case PUSH_LOCAL_REF:
 			{
 				uint local_index = *c++;
-				assert(module.GetScriptFunction(current_function)->locals > local_index);
+				if(current_function == -1)
+					assert(local.size() > local_index);
+				else
+					assert(module.GetScriptFunction(current_function)->locals > local_index);
 				uint index = locals_offset + local_index;
 				Var& v = local[index];
 				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
@@ -1129,8 +1285,8 @@ void CallContext::RunInternal()
 		case PUSH_GLOBAL:
 			{
 				uint global_index = *c++;
-				assert(global_index < global.size());
-				Var& v = global[global_index];
+				assert(globals.find(global_index) != globals.end());
+				Var& v = globals[global_index];
 				AddRef(v);
 				stack.push_back(v);
 			}
@@ -1138,10 +1294,43 @@ void CallContext::RunInternal()
 		case PUSH_GLOBAL_REF:
 			{
 				uint global_index = *c++;
-				assert(global_index < global.size());
-				Var& v = global[global_index];
+				assert(globals.find(global_index) != globals.end());
+				Var& v = globals[global_index];
 				assert(v.vartype.type != V_VOID && v.vartype.type != V_REF);
 				stack.push_back(Var(new RefVar(RefVar::GLOBAL, global_index), v.vartype.type));
+			}
+			break;
+		case PUSH_CGLOBAL:
+			{
+				uint global_index = *c++;
+				Global* global = module.GetGlobal(global_index);
+				switch(global->vartype.type)
+				{
+				case V_BOOL:
+					stack.push_back(Var(*(bool*)global->ptr));
+					break;
+				case V_CHAR:
+					stack.push_back(Var(*(char*)global->ptr));
+					break;
+				case V_INT:
+					stack.push_back(Var(*(int*)global->ptr));
+					break;
+				case V_FLOAT:
+					stack.push_back(Var(*(float*)global->ptr));
+					break;
+				default:
+					assert(0);
+					break;
+				}
+			}
+			break;
+		case PUSH_CGLOBAL_REF:
+			{
+				uint global_index = *c++;
+				Global* global = module.GetGlobal(global_index);
+				RefVar* r = new RefVar(RefVar::CGLOBAL, 0);
+				r->global = global;
+				stack.push_back(Var(r, global->vartype.type));
 			}
 			break;
 		case PUSH_ARG:
@@ -1332,15 +1521,46 @@ void CallContext::RunInternal()
 		case SET_LOCAL:
 			{
 				uint local_index = *c++;
-				assert(module.GetScriptFunction(current_function)->locals > local_index);
+				if(current_function == -1)
+					assert(local.size() > local_index);
+				else
+					assert(module.GetScriptFunction(current_function)->locals > local_index);
 				SetFromStack(VectorOffset<Var>(local, locals_offset + local_index));
 			}
 			break;
 		case SET_GLOBAL:
 			{
 				uint global_index = *c++;
-				assert(global_index < global.size());
-				SetFromStack(VectorOffset<Var>(global, global_index));
+				assert(globals.find(global_index) != globals.end());
+				Var& v = globals[global_index];
+				SetFromStack(VectorOffset<Var>(&v));
+			}
+			break;
+		case SET_CGLOBAL:
+			{
+				uint global_index = *c++;
+				Global* global = module.GetGlobal(global_index);
+				assert(!stack.empty());
+				Var& v = stack.back();
+				assert(v.vartype == global->vartype);
+				switch(v.vartype.type)
+				{
+				case V_BOOL:
+					*(bool*)global->ptr = v.bvalue;
+					break;
+				case V_CHAR:
+					*(char*)global->ptr = v.cvalue;
+					break;
+				case V_INT:
+					*(int*)global->ptr = v.value;
+					break;
+				case V_FLOAT:
+					*(float*)global->ptr = v.fvalue;
+					break;
+				default:
+					assert(0);
+					break;
+				}
 			}
 			break;
 		case SET_ARG:
@@ -1799,7 +2019,12 @@ void CallContext::RunInternal()
 			{
 				// set & validate return value
 				assert(depth == 0);
-				assert(local.empty());
+				while(!local.empty())
+				{
+					Var& v = local.back();
+					ReleaseRef(v);
+					local.pop_back();
+				}
 				ConvertReturnValue(nullptr);
 				return;
 			}
@@ -1873,6 +2098,8 @@ void CallContext::RunInternal()
 					locals_offset = local.size() - f.locals - cleanup_offset;
 					args_offset = locals_offset - f.args.size() - cleanup_offset;
 				}
+				else
+					locals_offset = 0;
 
 				// push this result
 				if(thi)

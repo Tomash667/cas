@@ -20,6 +20,7 @@ public:
 	// from IModule
 	cas::IEnum* AddEnum(cstring type_name) override;
 	bool AddFunction(cstring decl, const cas::FunctionInfo& func_info) override;
+	bool AddGlobal(cstring decl, void* ptr) override;
 	bool AddParentModule(IModule* module) override;
 	cas::IClass* AddType(cstring type_name, int size, int flags) override;
 	cas::ICallContext* CreateCallContext(cstring name) override;
@@ -53,10 +54,12 @@ public:
 	Type* AddCoreType(cstring type_name, int size, CoreVarType var_type, int flags);
 	AnyFunction FindEqualFunction(Function* f);
 	AnyFunction FindFunction(const string& name);
+	Global* FindGlobal(const string& name);
 	vector<int>& GetBytecode() { return code; }
 	CodeFunction* GetCodeFunction(int index);
 	vector<CodeFunction*>& GetCodeFunctions() { return code_funcs; }
 	vector<int>& GetFunctionsBytecode() { return funcs_code; }
+	Global* GetGlobal(int index);
 	vector<Global*>& GetGlobals() { return globals; }
 	int GetIndex() { return index; }
 	std::map<int, Module*>& GetModules() { return modules; }
@@ -91,7 +94,7 @@ private:
 	vector<Str*> strs;
 	vector<int> code, funcs_code;
 	Options options;
-	int index, refs, call_context_counter;
+	int index, refs, call_context_counter, globals_offset;
 	uint main_stack_size;
 	bool released, built;
 };
