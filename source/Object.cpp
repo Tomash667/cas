@@ -92,7 +92,7 @@ cas::Value Object::GetValueRef()
 	if(global->ptr)
 		v.int_value = (int)global->ptr;
 	else
-		context->GetGlobalValue(global->index, v);
+		context->GetGlobalPointer(global->index, v);
 	return v;
 }
 

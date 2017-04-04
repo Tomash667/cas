@@ -28,6 +28,8 @@ public:
 	B(float x, char c, float y) : x(x), y(y), c(c) {}
 };
 
+string global_str;
+
 CA_TEST_CLASS(Reflection);
 
 TEST_METHOD(GetFunctionByName)
@@ -523,7 +525,47 @@ TEST_METHOD(ReturnCodeClassToCaller)
 	obj->Release();
 }
 
-/*TEST_METHOD(PushStringValue)
+TEST_METHOD(StringGlobalInScript)
+{
+	auto result = module->Parse(R"code(
+		string x = "123";
+		x += "456";
+	)code");
+	Assert::AreEqual(IModule::Ok, result);
+
+	auto context = module->CreateCallContext();
+	auto global = context->GetGlobal("x");
+	Assert::IsNotNull(global);
+	Assert::AreEqual("123", global->GetValueRef<string>().c_str());
+
+	bool ok = context->Run();
+	Assert::IsTrue(ok);
+	Assert::AreEqual("123456", global->GetValueRef<string>().c_str());
+
+	context->Release();
+}
+
+TEST_METHOD(StringGlobalInCode)
+{
+	bool ok = module->AddGlobal("string s", &global_str);
+	Assert::IsTrue(ok);
+
+	global_str = "pie";
+
+	auto result = module->ParseAndRun(R"code(
+		s += "ro";
+		void f(string& str)
+		{
+			str += "gi";
+		}
+		f(s);
+	)code");
+	Assert::AreEqual(IModule::Ok, result);
+
+	Assert::AreEqual("pierogi", global_str.c_str());
+}
+
+TEST_METHOD(PushStringValue)
 {
 	auto result = module->Parse(R"code(
 		void f(string s)
@@ -537,18 +579,28 @@ TEST_METHOD(ReturnCodeClassToCaller)
 	)code");
 	Assert::AreEqual(IModule::Ok, result);
 
-	auto fun = module->GetFunction("f");
 	auto context = module->CreateCallContext();
-	context->SetEntryPoint(fun, "test");
-	bool ok = context->Run();
+
+	auto fun = module->GetFunction("f");
+	Assert::IsNotNull(fun);
+	bool ok = context->SetEntryPoint(fun, "test");
+	Assert::IsTrue(ok);
+	context->Run();
 	Assert::IsTrue(ok);
 	AssertOutput("f:test\n");
 	CleanupOutput();
 
 	fun = module->GetFunction("f2");
-	Value 
-	context->SetEntryPoint("test2")
-}*/
+	Assert::IsNotNull(fun);
+	string str = "test2";
+	ok = context->SetEntryPoint(fun, str);
+	Assert::IsTrue(ok);
+	ok = context->Run();
+	Assert::IsTrue(ok);
+	Assert::AreEqual("f2:test2", str.c_str());
+
+	context->Release();
+}
 
 CA_TEST_CLASS_END();
 

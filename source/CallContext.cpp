@@ -183,12 +183,27 @@ cstring CallContext::GetException()
 cas::IObject* CallContext::GetGlobal(cas::IGlobal* global)
 {
 	assert(global);
+
 	Global* g = (Global*)global;
+	if(!g->ptr && !globals_initialized)
+		InitializeGlobals();
+
 	Object* obj = new Object;
 	obj->context = this;
 	obj->global = g;
 	obj->is_clas = false;
 	return obj;
+}
+
+cas::IObject* CallContext::GetGlobal(cstring global_name)
+{
+	assert(global_name);
+
+	auto global = module.GetGlobal(global_name, 0);
+	if(!global)
+		return nullptr;
+
+	return GetGlobal(global);
 }
 
 cas::IModule* CallContext::GetModule()
@@ -206,31 +221,18 @@ cas::Value CallContext::GetReturnValue()
 	return return_value;
 }
 
-template<typename T, typename Arg>
-inline bool Any(const T& item, const Arg& arg)
-{
-	return item == arg;
-}
-
-template<typename T, typename Arg, typename... Args>
-inline bool Any(const T& item, const Arg& arg, const Args&... args)
-{
-	return item == arg || Any(item, args...);
-}
-
-void CallContext::PushValue(const cas::Value& val)
+void CallContext::PushValue(cas::Value& val)
 {
 	// disallow void, class, struct (class & struct must use object)
 	assert(!Any(val.type.generic_type, cas::GenericType::Void, cas::GenericType::Class, cas::GenericType::Struct));
-	cas::Value v = val;
-	if(v.type.generic_type == cas::GenericType::Object)
+	if(val.type.generic_type == cas::GenericType::Object)
 	{
-		assert(v.obj);
-		Object* obj = (Object*)v.obj;
+		assert(val.obj);
+		Object* obj = (Object*)val.obj;
 		obj->AddRef();
-		v.type.specific_type = obj->clas->type;
+		val.type.specific_type = obj->clas->type;
 	}
-	values.push_back(v);
+	values.push_back(val);
 }
 
 void CallContext::Release()
@@ -242,6 +244,8 @@ void CallContext::Release()
 
 bool CallContext::Run()
 {
+	ICallContextProxy::Current = this;
+
 	// prepare stack
 	CleanupReturnValue();
 	tmpv = Var();
@@ -278,7 +282,6 @@ bool CallContext::Run()
 		code_pos = code->data();
 	}
 	cleanup_offset = 0;
-	ICallContextProxy::Current = this;
 
 	bool result;
 	try
@@ -295,7 +298,6 @@ bool CallContext::Run()
 	}
 
 	ICallContextProxy::Current = nullptr;
-
 	return result;
 }
 
@@ -1105,7 +1107,10 @@ void CallContext::GetGlobalPointer(int index, cas::Value& val)
 {
 	assert(globals.find(index) != globals.end());
 	Var& v = globals[index];
-	val.int_value = (int)&v.value;
+	if(v.vartype.type == V_STRING)
+		val.str_ptr = &v.str->s;
+	else
+		val.int_value = (int)&v.value;
 }
 
 void CallContext::GetGlobalValue(int index, cas::Value& val)
@@ -1317,6 +1322,13 @@ void CallContext::RunInternal()
 					break;
 				case V_FLOAT:
 					stack.push_back(Var(*(float*)global->ptr));
+					break;
+				case V_STRING:
+					{
+						string& s = *(string*)global->ptr;
+						Str* str = Str::Create(s.c_str());
+						stack.push_back(Var(str));
+					}
 					break;
 				default:
 					assert(0);
@@ -1557,6 +1569,12 @@ void CallContext::RunInternal()
 				case V_FLOAT:
 					*(float*)global->ptr = v.fvalue;
 					break;
+				case V_STRING:
+					{
+						string& s = *(string*)global->ptr;
+						s = v.str->s;
+					}
+					break;
 				default:
 					assert(0);
 					break;
@@ -1667,9 +1685,16 @@ void CallContext::RunInternal()
 						if(data.vartype.type == V_STRING)
 						{
 							if(data.ref_to_class)
-								value = (int)(Str*)data.data;
+							{
+								auto str = (Str*)data.data;
+								value = (int)str;
+							}
 							else
-								value = (int)Str::Create(((string*)data.data)->c_str());
+							{
+								auto s = (string*)data.data;
+								Str* str = Str::Create(s->c_str());
+								value = (int)str;
+							}
 						}
 						else
 						{
@@ -2359,6 +2384,7 @@ void CallContext::ValuesToStack()
 {
 	for(cas::Value& value : values)
 	{
+		assert(!value.type.is_ref || value.type.generic_type == cas::GenericType::String);
 		switch(value.type.generic_type)
 		{
 		case cas::GenericType::Bool:
@@ -2372,6 +2398,20 @@ void CallContext::ValuesToStack()
 			break;
 		case cas::GenericType::Float:
 			stack.push_back(Var(value.float_value));
+			break;
+		case cas::GenericType::String:
+			if(!value.type.is_ref)
+			{
+				Str* str = Str::Create(value.str_value);
+				stack.push_back(Var(str));
+			}
+			else
+			{
+				RefVar* ref = new RefVar(RefVar::CODE, 0);
+				ref->adr = (int*)value.str_ptr;
+				ref->ref_to_class = false;
+				stack.push_back(Var(ref, V_STRING));
+			}
 			break;
 		case cas::GenericType::Object:
 			{

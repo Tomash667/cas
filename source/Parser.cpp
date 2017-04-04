@@ -3534,7 +3534,7 @@ bool Parser::Cast(ParseNode*& node, VarType vartype, int cast_flags, CastResult*
 	else if(cast_result.ref_type == CastResult::TAKE_REF)
 	{
 		// take address
-		assert(node->op == PUSH_LOCAL || node->op == PUSH_GLOBAL || node->op == PUSH_ARG || node->op == PUSH_MEMBER || node->op == PUSH_THIS_MEMBER);
+		assert(Any(node->op, PUSH_LOCAL, PUSH_GLOBAL, PUSH_CGLOBAL, PUSH_ARG, PUSH_MEMBER, PUSH_THIS_MEMBER));
 		node->op = Op(node->op + 1);
 		node->result = VarType(V_REF, node->result.type);
 		if(node->op == PUSH_LOCAL_REF || node->op == PUSH_ARG_REF)

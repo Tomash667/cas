@@ -4,4 +4,4 @@ Scripting language based on C++.
 Features:
 - class/struct/enum/simple types (bool, char, int, float, string)
 - if/else/switch/do/while/for
-- register class/struct/enum/functions from c++
+- register class/struct/enum/function/global from c++

@@ -26,7 +26,6 @@ cas::Value Function::GetArgDefaultValue(uint index)
 		++index;
 
 	Arg& arg = args[index];
-	int arg_type;
 	cas::Value value;
 	if(!arg.have_def_value)
 	{

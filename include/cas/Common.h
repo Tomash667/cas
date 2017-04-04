@@ -47,7 +47,8 @@ namespace cas
 		bool is_ref;
 
 		Type() {}
-		Type(GenericType generic_type, IType* specific_type = nullptr) : generic_type(generic_type), specific_type(specific_type), is_ref(false) {}
+		Type(GenericType generic_type, IType* specific_type = nullptr, bool is_ref = false) : generic_type(generic_type), specific_type(specific_type),
+			is_ref(is_ref) {}
 	};
 
 	struct Value
@@ -60,6 +61,7 @@ namespace cas
 			int int_value;
 			float float_value;
 			cstring str_value;
+			string* str_ptr;
 			IObject* obj;
 		};
 
@@ -69,6 +71,8 @@ namespace cas
 		Value(int int_value) : type(GenericType::Int), int_value(int_value) {}
 		Value(float float_value) : type(GenericType::Float), float_value(float_value) {}
 		Value(cstring str_value) : type(GenericType::String), str_value(str_value) {}
+		Value(string* str_ptr) : type(GenericType::String, nullptr, true), str_ptr(str_ptr) {}
+		Value(string& str_ref) : type(GenericType::String, nullptr, true), str_ptr(&str_ref) {}
 		Value(IObject* obj) : type(GenericType::Object), obj(obj) {}
 
 		template<typename T>

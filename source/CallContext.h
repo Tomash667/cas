@@ -27,10 +27,11 @@ public:
 	std::pair<cas::IFunction*, cas::IObject*> GetEntryPoint() override;
 	cstring GetException() override;
 	cas::IObject* GetGlobal(cas::IGlobal* global) override;
+	cas::IObject* GetGlobal(cstring global_name) override;
 	cas::IModule* GetModule() override;
 	cstring GetName() override;
 	cas::Value GetReturnValue() override;
-	void PushValue(const cas::Value& val) override;
+	void PushValue(cas::Value& val) override;
 	void Release() override;
 	bool Run() override;
 	bool SetEntryPoint(cas::IFunction* func) override;

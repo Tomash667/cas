@@ -165,5 +165,13 @@ namespace cas
 			assert(val.type.generic_type == GenericType::Float && val.type.is_ref);
 			return *(float*)val.int_value;
 		}
+
+		template<>
+		string& GetValueRef()
+		{
+			auto val = GetValueRef();
+			assert(val.type.generic_type == GenericType::String && val.type.is_ref);
+			return *val.str_ptr;
+		}
 	};
 }

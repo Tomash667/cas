@@ -7,9 +7,9 @@ ORDER:
 ? generate default ctor and CreateInstance
 ? CreateInstance can use globals, what if Run wasn't called ?
 ? calling CreateInstance while in code callback from script (change stack etc)
-? GetMemberValue(Ref) - string/class/enum/struct, ref
+? GetMemberValue(Ref) - class/enum/struct, ref
 
-+ PushValue -> string, class, ref
++ PushValue -> class, ref, enum
 
 + rename VarType.GetType
 + cleanup parse_funcs, tmp_types on error
@@ -210,3 +210,4 @@ DEBUG:
 + include code in decompile
 + decompiler - calculate next function offset
 + call stack
++ try catch tests
