@@ -36,8 +36,6 @@ cas::Value Function::GetArgDefaultValue(uint index)
 	{
 		value.type = module_proxy->VarTypeToType(arg.vartype);
 		value.int_value = arg.value;
-		if(value.type.generic_type == cas::GenericType::Class || value.type.generic_type == cas::GenericType::Struct)
-			value.type.generic_type = cas::GenericType::Object;
 	}
 
 	return value;

@@ -49,6 +49,9 @@
     <ClCompile Include="source\Object.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>
+    <ClCompile Include="source\Common.cpp">
+      <Filter>Source\CPP</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include/cas/Cas.h">

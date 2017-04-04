@@ -141,6 +141,7 @@
     <ClCompile Include="source/CoreLib.cpp" />
     <ClCompile Include="source\CallContext.cpp" />
     <ClCompile Include="source\Class.cpp" />
+    <ClCompile Include="source\Common.cpp" />
     <ClCompile Include="source\Decompiler.cpp" />
     <ClCompile Include="source/Module.cpp" />
     <ClCompile Include="source/Parser.cpp" />

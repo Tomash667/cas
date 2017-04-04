@@ -32,8 +32,6 @@ namespace Microsoft
 					return L"struct";
 				case GenericType::Enum:
 					return L"enum";
-				case GenericType::Object:
-					return L"object";
 				case GenericType::Invalid:
 				default:
 					return L"invalid";
@@ -236,7 +234,7 @@ struct Retval
 	IObject* GetObject()
 	{
 		Value ret = call_context->GetReturnValue();
-		Assert::AreEqual(GenericType::Object, ret.type.generic_type);
+		Assert::IsTrue(ret.type.generic_type == GenericType::Class || ret.type.generic_type == GenericType::Struct);
 		return ret.obj;
 	}
 };

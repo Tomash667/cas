@@ -36,7 +36,6 @@ namespace cas
 		Class,
 		Struct,
 		Enum,
-		Object,
 		Invalid
 	};
 
@@ -73,7 +72,7 @@ namespace cas
 		Value(cstring str_value) : type(GenericType::String), str_value(str_value) {}
 		Value(string* str_ptr) : type(GenericType::String, nullptr, true), str_ptr(str_ptr) {}
 		Value(string& str_ref) : type(GenericType::String, nullptr, true), str_ptr(&str_ref) {}
-		Value(IObject* obj) : type(GenericType::Object), obj(obj) {}
+		Value(IObject* obj);
 
 		template<typename T>
 		Value(const T&) = delete;

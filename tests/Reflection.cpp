@@ -476,11 +476,11 @@ TEST_METHOD(ReturnScriptClassToCaller)
 	bool ok = context->Run();
 	Assert::IsTrue(ok);
 	auto ret = context->GetReturnValue();
-	Assert::AreEqual(cas::GenericType::Object, ret.type.generic_type);
+	Assert::AreEqual(cas::GenericType::Class, ret.type.generic_type);
 	auto obj = ret.obj;
 	obj->AddRef();
 	context->Release();
-	Assert::AreEqual(cas::GenericType::Object, obj->GetType().generic_type);
+	Assert::AreEqual(cas::GenericType::Class, obj->GetType().generic_type);
 	auto type = obj->GetType().specific_type;
 	Assert::AreEqual("C", type->GetName());
 	
@@ -511,7 +511,7 @@ TEST_METHOD(ReturnCodeClassToCaller)
 	Assert::IsTrue(ok);
 
 	auto ret = context->GetReturnValue();
-	Assert::AreEqual(GenericType::Object, ret.type.generic_type);
+	Assert::AreEqual(GenericType::Class, ret.type.generic_type);
 	Assert::AreEqual("B", ret.type.specific_type->GetName());
 
 	auto obj = ret.obj;

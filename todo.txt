@@ -1,6 +1,5 @@
 ORDER:
 + globals
-	+ remove GenericType::Object
 	+ F_GLOBAL Source
 + IObject
 

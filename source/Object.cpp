@@ -16,7 +16,7 @@ void Object::AddRef()
 cas::Type Object::GetType()
 {
 	if(is_clas)
-		return cas::Type(cas::GenericType::Object, clas->type);
+		return cas::Type(clas->type->GetGenericType(), clas->type);
 	else
 		return global->GetType();
 }

@@ -88,7 +88,6 @@ cas::IObject* CallContext::CreateInstance(cas::IType* _type)
 				case cas::GenericType::Enum:
 				case cas::GenericType::Class:
 				case cas::GenericType::Struct:
-				case cas::GenericType::Object:
 					{
 						Type* type = dynamic_cast<Type*>(val.type.specific_type);
 						s += type->name;
@@ -223,14 +222,13 @@ cas::Value CallContext::GetReturnValue()
 
 void CallContext::PushValue(cas::Value& val)
 {
-	// disallow void, class, struct (class & struct must use object)
-	assert(!Any(val.type.generic_type, cas::GenericType::Void, cas::GenericType::Class, cas::GenericType::Struct));
-	if(val.type.generic_type == cas::GenericType::Object)
+	assert(val.type.generic_type != cas::GenericType::Void);
+	if(val.type.generic_type == cas::GenericType::Class || val.type.generic_type == cas::GenericType::Struct)
 	{
 		assert(val.obj);
 		Object* obj = (Object*)val.obj;
 		obj->AddRef();
-		val.type.specific_type = obj->clas->type;
+		//val.type.specific_type = obj->clas->type;
 	}
 	values.push_back(val);
 }
@@ -552,7 +550,7 @@ void CallContext::ConvertReturnValue(VarType* expected)
 			retval_str = v.str;
 			return_value.str_value = retval_str->s.c_str();
 		}
-		else if(Any(return_value.type.generic_type, cas::GenericType::Object, cas::GenericType::Class, cas::GenericType::Struct))
+		else if(Any(return_value.type.generic_type, cas::GenericType::Class, cas::GenericType::Struct))
 		{
 			Object* obj = new Object;
 			obj->clas = v.clas;
@@ -561,7 +559,6 @@ void CallContext::ConvertReturnValue(VarType* expected)
 			obj->clas->Deattach();
 #endif
 			return_value.obj = obj;
-			return_value.type.generic_type = cas::GenericType::Object;
 		}
 		else
 			return_value.int_value = v.value;
@@ -2356,7 +2353,6 @@ VarType CallContext::TypeToVarType(cas::Type& type)
 	case cas::GenericType::Class:
 	case cas::GenericType::Struct:
 	case cas::GenericType::Enum:
-	case cas::GenericType::Object:
 		{
 			Type* t = dynamic_cast<Type*>(type.specific_type);
 			vartype.type = t->index;
@@ -2413,16 +2409,14 @@ void CallContext::ValuesToStack()
 				stack.push_back(Var(ref, V_STRING));
 			}
 			break;
-		case cas::GenericType::Object:
+		case cas::GenericType::Class:
+		case cas::GenericType::Struct:
 			{
 				Object* obj = (Object*)value.obj;
 				stack.push_back(Var(obj->clas));
 			}
 			break;
-		default: // TODO
-		case cas::GenericType::Void:
-		case cas::GenericType::Class:
-		case cas::GenericType::Struct:
+		default:
 			assert(0);
 			break;
 		}
