@@ -29,6 +29,10 @@ namespace cas
 				|| generic_type == GenericType::Int
 				|| generic_type == GenericType::Float;
 		}
+		bool IsEnum() const
+		{
+			return generic_type == GenericType::Enum;
+		}
 
 		virtual const vector<std::pair<string, int>>& GetEnumValues() = 0;
 		virtual IMember* GetMember(cstring name) = 0;

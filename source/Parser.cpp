@@ -12,8 +12,6 @@
 
 const int EMPTY_STRING = 0;
 
-#define COMBINE(x,y) (((x)&0xFF)|(((y)&0xFF)<<8))
-
 Parser::Parser(Module& module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), main_block(nullptr)
 {
 	AddKeywords();
@@ -3611,6 +3609,8 @@ bool Parser::DoConstCast(ParseNode* node, VarType vartype)
 	// can cast only const literal
 	if(vartype == V_STRING)
 		return false;
+	
+#define COMBINE(x,y) ((int64(x) & 0xFFFFFFFF) | ((int64(y) & 0xFFFFFFFF) << 32))
 
 	switch(COMBINE(node->op, vartype.type))
 	{

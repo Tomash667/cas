@@ -1,10 +1,12 @@
 #pragma once
 
 #include "cas/Common.h"
+#include "cas/Value.h"
 
 namespace cas
 {
 	class IMember;
+	struct Value;
 
 	class IObject
 	{
@@ -129,6 +131,15 @@ namespace cas
 			auto val = GetValue();
 			assert(val.type.generic_type == GenericType::Float && !val.type.is_ref);
 			return val.float_value;
+		}
+
+		template<typename T>
+		T GetEnum()
+		{
+			static_assert(std::is_enum<T>::value, "T must be enum");
+			auto val = GetValue();
+			assert(val.type.generic_type == GenericType::Enum && !val.type.is_ref);
+			return (T)val.int_value;
 		}
 
 		template<typename T>

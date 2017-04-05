@@ -137,12 +137,27 @@ void Decompiler::DecompileFunctions()
 	if(funcs.empty())
 		return;
 
-	for(uint i = 0, count = funcs.size(); i < count; ++i)
+	for(uint i = 0, count = funcs.size(); i < count;)
 	{
 		ScriptFunction* f = funcs[i];
-		*s_output << Format("%s ", f->GetFormattedName(false));
-		uint next = (i + 1 == funcs.size() ? code.size() : funcs[i + 1]->pos);
-		DecompileBlock(code.data() + f->pos, code.data() + next);
+		*s_output << Format("%s:\n", f->GetFormattedName(false));
+		uint next_func = i + 1;
+		bool ok = false;
+		while(next_func < count)
+		{
+			if(funcs[next_func]->pos != (uint)-1)
+			{
+				ok = true;
+				break;
+			}
+			++next_func;
+		}
+		uint next_pos = (ok ? funcs[next_func]->pos : code.size());
+		DecompileBlock(code.data() + f->pos, code.data() + next_pos);
+		if(ok)
+			i = next_func;
+		else
+			break;
 	}
 }
 

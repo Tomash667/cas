@@ -107,6 +107,7 @@
     <ClInclude Include="include\cas\IObject.h" />
     <ClInclude Include="include\cas\IType.h" />
     <ClInclude Include="include\cas\Settings.h" />
+    <ClInclude Include="include\cas\Value.h" />
     <ClInclude Include="source/Function.h" />
     <ClInclude Include="include/cas/IModule.h" />
     <ClInclude Include="source/Module.h" />
@@ -141,7 +142,7 @@
     <ClCompile Include="source/CoreLib.cpp" />
     <ClCompile Include="source\CallContext.cpp" />
     <ClCompile Include="source\Class.cpp" />
-    <ClCompile Include="source\Common.cpp" />
+    <ClCompile Include="source\Value.cpp" />
     <ClCompile Include="source\Decompiler.cpp" />
     <ClCompile Include="source/Module.cpp" />
     <ClCompile Include="source/Parser.cpp" />

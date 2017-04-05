@@ -602,6 +602,134 @@ TEST_METHOD(PushStringValue)
 	context->Release();
 }
 
+#define CHECK_OK(x) {bool ok = (x); Assert::IsTrue(ok, L"Operation failed", LINE_INFO());}
+#define CHECK_OK_RESULT(x) {auto result = (x); Assert::AreEqual(IModule::Ok, result, L"Parse failed", LINE_INFO());}
+#define CHECK_NULL(x) {Assert::IsNotNull(x, L"Value is null", LINE_INFO());}
+#define EQUAL(x,y) {Assert::AreEqual(x, y, L"Equal failed", LINE_INFO());}
+
+TEST_METHOD(PushEnumValue)
+{
+	enum class F
+	{
+		AA,
+		BB,
+		CC,
+		DD
+	};
+
+	auto enu = module->AddEnum("F");
+	CHECK_NULL(enu);
+	CHECK_OK(enu->AddValues({ "AA","BB","CC", "DD" }));
+
+	CHECK_OK_RESULT(module->Parse(R"code(
+		enum E
+		{
+			AA,
+			BB,
+			CC
+		}
+
+		void fe(E e)
+		{
+			println("fe:"+e);
+		}
+
+		void fe2(E& e)
+		{
+			println("fe2:"+e);
+			e = E.AA;
+		}
+
+		void ff(F f)
+		{
+			println("ff:"+f);
+		}
+
+		void ff2(F& f)
+		{
+			println("ff2:"+f);
+			f = F.AA;
+		}
+	)code"));
+
+	WriteDecompileOutput(module);
+
+	// pass script enum by value
+	auto context = module->CreateCallContext();
+	auto fun = module->GetFunction("fe");
+	CHECK_NULL(fun);
+	auto s_enu = module->GetType("E");
+	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(s_enu, 1)));
+	CHECK_OK(context->Run());
+	AssertOutput("fe:1\n");
+	CleanupOutput();
+
+	// pass script enum by ref
+	fun = module->GetFunction("fe2");
+	CHECK_NULL(fun);
+	int val = 2;
+	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(s_enu, &val)));
+	CHECK_OK(context->Run());
+	AssertOutput("fe2:2\n");
+	CleanupOutput();
+	EQUAL(0, val);
+
+	// pass code enum by val
+	fun = module->GetFunction("ff");
+	CHECK_NULL(fun);
+	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(enu, F::CC)));
+	CHECK_OK(context->Run());
+	AssertOutput("ff:2\n");
+	CleanupOutput();
+
+	// pass code enum by ref
+	F f = F::DD;
+	fun = module->GetFunction("ff2");
+	CHECK_NULL(fun);
+	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(enu, &f)));
+	CHECK_OK(context->Run());
+	AssertOutput("ff2:3\n");
+	CleanupOutput();
+	EQUAL((int)F::AA, (int)f);
+
+	context->Release();
+}
+
+TEST_METHOD(EnumGlobal)
+{
+	enum class E
+	{
+		AA,
+		BB,
+		CC
+	};
+	auto enu = module->AddEnum("E");
+	CHECK_NULL(enu);
+	CHECK_OK(enu->AddValues({ "AA","BB","CC" }));
+	E e = E::BB;
+	CHECK_OK(module->AddGlobal("E e", &e));
+
+	CHECK_OK_RESULT(module->Parse(R"code(
+		E e2 = E.CC;
+		e = E.AA;
+		e2 = E.BB;
+	)code"));
+
+	auto context = module->CreateCallContext();
+	auto cglobal = context->GetGlobal("e");
+	CHECK_NULL(cglobal);
+	CHECK_OK(cglobal->GetEnum<E>() == e);
+	auto sglobal = context->GetGlobal("e2");
+	CHECK_NULL(sglobal);
+	CHECK_OK(sglobal->GetEnum<E>() == E::CC);
+
+	CHECK_OK(context->Run());
+	CHECK_OK(cglobal->GetEnum<E>() == e);
+	CHECK_OK(E::AA == e);
+	CHECK_OK(sglobal->GetEnum<E>() == E::BB);
+	context->Release();
+}
+
 CA_TEST_CLASS_END();
 
 }

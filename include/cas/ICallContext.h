@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cas/Common.h"
+#include "cas/Value.h"
 
 namespace cas
 {

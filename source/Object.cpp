@@ -74,7 +74,11 @@ cas::Value Object::GetValue()
 			v.float_value = *(float*)global->ptr;
 			break;
 		default:
-			assert(0);
+			{
+				auto type = global->module_proxy->GetType(global->vartype.type);
+				assert(type->IsEnum());
+				v.int_value = *(int*)global->ptr;
+			}
 			break;
 		}
 	}

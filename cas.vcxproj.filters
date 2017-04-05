@@ -49,7 +49,7 @@
     <ClCompile Include="source\Object.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>
-    <ClCompile Include="source\Common.cpp">
+    <ClCompile Include="source\Value.cpp">
       <Filter>Source\CPP</Filter>
     </ClCompile>
   </ItemGroup>
@@ -179,6 +179,9 @@
     </ClInclude>
     <ClInclude Include="source\Object.h">
       <Filter>Source\H</Filter>
+    </ClInclude>
+    <ClInclude Include="include\cas\Value.h">
+      <Filter>Include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cas/IMember.h"
+#include "cas/Value.h"
 #include "VarSource.h"
 #include "VarType.h"
 

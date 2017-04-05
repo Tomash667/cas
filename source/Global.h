@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cas/IGlobal.h"
+#include "cas/Value.h"
 #include "VarType.h"
 
 class IModuleProxy;

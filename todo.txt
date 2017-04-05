@@ -8,7 +8,7 @@ ORDER:
 ? calling CreateInstance while in code callback from script (change stack etc)
 ? GetMemberValue(Ref) - class/enum/struct, ref
 
-+ PushValue -> class, ref, enum
++ PushValue -> class/struct, ref
 
 + rename VarType.GetType
 + cleanup parse_funcs, tmp_types on error
@@ -21,6 +21,7 @@ ORDER:
 + store current_function as ScriptFunction
 + GetScriptFunction/Code return by ref
 + prevent AddMethod on built type
++ remove dynamic_casts from Type
 
 + struct/class member
 	+ detect loop

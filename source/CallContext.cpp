@@ -415,8 +415,8 @@ void CallContext::Cast(Var& v, VarType vartype)
 	assert(In((CoreVarType)v.vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || module.GetType(v.vartype.type)->IsEnum());
 	assert(In((CoreVarType)vartype.type, { V_BOOL, V_CHAR, V_INT, V_FLOAT, V_STRING }) || module.GetType(vartype.type)->IsEnum());
 	assert(v.vartype != vartype);
-
-#define COMBINE(x,y) ((x & 0xFF) | ((y & 0xFF) << 8))
+	
+#define COMBINE(x,y) ((int64(x) & 0xFFFFFFFF) | ((int64(y) & 0xFFFFFFFF) << 32))
 
 	switch(COMBINE(v.vartype.type, vartype.type))
 	{
@@ -485,29 +485,28 @@ void CallContext::Cast(Var& v, VarType vartype)
 		v.vartype.type = V_STRING;
 		break;
 	default:
+		// enum
+		bool left_enum = module.GetType(v.vartype.type)->IsEnum(),
+			right_enum = module.GetType(vartype.type)->IsEnum();
+		if(left_enum)
 		{
-			bool left_enum = module.GetType(v.vartype.type)->IsEnum(),
-				right_enum = module.GetType(vartype.type)->IsEnum();
-			if(left_enum)
-			{
-				if(right_enum)
-					v.vartype.type = vartype.type;
-				else
-				{
-					v.vartype.type = V_INT;
-					if(vartype.type != V_INT)
-						Cast(v, vartype);
-				}
-			}
+			if(right_enum)
+				v.vartype.type = vartype.type;
 			else
 			{
-				if(v.vartype.type != V_INT)
-				{
-					v.vartype.type = V_INT;
+				v.vartype.type = V_INT;
+				if(vartype.type != V_INT)
 					Cast(v, vartype);
-				}
-				v.vartype.type = vartype.type;
 			}
+		}
+		else
+		{
+			if(v.vartype.type != V_INT)
+			{
+				v.vartype.type = V_INT;
+				Cast(v, vartype);
+			}
+			v.vartype.type = vartype.type;
 		}
 		break;
 	}
@@ -1129,7 +1128,8 @@ void CallContext::GetGlobalValue(int index, cas::Value& val)
 		val.float_value = v.fvalue;
 		break;
 	default:
-		assert(0);
+		assert(module.GetType(v.vartype.type)->IsEnum());
+		val.int_value = v.value;
 		break;
 	}
 }
@@ -1573,7 +1573,8 @@ void CallContext::RunInternal()
 					}
 					break;
 				default:
-					assert(0);
+					assert(module.GetType(global->vartype.type)->IsEnum());
+					*(int*)global->ptr = v.value;
 					break;
 				}
 			}
@@ -1700,7 +1701,7 @@ void CallContext::RunInternal()
 								value = (int)(Class*)data.data;
 							else
 							{
-								assert(type->IsSimple());
+								assert(type->IsSimple() || type->IsEnum());
 								value = *data.data;
 							}
 						}
@@ -2001,7 +2002,7 @@ void CallContext::RunInternal()
 							else
 							{
 								Type* type = module.GetType(right.vartype.type);
-								assert(type->IsSimple());
+								assert(type->IsSimple() || type->IsEnum());
 								memcpy(ref.data, &right.value, type->size);
 							}
 						}
@@ -2380,7 +2381,7 @@ void CallContext::ValuesToStack()
 {
 	for(cas::Value& value : values)
 	{
-		assert(!value.type.is_ref || value.type.generic_type == cas::GenericType::String);
+		assert(!value.type.is_ref || value.type.generic_type == cas::GenericType::String || value.type.generic_type == cas::GenericType::Enum);
 		switch(value.type.generic_type)
 		{
 		case cas::GenericType::Bool:
@@ -2407,6 +2408,20 @@ void CallContext::ValuesToStack()
 				ref->adr = (int*)value.str_ptr;
 				ref->ref_to_class = false;
 				stack.push_back(Var(ref, V_STRING));
+			}
+			break;
+		case cas::GenericType::Enum:
+			{
+				Type* type = dynamic_cast<Type*>(value.type.specific_type);
+				if(!value.type.is_ref)
+					stack.push_back(Var(VarType(type->index, 0), value.int_value));
+				else
+				{
+					RefVar* ref = new RefVar(RefVar::CODE, 0);
+					ref->adr = (int*)value.int_value;
+					ref->ref_to_class = false;
+					stack.push_back(Var(ref, type->index));
+				}
 			}
 			break;
 		case cas::GenericType::Class:
