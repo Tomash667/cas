@@ -55,6 +55,7 @@ public:
 	AnyFunction FindEqualFunction(Function* f);
 	AnyFunction FindFunction(const string& name);
 	Global* FindGlobal(const string& name);
+	Type* FindType(const string& name);
 	vector<int>& GetBytecode() { return code; }
 	CodeFunction* GetCodeFunction(int index);
 	vector<CodeFunction*>& GetCodeFunctions() { return code_funcs; }
@@ -74,7 +75,6 @@ public:
 	void SetMainStackSize(uint new_main_stack_size) { main_stack_size = new_main_stack_size; }
 
 private:
-	void AddParserType(Type* type);
 	bool BuildModule();
 	void Cleanup(bool dtor);
 	cas::IFunction* GetFunctionInternal(cstring name, cstring decl, int flags);

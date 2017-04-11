@@ -1,3 +1,9 @@
+- ParseVarDecl is invalid in some places like:
+	class X{static void f(){}}
+	for(X.f();;) <- will try to declare var X
+
+VerifyTypeName
+
 ORDER:
 + globals
 	+ F_GLOBAL Source

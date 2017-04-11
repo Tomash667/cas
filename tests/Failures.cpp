@@ -680,7 +680,7 @@ TEST_METHOD(RegisterEnumWithSameEnumerator)
 TEST_METHOD(KeywordAsEnumerator)
 {
 	RunTest("enum E{A,int}")
-		.ShouldFail("Expecting item, found keyword 'int' from group 'var'.");
+		.ShouldFail("Enumerator name 'int' already used as type.");
 
 	IEnum* enu = module->AddEnum("F");
 	bool r = enu->AddValue("int");

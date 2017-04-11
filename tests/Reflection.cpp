@@ -2,6 +2,12 @@
 #include "CppUnitTest.h"
 #include "TestBase.h"
 
+#define CHECK_OK(x) {bool ok = (x); Assert::IsTrue(ok, L"Operation failed", LINE_INFO());}
+#define CHECK_OK_RESULT(x) {auto result = (x); Assert::AreEqual(IModule::Ok, result, L"Parse failed", LINE_INFO());}
+#define CHECK_OUTPUT(x) AssertOutput(x, LINE_INFO())
+#define CHECK_NULL(x) {Assert::IsNotNull(x, L"Value is null", LINE_INFO());}
+#define EQUAL(x,y) {Assert::AreEqual(x, y, L"Equal failed", LINE_INFO());}
+
 extern ostringstream s_output;
 
 namespace reflection_tests
@@ -567,7 +573,7 @@ TEST_METHOD(StringGlobalInCode)
 
 TEST_METHOD(PushStringValue)
 {
-	auto result = module->Parse(R"code(
+	CHECK_OK_RESULT(module->Parse(R"code(
 		void f(string s)
 		{
 			println("f:"+s);
@@ -576,36 +582,26 @@ TEST_METHOD(PushStringValue)
 		{
 			s = "f2:"+s;
 		}
-	)code");
-	Assert::AreEqual(IModule::Ok, result);
+	)code"));
 
 	auto context = module->CreateCallContext();
 
 	auto fun = module->GetFunction("f");
-	Assert::IsNotNull(fun);
-	bool ok = context->SetEntryPoint(fun, "test");
-	Assert::IsTrue(ok);
-	context->Run();
-	Assert::IsTrue(ok);
-	AssertOutput("f:test\n");
+	CHECK_NULL(fun);
+	CHECK_OK(context->SetEntryPoint(fun, "test"));
+	CHECK_OK(context->Run());
+	CHECK_OUTPUT("f:test\n");
 	CleanupOutput();
 
 	fun = module->GetFunction("f2");
-	Assert::IsNotNull(fun);
+	CHECK_NULL(fun);
 	string str = "test2";
-	ok = context->SetEntryPoint(fun, str);
-	Assert::IsTrue(ok);
-	ok = context->Run();
-	Assert::IsTrue(ok);
-	Assert::AreEqual("f2:test2", str.c_str());
+	CHECK_OK(context->SetEntryPoint(fun, str));
+	CHECK_OK(context->Run());
+	EQUAL("f2:test2", str.c_str());
 
 	context->Release();
 }
-
-#define CHECK_OK(x) {bool ok = (x); Assert::IsTrue(ok, L"Operation failed", LINE_INFO());}
-#define CHECK_OK_RESULT(x) {auto result = (x); Assert::AreEqual(IModule::Ok, result, L"Parse failed", LINE_INFO());}
-#define CHECK_NULL(x) {Assert::IsNotNull(x, L"Value is null", LINE_INFO());}
-#define EQUAL(x,y) {Assert::AreEqual(x, y, L"Equal failed", LINE_INFO());}
 
 TEST_METHOD(PushEnumValue)
 {
@@ -661,7 +657,7 @@ TEST_METHOD(PushEnumValue)
 	auto s_enu = module->GetType("E");
 	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(s_enu, 1)));
 	CHECK_OK(context->Run());
-	AssertOutput("fe:1\n");
+	CHECK_OUTPUT("fe:1\n");
 	CleanupOutput();
 
 	// pass script enum by ref
@@ -670,7 +666,7 @@ TEST_METHOD(PushEnumValue)
 	int val = 2;
 	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(s_enu, &val)));
 	CHECK_OK(context->Run());
-	AssertOutput("fe2:2\n");
+	CHECK_OUTPUT("fe2:2\n");
 	CleanupOutput();
 	EQUAL(0, val);
 
@@ -679,7 +675,7 @@ TEST_METHOD(PushEnumValue)
 	CHECK_NULL(fun);
 	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(enu, F::CC)));
 	CHECK_OK(context->Run());
-	AssertOutput("ff:2\n");
+	CHECK_OUTPUT("ff:2\n");
 	CleanupOutput();
 
 	// pass code enum by ref
@@ -688,7 +684,7 @@ TEST_METHOD(PushEnumValue)
 	CHECK_NULL(fun);
 	CHECK_OK(context->SetEntryPoint(fun, Value::Enum(enu, &f)));
 	CHECK_OK(context->Run());
-	AssertOutput("ff2:3\n");
+	CHECK_OUTPUT("ff2:3\n");
 	CleanupOutput();
 	EQUAL((int)F::AA, (int)f);
 

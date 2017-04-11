@@ -8,7 +8,6 @@
 enum GROUP
 {
 	G_KEYWORD,
-	G_VAR,
 	G_CONST
 };
 
@@ -48,7 +47,8 @@ enum FOUND
 	F_VAR,
 	F_FUNC,
 	F_MEMBER,
-	F_GLOBAL
+	F_GLOBAL,
+	F_TYPE
 };
 
 enum PseudoOp
@@ -310,6 +310,7 @@ union Found
 		int member_index;
 	};
 	Global* global;
+	Type* type;
 
 	Found() : func() {}
 
@@ -336,6 +337,8 @@ union Found
 			return "member";
 		case F_GLOBAL:
 			return "global variable";
+		case F_TYPE:
+			return "type";
 		default:
 			assert(0);
 			return "undefined";

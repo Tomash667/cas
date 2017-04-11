@@ -170,8 +170,8 @@ inline RunTestProxy RunTest()
 
 void CleanupErrors();
 void CleanupOutput();
-void AssertError(cstring error);
-void AssertOutput(cstring output);
+void AssertError(cstring error, const __LineInfo* pLineInfo = nullptr);
+void AssertOutput(cstring output, const __LineInfo* pLineInfo = nullptr);
 void WriteOutput(cstring msg);
 void WriteDecompileOutput(IModule* module);
 

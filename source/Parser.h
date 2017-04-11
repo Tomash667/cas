@@ -68,18 +68,15 @@ public:
 	CodeFunction* ParseFuncDecl(cstring decl, Type* type, bool builtin);
 	Member* ParseMemberDecl(cstring decl);
 	Global* ParseGlobalDecl(cstring decl);
-	void AddType(Type* type);
 	bool GetFunctionNameDecl(cstring decl, string* name, string* real_decl, Type* type);
 	bool Parse(ParseSettings& settigns);
 	int CreateDefaultFunctions(Type* type, int define_ctor = -1);
 	bool CheckTypeLoop(Type* type);
 	void Reset();
-	void RemoveKeywords(Module* module);
 
 private:
 	void ConvertParseToScriptItems();
 	void AddKeywords();
-	void AddChildModulesKeywords();
 	void Cleanup();
 
 	void ParseCode();
@@ -120,7 +117,7 @@ private:
 
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);
-	VarType GetVarType(bool is_arg, bool in_cpp = false);
+	VarType GetVarType(bool is_arg, bool in_cpp = false, bool optional = false);
 	VarType GetVarTypeForMember();
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
@@ -151,6 +148,7 @@ private:
 	void ToCode(vector<int>& code, ParseNode* node, vector<uint>* break_pos);
 
 	Type* GetType(int index);
+	Type* FindType(const string& name);
 	cstring GetName(ParseVar* var);
 	cstring GetTypeName(ParseNode* node);
 	VarType CommonType(VarType a, VarType b);

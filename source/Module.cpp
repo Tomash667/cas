@@ -54,7 +54,6 @@ cas::IEnum* Module::AddEnum(cstring type_name)
 	type->enu->type = type;
 	type->SetGenericType();
 	types.push_back(type);
-	AddParserType(type);
 
 	built = false;
 	return type;
@@ -132,11 +131,6 @@ bool Module::AddParentModule(cas::IModule* _module)
 	added_module->refs++;
 	added_module->child_modules.push_back(this);
 	modules[added_module->index] = added_module;
-	for(Type* type : added_module->types)
-	{
-		if(!type->IsHidden())
-			parser->AddType(type);
-	}
 
 	// apply added module parent modules to this module
 	for(auto m : added_module->modules)
@@ -146,11 +140,6 @@ bool Module::AddParentModule(cas::IModule* _module)
 		m.second->refs++;
 		m.second->child_modules.push_back(this);
 		modules[m.first] = m.second;
-		for(Type* type : m.second->types)
-		{
-			if(!type->IsHidden())
-				parser->AddType(type);
-		}
 	}
 
 	// apply to childs
@@ -191,7 +180,6 @@ cas::IClass* Module::AddType(cstring type_name, int size, int flags)
 	type->built = false;
 	type->SetGenericType();
 	types.push_back(type);
-	AddParserType(type);
 
 	built = false;
 	return type;
@@ -600,8 +588,6 @@ Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int
 	type->built = false;
 	type->SetGenericType();
 	types.push_back(type);
-	if(!IS_SET(flags, Type::Hidden))
-		AddParserType(type);
 	built = false;
 
 	return type;
@@ -655,6 +641,20 @@ Global* Module::FindGlobal(const string& name)
 		{
 			if(g->name == name)
 				return g;
+		}
+	}
+
+	return nullptr;
+}
+
+Type* Module::FindType(const string& name)
+{
+	for(auto& m : modules)
+	{
+		for(Type* type : m.second->types)
+		{
+			if(type->name == name && !type->IsHidden())
+				return type;
 		}
 	}
 
@@ -724,13 +724,6 @@ void Module::RemoveCallContext(CallContext* call_context)
 {
 	assert(call_context);
 	RemoveElement(call_contexts, call_context);
-}
-
-void Module::AddParserType(Type* type)
-{
-	parser->AddType(type);
-	for(Module* module : child_modules)
-		module->parser->AddType(type);
 }
 
 bool Module::BuildModule()
@@ -820,9 +813,6 @@ void Module::Cleanup(bool dtor)
 	}
 	else
 	{
-		parser->RemoveKeywords(this);
-		for(Module* m : child_modules)
-			m->parser->RemoveKeywords(this);
 		parser->Reset();
 		code.clear();
 	}

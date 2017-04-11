@@ -329,18 +329,18 @@ void CleanupOutput()
 	s_output.str("");
 }
 
-void AssertError(cstring error)
+void AssertError(cstring error, const __LineInfo* pLineInfo)
 {
 	cstring r = strstr(event_output.c_str(), error);
 	if(!r)
-		Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str());
+		Assert::Fail(GetWC(Format("Invalid error message. Expected:<%s> Actual:<%s>", error, event_output.c_str())).c_str(), pLineInfo);
 }
 
-void AssertOutput(cstring expected)
+void AssertOutput(cstring expected, const __LineInfo* pLineInfo)
 {
 	string output = s_output.str();
 	cstring ss = output.c_str();
-	Assert::AreEqual(expected, ss, "Invalid output.");
+	Assert::AreEqual(expected, ss, "Invalid output.", pLineInfo);
 }
 
 void WriteOutput(cstring msg)

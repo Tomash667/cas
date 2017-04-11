@@ -15,7 +15,6 @@ const int EMPTY_STRING = 0;
 Parser::Parser(Module& module) : module(module), t(Tokenizer::F_SEEK | Tokenizer::F_UNESCAPE | Tokenizer::F_CHAR | Tokenizer::F_HIDE_ID), main_block(nullptr)
 {
 	AddKeywords();
-	AddChildModulesKeywords();
 }
 
 Parser::~Parser()
@@ -30,20 +29,19 @@ bool Parser::VerifyTypeName(cstring type_name, int& type_index)
 	t.CheckItemOrKeyword(type_name);
 	if(t.IsKeyword())
 	{
-		if(t.IsKeywordGroup(G_VAR))
-			type_index = t.GetKeywordId(G_VAR);
-		else
-			type_index = -1;
+		type_index = -1;
 		return false;
 	}
-	else
-		return true;
-}
-
-void Parser::AddType(Type* type)
-{
-	assert(type);
-	t.AddKeyword(type->name.c_str(), type->index, G_VAR);
+	else if(t.IsItem())
+	{
+		Type* type = FindType(type_name);
+		if(type)
+		{
+			type_index = type->index;
+			return false;
+		}
+	}
+	return true;
 }
 
 void Parser::AddKeywords()
@@ -77,22 +75,6 @@ void Parser::AddKeywords()
 		{ "false", C_FALSE },
 		{ "this", C_THIS }
 	}, "const");
-
-	t.AddKeywordGroup("var", G_VAR);
-}
-
-void Parser::AddChildModulesKeywords()
-{
-	for(auto& m : module.GetModules())
-	{
-		if(m.first == module.GetIndex())
-			continue;
-		for(Type* type : m.second->GetTypes())
-		{
-			if(!type->IsHidden())
-				AddType(type);
-		}
-	}
 }
 
 bool Parser::Parse(ParseSettings& settings)
@@ -205,15 +187,6 @@ void Parser::Reset()
 		main_block = nullptr;
 	}
 	DeleteElements(parse_funcs);
-}
-
-void Parser::RemoveKeywords(Module* module)
-{
-	for(Type* type : module->GetTypes())
-	{
-		if(!type->IsHidden())
-			t.RemoveKeyword(type->name.c_str(), type->index, G_VAR);
-	}
 }
 
 void Parser::ParseCode()
@@ -402,41 +375,40 @@ ParseNode* Parser::ParseLine()
 			t.Unexpected();
 		}
 	}
-	else if(t.IsKeywordGroup(G_VAR))
+
+	// check if forward code is var decl, func decl or expr
+	// is this function or var declaration or ctor
+	NextType next_type = GetNextType(false);
+	switch(next_type)
 	{
-		// is this function or var declaration or ctor
-		NextType next_type = GetNextType(false);
-		switch(next_type)
+	case NT_VAR_DECL:
 		{
-		case NT_VAR_DECL:
-			{
-				// var
-				if(disallow_globals && current_block == main_block)
-					t.Throw("Global variables disallowed.");
-				ParseNode* node = ParseVarTypeDecl();
-				t.Next();
-				return node;
-			}
-		case NT_FUNC:
-			return ParseFunc();
-		case NT_CALL:
-		case NT_INVALID:
-			// fallback to ParseExpr
-			break;
-		default:
-			assert(0);
-			break;
+			// var
+			if(disallow_globals && current_block == main_block)
+				t.Throw("Global variables disallowed.");
+			ParseNode* node = ParseVarTypeDecl();
+			t.Next();
+			return node;
 		}
+	case NT_FUNC:
+		return ParseFunc();
+	case NT_CALL:
+	case NT_INVALID:
+		{
+			CheckGlobalCodeDisallowed();
+			NodeRef node = ParseExpr();
+
+			// ;
+			t.AssertSymbol(';');
+			t.Next();
+
+			return node.Pin();
+		}
+		break;
+	default:
+		assert(0);
+		break;
 	}
-
-	CheckGlobalCodeDisallowed();
-	NodeRef node = ParseExpr();
-
-	// ;
-	t.AssertSymbol(';');
-	t.Next();
-
-	return node.Pin();
 }
 
 ParseNode* Parser::ParseIf()
@@ -523,7 +495,9 @@ ParseNode* Parser::ParseFor()
 	old_block->childs.push_back(new_block);
 	current_block = new_block;
 
-	if(t.IsKeywordGroup(G_VAR))
+	// init-expr
+	auto next = GetNextType(false);
+	if(next == NT_VAR_DECL)
 		for1 = ParseVarTypeDecl();
 	else if(t.IsSymbol(';'))
 		for1 = nullptr;
@@ -533,6 +507,8 @@ ParseNode* Parser::ParseFor()
 		t.AssertSymbol(';');
 	}
 	t.Next();
+
+	// test-expr
 	if(t.IsSymbol(';'))
 		for2 = nullptr;
 	else
@@ -541,6 +517,8 @@ ParseNode* Parser::ParseFor()
 		t.AssertSymbol(';');
 	}
 	t.Next();
+
+	// increment-expr
 	if(t.IsSymbol(')'))
 		for3 = nullptr;
 	else
@@ -650,7 +628,8 @@ void Parser::ParseClass(bool is_struct)
 
 	// id
 	t.Next();
-	Type* type = GetType(t.MustGetKeywordId(G_VAR));
+	const string& id = t.MustGetItem();
+	Type* type = FindType(id);
 	t.Next();
 	type->size = 0;
 
@@ -928,19 +907,22 @@ void Parser::ParseEnum(bool forward)
 	}
 
 	// name
-	bool ok = true;
 	Type* type = nullptr;
-	if(t.IsKeywordGroup(G_VAR))
-	{
-		type = GetType(t.GetKeywordId(G_VAR));
-		if(type->declared)
-			ok = false;
-	}
-	else if(t.IsItem())
+	bool ok = true;
+	if(t.IsItem())
 	{
 		const string& name = t.MustGetItem();
-		CheckFindItem(name, false);
-		type = AnalyzeAddType(name);
+		type = FindType(name);
+		if(type)
+		{
+			if(type->declared)
+				ok = false;
+		}
+		else
+		{
+			CheckFindItem(name, false);
+			type = AnalyzeAddType(name);
+		}
 	}
 	else
 		ok = false;
@@ -966,6 +948,8 @@ void Parser::ParseEnum(bool forward)
 		{
 			// name
 			const string& enum_value = t.MustGetItem();
+			if(FindType(enum_value))
+				t.Throw("Enumerator name '%s' already used as type.", enum_value.c_str());
 			if(enu->Find(enum_value))
 				t.Throw("Enumerator '%s.%s' already defined.", type->name.c_str(), enum_value.c_str());
 			enu->values.push_back(std::pair<string, int>(enum_value, 0));
@@ -2553,137 +2537,135 @@ void Parser::ParseArgs(vector<ParseNode*>& nodes, char open, char close)
 
 ParseNode* Parser::ParseItem(ParseFunction* func)
 {
-	if(t.IsKeywordGroup(G_VAR))
-	{
-		VarType vartype(t.GetKeywordId(G_VAR), 0);
-		t.Next();
-
-		if(t.IsSymbol('('))
-		{
-			// ctor
-			return ParseVarCtor(vartype);
-		}
-		else
-		{
-			// type
-			ParseNode* type = ParseNode::Get();
-			type->pseudo_op = PUSH_TYPE;
-			type->result = V_TYPE;
-			type->value = vartype.type;
-			type->source = nullptr;
-			return type;
-		}
-	}
-	else if(t.IsItem() || func)
-	{
-		const string& id = t.GetTokenString(); // get item or ( if func is not null
-		Found found;
-		FOUND found_type;
-		if(func)
-			found_type = F_FUNC;
-		else
-			found_type = FindItem(id, found);
-		switch(found_type)
-		{
-		case F_VAR:
-			{
-				ParseVar* var = found.var;
-				ParseNode* node = ParseNode::Get();
-				node->result = var->vartype;
-				node->value = var->index;
-				node->source = var;
-				switch(var->subtype)
-				{
-				default:
-					assert(0);
-				case ParseVar::LOCAL:
-					node->op = PUSH_LOCAL;
-					break;
-				case ParseVar::GLOBAL:
-					node->op = PUSH_GLOBAL;
-					break;
-				case ParseVar::ARG:
-					node->op = PUSH_ARG;
-					if(current_type && !current_function->IsStatic())
-						node->value++;
-					break;
-				}
-				t.Next();
-				return node;
-			}
-		case F_GLOBAL:
-			{
-				Global* global = found.global;
-				ParseNode* node = ParseNode::Get();
-				if(global->ptr)
-					node->op = PUSH_CGLOBAL;
-				else
-					node->op = PUSH_GLOBAL;
-				node->result = global->vartype;
-				node->source = nullptr;
-				node->value = global->index;
-				t.Next();
-				return node;
-			}
-		case F_FUNC:
-			{
-				vector<AnyFunction> funcs;
-				if(!func)
-				{
-					FindAllFunctionOverloads(id, funcs);
-					t.Next();
-				}
-				else
-					funcs.push_back(func);
-
-				NodeRef node;
-				node->source = nullptr;
-
-				ParseArgs(node->childs);
-				ApplyFunctionCall(node, funcs, nullptr, false);
-
-				return node.Pin();
-			}
-		case F_MEMBER:
-			{
-				ParseNode* node = ParseNode::Get();
-				node->op = PUSH_THIS_MEMBER;
-				node->result = found.member->vartype;
-				node->value = found.member_index;
-				node->source = nullptr;
-				if(found.member->used == Member::No)
-					found.member->used = Member::Used;
-				else
-					found.member->used = Member::UsedBeforeSet;
-				t.Next();
-				return node;
-			}
-		default:
-			assert(0);
-			t.Unexpected();
-			break;
-		case F_NONE:
-			if(active_enum)
-			{
-				const string& name = t.MustGetItem();
-				auto e = active_enum->Find(name);
-				if(e)
-				{
-					ParseNode* enu = ParseNode::Get();
-					enu->op = PUSH_ENUM;
-					enu->value = e->second;
-					enu->source = nullptr;
-					enu->result = VarType(active_enum->type->index, 0);
-					t.Next();
-					return enu;
-				}
-			}
-			t.Unexpected();
-			break;
-		}
-	}
-	else
+	if(!t.IsItem() && !func)
 		return ParseConstItem();
+
+	const string& id = t.GetTokenString(); // get item or ( if func is not null
+	Found found;
+	FOUND found_type;
+	if(func)
+		found_type = F_FUNC;
+	else
+		found_type = FindItem(id, found);
+	switch(found_type)
+	{
+	case F_VAR:
+		{
+			ParseVar* var = found.var;
+			ParseNode* node = ParseNode::Get();
+			node->result = var->vartype;
+			node->value = var->index;
+			node->source = var;
+			switch(var->subtype)
+			{
+			default:
+				assert(0);
+			case ParseVar::LOCAL:
+				node->op = PUSH_LOCAL;
+				break;
+			case ParseVar::GLOBAL:
+				node->op = PUSH_GLOBAL;
+				break;
+			case ParseVar::ARG:
+				node->op = PUSH_ARG;
+				if(current_type && !current_function->IsStatic())
+					node->value++;
+				break;
+			}
+			t.Next();
+			return node;
+		}
+	case F_GLOBAL:
+		{
+			Global* global = found.global;
+			ParseNode* node = ParseNode::Get();
+			if(global->ptr)
+				node->op = PUSH_CGLOBAL;
+			else
+				node->op = PUSH_GLOBAL;
+			node->result = global->vartype;
+			node->source = nullptr;
+			node->value = global->index;
+			t.Next();
+			return node;
+		}
+	case F_FUNC:
+		{
+			vector<AnyFunction> funcs;
+			if(!func)
+			{
+				FindAllFunctionOverloads(id, funcs);
+				t.Next();
+			}
+			else
+				funcs.push_back(func);
+
+			NodeRef node;
+			node->source = nullptr;
+
+			ParseArgs(node->childs);
+			ApplyFunctionCall(node, funcs, nullptr, false);
+
+			return node.Pin();
+		}
+	case F_MEMBER:
+		{
+			ParseNode* node = ParseNode::Get();
+			node->op = PUSH_THIS_MEMBER;
+			node->result = found.member->vartype;
+			node->value = found.member_index;
+			node->source = nullptr;
+			if(found.member->used == Member::No)
+				found.member->used = Member::Used;
+			else
+				found.member->used = Member::UsedBeforeSet;
+			t.Next();
+			return node;
+		}
+	case F_TYPE:
+		{
+			VarType vartype(found.type->index, 0);
+			t.Next();
+
+			if(t.IsSymbol('('))
+			{
+				// ctor
+				return ParseVarCtor(vartype);
+			}
+			else
+			{
+				// type
+				ParseNode* type = ParseNode::Get();
+				type->pseudo_op = PUSH_TYPE;
+				type->result = V_TYPE;
+				type->value = vartype.type;
+				type->source = nullptr;
+				return type;
+			}
+		}
+	default:
+		assert(0);
+		t.Unexpected();
+		break;
+	case F_NONE:
+		if(active_enum)
+		{
+			const string& name = t.MustGetItem();
+			auto e = active_enum->Find(name);
+			if(e)
+			{
+				ParseNode* enu = ParseNode::Get();
+				enu->op = PUSH_ENUM;
+				enu->value = e->second;
+				enu->source = nullptr;
+				enu->result = VarType(active_enum->type->index, 0);
+				t.Next();
+				return enu;
+			}
+		}
+		t.Unexpected();
+		break;
+	}
 }
 
 ParseNode* Parser::ParseConstItem()
@@ -2817,17 +2799,26 @@ ParseVar* Parser::GetVar(ParseNode* node)
 	}
 }
 
-VarType Parser::GetVarType(bool is_arg, bool in_cpp)
+VarType Parser::GetVarType(bool is_arg, bool in_cpp, bool optional)
 {
 	VarType vartype(nullptr);
 	bool ok = false;
-	if(t.IsKeywordGroup(G_VAR))
+	if(t.IsItem())
 	{
-		vartype.type = t.GetKeywordId(G_VAR);
-		ok = true;
+		const string& name = t.GetItem();
+		Type* type = FindType(name);
+		if(type)
+		{
+			vartype.type = type->index;
+			ok = true;
+		}
 	}
 	if(!ok)
+	{
+		if(optional)
+			return VarType(-1, -1);
 		t.Unexpected("Expecting var type.");
+	}
 	t.Next();
 
 	if(t.IsSymbol('&'))
@@ -4629,6 +4620,11 @@ Type* Parser::GetType(int index)
 	return module.GetType(index);
 }
 
+Type* Parser::FindType(const string& name)
+{
+	return module.FindType(name);
+}
+
 bool Parser::GetFunctionNameDecl(cstring decl, string* name, string* real_decl, Type* type)
 {
 	CodeFunction* f = ParseFuncDecl(decl, type, false);
@@ -4693,6 +4689,13 @@ FOUND Parser::FindItem(const string& id, Found& found)
 			found.func = f;
 			return F_FUNC;
 		}
+	}
+
+	Type* type = FindType(id);
+	if(type)
+	{
+		found.type = type;
+		return F_TYPE;
 	}
 
 	AnyFunction f = module.FindFunction(id);
@@ -5116,7 +5119,7 @@ NextType Parser::GetNextType(bool analyze)
 	// var type
 	if(analyze)
 	{
-		if(!t.IsKeywordGroup(G_VAR) && !t.IsItem())
+		if(!t.IsItem())
 		{
 			t.MoveTo(pos);
 			return NT_INVALID;
@@ -5124,7 +5127,11 @@ NextType Parser::GetNextType(bool analyze)
 		t.Next();
 	}
 	else
-		GetVarType(false);
+	{
+		auto result = GetVarType(false, false, true);
+		if(result == VarType(-1, -1))
+			return NT_INVALID;
+	}
 
 	NextType result;
 
@@ -5225,16 +5232,20 @@ void Parser::AnalyzeClass()
 	bool is_class = (t.GetKeywordId(G_KEYWORD) == (int)K_CLASS);
 	t.Next();
 
-	Type* type;
+	Type* type = nullptr;
 	if(t.IsItem())
-		type = AnalyzeAddType(t.GetItem());
-	else if(t.IsKeywordGroup(G_VAR))
 	{
-		type = GetType(t.GetKeywordId(G_VAR));
-		if(type->declared)
-			t.Throw("Can't declare %s '%s', type is already declared.", is_class ? "class" : "struct", t.GetTokenString().c_str());
+		const string& name = t.GetItem();
+		type = FindType(name);
+		if(type)
+		{
+			if(type->declared)
+				t.Throw("Can't declare %s '%s', type is already declared.", is_class ? "class" : "struct", t.GetTokenString().c_str());
+		}
+		else
+			type = AnalyzeAddType(name);
 	}
-	else
+	if(!type)
 		t.Unexpected(tokenizer::T_ITEM);
 
 	type->declared = true;
@@ -5536,11 +5547,12 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 VarType Parser::AnalyzeVarType()
 {
 	VarType result(V_VOID, 0);
-	if(t.IsKeywordGroup(G_VAR))
-		result.type = t.GetKeywordId(G_VAR);
-	else if(t.IsItem())
+	if(t.IsItem())
 	{
-		Type* type = AnalyzeAddType(t.GetItem());
+		const string& name = t.GetItem();
+		Type* type = FindType(name);
+		if(!type)
+			type = AnalyzeAddType(t.GetItem());
 		result.type = type->index;
 	}
 	else
@@ -5568,7 +5580,6 @@ Type* Parser::AnalyzeAddType(const string& name)
 	type->first_charpos = t.GetCharPos();
 	type->flags = 0;
 	module.GetTypes().push_back(type);
-	AddType(type);
 	return type;
 }
 
