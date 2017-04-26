@@ -1,2 +1,5 @@
-print("hello");
-pause();
+X.f();
+class X
+{
+	static void f(){}
+}

@@ -1,8 +1,8 @@
-- ParseVarDecl is invalid in some places like:
-	class X{static void f(){}}
-	for(X.f();;) <- will try to declare var X
-
-VerifyTypeName
++ code Type AddChildType
++ get child type
++ get type from module
++ type name/full name
++ add enum from code
 
 ORDER:
 + globals
@@ -16,6 +16,7 @@ ORDER:
 
 + PushValue -> class/struct, ref
 
++ decide what identifier can repeat and where, and check it
 + rename VarType.GetType
 + cleanup parse_funcs, tmp_types on error
 + CheckTypeLoop

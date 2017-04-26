@@ -177,6 +177,7 @@ void Parser::Cleanup()
 		global_node->Free();
 		global_node = nullptr;
 	}
+	current_type = nullptr;
 }
 
 void Parser::Reset()
@@ -407,7 +408,7 @@ ParseNode* Parser::ParseLine()
 		break;
 	default:
 		assert(0);
-		break;
+		return nullptr;
 	}
 }
 
@@ -643,8 +644,23 @@ void Parser::ParseClass(bool is_struct)
 	// [class_item ...] }
 	while(!t.IsSymbol('}'))
 	{
-		if(t.IsKeyword(K_ENUM))
-			t.Throw("Enum can't be declared inside class.");
+		int keyword = t.IsAnyKeyword(G_KEYWORD, { K_CLASS, K_STRUCT, K_ENUM });
+		if(keyword != -1)
+		{
+			switch(keyword)
+			{
+			default:
+				assert(0);
+			case K_CLASS:
+			case K_STRUCT:
+				ParseClass(keyword == K_STRUCT);
+				break;
+			case K_ENUM:
+				ParseEnum(false);
+				break;
+			}
+			continue;
+		}
 
 		// member, method or ctor
 		NextType next = GetNextType(false);
@@ -720,7 +736,7 @@ void Parser::ParseClass(bool is_struct)
 	}
 	t.Next();
 
-	current_type = nullptr;
+	current_type = type->parent_type;
 }
 
 ParseNode* Parser::ParseSwitch()
@@ -909,26 +925,12 @@ void Parser::ParseEnum(bool forward)
 	// name
 	Type* type = nullptr;
 	bool ok = true;
-	if(t.IsItem())
-	{
-		const string& name = t.MustGetItem();
-		type = FindType(name);
-		if(type)
-		{
-			if(type->declared)
-				ok = false;
-		}
-		else
-		{
-			CheckFindItem(name, false);
-			type = AnalyzeAddType(name);
-		}
-	}
+	const string& name = t.MustGetItem();
+	if(current_type)
+		type = current_type->FindType(name);
 	else
-		ok = false;
-	if(!ok)
-		t.ThrowExpecting("enum name");
-	type->declared = true;
+		type = FindType(name);
+	assert(type);
 	Enum* enu = new Enum;
 	enu->type = type;
 	type->size = 4;
@@ -1036,7 +1038,8 @@ Member* Parser::ParseMemberDecl(cstring decl)
 		t.FromString(decl);
 		t.Next();
 
-		m->vartype = GetVarTypeForMember();
+		m->vartype = GetVarType(false, true);
+		CheckVarTypeForMember(m->vartype);
 
 		m->name = t.MustGetItem();
 		t.Next();
@@ -1083,7 +1086,7 @@ Global* Parser::ParseGlobalDecl(cstring decl)
 
 void Parser::ParseMemberDeclClass(Type* type, uint& pad)
 {
-	VarType vartype = GetVarTypeForMember();
+	VarType vartype = GetVarType(false);
 	Type* var_type = GetType(vartype.type);
 	uint var_size;
 	if(vartype.type == V_STRING)
@@ -1812,26 +1815,67 @@ void Parser::ParseExprConvertToRPN(vector<SymbolNode>& exit, vector<SymbolNode>&
 
 			if(bsi.op_symbol == S_MEMBER_ACCESS)
 			{
-				string* str = StringPool.Get();
-				tmp_strs.push_back(str);
-				*str = t.MustGetItem();
-				t.Next();
-				NodeRef node = ParseNode::Get();
-				node->result = V_VOID;
-				node->str = str;
-				node->source = nullptr;
-				if(t.IsSymbol('('))
+				const string& item = t.MustGetItem();
+				ParseNode* top = exit.back().node;
+				bool ok = true;
+				if(top && top->pseudo_op == PUSH_TYPE)
 				{
-					ParseArgs(node->childs);
-					node->pseudo_op = OBJ_FUNC;
+					assert(stack.back().symbol == S_MEMBER_ACCESS);
+					Type* type = GetType(top->value);
+					if(type->IsEnum())
+					{
+						auto e = type->enu->Find(item);
+						if(!e)
+							t.Throw("Invalid enumerator '%s.%s'.", type->name.c_str(), item.c_str());
+						ParseNode* enu = ParseNode::Get();
+						enu->op = PUSH_ENUM;
+						enu->result = VarType(type->index, 0);
+						enu->source = nullptr;
+						enu->value = e->second;
+						exit.pop_back();
+						stack.pop_back();
+						exit.push_back(enu);
+						t.Next();
+						ok = false;
+						top->Free();
+					}
+					else
+					{
+						Type* child_type = type->FindType(item);
+						if(child_type)
+						{
+							top->value = child_type->index;
+							exit.pop_back();
+							stack.pop_back();
+							exit.push_back(top);
+							t.Next();
+							ok = false;
+						}
+					}
 				}
-				else
-					node->pseudo_op = OBJ_MEMBER;
-				exit.push_back(node.Pin());
+				
+				if(ok)
+				{
+					string* str = StringPool.Get();
+					tmp_strs.push_back(str);
+					*str = item;
+					t.Next();
+					NodeRef node = ParseNode::Get();
+					node->result = V_VOID;
+					node->str = str;
+					node->source = nullptr;
+					if(t.IsSymbol('('))
+					{
+						ParseArgs(node->childs);
+						node->pseudo_op = OBJ_FUNC;
+					}
+					else
+						node->pseudo_op = OBJ_MEMBER;
+					exit.push_back(node.Pin());
+				}
+
 				left = BS_MAX;
-
 				ParseExprPartPost(left, exit, stack);
-
 				goto next_symbol;
 			}
 		}
@@ -2167,48 +2211,29 @@ void Parser::ParseExprApplySymbol(vector<ParseNode*>& stack, SymbolNode& sn)
 			else
 			{
 				assert(right->pseudo_op == OBJ_MEMBER);
-				Type* real_type = type;
-				if(type->index == V_TYPE)
-					real_type = GetType(left->value);
-				if(real_type->IsEnum())
-				{
-					auto e = real_type->enu->Find(*right->str);
-					if(!e)
-						t.Throw("Invalid enumerator '%s.%s'.", real_type->name.c_str(), right->str->c_str());
-					FreeTmpStr(right->str);
-					ParseNode* enu = ParseNode::Get();
-					enu->op = PUSH_ENUM;
-					enu->result = VarType(real_type->index, 0);
-					enu->source = nullptr;
-					enu->value = e->second;
-					right.Pin()->Free();
-					stack.push_back(enu);
-				}
+				
+				int m_index;
+				Member* m = type->FindMember(*right->str, m_index);
+				if(!m)
+					t.Throw("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
+				FreeTmpStr(right->str);
+				ParseNode* node = ParseNode::Get();
+				node->op = PUSH_MEMBER;
+				node->result = m->vartype;
+				node->value = m_index;
+				node->source = left->source;
+				if(!deref)
+					node->push(left.Pin());
 				else
 				{
-					int m_index;
-					Member* m = type->FindMember(*right->str, m_index);
-					if(!m)
-						t.Throw("Missing member '%s' for type '%s'.", right->str->c_str(), type->name.c_str());
-					FreeTmpStr(right->str);
-					ParseNode* node = ParseNode::Get();
-					node->op = PUSH_MEMBER;
-					node->result = m->vartype;
-					node->value = m_index;
-					node->source = left->source;
-					if(!deref)
-						node->push(left.Pin());
-					else
-					{
-						ParseNode* d = ParseNode::Get();
-						d->push(left.Pin());
-						d->result = VarType(type->index, 0);
-						d->op = DEREF;
-						node->push(d);
-					}
-					right.Pin()->Free();
-					stack.push_back(node);
+					ParseNode* d = ParseNode::Get();
+					d->push(left.Pin());
+					d->result = VarType(type->index, 0);
+					d->op = DEREF;
+					node->push(d);
 				}
+				right.Pin()->Free();
+				stack.push_back(node);
 			}
 		}
 		else if(si.symbol == S_TERNARY)
@@ -2799,28 +2824,40 @@ ParseVar* Parser::GetVar(ParseNode* node)
 	}
 }
 
-VarType Parser::GetVarType(bool is_arg, bool in_cpp, bool optional)
+bool Parser::TryGetVarType(bool is_arg, bool in_cpp, VarType& vartype)
 {
-	VarType vartype(nullptr);
-	bool ok = false;
-	if(t.IsItem())
-	{
-		const string& name = t.GetItem();
-		Type* type = FindType(name);
-		if(type)
-		{
-			vartype.type = type->index;
-			ok = true;
-		}
-	}
-	if(!ok)
-	{
-		if(optional)
-			return VarType(-1, -1);
-		t.Unexpected("Expecting var type.");
-	}
+	if(!t.IsItem())
+		return false;
+
+	const string& item = t.GetItem();
+	Type* type = nullptr;
+	if(current_type)
+		type = current_type->FindType(item);
+	if(!type)
+		type = FindType(item);
+	if(!type)
+		return false;
 	t.Next();
 
+	while(t.IsSymbol('.'))
+	{
+		tokenizer::Pos last_pos = t.GetPos();
+		t.Next();
+		if(!t.IsItem())
+			return false;
+		const string& child_item = t.GetItem();
+		Type* child_type = type->FindType(child_item);
+		if(!child_type)
+		{
+			t.MoveTo(last_pos);
+			vartype.type = type->index;
+			return true;
+		}
+		type = child_type;
+		t.Next();
+	}
+
+	vartype.type = type->index;
 	if(t.IsSymbol('&'))
 	{
 		t.Next();
@@ -2834,12 +2871,24 @@ VarType Parser::GetVarType(bool is_arg, bool in_cpp, bool optional)
 			t.Throw("Reference type '%s' must be passed by reference/pointer.", type->name.c_str());
 	}
 
-	return vartype;
+	return true;
 }
 
-VarType Parser::GetVarTypeForMember()
+VarType Parser::GetVarType(bool is_arg, bool in_cpp, bool optional)
 {
-	VarType vartype = GetVarType(false);
+	VarType vartype(nullptr);
+	if(!TryGetVarType(is_arg, in_cpp, vartype))
+	{
+		if(optional)
+			return VarType(-1, -1);
+		t.Unexpected("Expecting var type.");
+	}
+	else
+		return vartype;
+}
+
+void Parser::CheckVarTypeForMember(const VarType& vartype)
+{
 	if(vartype.type == V_VOID)
 		t.Throw("Member of 'void' type not allowed.");
 	else
@@ -2861,7 +2910,6 @@ VarType Parser::GetVarTypeForMember()
 		if(name)
 			t.Throw("Member of '%s' type not allowed yet.", name);
 	}
-	return vartype;
 }
 
 void Parser::PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node)
@@ -4622,6 +4670,7 @@ Type* Parser::GetType(int index)
 
 Type* Parser::FindType(const string& name)
 {
+
 	return module.FindType(name);
 }
 
@@ -4679,6 +4728,17 @@ FOUND Parser::FindItem(const string& id, Found& found)
 {
 	if(current_type)
 	{
+		Type* type = nullptr;
+		if(current_type->part_name == id)
+			type = current_type;
+		else
+			type = current_type->FindType(id);
+		if(type)
+		{
+			found.type = type;
+			return F_TYPE;
+		}
+
 		found.member = current_type->FindMember(id, found.member_index);
 		if(found.member)
 			return F_MEMBER;
@@ -4689,6 +4749,7 @@ FOUND Parser::FindItem(const string& id, Found& found)
 			found.func = f;
 			return F_FUNC;
 		}
+
 	}
 
 	Type* type = FindType(id);
@@ -5119,18 +5180,28 @@ NextType Parser::GetNextType(bool analyze)
 	// var type
 	if(analyze)
 	{
-		if(!t.IsItem())
+		do
 		{
-			t.MoveTo(pos);
-			return NT_INVALID;
-		}
-		t.Next();
+			if(!t.IsItem())
+			{
+				t.MoveTo(pos);
+				return NT_INVALID;
+			}
+			t.Next();
+			if(t.IsSymbol('.'))
+				t.Next();
+			else
+				break;
+		} while(true);
 	}
 	else
 	{
 		auto result = GetVarType(false, false, true);
 		if(result == VarType(-1, -1))
+		{
+			t.MoveTo(pos);
 			return NT_INVALID;
+		}
 	}
 
 	NextType result;
@@ -5203,8 +5274,11 @@ void Parser::CheckGlobalCodeDisallowed()
 
 void Parser::AnalyzeCode()
 {
+	AnalyzeTypes();
+
 	string str;
 	char c;
+	current_type = nullptr;
 
 	while(!t.IsEof())
 	{
@@ -5218,7 +5292,7 @@ void Parser::AnalyzeCode()
 			t.Next();
 		}
 		else
-			AnalyzeLine(nullptr);
+			AnalyzeLine();
 	}
 
 	VerifyAllTypes();
@@ -5227,28 +5301,110 @@ void Parser::AnalyzeCode()
 	t.Reset();
 }
 
+auto skip_func = [](Tokenizer& t)
+{
+	return t.IsAnyKeyword(G_KEYWORD, { K_CLASS, K_STRUCT, K_ENUM }) != -1 || t.IsSymbol('{') || t.IsSymbol('}');
+};
+
+void Parser::AnalyzeTypes()
+{
+	do
+	{
+		if(!t.SkipTo(skip_func))
+			break;
+
+		if(t.IsKeyword())
+			AnalyzeType(nullptr);
+		else if(t.IsSymbol('{'))
+		{
+			t.ForceMoveToClosingSymbol('{');
+			t.Next();
+		}
+		else
+			t.Unexpected();
+
+	} while(true);
+
+	t.Reset();
+	t.Next();
+}
+
+cstring KeywordToTag(KEYWORD keyword)
+{
+	switch(keyword)
+	{
+	case K_CLASS:
+		return "class";
+	case K_STRUCT:
+		return "struct";
+	case K_ENUM:
+		return "enum";
+	default:
+		assert(0);
+		return "invalid";
+	}
+}
+
+void Parser::AnalyzeType(Type* parent_type)
+{
+	KEYWORD keyword = (KEYWORD)t.GetKeywordId(G_KEYWORD);
+	t.Next();
+
+	if(!t.IsItem())
+		t.ThrowExpecting(Format("%s name", KeywordToTag(keyword)));
+	const string& name = t.GetItem();
+	Type* type;
+	if(parent_type)
+		type = parent_type->FindType(name);
+	else
+		type = FindType(name);
+	if(type)
+		t.Throw("Type '%s' already defined.", type->name.c_str());
+	type = AnalyzeAddType(name, parent_type);
+	t.Next();
+
+	t.AssertSymbol('{');
+	if(keyword == K_ENUM)
+	{
+		t.ForceMoveToClosingSymbol('{');
+		t.Next();
+		return;
+	}
+	t.Next();
+	do
+	{
+		if(!t.SkipTo(skip_func))
+			t.Throw("Missing closing '}' for %s %s.", KeywordToTag(keyword), type->name.c_str());
+
+		if(t.IsKeyword())
+			AnalyzeType(type);
+		else if(t.IsSymbol('}'))
+			break;
+		else if(t.IsSymbol('{'))
+		{
+			t.ForceMoveToClosingSymbol('{');
+			t.Next();
+		}
+
+	} while(true);
+
+	t.Next();
+}
+
 void Parser::AnalyzeClass()
 {
 	bool is_class = (t.GetKeywordId(G_KEYWORD) == (int)K_CLASS);
 	t.Next();
 
-	Type* type = nullptr;
-	if(t.IsItem())
-	{
-		const string& name = t.GetItem();
+	const string& name = t.MustGetItem();
+	Type* type;
+	if(current_type)
+		type = current_type->FindType(name);
+	else
 		type = FindType(name);
-		if(type)
-		{
-			if(type->declared)
-				t.Throw("Can't declare %s '%s', type is already declared.", is_class ? "class" : "struct", t.GetTokenString().c_str());
-		}
-		else
-			type = AnalyzeAddType(name);
-	}
-	if(!type)
-		t.Unexpected(tokenizer::T_ITEM);
+	assert(type);
 
-	type->declared = true;
+	current_type = type;
 	type->flags = Type::Class;
 	if(is_class)
 		type->flags |= Type::Ref;
@@ -5263,7 +5419,7 @@ void Parser::AnalyzeClass()
 	{
 		while(true)
 		{
-			AnalyzeLine(type);
+			AnalyzeLine();
 			if(t.IsSymbol('}'))
 			{
 				t.Next();
@@ -5273,10 +5429,22 @@ void Parser::AnalyzeClass()
 	}
 
 	CreateDefaultFunctions(type, type->have_def_value ? 1 : -1);
+	current_type = nullptr;
 }
 
-void Parser::AnalyzeLine(Type* type)
+void Parser::AnalyzeLine()
 {
+	if(t.IsKeyword(K_CLASS, G_KEYWORD) || t.IsKeyword(K_STRUCT, G_KEYWORD))
+	{
+		AnalyzeClass();
+		return;
+	}
+	else if(t.IsKeyword(K_ENUM, G_KEYWORD))
+	{
+		ParseEnum(true);
+		return;
+	}
+
 	NextType next = GetNextType(true);
 	if(next == NT_FUNC)
 	{
@@ -5284,7 +5452,7 @@ void Parser::AnalyzeLine(Type* type)
 		bool dtor = false;
 
 		// function modifiers
-		ParseFuncModifiers(type != nullptr, flags);
+		ParseFuncModifiers(current_type != nullptr, flags);
 
 		if(t.IsSymbol('~'))
 		{
@@ -5299,20 +5467,20 @@ void Parser::AnalyzeLine(Type* type)
 			assert(vartype.type != V_REF);
 
 			// ctor/dtor
-			if(!type)
+			if(!current_type)
 				t.Throw("%s can only be declared inside class.", dtor ? "Destructor" : "Constructor");
 
 			if(dtor)
 			{
 				if(IS_SET(flags, Function::F_STATIC))
 					t.Throw("Static destructor not allowed.");
-				AnalyzeArgs(V_VOID, SF_DTOR, type, Format("~%s", type->name.c_str()), flags);
+				AnalyzeArgs(V_VOID, SF_DTOR, current_type, Format("~%s", current_type->name.c_str()), flags);
 			}
 			else
 			{
 				if(IS_SET(flags, Function::F_STATIC))
 					t.Throw("Static constructor not allowed.");
-				AnalyzeArgs(vartype, SF_CTOR, type, type->name.c_str(), flags);
+				AnalyzeArgs(vartype, SF_CTOR, current_type, current_type->name.c_str(), flags);
 			}
 		}
 		else
@@ -5323,7 +5491,7 @@ void Parser::AnalyzeLine(Type* type)
 			if(t.IsKeyword(K_OPERATOR, G_KEYWORD))
 			{
 				// operator
-				if(!type)
+				if(!current_type)
 					t.Throw("Operator function can be used only inside class.");
 				if(IS_SET(flags, Function::F_STATIC))
 					t.Throw("Static operator not allowed.");
@@ -5335,7 +5503,7 @@ void Parser::AnalyzeLine(Type* type)
 					if(item == "cast")
 					{
 						t.Next();
-						AnalyzeArgs(vartype, SF_CAST, type, "$opCast", flags);
+						AnalyzeArgs(vartype, SF_CAST, current_type, "$opCast", flags);
 					}
 					else if(item == "addref" || item == "release")
 						t.Throw("Operator function '%s' can only be registered in code.", item.c_str());
@@ -5351,7 +5519,7 @@ void Parser::AnalyzeLine(Type* type)
 					if(!CanOverload(symbol))
 						t.Throw("Can't overload operator '%s'.", basic_symbols[symbol].GetOverloadText());
 					t.Next();
-					ParseFunction* func = AnalyzeArgs(vartype, SF_NO, type, "$tmp", flags);
+					ParseFunction* func = AnalyzeArgs(vartype, SF_NO, current_type, "$tmp", flags);
 					if(!FindMatchingOverload(*func, symbol))
 						t.Throw("Invalid overload operator definition '%s'.", func->GetFormattedName(true, true, &symbol));
 					func->BuildDecl();
@@ -5365,40 +5533,41 @@ void Parser::AnalyzeLine(Type* type)
 				t.Next();
 
 				t.AssertSymbol('(');
-				AnalyzeArgs(vartype, SF_NO, type, func_name.c_str(), flags);
+				AnalyzeArgs(vartype, SF_NO, current_type, func_name.c_str(), flags);
 			}
 		}
 	}
 	else if(next == NT_VAR_DECL)
 	{
 		// var decl
-		if(!type)
+		if(!current_type)
 		{
 			t.Next();
 			return;
 		}
 
 		VarType vartype = AnalyzeVarType();
+		CheckVarTypeForMember(vartype);
 
 		do
 		{
 			Member* m = new Member;
-			m->type = type;
+			m->type = current_type;
 			m->vartype = vartype;
 			m->name = t.MustGetItem();
 			int index;
-			if(type->FindMember(m->name, index))
-				t.Throw("Member with name '%s.%s' already exists.", type->name.c_str(), m->name.c_str());
+			if(current_type->FindMember(m->name, index))
+				t.Throw("Member with name '%s.%s' already exists.", current_type->name.c_str(), m->name.c_str());
 			t.Next();
-			m->index = type->members.size();
+			m->index = current_type->members.size();
 			m->have_def_value = true;
-			type->members.push_back(m);
+			current_type->members.push_back(m);
 
 			if(t.IsSymbol('('))
 			{
 				m->have_def_value = true;
 				m->pos = t.GetPos();
-				type->have_def_value = true;
+				current_type->have_def_value = true;
 				t.ForceMoveToClosingSymbol('(', ')');
 				t.Next();
 			}
@@ -5406,7 +5575,7 @@ void Parser::AnalyzeLine(Type* type)
 			{
 				m->have_def_value = true;
 				m->pos = t.GetPos();
-				type->have_def_value = true;
+				current_type->have_def_value = true;
 				if(!t.SkipTo([](Tokenizer& t)
 				{
 					if(t.IsSymbol())
@@ -5431,7 +5600,10 @@ void Parser::AnalyzeLine(Type* type)
 				m->have_def_value = false;
 
 			if(t.IsSymbol(';'))
+			{
+				t.Next();
 				break;
+			}
 			t.AssertSymbol(',');
 			t.Next();
 		} while(1);
@@ -5546,19 +5718,29 @@ ParseFunction* Parser::AnalyzeArgs(VarType result, SpecialFunction special, Type
 
 VarType Parser::AnalyzeVarType()
 {
-	VarType result(V_VOID, 0);
-	if(t.IsItem())
+	const string& name = t.MustGetItem();
+	Type* type = nullptr;
+	if(current_type)
+		type = current_type->FindType(name);
+	if(!type)
 	{
-		const string& name = t.GetItem();
-		Type* type = FindType(name);
+		type = FindType(name);
 		if(!type)
-			type = AnalyzeAddType(t.GetItem());
-		result.type = type->index;
+			t.Throw("Undeclared type '%s'.", name.c_str());
 	}
-	else
-		t.Unexpected();
 	t.Next();
+	while(t.IsSymbol('.'))
+	{
+		t.Next();
+		const string& name = t.MustGetItem();
+		Type* child_type = type->FindType(name);
+		if(!child_type)
+			t.Throw("Undeclared type '%s'.", name.c_str());
+		type = child_type;
+		t.Next();
+	}
 
+	VarType result(type->index, 0);
 	if(t.IsSymbol('&'))
 	{
 		result.subtype = result.type;
@@ -5569,32 +5751,25 @@ VarType Parser::AnalyzeVarType()
 	return result;
 }
 
-Type* Parser::AnalyzeAddType(const string& name) 
+Type* Parser::AnalyzeAddType(const string& name, Type* parent) 
 {
 	Type* type = new Type;
 	type->module_proxy = &module;
-	type->name = name;
+	type->part_name = name;
 	type->index = module.GetTypes().size() | (module.GetIndex() << 16);
-	type->declared = false;
 	type->first_line = t.GetLine();
 	type->first_charpos = t.GetCharPos();
 	type->flags = 0;
+	type->parent_type = parent;
+	if(parent)
+	{
+		type->name = Format("%s.%s", parent->name.c_str(), name.c_str());
+		parent->child_types.push_back(type);
+	}
+	else
+		type->name = name;
 	module.GetTypes().push_back(type);
 	return type;
-}
-
-void Parser::AnalyzeMakeType(VarType& vartype, const string& name)
-{
-	if(vartype.type == V_SPECIAL)
-	{
-		Type* result_type = AnalyzeAddType(name);
-		vartype = VarType(result_type->index, 0);
-	}
-	else if(vartype.subtype == V_SPECIAL)
-	{
-		Type* result_type = AnalyzeAddType(name);
-		vartype = VarType(V_REF, result_type->index);
-	}
 }
 
 // create default functions for type if they are not declared
@@ -5877,7 +6052,12 @@ void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
 			node->value = m->value;
 			break;
 		default:
-			// will write error in parsing phase
+			{
+				Type* type = GetType(m->vartype.type);
+				assert(type->IsEnum());
+				node->op = PUSH_ENUM;
+				node->value = m->value;
+			}
 			break;
 		}
 	}
@@ -5906,7 +6086,12 @@ void Parser::SetParseNodeFromMember(ParseNode* node, Member* m)
 			node->value = EMPTY_STRING;
 			break;
 		default:
-			// will write error in parsing phase
+			{
+				Type* type = GetType(m->vartype.type);
+				assert(type->IsEnum());
+				node->op = PUSH_ENUM;
+				node->value = 0;
+			}
 			break;
 		}
 	}
@@ -5955,34 +6140,36 @@ void Parser::VerifyAllTypes()
 	for(uint i = new_types_offset, count = module.GetTypes().size(); i < count; ++i)
 	{
 		Type* type = module.GetTypes()[i];
-		if(!type->declared)
-			t.ThrowAt(type->first_line, type->first_charpos, "Undeclared type '%s' used.", type->name.c_str());
-		if(type->have_def_value)
+		if(!type->have_def_value)
+			continue;
+
+		current_type = type;
+
+		for(Member* m : type->members)
 		{
-			for(Member* m : type->members)
+			if(!m->have_def_value)
+				continue;
+			t.MoveTo(m->pos);
+			if(t.IsSymbol('='))
 			{
-				if(!m->have_def_value)
-					continue;
-				t.MoveTo(m->pos);
-				if(t.IsSymbol('='))
-				{
-					t.Next();
-					NodeRef item = ParseConstExpr();
-					if(!TryCast(item.Get(), m->vartype))
-						t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
-					m->value = item->value;
-				}
-				else
-				{
-					assert(t.IsSymbol('('));
-					ParseNode* node = ParseVarCtor(m->vartype);
-					assert(node->op != CALLU_CTOR && node->op != CALL_PARSE_CTOR && node->op != CALL);
-					m->value = node->value;
-					node->Free();
-				}
+				t.Next();
+				NodeRef item = ParseConstExpr();
+				if(!TryCast(item.Get(), m->vartype))
+					t.Throw("Can't assign type '%s' to member '%s.%s'.", GetTypeName(item), type->name.c_str(), m->name.c_str());
+				m->value = item->value;
 			}
-			CreateDefaultFunctions(type, 0);
+			else
+			{
+				assert(t.IsSymbol('('));
+				ParseNode* node = ParseVarCtor(m->vartype);
+				assert(node->op != CALLU_CTOR && node->op != CALL_PARSE_CTOR && node->op != CALL);
+				m->value = node->value;
+				node->Free();
+			}
 		}
+
+		CreateDefaultFunctions(type, 0);
+		current_type = nullptr;
 	}
 }
 

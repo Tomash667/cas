@@ -452,19 +452,19 @@ TEST_METHOD(CantCast)
 TEST_METHOD(ClassRedeclaration)
 {
 	RunTest("class A{} class A{}")
-		.ShouldFail("Can't declare class 'A', type is already declared.");
+		.ShouldFail("Type 'A' already defined.");
 }
 
 TEST_METHOD(UndeclaredTypeUsed)
 {
 	RunTest("A f(){A a; return a;}")
-		.ShouldFail("Undeclared type 'A' used.");
+		.ShouldFail("Undeclared type 'A'.");
 }
 
 TEST_METHOD(MissingFunctionClosingBrace)
 {
 	RunTest("void f(){")
-		.ShouldFail("Missing closing '}' for function 'f' declaration.");
+		.ShouldFail("Missing closing '}'");
 }
 
 TEST_METHOD(ReferenceAssignToInvalidType)
@@ -694,12 +694,6 @@ TEST_METHOD(EnumInsideBlock)
 		.ShouldFail("Enum can't be declared inside block.");
 	RunTest("void f(){enum E{}}")
 		.ShouldFail("Enum can't be declared inside block.");
-}
-
-TEST_METHOD(EnumInsideClass)
-{
-	RunTest("class C{enum E{}}")
-		.ShouldFail("Enum can't be declared inside class.");
 }
 
 TEST_METHOD(ExpectingEnumName)

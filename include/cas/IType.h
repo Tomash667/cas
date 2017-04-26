@@ -34,12 +34,16 @@ namespace cas
 			return generic_type == GenericType::Enum;
 		}
 
+		virtual IType* GetChildType(cstring name) = 0;
 		virtual const vector<std::pair<string, int>>& GetEnumValues() = 0;
+		virtual cstring GetFullName() = 0;
 		virtual IMember* GetMember(cstring name) = 0;
 		virtual IFunction* GetMethod(cstring name_or_decl, int flags = 0) = 0;
 		virtual void GetMethodsList(vector<IFunction*>& funcs, cstring name, int flags = 0) = 0;
 		virtual IModule* GetModule() = 0;
-		virtual cstring GetName() const = 0;
+		virtual cstring GetName() = 0;
+		virtual IType* GetParentType() = 0;
+		virtual void QueryChildTypes(delegate<bool(IType*)> pred) = 0;
 		virtual void QueryMembers(delegate<bool(IMember*)> pred) = 0;
 		virtual void QueryMethods(delegate<bool(IFunction*)> pred) = 0;
 

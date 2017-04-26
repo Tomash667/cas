@@ -45,10 +45,10 @@ cas::IEnum* Module::AddEnum(cstring type_name)
 	Type* type = new Type;
 	type->module_proxy = this;
 	type->name = type_name;
+	type->part_name = type_name;
 	type->size = sizeof(int);
 	type->flags = Type::Code;
 	type->index = types.size() | (index << 16);
-	type->declared = true;
 	type->built = false;
 	type->enu = new Enum;
 	type->enu->type = type;
@@ -163,6 +163,7 @@ cas::IClass* Module::AddType(cstring type_name, int size, int flags)
 	Type* type = new Type;
 	type->module_proxy = this;
 	type->name = type_name;
+	type->part_name = type_name;
 	type->size = size;
 	type->flags = Type::Class | Type::Code;
 	if(IS_SET(flags, cas::ValueType))
@@ -176,7 +177,6 @@ cas::IClass* Module::AddType(cstring type_name, int size, int flags)
 	if(IS_SET(flags, cas::RefCount))
 		type->flags |= Type::RefCount;
 	type->index = types.size() | (index << 16);
-	type->declared = true;
 	type->built = false;
 	type->SetGenericType();
 	types.push_back(type);
@@ -580,11 +580,11 @@ Type* Module::AddCoreType(cstring type_name, int size, CoreVarType var_type, int
 	Type* type = new Type;
 	type->module_proxy = this;
 	type->name = type_name;
+	type->part_name = type_name;
 	type->size = size;
 	type->index = types.size();
 	assert(type->index == (int)var_type);
 	type->flags = flags;
-	type->declared = true;
 	type->built = false;
 	type->SetGenericType();
 	types.push_back(type);
@@ -653,7 +653,7 @@ Type* Module::FindType(const string& name)
 	{
 		for(Type* type : m.second->types)
 		{
-			if(type->name == name && !type->IsHidden())
+			if(type->name == name && !type->IsHidden() && type->parent_type == nullptr)
 				return type;
 		}
 	}

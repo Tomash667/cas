@@ -28,25 +28,31 @@ struct Type final : public cas::IClass, public cas::IEnum
 	};
 
 	IModuleProxy* module_proxy;
-	string name;
+	string name, part_name;
 	vector<AnyFunction> funcs;
 	AnyFunction dtor;
+	Type* parent_type;
+	vector<Type*> child_types;
 	vector<Member*> members;
 	Enum* enu;
-	int size, index, flags;
+	int size, index, flags, refs;
 	uint first_line, first_charpos;
-	bool declared, built, have_def_value, have_complex_member;
+	bool built, have_def_value, have_complex_member;
 
-	Type() : enu(nullptr), dtor(nullptr), have_def_value(false), have_complex_member(false) {}
+	Type() : enu(nullptr), dtor(nullptr), have_def_value(false), have_complex_member(false), parent_type(nullptr), refs(0) {}
 	~Type();
 
 	// from IType
+	Type* GetChildType(cstring name) override;
 	const vector<std::pair<string, int>>& GetEnumValues() override;
+	cstring GetFullName() override;
 	cas::IMember* GetMember(cstring name) override;
 	cas::IFunction* GetMethod(cstring name_or_decl, int flags) override;
 	void GetMethodsList(vector<cas::IFunction*>& funcs, cstring name, int flags) override;
 	cas::IModule* GetModule() override;
-	cstring GetName() const override;
+	cstring GetName() override;
+	cas::IType* GetParentType() override;
+	void QueryChildTypes(delegate<bool(cas::IType*)> pred) override;
 	void QueryMembers(delegate<bool(cas::IMember*)> pred) override;
 	void QueryMethods(delegate<bool(cas::IFunction*)> pred) override;
 
@@ -69,6 +75,7 @@ struct Type final : public cas::IClass, public cas::IEnum
 	Member* FindMember(const string& name, int& index);
 	CodeFunction* FindSpecialCodeFunction(SpecialFunction special);
 	AnyFunction FindSpecialFunction(SpecialFunction spec, delegate<bool(AnyFunction& f)> pred);
+	Type* FindType(const string& name);
 	void SetGenericType();
 
 	bool IsClass() const { return IS_SET(flags, Type::Class); }

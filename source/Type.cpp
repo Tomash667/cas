@@ -12,10 +12,28 @@ Type::~Type()
 	DeleteElements(members);
 }
 
+Type* Type::GetChildType(cstring name)
+{
+	assert(name);
+
+	for(auto child : child_types)
+	{
+		if(child->name == name)
+			return child;
+	}
+
+	return nullptr;
+}
+
 const vector<std::pair<string, int>>& Type::GetEnumValues()
 {
 	assert(enu);
 	return enu->values;
+}
+
+cstring Type::GetFullName()
+{
+	return name.c_str();
 }
 
 cas::IMember* Type::GetMember(cstring name)
@@ -36,9 +54,23 @@ cas::IModule* Type::GetModule()
 	return module_proxy;
 }
 
-cstring Type::GetName() const
+cstring Type::GetName()
 {
-	return name.c_str();
+	return part_name.c_str();
+}
+
+cas::IType* Type::GetParentType()
+{
+	return parent_type;
+}
+
+void Type::QueryChildTypes(delegate<bool(cas::IType*)> pred)
+{
+	for(auto child : child_types)
+	{
+		if(!pred(child))
+			return;
+	}
 }
 
 void Type::QueryMembers(delegate<bool(cas::IMember*)> pred)
@@ -269,6 +301,17 @@ AnyFunction Type::FindSpecialFunction(SpecialFunction spec, delegate<bool(AnyFun
 	{
 		if(f.f->special == spec && pred(f))
 			return f;
+	}
+
+	return nullptr;
+}
+
+Type* Type::FindType(const string& name)
+{
+	for(auto type : child_types)
+	{
+		if(type->part_name == name)
+			return type;
 	}
 
 	return nullptr;

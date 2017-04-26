@@ -117,8 +117,9 @@ private:
 
 	void CheckFindItem(const string& id, bool is_func);
 	ParseVar* GetVar(ParseNode* node);
+	bool TryGetVarType(bool is_arg, bool in_cpp, VarType& vartype);
 	VarType GetVarType(bool is_arg, bool in_cpp = false, bool optional = false);
-	VarType GetVarTypeForMember();
+	void CheckVarTypeForMember(const VarType& vartype);
 	void PushSymbol(SYMBOL symbol, vector<SymbolNode>& exit, vector<SymbolNode>& stack, ParseNode* node = nullptr);
 	bool GetNextSymbol(BASIC_SYMBOL& symbol);
 	BASIC_SYMBOL GetSymbol(bool full_over = false);
@@ -167,12 +168,13 @@ private:
 	void CheckGlobalCodeDisallowed();
 
 	void AnalyzeCode();
+	void AnalyzeTypes();
+	void AnalyzeType(Type* parent_type);
 	void AnalyzeClass();
-	void AnalyzeLine(Type* type);
+	void AnalyzeLine();
 	ParseFunction* AnalyzeArgs(VarType result, SpecialFunction special, Type* type, cstring name, int flags);
 	VarType AnalyzeVarType();
-	Type* AnalyzeAddType(const string& name);
-	void AnalyzeMakeType(VarType& vartype, const string& name);
+	Type* AnalyzeAddType(const string& name, Type* parent);
 	void SetParseNodeFromMember(ParseNode* node, Member* m);
 	bool HasSideEffects(ParseNode* node);
 	void VerifyAllTypes();

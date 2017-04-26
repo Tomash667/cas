@@ -42,7 +42,8 @@ Engine::Engine() : core_module(nullptr), handler(nullptr), initialized(false)
 
 Engine::~Engine()
 {
-	DeleteElements(all_modules);
+	for(auto it = all_modules.rbegin(), end = all_modules.rend(); it != end; ++it)
+		delete *it;
 	delete logger;
 	g_engine = nullptr;
 }

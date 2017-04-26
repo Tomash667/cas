@@ -94,7 +94,6 @@ cas::IObject* CallContext::CreateInstance(cas::IType* _type)
 					}
 					break;
 				default:
-					// TODO
 					assert(0);
 					s += "invalid";
 					break;
@@ -2322,7 +2321,8 @@ void CallContext::SetMemberValue(Class* c, Member* m, Var& v)
 		}
 		break;
 	default:
-		assert(0);
+		assert(module.GetType(m->vartype.type)->IsEnum());
+		c->at<int>(m->offset) = v.value;
 		break;
 	}
 }
