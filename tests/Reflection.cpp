@@ -375,7 +375,6 @@ TEST_METHOD(MixedFunctions)
 
 	result = module2->Parse("A();a();B();b();C();c();D();d();");
 	Assert::AreEqual(IModule::Ok, result);
-	WriteDecompileOutput(module2);
 	auto cc = module2->CreateCallContext();
 	ok = cc->Run();
 	module2->Release();
@@ -647,8 +646,6 @@ TEST_METHOD(PushEnumValue)
 			f = F.AA;
 		}
 	)code"));
-
-	WriteDecompileOutput(module);
 
 	// pass script enum by value
 	auto context = module->CreateCallContext();

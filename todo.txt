@@ -1,3 +1,6 @@
+=== ref compare
+@= ref assign
+
 + code Type AddChildType
 + get child type
 + get type from module

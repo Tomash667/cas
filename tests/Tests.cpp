@@ -310,6 +310,29 @@ TEST_METHOD(GlobalsMix)
 	module2->Release();
 }
 
+TEST_METHOD(EnumInsideClass)
+{
+	RunTest(R"code(
+		X.E forward() { return X.E.A; }
+		class X
+		{
+			E forward2() { return E.A; }
+			enum E
+			{
+				A,
+				B,
+				C
+			}
+
+			E e = E.B;
+			X.E e2 = X.E.C;
+		}
+		X.E ee = X.E.A;
+		X x;
+		x.e = X.E.A;
+	)code");
+}
+
 CA_TEST_CLASS_END();
 
 int tests::Tests::c_1, tests::Tests::c_2;

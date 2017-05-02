@@ -140,6 +140,11 @@ void Decompiler::DecompileFunctions()
 	for(uint i = 0, count = funcs.size(); i < count;)
 	{
 		ScriptFunction* f = funcs[i];
+		if(f->pos == (uint)-1)
+		{
+			++i;
+			continue;
+		}
 		*s_output << Format("%s:\n", f->GetFormattedName(false));
 		uint next_func = i + 1;
 		bool ok = false;
@@ -224,25 +229,47 @@ void Decompiler::DecompileType(int type, int val)
 	switch(type)
 	{
 	case V_CHAR:
-		out << Format("'%s' ", EscapeChar(union_cast<char>(val)));
+		{
+			char c = union_cast<char>(val);
+			cstring escaped = EscapeChar(c);
+			out << Format("'%s' ", escaped);
+		}
 		break;
 	case V_INT:
 		out << Format("%d ", val);
 		break;
 	case V_FLOAT:
-		out << Format("%.2g ", union_cast<float>(val));
+		{
+			float f = union_cast<float>(val);
+			out << Format("%.2g ", f);
+		}
 		break;
 	case V_STRING:
-		out << Format("\"%s\" ", Escape(module->GetStr(val)->s.c_str()));
+		{
+			Str* str = module->GetStr(val);
+			cstring escaped = Escape(str->s.c_str());
+			out << Format("\"%s\" ", escaped);
+		}
 		break;
 	case V_CODE_FUNCTION:
-		out << Format("%s ", module->GetCodeFunction(val)->GetFormattedName(false));
+		{
+			auto func = module->GetCodeFunction(val);
+			cstring name = func->GetFormattedName(false);
+			out << Format("%s ", name);
+		}
 		break;
 	case V_SCRIPT_FUNCTION:
-		out << Format("%s ", module->GetScriptFunction(val)->GetFormattedName(false));
+		{
+			auto func = module->GetScriptFunction(val);
+			cstring name = func->GetFormattedName(false);
+			out << Format("%s ", name);
+		}
 		break;
 	case V_TYPE:
-		out << Format("%s ", module->GetType(val)->name.c_str());
+		{
+			auto module_type = module->GetType(val);
+			out << Format("%s ", module_type->name.c_str());
+		}
 		break;
 	default:
 		assert(0);
